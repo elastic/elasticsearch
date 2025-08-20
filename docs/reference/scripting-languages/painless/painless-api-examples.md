@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-execute-api.html
+products:
+  - id: painless
 ---
 
 # Painless API examples [painless-execute-api]
@@ -42,7 +44,7 @@ Each context requires a script, but additional parameters depend on the context 
 The `emit` method cannot accept `null` values. Do not call this method if the referenced fields do not have any values.
 :::
 
-  ::::{dropdown} Signatures of `emit`
+  ::::{dropdown} Signatures of emit
   The signature for `emit` depends on the `type` of the field.
 
   `boolean`
@@ -72,7 +74,7 @@ $$$_contexts$$$
 `context`
 :   (Optional, string) The context that the script should run in. Defaults to `painless_test` if no context is specified.
 
-::::::{dropdown} Properties of `context`
+::::::{dropdown} Properties of context
 `painless_test`
 :   The default context if no other context is specified. See [test context](#painless-execute-test).
 
@@ -130,7 +132,7 @@ Result ordering in the field contexts is not guaranteed.
     ::::
 
 
-  :::::{dropdown} Properties of `context_setup`
+  :::::{dropdown} Properties of context_setup
   `document`
   :   (Required, string) Document that’s temporarily indexed in-memory and accessible from the script.
 

@@ -24,8 +24,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -82,7 +82,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest {
         return new NodeRequest(secureSettingsPassword, refs);
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         @Nullable
         private final SecureString secureSettingsPassword;

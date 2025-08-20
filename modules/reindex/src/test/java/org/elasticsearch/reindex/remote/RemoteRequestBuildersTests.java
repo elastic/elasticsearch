@@ -211,14 +211,29 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(new SearchSourceBuilder());
+        // always set by AbstractAsyncBulkByScrollAction#prepareSearchRequest
+        searchRequest.source().excludeVectors(false);
         String query = "{\"match_all\":{}}";
         HttpEntity entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
-            assertEquals(
-                "{\"query\":" + query + ",\"_source\":true}",
-                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8))
-            );
+            if (remoteVersion.onOrAfter(Version.V_9_1_0)) {
+                // vectors are automatically included on recent versions
+                assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                    {
+                      "query": %s,
+                      "_source": {
+                        "exclude_vectors":false,
+                        "includes": [],
+                        "excludes": []
+                      }
+                    }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+            } else {
+                assertEquals(
+                    "{\"query\":" + query + ",\"_source\":true}",
+                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8))
+                );
+            }
         } else {
             assertEquals(
                 "{\"query\":" + query + "}",
@@ -230,14 +245,27 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().fetchSource(new String[] { "in1", "in2" }, new String[] { "out" });
         entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
-            {
-              "query": %s,
-              "_source": {
-                "includes": [ "in1", "in2" ],
-                "excludes": [ "out" ]
-              }
-            }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        if (remoteVersion.onOrAfter(Version.V_9_1_0)) {
+            // vectors are automatically included on recent versions
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                {
+                  "query": %s,
+                  "_source": {
+                    "exclude_vectors":false,
+                    "includes": [ "in1", "in2" ],
+                    "excludes": [ "out" ]
+                  }
+                }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        } else {
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                {
+                  "query": %s,
+                  "_source": {
+                    "includes": [ "in1", "in2" ],
+                    "excludes": [ "out" ]
+                  }
+                }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        }
 
         // Invalid XContent fails
         RuntimeException e = expectThrows(

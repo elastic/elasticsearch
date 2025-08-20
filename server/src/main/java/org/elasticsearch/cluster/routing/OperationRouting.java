@@ -9,17 +9,14 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,11 +41,9 @@ public class OperationRouting {
     );
 
     private boolean useAdaptiveReplicaSelection;
-    private final boolean isStateless;
 
     @SuppressWarnings("this-escape")
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
-        this.isStateless = DiscoveryNode.isStateless(settings);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
     }
@@ -80,19 +75,6 @@ public class OperationRouting {
         return preferenceActiveShardIterator(indexShard, nodes.getLocalNodeId(), nodes, preference, null, null);
     }
 
-    public ShardIterator useOnlyPromotableShardsForStateless(ShardIterator shards) {
-        // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
-        // implemented for search shards.
-        if (isStateless && shards != null) {
-            return new ShardIterator(
-                shards.shardId(),
-                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
-            );
-        } else {
-            return shards;
-        }
-    }
-
     public List<ShardIterator> searchShards(
         ProjectState projectState,
         String[] concreteIndices,
@@ -110,9 +92,9 @@ public class OperationRouting {
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
-        Set<IndexShardRoutingTable> shards = computeTargetedShards(projectState, concreteIndices, routing);
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(projectState, concreteIndices, routing);
         DiscoveryNodes nodes = projectState.cluster().nodes();
-        Set<ShardIterator> set = Sets.newHashSetWithExpectedSize(shards.size());
+        List<ShardIterator> res = new ArrayList<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
             ShardIterator iterator = preferenceActiveShardIterator(
                 shard,
@@ -123,11 +105,10 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(ShardIterator.allSearchableShards(iterator));
+                res.add(ShardIterator.allSearchableShards(iterator));
             }
         }
-        List<ShardIterator> res = new ArrayList<>(set);
-        CollectionUtil.timSort(res);
+        res.sort(ShardIterator::compareTo);
         return res;
     }
 

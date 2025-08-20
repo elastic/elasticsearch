@@ -1501,10 +1501,15 @@ public final class NodeEnvironment implements Closeable {
 
     /**
      * Get a useful version string to direct a user's downgrade operation
+     * <p>
+     * Assuming that the index was compatible with {@code previousNodeVersion},
+     * the user should downgrade to that {@code previousNodeVersion},
+     * unless it's prior to the minimum compatible version,
+     * in which case the user should downgrade to that instead.
+     * (If the index version is so old that the minimum compatible version is incompatible with the index,
+     * then the cluster was already borked before the node upgrade began,
+     * and we can't probably help them without more info than we have here.)
      *
-     * <p>If a user is trying to install current major N but has incompatible indices, the user should
-     * downgrade to last minor of the previous major (N-1).last. We return (N-1).last, unless the user is trying to upgrade from
-     * a (N-1).last.x release, in which case we return the last installed version.
      * @return Version to downgrade to
      */
     // visible for testing

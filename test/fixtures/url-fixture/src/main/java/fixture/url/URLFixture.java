@@ -8,7 +8,15 @@
  */
 package fixture.url;
 
+import org.apache.ftpserver.FtpServer;
+import org.apache.ftpserver.FtpServerFactory;
+import org.apache.ftpserver.ftplet.FtpException;
+import org.apache.ftpserver.listener.Listener;
+import org.apache.ftpserver.listener.ListenerFactory;
+import org.apache.ftpserver.usermanager.impl.BaseUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.junit.rules.TemporaryFolder;
@@ -17,7 +25,6 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -97,8 +104,43 @@ public class URLFixture extends AbstractHttpFixture implements TestRule {
     protected void before() throws Throwable {
         this.temporaryFolder.create();
         this.repositoryDir = temporaryFolder.newFolder("repoDir").toPath();
-        InetSocketAddress inetSocketAddress = resolveAddress("0.0.0.0", 0);
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
         listen(inetSocketAddress, false);
+
+        startFtpServer();
+    }
+
+    @Nullable // if not started
+    private FtpServer ftpServer;
+
+    @Nullable // if not started
+    private String ftpUrl;
+
+    private void startFtpServer() throws FtpException {
+        final var listenerFactory = new ListenerFactory();
+        listenerFactory.setServerAddress(InetAddress.getLoopbackAddress().getHostAddress());
+        listenerFactory.setPort(0);
+        final var listener = listenerFactory.createListener();
+        final var listenersMap = new HashMap<String, Listener>();
+        listenersMap.put("default", listener);
+
+        final var user = new BaseUser();
+        user.setName(ESTestCase.randomIdentifier());
+        user.setPassword(ESTestCase.randomSecretKey());
+        user.setEnabled(true);
+        user.setHomeDirectory(getRepositoryDir());
+        user.setMaxIdleTime(0);
+
+        final var ftpServerFactory = new FtpServerFactory();
+        ftpServerFactory.setListeners(listenersMap);
+        ftpServerFactory.getUserManager().save(user);
+        ftpServer = ftpServerFactory.createServer();
+        ftpServer.start();
+        ftpUrl = "ftp://" + user.getName() + ":" + user.getPassword() + "@" + listener.getServerAddress() + ":" + listener.getPort();
+    }
+
+    public String getFtpUrl() {
+        return ftpUrl;
     }
 
     public String getRepositoryDir() {
@@ -108,16 +150,11 @@ public class URLFixture extends AbstractHttpFixture implements TestRule {
         return repositoryDir.toFile().getAbsolutePath();
     }
 
-    private static InetSocketAddress resolveAddress(String address, int port) {
-        try {
-            return new InetSocketAddress(InetAddress.getByName(address), port);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     @Override
     protected void after() {
+        if (ftpServer != null) {
+            ftpServer.stop();
+        }
         super.stop();
         this.temporaryFolder.delete();
     }

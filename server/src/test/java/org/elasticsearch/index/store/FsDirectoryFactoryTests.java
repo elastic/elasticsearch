@@ -9,12 +9,16 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -34,6 +38,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -64,13 +69,39 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
             assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdt__1.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdm__0.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdx__4.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(MMapDirectory.class));
             var func = fsDirectoryFactory.preLoadFuncMap.get(delegate);
             assertTrue(func.test("foo.dvd", newIOContext(random())));
             assertTrue(func.test("foo.tmp", newIOContext(random())));
             fsDirectoryFactory.preLoadFuncMap.clear();
+        }
+    }
+
+    public void testDisableRandomAdvice() throws IOException {
+        Directory dir = new FilterDirectory(new ByteBuffersDirectory()) {
+            @Override
+            public IndexInput openInput(String name, IOContext context) throws IOException {
+                assertFalse(context.readAdvice() == ReadAdvice.RANDOM);
+                return super.openInput(name, context);
+            }
+        };
+        Directory noRandomAccessDir = FsDirectoryFactory.disableRandomAdvice(dir);
+        try (IndexOutput out = noRandomAccessDir.createOutput("foo", IOContext.DEFAULT)) {
+            out.writeInt(42);
+        }
+        // Test the tester
+        expectThrows(AssertionError.class, () -> dir.openInput("foo", IOContext.DEFAULT.withReadAdvice(ReadAdvice.RANDOM)));
+
+        // The wrapped directory shouldn't fail regardless of the IOContext
+        for (IOContext context : List.of(IOContext.DEFAULT, IOContext.READONCE, IOContext.DEFAULT.withReadAdvice(ReadAdvice.RANDOM))) {
+            try (IndexInput in = noRandomAccessDir.openInput("foo", context)) {
+                assertEquals(42, in.readInt());
+            }
         }
     }
 

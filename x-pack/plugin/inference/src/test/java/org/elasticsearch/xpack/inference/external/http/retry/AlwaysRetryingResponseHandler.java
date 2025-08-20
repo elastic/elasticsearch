@@ -35,6 +35,7 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
         this.parseFunction = Objects.requireNonNull(parseFunction);
     }
 
+    @Override
     public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
         throws RetryException {
         try {

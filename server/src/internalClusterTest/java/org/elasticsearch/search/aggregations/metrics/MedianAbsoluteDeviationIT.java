@@ -16,8 +16,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -180,7 +179,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             response -> {
                 assertHitCount(response, NUMBER_OF_DOCS);
 
-                final Global global = response.getAggregations().get("global");
+                final SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), is("global"));
                 assertThat(global.getDocCount(), is((long) NUMBER_OF_DOCS));
@@ -476,7 +475,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                     Terms.Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
 
-                    Filter filter = bucket.getAggregations().get("filter");
+                    SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                     assertThat(filter, notNullValue());
                     assertThat(filter.getDocCount(), equalTo(0L));
 

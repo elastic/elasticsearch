@@ -620,7 +620,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         );
     }
 
-    private class TestRequest extends TransportRequest {
+    private class TestRequest extends AbstractTransportRequest {
         private final RefCounted refCounted;
 
         TestRequest() {

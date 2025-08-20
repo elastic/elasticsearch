@@ -9,7 +9,8 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -41,8 +42,13 @@ public class GroupingAggregator implements Releasable {
         if (mode.isInputPartial()) {
             return new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
 
                 @Override
@@ -54,15 +60,8 @@ public class GroupingAggregator implements Releasable {
                 public void close() {}
             };
         } else {
-            return aggregatorFunction.prepareProcessPage(seenGroupIds, page);
+            return aggregatorFunction.prepareProcessRawInputPage(seenGroupIds, page);
         }
-    }
-
-    /**
-     * Add the position-th row from the intermediate output of the given aggregator to this aggregator at the groupId position
-     */
-    public void addIntermediateRow(int groupId, GroupingAggregator input, int position) {
-        aggregatorFunction.addIntermediateRowInput(groupId, input.aggregatorFunction, position);
     }
 
     /**

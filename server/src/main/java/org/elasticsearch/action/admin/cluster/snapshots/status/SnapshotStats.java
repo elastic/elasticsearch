@@ -14,14 +14,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+
+import static org.elasticsearch.TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS;
 
 public class SnapshotStats implements Writeable, ToXContentObject {
 
@@ -37,6 +37,19 @@ public class SnapshotStats implements Writeable, ToXContentObject {
     SnapshotStats() {}
 
     SnapshotStats(StreamInput in) throws IOException {
+        // We use a boolean to indicate if the stats are present (true) or missing (false), to skip writing all the values if missing.
+        if (in.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS) && in.readBoolean() == false) {
+            startTime = 0L;
+            time = 0L;
+            incrementalFileCount = -1;
+            processedFileCount = -1;
+            incrementalSize = -1L;
+            processedSize = -1L;
+            totalFileCount = -1;
+            totalSize = -1L;
+            return;
+        }
+
         startTime = in.readVLong();
         time = in.readVLong();
 
@@ -69,6 +82,20 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         this.incrementalSize = incrementalSize;
         this.totalSize = totalSize;
         this.processedSize = processedSize;
+    }
+
+    /**
+     * Returns a stats instance with invalid field values for use in situations where the snapshot stats are unavailable.
+     */
+    public static SnapshotStats forMissingStats() {
+        return new SnapshotStats(0L, 0L, -1, -1, -1, -1L, -1L, -1L);
+    }
+
+    /**
+     * Returns true if this instance is for a shard snapshot with unavailable stats.
+     */
+    public boolean isMissingStats() {
+        return incrementalFileCount == -1;
     }
 
     /**
@@ -129,6 +156,23 @@ public class SnapshotStats implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+            // We use a boolean to indicate if the stats are present (true) or missing (false), to skip writing all the values if missing.
+            if (isMissingStats()) {
+                out.writeBoolean(false);
+                return;
+            }
+            out.writeBoolean(true);
+        } else if (isMissingStats()) {
+            throw new IllegalStateException(
+                "cannot serialize empty stats for transport version ["
+                    + out.getTransportVersion()
+                    + "] less than ["
+                    + SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS
+                    + "]"
+            );
+        }
+
         out.writeVLong(startTime);
         out.writeVLong(time);
 
@@ -192,114 +236,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         return builder.endObject();
     }
 
-    public static SnapshotStats fromXContent(XContentParser parser) throws IOException {
-        // Parse this old school style instead of using the ObjectParser since there's an impedance mismatch between how the
-        // object has historically been written as JSON versus how it is structured in Java.
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        long startTime = 0;
-        long time = 0;
-        int incrementalFileCount = 0;
-        int totalFileCount = 0;
-        int processedFileCount = 0;
-        long incrementalSize = 0;
-        long totalSize = 0;
-        long processedSize = 0;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-            String currentName = parser.currentName();
-            token = parser.nextToken();
-            if (currentName.equals(Fields.INCREMENTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                    String innerName = parser.currentName();
-                    token = parser.nextToken();
-                    if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        incrementalFileCount = parser.intValue();
-                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        incrementalSize = parser.longValue();
-                    } else {
-                        // Unknown sub field, skip
-                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                            parser.skipChildren();
-                        }
-                    }
-                }
-            } else if (currentName.equals(Fields.PROCESSED)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                    String innerName = parser.currentName();
-                    token = parser.nextToken();
-                    if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        processedFileCount = parser.intValue();
-                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        processedSize = parser.longValue();
-                    } else {
-                        // Unknown sub field, skip
-                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                            parser.skipChildren();
-                        }
-                    }
-                }
-            } else if (currentName.equals(Fields.TOTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                    String innerName = parser.currentName();
-                    token = parser.nextToken();
-                    if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        totalFileCount = parser.intValue();
-                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        totalSize = parser.longValue();
-                    } else {
-                        // Unknown sub field, skip
-                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                            parser.skipChildren();
-                        }
-                    }
-                }
-            } else if (currentName.equals(Fields.START_TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                startTime = parser.longValue();
-            } else if (currentName.equals(Fields.TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                time = parser.longValue();
-            } else {
-                // Unknown field, skip
-                if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                    parser.skipChildren();
-                }
-            }
-        }
-        return new SnapshotStats(
-            startTime,
-            time,
-            incrementalFileCount,
-            totalFileCount,
-            processedFileCount,
-            incrementalSize,
-            totalSize,
-            processedSize
-        );
-    }
-
     /**
      * Add stats instance to the total
      * @param stats Stats instance to add
      * @param updateTimestamps Whether or not start time and duration should be updated
      */
     void add(SnapshotStats stats, boolean updateTimestamps) {
+        if (stats.isMissingStats()) {
+            return;
+        }
+
         incrementalFileCount += stats.incrementalFileCount;
         totalFileCount += stats.totalFileCount;
         processedFileCount += stats.processedFileCount;
@@ -354,5 +300,10 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         result = 31 * result + (int) (totalSize ^ (totalSize >>> 32));
         result = 31 * result + (int) (processedSize ^ (processedSize >>> 32));
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

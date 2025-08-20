@@ -817,7 +817,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
 
         terminal.println("A CSR is used when you want your certificate to be created by an existing");
         terminal.println("Certificate Authority (CA) that you do not control (that is, you don't have");
-        terminal.println("access to the keys for that CA). ");
+        terminal.println("access to the keys for that CA).");
         terminal.println("");
         terminal.println("If you are in a corporate environment with a central security team, then you");
         terminal.println("may have an existing Corporate CA that can generate your certificate for you.");

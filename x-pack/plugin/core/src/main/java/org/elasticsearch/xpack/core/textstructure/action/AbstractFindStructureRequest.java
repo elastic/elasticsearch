@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.textstructure.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -25,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public abstract class AbstractFindStructureRequest extends ActionRequest {
+public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
 
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
 

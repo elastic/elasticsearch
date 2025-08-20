@@ -153,12 +153,6 @@ tasks.named("javaRestTest") {
   usesDefaultDistribution("uses the _xpack api")
 }
 
-if (buildParams.snapshotBuild == false) {
-  tasks.withType(Test).configureEach {
-    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
-  }
-}
-
 if (buildParams.inFipsJvm) {
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure { enabled = false }

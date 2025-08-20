@@ -147,7 +147,7 @@ Common suggest options include:
 % :   The minimal threshold in number of documents a suggestion should appear in. This can be specified as an absolute number or as a relative percentage of number of documents. This can improve quality by only suggesting high frequency terms. Defaults to 0f and is not enabled. If a value higher than 1 is specified, then the number cannot be fractional. The shard level document frequencies are used for this option.
 %
 % `max_term_freq`
-% :   The maximum threshold in number of documents in which a suggest text token can exist in order to be included. Can be a relative percentage number (e.g., 0.4) or an absolute number to represent document frequencies. If a value higher than 1 is specified, then fractional can not be specified. Defaults to 0.01f. This can be used to exclude high frequency terms — which are usually spelled correctly — from being spellchecked. This also improves the spellcheck performance. The shard level document frequencies are used for this option.
+% :   The maximum threshold in number of documents in which a suggest text token can exist in order to be included. Can be a relative percentage number (e.g., 0.4) or an absolute number to represent document frequencies. If a value higher than 1 is specified, then fractional can not be specified. Defaults to 0.01f. This can be used to exclude high frequency terms — which are usually spelled correctly — from being spellchecked. This also improves the spellcheck performance. The shard level document frequencies are used for this option.
 % 
 % `string_distance`
 % :   Which string distance implementation to use for comparing how similar suggested terms are. Five possible values can be specified:
@@ -305,7 +305,7 @@ Basic phrase suggest API parameters include:
 :   Sets up suggestion highlighting. If not provided then no `highlighted` field is returned. If provided must contain exactly `pre_tag` and `post_tag`, which are wrapped around the changed tokens. If multiple tokens in a row are changed the entire phrase of changed tokens is wrapped rather than each token.
 
 `collate`
-:   Checks each suggestion against the specified `query` to prune suggestions for which no matching docs exist in the index. The collate query for a suggestion is run only on the local shard from which the suggestion has been generated from. The `query` must be specified and it can be templated. Refer to [Search templates](docs-content://solutions/search/search-templates.md). The current suggestion is automatically made available as the `{{suggestion}}` variable, which should be used in your query. You can still specify your own template `params` — the `suggestion` value will be added to the variables you specify. Additionally, you can specify a `prune` to control if all phrase suggestions will be returned; when set to `true` the suggestions will have an additional option `collate_match`, which will be `true` if matching documents for the phrase was found, `false` otherwise. The default value for `prune` is `false`.
+:   Checks each suggestion against the specified `query` to prune suggestions for which no matching docs exist in the index. The collate query for a suggestion is run only on the local shard from which the suggestion has been generated from. The `query` must be specified and it can be templated. Refer to [Search templates](docs-content://solutions/search/search-templates.md). The current suggestion is automatically made available as the `{{suggestion}}` variable, which should be used in your query. You can still specify your own template `params` — the `suggestion` value will be added to the variables you specify. Additionally, you can specify a `prune` to control if all phrase suggestions will be returned; when set to `true` the suggestions will have an additional option `collate_match`, which will be `true` if matching documents for the phrase was found, `false` otherwise. The default value for `prune` is `false`.
 
 ```console
 POST test/_search
@@ -417,7 +417,7 @@ The parameters that direct generators support include:
 :   The minimal threshold in number of documents a suggestion should appear in. This can be specified as an absolute number or as a relative percentage of number of documents. This can improve quality by only suggesting high frequency terms. Defaults to 0f and is not enabled. If a value higher than 1 is specified, then the number cannot be fractional. The shard level document frequencies are used for this option.
 
 `max_term_freq`
-:   The maximum threshold in number of documents in which a suggest text token can exist in order to be included. Can be a relative percentage number (e.g., 0.4) or an absolute number to represent document frequencies. If a value higher than 1 is specified, then fractional can not be specified. Defaults to 0.01f. This can be used to exclude high frequency terms — which are usually spelled correctly — from being spellchecked. This also improves the spellcheck performance. The shard level document frequencies are used for this option.
+:   The maximum threshold in number of documents in which a suggest text token can exist in order to be included. Can be a relative percentage number (e.g., 0.4) or an absolute number to represent document frequencies. If a value higher than 1 is specified, then fractional can not be specified. Defaults to 0.01f. This can be used to exclude high frequency terms — which are usually spelled correctly — from being spellchecked. This also improves the spellcheck performance. The shard level document frequencies are used for this option.
 
 `pre_filter`
 :   A filter (analyzer) that is applied to each of the tokens passed to this candidate generator. This filter is applied to the original token before candidates are generated.
@@ -719,7 +719,7 @@ When set to true, this option can slow down search because more suggestions need
 
 ### Fuzzy queries [fuzzy]
 
-The completion suggester also supports fuzzy queries — this means you can have a typo in your search and still get results back.
+The completion suggester also supports fuzzy queries — this means you can have a typo in your search and still get results back.
 
 ```console
 POST music/_search?pretty

@@ -43,6 +43,23 @@ public class ParseIpTests extends ESTestCase {
             new TestCase("255.0", false, false, false),
             new TestCase("255.255.1", false, false, false),
             new TestCase("255.255.0", false, false, false),
+            new TestCase("a.a.a.a", false, false, false),
+            new TestCase(
+                /*
+                 * At some point the ip parsing code parsed this as a valid ipv4 address. Use git-blame if you
+                 * are curious. It was a dark time.
+                 */
+                "\u0007I\u001B|R\u0017t)Q W+\u001F5\n"
+                    + "(\u001E~H@u9Sbc~2\u000BH=\tNZ_vSUnv/GL=5Ag2n\u0012 P\u0007?dyA,=~F!\u001C0\fQ\u0011\u0012.5<yR <I;rU\u001A"
+                    + "\u001Av4(\u0014q{\u0018\u001FE\u000B1T8N\\\u0015\u000F\n"
+                    + "N3T(\n"
+                    + "\u000B,\u0017)_r\u007F*1\u0018`T\"0%hlvBsOkKeb+.b6\u001Bz5\"U\u000Fe\u0019).\u0003XArg\u001E\fWxbF\u0001\u0015"
+                    + "%(JQ_]\u001Aw'#vD\tW\u0016w)mNx&\u001E\u001B\u0007\u000FPf5Hw\u0004\u0015\u0015\\\u007FG\"~XJ\u0006"
+                    + "aE\u0018}Y9\u001C\u0018a",
+                false,
+                false,
+                false
+            ),
             new TestCase(new Supplier<>() {
                 @Override
                 public String get() {

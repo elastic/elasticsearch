@@ -19,7 +19,10 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -96,7 +99,7 @@ public class ParsingTests extends ESTestCase {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias, TEST_CFG);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
@@ -132,18 +135,10 @@ public class ParsingTests extends ESTestCase {
         );
     }
 
-    public void testJoinOnMultipleFields() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertEquals(
-            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
-            error("row languages = 1, gender = \"f\" | lookup join test on gender, languages")
-        );
-    }
-
     public void testJoinTwiceOnTheSameField() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
+            "1:66: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [languages]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages, languages")
         );
     }
@@ -151,16 +146,73 @@ public class ParsingTests extends ESTestCase {
     public void testJoinTwiceOnTheSameField_TwoLookups() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:80: JOIN ON clause only supports one field at the moment, found [2]",
+            "1:108: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [gender]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages | eval x = 1 | lookup join test on gender, gender")
         );
     }
 
-    private String error(String query) {
-        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parser.createStatement(query)));
+    public void testInvalidLimit() {
+        assertLimitWithAndWithoutParams("foo", "\"foo\"", DataType.KEYWORD);
+        assertLimitWithAndWithoutParams(1.2, "1.2", DataType.DOUBLE);
+        assertLimitWithAndWithoutParams(-1, "-1", DataType.INTEGER);
+        assertLimitWithAndWithoutParams(true, "true", DataType.BOOLEAN);
+        assertLimitWithAndWithoutParams(false, "false", DataType.BOOLEAN);
+        assertLimitWithAndWithoutParams(null, "null", DataType.NULL);
+    }
+
+    private void assertLimitWithAndWithoutParams(Object value, String valueText, DataType type) {
+        assertEquals(
+            "1:13: value of [limit "
+                + valueText
+                + "] must be a non negative integer, found value ["
+                + valueText
+                + "] type ["
+                + type.typeName()
+                + "]",
+            error("row a = 1 | limit " + valueText)
+        );
+
+        assertEquals(
+            "1:13: value of [limit ?param] must be a non negative integer, found value [?param] type [" + type.typeName() + "]",
+            error(
+                "row a = 1 | limit ?param",
+                new QueryParams(List.of(new QueryParam("param", value, type, ParserUtils.ParamClassification.VALUE)))
+            )
+        );
+
+    }
+
+    public void testInvalidSample() {
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [foo], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample \"foo\"")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [-1.0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample -1.0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 1")
+        );
+    }
+
+    private String error(String query, QueryParams params) {
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> defaultAnalyzer.analyze(parser.createStatement(query, params, TEST_CFG))
+        );
         String message = e.getMessage();
         assertTrue(message.startsWith("line "));
         return message.substring("line ".length());
+    }
+
+    private String error(String query) {
+        return error(query, new QueryParams());
     }
 
     private static IndexResolution loadIndexResolution(String name) {

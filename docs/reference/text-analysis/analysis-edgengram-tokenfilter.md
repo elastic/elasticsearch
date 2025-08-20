@@ -82,9 +82,11 @@ See [Limitations of the `max_gram` parameter](#analysis-edgengram-tokenfilter-ma
 :   (Optional, Boolean) Emits original token when set to `true`. Defaults to `false`.
 
 `side`
-:   (Optional, string) [8.16.0]. Indicates whether to truncate tokens from the `front` or `back`. Defaults to `front`.
+:   :::{admonition} Deprecated in 8.16.0
+    This setting was deprecated in 8.16.0.
+    :::
 
-
+    (Optional, string) Indicates whether to truncate tokens from the `front` or `back`. Defaults to `front`.
 
 ## Customize [analysis-edgengram-tokenfilter-customize]
 

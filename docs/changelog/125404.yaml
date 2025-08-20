@@ -1,5 +1,0 @@
-pr: 125404
-summary: Check if the anomaly results index has been rolled over
-area: Machine Learning
-type: upgrade
-issues: []

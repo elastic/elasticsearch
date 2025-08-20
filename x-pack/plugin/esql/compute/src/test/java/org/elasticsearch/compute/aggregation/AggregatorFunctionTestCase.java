@@ -58,10 +58,15 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     protected abstract String expectedDescriptionOfAggregator();
 
-    protected abstract void assertSimpleOutput(List<Block> input, Block result);
+    /**
+     * Assert that the result is correct given the input.
+     * @param input the input pages build by {@link #simpleInput}
+     * @param result the result of running {@link #aggregatorFunction()}
+     */
+    protected abstract void assertSimpleOutput(List<Page> input, Block result);
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
         return simpleWithMode(mode, Function.identity());
     }
 
@@ -69,10 +74,16 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
-        List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
+        List<Integer> channels = mode.isInputPartial()
+            ? range(0, aggregatorIntermediateBlockCount()).boxed().toList()
+            : IntStream.range(0, inputCount()).boxed().toList();
         AggregatorFunctionSupplier supplier = aggregatorFunction();
         Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, channels);
         return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
+    }
+
+    protected int inputCount() {
+        return 1;
     }
 
     @Override
@@ -89,7 +100,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return type + "[channels=[0]]";
+        return type + "[channels=" + IntStream.range(0, inputCount()).boxed().toList() + "]";
     }
 
     @Override
@@ -99,7 +110,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertThat(results.get(0).getPositionCount(), equalTo(1));
 
         Block result = results.get(0).getBlock(0);
-        assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), result);
+        assertSimpleOutput(input, result);
     }
 
     public final void testIgnoresNulls() {

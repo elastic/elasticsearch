@@ -185,6 +185,6 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
 
     @Override
     protected ClusterBlockException checkBlock(DeleteEnrichPolicyAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

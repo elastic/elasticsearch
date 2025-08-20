@@ -16,10 +16,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
@@ -48,6 +52,8 @@ import static org.mockito.Mockito.when;
 public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    @NotMultiProjectCapable(description = "Enterprise license not available in serverless or multi-project yet")
+    private final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
     @Before
     public void setup() {
@@ -68,12 +74,13 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
         // Should never start if not master node, even if all other conditions have been met
         final XPackLicenseState licenseState = getAlwaysValidLicense();
         ClusterService clusterService = createClusterService(true, false);
-        TaskStartAndRemoveMockClient client = new TaskStartAndRemoveMockClient(threadPool, true, false);
+        TaskStartAndRemoveMockClient client = new TaskStartAndRemoveMockClient(threadPool, true, false, projectResolver);
         EnterpriseGeoIpDownloaderLicenseListener listener = new EnterpriseGeoIpDownloaderLicenseListener(
             client,
             clusterService,
             threadPool,
-            licenseState
+            licenseState,
+            projectResolver
         );
         listener.init();
         listener.licenseStateChanged();
@@ -85,12 +92,13 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
         licenseState.update(new XPackLicenseStatus(License.OperationMode.TRIAL, false, ""));
         ClusterService clusterService = createClusterService(true, true);
-        TaskStartAndRemoveMockClient client = new TaskStartAndRemoveMockClient(threadPool, false, true);
+        TaskStartAndRemoveMockClient client = new TaskStartAndRemoveMockClient(threadPool, false, true, projectResolver);
         EnterpriseGeoIpDownloaderLicenseListener listener = new EnterpriseGeoIpDownloaderLicenseListener(
             client,
             clusterService,
             threadPool,
-            licenseState
+            licenseState,
+            projectResolver
         );
         listener.init();
         listener.licenseStateChanged();
@@ -110,12 +118,13 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
     public void testDatabaseChanges() {
         final XPackLicenseState licenseState = getAlwaysValidLicense();
         ClusterService clusterService = createClusterService(true, false);
-        TaskStartAndRemoveMockClient client = new TaskStartAndRemoveMockClient(threadPool, false, false);
+        TaskStartAndRemoveMockClient client = new TaskStartAndRemoveMockClient(threadPool, false, false, projectResolver);
         EnterpriseGeoIpDownloaderLicenseListener listener = new EnterpriseGeoIpDownloaderLicenseListener(
             client,
             clusterService,
             threadPool,
-            licenseState
+            licenseState,
+            projectResolver
         );
         listener.init();
         listener.licenseStateChanged();
@@ -134,12 +143,13 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
         // Should never start if not master node, even if all other conditions have been met
         final XPackLicenseState licenseState = getAlwaysValidLicense();
         ClusterService clusterService = createClusterService(false, false);
-        TaskStartAndRemoveMockClient client = new TaskStartAndRemoveMockClient(threadPool, false, false);
+        TaskStartAndRemoveMockClient client = new TaskStartAndRemoveMockClient(threadPool, false, false, projectResolver);
         EnterpriseGeoIpDownloaderLicenseListener listener = new EnterpriseGeoIpDownloaderLicenseListener(
             client,
             clusterService,
             threadPool,
-            licenseState
+            licenseState,
+            projectResolver
         );
         listener.init();
         listener.licenseStateChanged();
@@ -172,7 +182,15 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("name"));
         if (hasGeoIpDatabases) {
             PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of());
-            clusterStateBuilder.metadata(Metadata.builder().putCustom(INGEST_GEOIP_CUSTOM_METADATA_TYPE, tasksCustomMetadata).put(idxMeta));
+            clusterStateBuilder.metadata(
+                Metadata.builder()
+                    .put(
+                        ProjectMetadata.builder(projectResolver.getProjectId())
+                            .putCustom(INGEST_GEOIP_CUSTOM_METADATA_TYPE, tasksCustomMetadata)
+                            .put(idxMeta)
+                            .build()
+                    )
+            );
         }
         return clusterStateBuilder.nodes(discoveryNodesBuilder).build();
     }
@@ -184,8 +202,13 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
         private boolean taskStartCalled = false;
         private boolean taskRemoveCalled = false;
 
-        private TaskStartAndRemoveMockClient(ThreadPool threadPool, boolean expectStartTask, boolean expectRemoveTask) {
-            super(threadPool);
+        private TaskStartAndRemoveMockClient(
+            ThreadPool threadPool,
+            boolean expectStartTask,
+            boolean expectRemoveTask,
+            ProjectResolver projectResolver
+        ) {
+            super(threadPool, projectResolver);
             this.expectStartTask = expectStartTask;
             this.expectRemoveTask = expectRemoveTask;
         }

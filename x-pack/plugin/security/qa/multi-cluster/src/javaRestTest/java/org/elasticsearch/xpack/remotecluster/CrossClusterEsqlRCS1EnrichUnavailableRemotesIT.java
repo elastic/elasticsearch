@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -73,6 +74,9 @@ public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemo
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     private final String[] modes = { "_coordinator", "_remote" };
+
+    // These are the IDs used in the test data in setSourceData().
+    private final Integer[] employeeIDs = { 1, 2, 3, 4, 5, 6 };
 
     @Before
     public void setupPreRequisites() throws IOException {
@@ -121,7 +125,7 @@ public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemo
             // Email
             assertThat(info.apply("email was: " + value.get(0)), (String) value.get(0), endsWith("@corp.co"));
             // ID
-            assertThat(info.apply("id"), value.get(1), is(i + 1));
+            assertThat(info.apply("id"), employeeIDs, hasItemInArray((int) value.get(1)));
         }
 
         assertThat(info.apply("total clusters"), (int) clusters.get("total"), is(2));
@@ -170,7 +174,7 @@ public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemo
                 // Email
                 assertThat(info.apply("email was: " + value.get(0)), (String) value.get(0), endsWith("@corp.co"));
                 // ID
-                assertThat(info.apply("id"), value.get(1), is(i + 1));
+                assertThat(info.apply("id"), employeeIDs, hasItemInArray((int) value.get(1)));
             }
 
             assertThat(info.apply("total clusters"), (int) clusters.get("total"), is(2));

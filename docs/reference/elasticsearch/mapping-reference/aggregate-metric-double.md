@@ -42,15 +42,13 @@ PUT my-index
 `time_series_metric`
 :   (Optional, string) Marks the field as a [time series metric](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). The value is the metric type. You can’t update this parameter for existing fields.
 
-    ::::{dropdown} Valid `time_series_metric` values for `aggregate_metric_double` fields
+    **Valid `time_series_metric` values for `aggregate_metric_double` fields**:
+
     `gauge`
     :   A metric that represents a single numeric that can arbitrarily increase or decrease. For example, a temperature or available disk space.
 
     `null` (Default)
     :   Not a time series metric.
-
-    ::::
-
 
 
 ## Uses [aggregate-metric-double-uses]
@@ -203,11 +201,6 @@ The search returns the following hit. The value of the `default_metric` field, `
 
 
 ## Synthetic `_source` [aggregate-metric-double-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 For example:
 

@@ -96,22 +96,10 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
     }
 
     public void testRepositoriesMetadataSerializationBwc() throws IOException {
-        {
-            final var oldVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.MULTI_PROJECT,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)
-            );
-            final Metadata orig = randomMetadata(between(0, 5), -1);
-            doTestRepositoriesMetadataSerializationBwc(orig, oldVersion);
-        }
-
-        {
-            final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-            // Before multi-project, BWC is possible for a single project
-            final Metadata orig = randomMetadata(0, -1);
-            doTestRepositoriesMetadataSerializationBwc(orig, oldVersion);
-        }
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        // Before multi-project, BWC is possible for a single project
+        final Metadata orig = randomMetadata(0, -1);
+        doTestRepositoriesMetadataSerializationBwc(orig, oldVersion);
     }
 
     private void doTestRepositoriesMetadataSerializationBwc(Metadata orig, TransportVersion oldVersion) throws IOException {
@@ -138,22 +126,10 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
     }
 
     public void testRepositoriesMetadataDiffSerializationBwc() throws IOException {
-        {
-            final var oldVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.MULTI_PROJECT,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)
-            );
-            final Tuple<Metadata, Metadata> tuple = randomMetadataAndUpdate(between(0, 5), -1);
-            doTestRepositoriesMetadataDiffSerializationBwc(tuple, oldVersion);
-        }
-
-        {
-            final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-            // Before multi-project, BWC is possible for a single project
-            final Tuple<Metadata, Metadata> tuple = randomMetadataAndUpdate(0, -1);
-            doTestRepositoriesMetadataDiffSerializationBwc(tuple, oldVersion);
-        }
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        // Before multi-project, BWC is possible for a single project
+        final Tuple<Metadata, Metadata> tuple = randomMetadataAndUpdate(0, -1);
+        doTestRepositoriesMetadataDiffSerializationBwc(tuple, oldVersion);
     }
 
     private void doTestRepositoriesMetadataDiffSerializationBwc(Tuple<Metadata, Metadata> tuple, TransportVersion oldVersion)

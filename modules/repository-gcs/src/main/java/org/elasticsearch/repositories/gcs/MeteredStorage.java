@@ -30,8 +30,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
@@ -64,17 +62,15 @@ public class MeteredStorage {
 
     @SuppressForbidden(reason = "need access to storage client")
     private static com.google.api.services.storage.Storage getStorageRpc(Storage client) {
-        return AccessController.doPrivileged((PrivilegedAction<com.google.api.services.storage.Storage>) () -> {
-            assert client.getOptions().getRpc() instanceof HttpStorageRpc;
-            assert Stream.of(client.getOptions().getRpc().getClass().getDeclaredFields()).anyMatch(f -> f.getName().equals("storage"));
-            try {
-                final Field storageField = client.getOptions().getRpc().getClass().getDeclaredField("storage");
-                storageField.setAccessible(true);
-                return (com.google.api.services.storage.Storage) storageField.get(client.getOptions().getRpc());
-            } catch (Exception e) {
-                throw new IllegalStateException("storage could not be set up", e);
-            }
-        });
+        assert client.getOptions().getRpc() instanceof HttpStorageRpc;
+        assert Stream.of(client.getOptions().getRpc().getClass().getDeclaredFields()).anyMatch(f -> f.getName().equals("storage"));
+        try {
+            final Field storageField = client.getOptions().getRpc().getClass().getDeclaredField("storage");
+            storageField.setAccessible(true);
+            return (com.google.api.services.storage.Storage) storageField.get(client.getOptions().getRpc());
+        } catch (Exception e) {
+            throw new IllegalStateException("storage could not be set up", e);
+        }
     }
 
     public MeteredBlobPage meteredList(OperationPurpose purpose, String bucket, Storage.BlobListOption... options) throws IOException {
@@ -142,6 +138,10 @@ public class MeteredStorage {
 
         public void setReturnRawInputStream(boolean b) {
             get.setReturnRawInputStream(b);
+        }
+
+        public void setGeneration(Long generation) {
+            get.setGeneration(generation);
         }
 
         public HttpHeaders getRequestHeaders() {

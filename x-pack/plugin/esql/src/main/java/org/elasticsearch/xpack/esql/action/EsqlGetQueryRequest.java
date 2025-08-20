@@ -11,29 +11,29 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 
 import java.io.IOException;
 
 public class EsqlGetQueryRequest extends ActionRequest {
-    private final TaskId id;
+    private final AsyncExecutionId asyncExecutionId;
 
-    public EsqlGetQueryRequest(TaskId id) {
-        this.id = id;
+    public EsqlGetQueryRequest(AsyncExecutionId asyncExecutionId) {
+        this.asyncExecutionId = asyncExecutionId;
     }
 
-    public TaskId id() {
-        return id;
+    public AsyncExecutionId id() {
+        return asyncExecutionId;
     }
 
     public EsqlGetQueryRequest(StreamInput streamInput) throws IOException {
         super(streamInput);
-        id = TaskId.readFromStream(streamInput);
+        asyncExecutionId = AsyncExecutionId.decode(streamInput.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeWriteable(id);
+        out.writeWriteable(asyncExecutionId);
     }
 
     @Override

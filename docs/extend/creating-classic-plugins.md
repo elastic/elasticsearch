@@ -80,8 +80,13 @@ The entitlements currently implemented and enforced in {{es}} that are available
 
 #### `manage_threads`
 
-Allows code to call methods that create or modify properties on Java Threads, for example `Thread#start` or `ThreadGroup#setMaxPriority`. In general, setting the name, priority, daemon state and context class loader are things no plugins should do when executing on
-{{es}} threadpools; however, many 3rd party libraries that support async operations (e.g. Apache HTTP client) need to manage their own threads. In this case it is justifiable to request this entitlement.
+Allows code to call methods that create or modify properties on Java Threads, for example `Thread#start` or `ThreadGroup#setMaxPriority`.
+
+:::{note}
+This entitlement is rarely necessary. Your plugin should use {{es}} thread pools and executors (see `Plugin#getExecutorBuilders`) instead of creating and managing its own threads. Plugins should avoid modifying thread name, priority, daemon state, and context class loader when executing on ES threadpools.
+
+However, many 3rd party libraries that support async operations, such as the Apache HTTP client, need to create and manage their own threads. In such cases, it makes sense to request this entitlement.
+:::
 
 Example:
 ```yaml
@@ -131,13 +136,12 @@ org.example.module: # or 'ALL-UNNAMED' if the plugin is non-modular
 Allows code to access the filesystem, to read or write paths as specified by the entitlement's fields. The filesystem of the OS hosting {{es}} may contain sensitive files, for example credentials. Some files are meant to be always accessible to {{es}}, but plugins can not access them directly: {{es}} enforces that certain files can only be read by its core code, while some other files can not be read or written at all. A plugin is always granted `read` access to the {{es}} config directory and `read_write` access to the temp directory; if the plugin requires to read, write or access additional files or directories, it must specify them via this entitlement.
 
 It is possible to specify 3 different types of file entitlement:
-  - `path` to specify an absolute path
-  - `relative_path` to specify a relative path. The path will be resolved via the `relative_to` field, which is used to qualify the relative path. It can be a specific {{es}} directory (`config` or `data`), or to the user home directory (`home`) (the home of the user running {{es}})
-  - `relative_path` to specify a path resolved via the `relative_to` field, which can have the following values:
-    - `config`: the {{es}} [config directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#config-files-location)
-    - `data`: the {{es}} [data directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/path-settings-overview.html)
-    - `home`: the home directory of the user running {{es}}
-  - `path_setting` to specify a path defined via an {{es}} setting. The path can be absolute or relative; in the latter case, the path will be resolved using the `basedir_if_relative` path (which can assume the same values as `relative_to`)
+1. `path` to specify an absolute path
+2. `relative_path` to specify a relative path. Use the `relative_to` field to qualify the relative path. `relative_to` accepts the following options:
+   - `config`: the {{es}} [config directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#config-files-location)
+   - `data`: the {{es}} [data directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/path-settings-overview.html)
+   - `home`: the home directory of the user running {{es}}
+3. `path_setting` to specify a path defined via an {{es}} setting. The path can be absolute or relative; in the latter case, the path will be resolved using the `basedir_if_relative` path (which can assume the same values as `relative_to`)
 
 Each of the 3 types has some additional fields:
 - `mode` (required): can be either `read` or `read_write`

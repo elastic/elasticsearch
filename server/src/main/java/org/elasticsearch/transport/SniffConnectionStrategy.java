@@ -14,8 +14,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -321,7 +321,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     sniffResponseHandler = new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 } else {
                     action = ClusterStateAction.NAME;
-                    final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(SNIFF_REQUEST_TIMEOUT);
+                    final RemoteClusterStateRequest clusterStateRequest = new RemoteClusterStateRequest(SNIFF_REQUEST_TIMEOUT);
                     clusterStateRequest.clear();
                     clusterStateRequest.nodes(true);
                     request = clusterStateRequest;
@@ -537,9 +537,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     // Default visibility for tests
     static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
-        if (RemoteClusterService.REMOTE_NODE_ATTRIBUTE.exists(settings)) {
+        if (RemoteClusterSettings.REMOTE_NODE_ATTRIBUTE.exists(settings)) {
             // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
-            String attribute = RemoteClusterService.REMOTE_NODE_ATTRIBUTE.get(settings);
+            String attribute = RemoteClusterSettings.REMOTE_NODE_ATTRIBUTE.get(settings);
             return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
         }
         return DEFAULT_NODE_PREDICATE;

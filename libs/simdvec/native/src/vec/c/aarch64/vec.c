@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 #include <arm_neon.h>
+#include <math.h>
 #include "vec.h"
 
 #ifndef DOT7U_STRIDE_BYTES_LEN
@@ -131,4 +132,170 @@ EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
         res += dist * dist;
     }
     return res;
+}
+
+// --- single precision floats
+
+// const float *a  pointer to the first float vector
+// const float *b  pointer to the second float vector
+// size_t elementCount  the number of floating point elements
+EXPORT float dotf32(const float *a, const float *b, size_t elementCount) {
+    float32x4_t sum0 = vdupq_n_f32(0.0f);
+    float32x4_t sum1 = vdupq_n_f32(0.0f);
+    float32x4_t sum2 = vdupq_n_f32(0.0f);
+    float32x4_t sum3 = vdupq_n_f32(0.0f);
+    float32x4_t sum4 = vdupq_n_f32(0.0f);
+    float32x4_t sum5 = vdupq_n_f32(0.0f);
+    float32x4_t sum6 = vdupq_n_f32(0.0f);
+    float32x4_t sum7 = vdupq_n_f32(0.0f);
+
+    size_t i = 0;
+    // Each float32x4_t holds 4 floats, so unroll 8x = 32 floats per loop
+    size_t unrolled_limit = elementCount & ~31UL;
+    for (; i < unrolled_limit; i += 32) {
+        sum0 = vfmaq_f32(sum0, vld1q_f32(a + i),      vld1q_f32(b + i));
+        sum1 = vfmaq_f32(sum1, vld1q_f32(a + i + 4),  vld1q_f32(b + i + 4));
+        sum2 = vfmaq_f32(sum2, vld1q_f32(a + i + 8),  vld1q_f32(b + i + 8));
+        sum3 = vfmaq_f32(sum3, vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
+        sum4 = vfmaq_f32(sum4, vld1q_f32(a + i + 16), vld1q_f32(b + i + 16));
+        sum5 = vfmaq_f32(sum5, vld1q_f32(a + i + 20), vld1q_f32(b + i + 20));
+        sum6 = vfmaq_f32(sum6, vld1q_f32(a + i + 24), vld1q_f32(b + i + 24));
+        sum7 = vfmaq_f32(sum7, vld1q_f32(a + i + 28), vld1q_f32(b + i + 28));
+    }
+
+    float32x4_t total = vaddq_f32(
+        vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3)),
+        vaddq_f32(vaddq_f32(sum4, sum5), vaddq_f32(sum6, sum7))
+    );
+    float result = vaddvq_f32(total);
+
+    // Handle remaining elements
+    for (; i < elementCount; ++i) {
+        result += a[i] * b[i];
+    }
+
+    return result;
+}
+
+// const float *a  pointer to the first float vector
+// const float *b  pointer to the second float vector
+// size_t elementCount  the number of floating point elements
+EXPORT float cosf32(const float *a, const float *b, size_t elementCount) {
+    float32x4_t sum0 = vdupq_n_f32(0.0f);
+    float32x4_t sum1 = vdupq_n_f32(0.0f);
+    float32x4_t sum2 = vdupq_n_f32(0.0f);
+    float32x4_t sum3 = vdupq_n_f32(0.0f);
+
+    float32x4_t norm_a0 = vdupq_n_f32(0.0f);
+    float32x4_t norm_a1 = vdupq_n_f32(0.0f);
+    float32x4_t norm_a2 = vdupq_n_f32(0.0f);
+    float32x4_t norm_a3 = vdupq_n_f32(0.0f);
+
+    float32x4_t norm_b0 = vdupq_n_f32(0.0f);
+    float32x4_t norm_b1 = vdupq_n_f32(0.0f);
+    float32x4_t norm_b2 = vdupq_n_f32(0.0f);
+    float32x4_t norm_b3 = vdupq_n_f32(0.0f);
+
+    size_t i = 0;
+    // Each float32x4_t holds 4 floats, so unroll 4x = 16 floats per loop
+    size_t unrolled_limit = elementCount & ~15UL;
+    for (; i < unrolled_limit; i += 16) {
+        float32x4_t va0 = vld1q_f32(a + i);
+        float32x4_t vb0 = vld1q_f32(b + i);
+        float32x4_t va1 = vld1q_f32(a + i + 4);
+        float32x4_t vb1 = vld1q_f32(b + i + 4);
+        float32x4_t va2 = vld1q_f32(a + i + 8);
+        float32x4_t vb2 = vld1q_f32(b + i + 8);
+        float32x4_t va3 = vld1q_f32(a + i + 12);
+        float32x4_t vb3 = vld1q_f32(b + i + 12);
+
+        // Dot products
+        sum0 = vfmaq_f32(sum0, va0, vb0);
+        sum1 = vfmaq_f32(sum1, va1, vb1);
+        sum2 = vfmaq_f32(sum2, va2, vb2);
+        sum3 = vfmaq_f32(sum3, va3, vb3);
+
+        // Norms
+        norm_a0 = vfmaq_f32(norm_a0, va0, va0);
+        norm_a1 = vfmaq_f32(norm_a1, va1, va1);
+        norm_a2 = vfmaq_f32(norm_a2, va2, va2);
+        norm_a3 = vfmaq_f32(norm_a3, va3, va3);
+
+        norm_b0 = vfmaq_f32(norm_b0, vb0, vb0);
+        norm_b1 = vfmaq_f32(norm_b1, vb1, vb1);
+        norm_b2 = vfmaq_f32(norm_b2, vb2, vb2);
+        norm_b3 = vfmaq_f32(norm_b3, vb3, vb3);
+    }
+
+    // Combine accumulators
+    float32x4_t sums = vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3));
+    float32x4_t norms_a = vaddq_f32(vaddq_f32(norm_a0, norm_a1), vaddq_f32(norm_a2, norm_a3));
+    float32x4_t norms_b = vaddq_f32(vaddq_f32(norm_b0, norm_b1), vaddq_f32(norm_b2, norm_b3));
+
+    float dot   = vaddvq_f32(sums);
+    float norm_a = vaddvq_f32(norms_a);
+    float norm_b = vaddvq_f32(norms_b);
+
+    // Handle remaining tail elements
+    for (; i < elementCount; ++i) {
+        float va = a[i];
+        float vb = b[i];
+        dot    += va * vb;
+        norm_a += va * va;
+        norm_b += vb * vb;
+    }
+
+    float denom = sqrtf(norm_a) * sqrtf(norm_b);
+    if (denom == 0.0f) {
+        return 0.0f;
+    }
+    return dot / denom;
+}
+
+EXPORT float sqrf32(const float *a, const float *b, size_t elementCount) {
+    float32x4_t sum0 = vdupq_n_f32(0.0f);
+    float32x4_t sum1 = vdupq_n_f32(0.0f);
+    float32x4_t sum2 = vdupq_n_f32(0.0f);
+    float32x4_t sum3 = vdupq_n_f32(0.0f);
+    float32x4_t sum4 = vdupq_n_f32(0.0f);
+    float32x4_t sum5 = vdupq_n_f32(0.0f);
+    float32x4_t sum6 = vdupq_n_f32(0.0f);
+    float32x4_t sum7 = vdupq_n_f32(0.0f);
+
+    size_t i = 0;
+    // Each float32x4_t holds 4 floats, so unroll 8x = 32 floats per loop
+    size_t unrolled_limit = elementCount & ~31UL;
+    for (; i < unrolled_limit; i += 32) {
+        float32x4_t d0 = vsubq_f32(vld1q_f32(a + i),      vld1q_f32(b + i));
+        float32x4_t d1 = vsubq_f32(vld1q_f32(a + i + 4),  vld1q_f32(b + i + 4));
+        float32x4_t d2 = vsubq_f32(vld1q_f32(a + i + 8),  vld1q_f32(b + i + 8));
+        float32x4_t d3 = vsubq_f32(vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
+        float32x4_t d4 = vsubq_f32(vld1q_f32(a + i + 16), vld1q_f32(b + i + 16));
+        float32x4_t d5 = vsubq_f32(vld1q_f32(a + i + 20), vld1q_f32(b + i + 20));
+        float32x4_t d6 = vsubq_f32(vld1q_f32(a + i + 24), vld1q_f32(b + i + 24));
+        float32x4_t d7 = vsubq_f32(vld1q_f32(a + i + 28), vld1q_f32(b + i + 28));
+
+        sum0 = vmlaq_f32(sum0, d0, d0);
+        sum1 = vmlaq_f32(sum1, d1, d1);
+        sum2 = vmlaq_f32(sum2, d2, d2);
+        sum3 = vmlaq_f32(sum3, d3, d3);
+        sum4 = vmlaq_f32(sum4, d4, d4);
+        sum5 = vmlaq_f32(sum5, d5, d5);
+        sum6 = vmlaq_f32(sum6, d6, d6);
+        sum7 = vmlaq_f32(sum7, d7, d7);
+    }
+
+    float32x4_t total = vaddq_f32(
+        vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3)),
+        vaddq_f32(vaddq_f32(sum4, sum5), vaddq_f32(sum6, sum7))
+    );
+    float result = vaddvq_f32(total);
+
+    // Handle remaining tail elements
+    for (; i < elementCount; ++i) {
+        float diff = a[i] - b[i];
+        result += diff * diff;
+    }
+
+    return result;
 }

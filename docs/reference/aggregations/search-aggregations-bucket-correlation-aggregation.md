@@ -11,43 +11,33 @@ A sibling pipeline aggregation which executes a correlation function on the conf
 
 ## Parameters [bucket-correlation-agg-syntax]
 
-`buckets_path`
-:   (Required, string) Path to the buckets that contain one set of values to correlate. For syntax, see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax).
+### `buckets_path`
 
-`function`
-:   (Required, object) The correlation function to execute.
+(Required, string) Path to the buckets that contain one set of values to correlate. For syntax, see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax).
 
-    ::::{dropdown} Properties of `function`
-    `count_correlation`
-    :   (Required*, object) The configuration to calculate a count correlation. This function is designed for determining the correlation of a term value and a given metric. Consequently, it needs to meet the following requirements.
+### `function`
 
-        * The `buckets_path` must point to a `_count` metric.
-        * The total count of all the `bucket_path` count values must be less than or equal to `indicator.doc_count`.
-        * When utilizing this function, an initial calculation to gather the required `indicator` values is required.
+(Required, object) The correlation function to execute.
 
-        ::::{dropdown} Properties of `count_correlation`
-        `indicator`
-        :   (Required, object) The indicator with which to correlate the configured `bucket_path` values.
+#### `count_correlation`
 
-            ::::{dropdown} Properties of `indicator`
-            `doc_count`
-            :   (Required, integer) The total number of documents that initially created the `expectations`. It’s required to be greater than or equal to the sum of all values in the `buckets_path` as this is the originating superset of data to which the term values are correlated.
+(Required*, object) The configuration to calculate a count correlation. This function is designed for determining the correlation of a term value and a given metric. Consequently, it needs to meet the following requirements.
 
-            `expectations`
-            :   (Required, array) An array of numbers with which to correlate the configured `bucket_path` values. The length of this value must always equal the number of buckets returned by the `bucket_path`.
+* The `buckets_path` must point to a `_count` metric.
+* The total count of all the `bucket_path` count values must be less than or equal to `indicator.doc_count`.
+* When utilizing this function, an initial calculation to gather the required `indicator` values is required.
 
-            `fractions`
-            :   (Optional, array) An array of fractions to use when averaging and calculating variance. This should be used if the pre-calculated data and the `buckets_path` have known gaps. The length of `fractions`, if provided, must equal `expectations`.
+`indicator`
+:   (Required, object) The indicator with which to correlate the configured `bucket_path` values.
 
-            ::::
+    `doc_count`
+    :   (Required, integer) The total number of documents that initially created the `expectations`. It’s required to be greater than or equal to the sum of all values in the `buckets_path` as this is the originating superset of data to which the term values are correlated.
 
+    `expectations`
+    :   (Required, array) An array of numbers with which to correlate the configured `bucket_path` values. The length of this value must always equal the number of buckets returned by the `bucket_path`.
 
-        ::::
-
-
-    ::::
-
-
+    `fractions`
+    :   (Optional, array) An array of fractions to use when averaging and calculating variance. This should be used if the pre-calculated data and the `buckets_path` have known gaps. The length of `fractions`, if provided, must equal `expectations`.
 
 ## Syntax [_syntax_8]
 

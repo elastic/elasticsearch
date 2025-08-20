@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.shard.IndexingStats;
 
 import java.util.Arrays;
@@ -136,7 +137,7 @@ public class DataStreamAutoShardingService {
     public static final Setting<WriteLoadMetric> DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC = Setting.enumSetting(
         WriteLoadMetric.class,
         "data_streams.auto_sharding.increase_shards.load_metric",
-        WriteLoadMetric.ALL_TIME,
+        WriteLoadMetric.PEAK,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -147,7 +148,7 @@ public class DataStreamAutoShardingService {
     public static final Setting<WriteLoadMetric> DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC = Setting.enumSetting(
         WriteLoadMetric.class,
         "data_streams.auto_sharding.decrease_shards.load_metric",
-        WriteLoadMetric.ALL_TIME,
+        WriteLoadMetric.PEAK,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -362,7 +363,7 @@ public class DataStreamAutoShardingService {
      * <p>If the recommendation is to INCREASE/DECREASE shards the reported cooldown period will be TimeValue.ZERO.
      * If the auto sharding service thinks the number of shards must be changed but it can't recommend a change due to the cooldown
      * period not lapsing, the result will be of type {@link AutoShardingType#COOLDOWN_PREVENTED_INCREASE} or
-     * {@link AutoShardingType#COOLDOWN_PREVENTED_INCREASE} with the remaining cooldown configured and the number of shards that should
+     * {@link AutoShardingType#COOLDOWN_PREVENTED_DECREASE} with the remaining cooldown configured and the number of shards that should
      * be configured for the data stream once the remaining cooldown lapses as the target number of shards.
      *
      * <p>The NOT_APPLICABLE type result will report a cooldown period of TimeValue.MAX_VALUE.
@@ -371,6 +372,7 @@ public class DataStreamAutoShardingService {
      * there'll be no new auto sharding event)
      */
     public AutoShardingResult calculate(ProjectState state, DataStream dataStream, @Nullable IndexStats writeIndexStats) {
+
         if (isAutoShardingEnabled == false) {
             logger.debug("Data stream auto-sharding service is not enabled.");
             return NOT_APPLICABLE_RESULT;
@@ -382,6 +384,11 @@ public class DataStreamAutoShardingService {
                 dataStream.getName(),
                 DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey()
             );
+            return NOT_APPLICABLE_RESULT;
+        }
+
+        if (dataStream.getIndexMode() == IndexMode.LOOKUP) {
+            logger.debug("Data stream [{}] has indexing mode LOOKUP; auto-sharding is not applicable.", dataStream.getName());
             return NOT_APPLICABLE_RESULT;
         }
 

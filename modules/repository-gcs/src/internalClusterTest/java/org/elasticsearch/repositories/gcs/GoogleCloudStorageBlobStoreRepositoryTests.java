@@ -23,6 +23,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -45,6 +46,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -235,8 +237,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService(boolean isServerless) {
-            return new GoogleCloudStorageService() {
+        protected GoogleCloudStorageService createStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+            return new GoogleCloudStorageService(clusterService, projectResolver) {
                 @Override
                 StorageOptions createStorageOptions(
                     final GoogleCloudStorageClientSettings gcsClientSettings,
@@ -272,26 +274,30 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 GoogleCloudStorageRepository.TYPE,
-                metadata -> new GoogleCloudStorageRepository(
+                (projectId, metadata) -> new GoogleCloudStorageRepository(
+                    projectId,
                     metadata,
                     registry,
-                    this.storageService,
+                    this.storageService.get(),
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    new GcsRepositoryStatsCollector()
+                    new GcsRepositoryStatsCollector(),
+                    snapshotMetrics
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
+                            getProjectId(),
                             metadata.settings().get("bucket"),
                             "test",
                             metadata.name(),
-                            storageService,
+                            storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
                             BackoffPolicy.noBackoff(),
@@ -325,6 +331,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
     private static class GoogleErroneousHttpHandler extends ErroneousHttpHandler {
 
+        private static final String IDEMPOTENCY_TOKEN = "x-goog-gcs-idempotency-token";
+
         GoogleErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
         }
@@ -338,6 +346,18 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 } catch (IOException e) {
                     throw new AssertionError("Unable to read token request body", e);
                 }
+            }
+
+            if (exchange.getRequestHeaders().containsKey(IDEMPOTENCY_TOKEN)) {
+                String idempotencyToken = exchange.getRequestHeaders().getFirst(IDEMPOTENCY_TOKEN);
+                // In the event of a resumable retry, the GCS client uses the same idempotency token for
+                // the retry status check and the subsequent retries.
+                // Including the range header allows us to disambiguate between the requests
+                // see https://github.com/googleapis/java-storage/issues/3040
+                if (exchange.getRequestHeaders().containsKey("Content-Range")) {
+                    idempotencyToken += " " + exchange.getRequestHeaders().getFirst("Content-Range");
+                }
+                return idempotencyToken;
             }
 
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");

@@ -6,10 +6,10 @@ setup:
       capabilities:
         - method: POST
           path: /_index_template/{template}
-          capabilities: [ 'failure_store_in_template' ]
+          capabilities: [ 'data_stream_options.failure_store' ]
         - method: POST
           path: /{index}/_rollover
-          capabilities: [ 'lazy-rollover-failure-store', 'index-expression-selectors' ]
+          capabilities: [ 'index_expression_selectors' ]
 
   - do:
       allowed_warnings:
@@ -313,7 +313,7 @@ teardown:
       capabilities:
         - method: POST
           path: /{index}/_rollover
-          capabilities: [lazy-rollover-failure-store]
+          capabilities: [index_expression_selectors]
 
   # Initialize failure store
   - do:

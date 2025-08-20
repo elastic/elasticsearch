@@ -8,8 +8,12 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantNullBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
@@ -48,12 +52,40 @@ public interface GroupingAggregatorFunction extends Releasable {
          *     be skipped entirely or the groupIds block could contain a
          *     {@code null} value at that position.
          * </p>
+         * <p>
+         *     This method delegates the processing to the other overloads for specific groupIds block types.
+         * </p>
          * @param positionOffset offset into the {@link Page} used to build this
          *                       {@link AddInput} of these ids
          * @param groupIds {@link Block} of group id, some of which may be null
          *                 or multivalued
          */
-        void add(int positionOffset, IntBlock groupIds);
+        default void add(int positionOffset, IntBlock groupIds) {
+            switch (groupIds) {
+                case ConstantNullBlock ignored:
+                    // No-op
+                    break;
+                case IntVectorBlock b:
+                    add(positionOffset, b.asVector());
+                    break;
+                case IntArrayBlock b:
+                    add(positionOffset, b);
+                    break;
+                case IntBigArrayBlock b:
+                    add(positionOffset, b);
+                    break;
+            }
+        }
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         */
+        void add(int positionOffset, IntArrayBlock groupIds);
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         */
+        void add(int positionOffset, IntBigArrayBlock groupIds);
 
         /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}
@@ -73,13 +105,13 @@ public interface GroupingAggregatorFunction extends Releasable {
     }
 
     /**
-     * Prepare to process a single page of input.
+     * Prepare to process a single page of raw input.
      * <p>
      *     This should load the input {@link Block}s and check their types and
      *     select an optimal path and return that path as an {@link AddInput}.
      * </p>
      */
-    AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page);  // TODO allow returning null to opt out of the callback loop
+    AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page);  // TODO allow returning null to opt out of the callback loop
 
     /**
      * Call this to signal to the aggregation that the {@code selected}
@@ -94,12 +126,17 @@ public interface GroupingAggregatorFunction extends Releasable {
     /**
      * Add data produced by {@link #evaluateIntermediate}.
      */
-    void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
+    void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page);
 
     /**
-     * Add the position-th row from the intermediate output of the given aggregator function to the groupId
+     * Add data produced by {@link #evaluateIntermediate}.
      */
-    void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position);
+    void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page);
+
+    /**
+     * Add data produced by {@link #evaluateIntermediate}.
+     */
+    void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
 
     /**
      * Build the intermediate results for this aggregation.

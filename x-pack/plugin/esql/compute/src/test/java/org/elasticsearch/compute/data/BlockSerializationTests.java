@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,6 +24,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -383,7 +386,16 @@ public class BlockSerializationTests extends SerializationTestCase {
             for (int b = 0; b < numBlocks; b++) {
                 assertThat(origBlock.getBlock(b), equalTo(blocks[b]));
             }
-            try (CompositeBlock deserBlock = serializeDeserializeBlock(origBlock)) {
+            try (
+                CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK,
+                        TransportVersion.current()
+                    )
+                )
+            ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
                 for (int b = 0; b < numBlocks; b++) {
                     assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));

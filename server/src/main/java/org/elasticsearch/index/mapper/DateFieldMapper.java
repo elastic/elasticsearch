@@ -77,6 +77,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -117,6 +118,11 @@ public final class DateFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long convert(long epochMillis) {
+                return epochMillis;
+            }
+
+            @Override
             public Instant toInstant(long value) {
                 return Instant.ofEpochMilli(value);
             }
@@ -145,6 +151,11 @@ public final class DateFieldMapper extends FieldMapper {
             @Override
             public long convert(TimeValue timeValue) {
                 return timeValue.nanos();
+            }
+
+            @Override
+            public long convert(long epochMillis) {
+                return TimeUnit.MILLISECONDS.toNanos(epochMillis);
             }
 
             @Override
@@ -209,6 +220,11 @@ public final class DateFieldMapper extends FieldMapper {
          * Convert an {@linkplain TimeValue} into a long value in this resolution.
          */
         public abstract long convert(TimeValue timeValue);
+
+        /**
+         * Convert an epoch millis timestamp into a long value in this resolution.
+         */
+        public abstract long convert(long epochMillis);
 
         /**
          * Decode the points representation of this field as milliseconds.
@@ -589,7 +605,7 @@ public final class DateFieldMapper extends FieldMapper {
             );
         }
 
-        public DateFieldType(String name, boolean isIndexed) {
+        public DateFieldType(String name, boolean isIndexed, Resolution resolution) {
             this(
                 name,
                 isIndexed,
@@ -599,11 +615,15 @@ public final class DateFieldMapper extends FieldMapper {
                 false,
                 false,
                 DEFAULT_DATE_TIME_FORMATTER,
-                Resolution.MILLISECONDS,
+                resolution,
                 null,
                 null,
                 Collections.emptyMap()
             );
+        }
+
+        public DateFieldType(String name, boolean isIndexed) {
+            this(name, isIndexed, Resolution.MILLISECONDS);
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
@@ -821,6 +841,54 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution.convert(dateParser.parse(BytesRefs.toString(value), now, roundUp, zone));
         }
 
+        /**
+         * Similar to the {@link DateFieldType#termQuery} method, but works on dates that are already parsed to a long
+         * in the same precision as the field mapper.
+         */
+        public Query equalityQuery(Long value, @Nullable SearchExecutionContext context) {
+            return rangeQuery(value, value, true, true, context);
+        }
+
+        /**
+         * Similar to the existing
+         * {@link DateFieldType#rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, SearchExecutionContext)}
+         * method, but works on dates that are already parsed to a long in the same precision as the field mapper.
+         */
+        public Query rangeQuery(
+            Long lowerTerm,
+            Long upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            long l, u;
+            if (lowerTerm == null) {
+                l = Long.MIN_VALUE;
+            } else {
+                l = (includeLower == false) ? lowerTerm + 1 : lowerTerm;
+            }
+            if (upperTerm == null) {
+                u = Long.MAX_VALUE;
+            } else {
+                u = (includeUpper == false) ? upperTerm - 1 : upperTerm;
+            }
+            Query query;
+            if (isIndexed()) {
+                query = LongPoint.newRangeQuery(name(), l, u);
+                if (hasDocValues()) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+            } else {
+                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+            }
+            if (hasDocValues() && context.indexSortedOnField(name())) {
+                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+            }
+            return query;
+        }
+
         @Override
         public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
@@ -948,8 +1016,13 @@ public final class DateFieldMapper extends FieldMapper {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
 
-            if (isSyntheticSource) {
-                return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return new FallbackSyntheticSourceBlockLoader(
+                    fallbackSyntheticSourceBlockLoaderReader(),
+                    name(),
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
                         return factory.longs(expectedCount);
@@ -1181,17 +1254,18 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String dateAsString = context.parser().textOrNull();
 
         long timestamp;
-        if (dateAsString == null) {
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             if (nullValue == null) {
                 return;
             }
             timestamp = nullValue;
+        } else if (isEpochMillis(context)) {
+            timestamp = resolution.convert(context.parser().longValue());
         } else {
             try {
-                timestamp = fieldType().parse(dateAsString);
+                timestamp = fieldType().parse(context.parser().text());
             } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
@@ -1207,6 +1281,21 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         indexValue(context, timestamp);
+    }
+
+    /*
+     If the value is a long and the date formater parses epoch millis, we can index the value directly.
+     This avoids the overhead of converting the long to a string and then parsing it back to a long via a date formatter.
+     Note that checking for the date formatter containing "epoch_millis" is not sufficient,
+     as there may be other formats compatible with a long value before "epoch_millis" (e.g., "epoch_second||epoch_millis").
+    */
+    private boolean isEpochMillis(DocumentParserContext context) throws IOException {
+        DateFormatter dateFormatter = fieldType().dateTimeFormatter();
+        return context.parser().currentToken() == XContentParser.Token.VALUE_NUMBER
+            && context.parser().numberType() == XContentParser.NumberType.LONG
+            && (dateFormatter.equals(DEFAULT_DATE_TIME_FORMATTER)
+                || dateFormatter.equals(DEFAULT_DATE_TIME_NANOS_FORMATTER)
+                || dateFormatter.equals(EPOCH_MILLIS_PARSER));
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {

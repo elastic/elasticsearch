@@ -99,7 +99,7 @@ The new score can be restricted to not exceed a certain limit by setting the `ma
 The newly computed score is combined with the score of the query. The parameter `boost_mode` defines how:
 
 `multiply`
-:   query score and function score is multiplied (default)
+:   query score and function score are multiplied (default)
 
 `replace`
 :   only function score is used, the query score is ignored
@@ -341,7 +341,7 @@ GET /_search
 :   The point of origin used for calculating distance. Must be given as a number for numeric field, date for date fields and geo point for geo fields. Required for geo and numeric field. For date fields the default is `now`. Date math (for example `now-1h`) is supported for origin.
 
 `scale`
-:   Required for all types. Defines the distance from origin + offset at which the computed score will equal `decay` parameter. For geo fields: Can be defined as number+unit (1km, 12m,…​). Default unit is meters. For date fields: Can to be defined as a number+unit ("1h", "10d",…​). Default unit is milliseconds. For numeric field: Any number.
+:   Required for all types. Defines the distance from origin + offset at which the computed score will equal `decay` parameter. For geo fields: Can be defined as number+unit (1km, 12m,… ). Default unit is meters. For date fields: Can to be defined as a number+unit ("1h", "10d",… ). Default unit is milliseconds. For numeric field: Any number.
 
 `offset`
 :   If an `offset` is defined, the decay function will only compute the decay function for documents with a distance greater than the defined `offset`. The default is 0.

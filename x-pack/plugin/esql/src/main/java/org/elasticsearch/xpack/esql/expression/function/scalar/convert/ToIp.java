@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -39,8 +40,8 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.Ab
 /**
  * Converts strings to IPs.
  * <p>
- *     IPv4 addresses have traditionally parsed quads with leading zeros in three
- *     mutually exclusive ways:
+ * IPv4 addresses have traditionally parsed quads with leading zeros in three
+ * mutually exclusive ways:
  * </p>
  * <ul>
  *     <li>As octal numbers. So {@code 1.1.010.1} becomes {@code 1.1.8.1}.</li>
@@ -189,7 +190,7 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
                 return new TypeResolution("map keys must be strings");
             }
             if (e.key() instanceof Literal keyl) {
-                key = (String) keyl.value();
+                key = BytesRefs.toString(keyl.value());
             } else {
                 return new TypeResolution("map keys must be literals");
             }
@@ -238,7 +239,7 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
                 return REJECT;
             }
             Expression e = exp.keyFoldedMap().get(LEADING_ZEROS);
-            return e == null ? REJECT : from((String) ((Literal) e).value());
+            return e == null ? REJECT : from(BytesRefs.toString(((Literal) e).value()));
         }
 
         public static LeadingZeros from(String str) {

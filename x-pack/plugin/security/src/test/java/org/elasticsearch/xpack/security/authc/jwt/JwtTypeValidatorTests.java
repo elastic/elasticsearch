@@ -19,22 +19,46 @@ import static org.hamcrest.Matchers.containsString;
 
 public class JwtTypeValidatorTests extends ESTestCase {
 
-    public void testValidType() throws ParseException {
+    public void testValidIdTokenType() throws ParseException {
         final String algorithm = randomAlphaOfLengthBetween(3, 8);
 
-        // typ is allowed to be missing
         final JWSHeader jwsHeader = JWSHeader.parse(
-            randomFrom(Map.of("alg", randomAlphaOfLengthBetween(3, 8)), Map.of("typ", "JWT", "alg", randomAlphaOfLengthBetween(3, 8)))
+            randomFrom(
+                // typ is allowed to be missing
+                Map.of("alg", algorithm),
+                Map.of("typ", "JWT", "alg", algorithm)
+            )
         );
 
         try {
-            JwtTypeValidator.INSTANCE.validate(jwsHeader, JWTClaimsSet.parse(Map.of()));
+            JwtTypeValidator.ID_TOKEN_INSTANCE.validate(jwsHeader, JWTClaimsSet.parse(Map.of()));
+        } catch (Exception e) {
+            throw new AssertionError("validation should have passed without exception", e);
+        }
+    }
+
+    public void testValidAccessTokenType() throws ParseException {
+        final String algorithm = randomAlphaOfLengthBetween(3, 8);
+
+        final JWSHeader jwsHeader = JWSHeader.parse(
+            randomFrom(
+                // typ is allowed to be missing
+                Map.of("alg", algorithm),
+                Map.of("typ", "JWT", "alg", algorithm),
+                Map.of("typ", "at+jwt", "alg", algorithm),
+                Map.of("typ", "AT+JWT", "alg", algorithm)
+            )
+        );
+
+        try {
+            JwtTypeValidator.ACCESS_TOKEN_INSTANCE.validate(jwsHeader, JWTClaimsSet.parse(Map.of()));
         } catch (Exception e) {
             throw new AssertionError("validation should have passed without exception", e);
         }
     }
 
     public void testInvalidType() throws ParseException {
+        final JwtTypeValidator validator = randomFrom(JwtTypeValidator.ID_TOKEN_INSTANCE, JwtTypeValidator.ACCESS_TOKEN_INSTANCE);
 
         final JWSHeader jwsHeader = JWSHeader.parse(
             Map.of("typ", randomAlphaOfLengthBetween(4, 8), "alg", randomAlphaOfLengthBetween(3, 8))
@@ -42,7 +66,7 @@ public class JwtTypeValidatorTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> JwtTypeValidator.INSTANCE.validate(jwsHeader, JWTClaimsSet.parse(Map.of()))
+            () -> validator.validate(jwsHeader, JWTClaimsSet.parse(Map.of()))
         );
         assertThat(e.getMessage(), containsString("invalid jwt typ header"));
     }

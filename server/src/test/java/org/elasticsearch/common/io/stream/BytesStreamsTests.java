@@ -1001,6 +1001,11 @@ public class BytesStreamsTests extends ESTestCase {
             return bytesReference;
         }
 
+        @Override
+        public void seek(long position) {
+            output.seek(position);
+        }
+
         public int size() {
             int size = output.size();
             assertThat((long) size, equalTo(counting.size()));

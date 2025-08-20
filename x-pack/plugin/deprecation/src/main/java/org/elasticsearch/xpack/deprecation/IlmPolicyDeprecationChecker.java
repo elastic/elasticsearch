@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
@@ -36,26 +36,26 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
     private final List<Function<LifecyclePolicy, DeprecationIssue>> checks = List.of(this::checkLegacyTiers, this::checkFrozenAction);
 
     /**
-     * @param clusterState The cluster state provided for the checker
+     * @param project The project metadata provided for the checker
      * @param request not used yet in these checks
      * @param precomputedData not used yet in these checks
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     @Override
     public Map<String, List<DeprecationIssue>> check(
-        ClusterState clusterState,
+        ProjectMetadata project,
         DeprecationInfoAction.Request request,
         TransportDeprecationInfoAction.PrecomputedData precomputedData
     ) {
-        return check(clusterState);
+        return check(project);
     }
 
     /**
-     * @param clusterState The cluster state provided for the checker
+     * @param project The project metadata provided for the checker
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
-    Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
-        IndexLifecycleMetadata lifecycleMetadata = clusterState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
+    Map<String, List<DeprecationIssue>> check(ProjectMetadata project) {
+        IndexLifecycleMetadata lifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE);
         if (lifecycleMetadata == null || lifecycleMetadata.getPolicyMetadatas().isEmpty()) {
             return Map.of();
         }
@@ -104,7 +104,7 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
                     "ILM policy ["
                         + policy.getName()
                         + "] contains the action 'freeze' that is deprecated and will be removed in a future version.",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                    "https://ela.st/es-deprecation-7-frozen-index",
                     "This action is already a noop so it can be safely removed, because frozen indices no longer offer any advantages."
                         + " Consider cold or frozen tiers in place of frozen indices.",
                     false,

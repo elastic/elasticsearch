@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -16,12 +17,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.kql.KqlPlugin;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
@@ -66,7 +69,7 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[KQL] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[KQL] function is only supported in WHERE and STATS commands"));
     }
 
     public void testInvalidKqlQueryEof() {
@@ -89,6 +92,42 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(QueryShardException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("Failed to parse KQL query [:]"));
         assertThat(error.getRootCause().getMessage(), containsString("line 1:1: extraneous input ':' "));
+    }
+
+    public void testKqlhWithStats() {
+        var errorQuery = """
+            FROM test
+            | STATS c = count(*) BY kql("content: fox")
+            """;
+
+        var error = expectThrows(ElasticsearchException.class, () -> run(errorQuery));
+        assertThat(error.getMessage(), containsString("[KQL] function is only supported in WHERE and STATS commands"));
+
+        var query = """
+            FROM test
+            | STATS c = count(*) WHERE kql("content: fox"), d = count(*) WHERE kql("content: dog")
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c", "d"));
+            assertColumnTypes(resp.columns(), List.of("long", "long"));
+            assertValues(resp.values(), List.of(List.of(4L, 4L)));
+        }
+
+        query = """
+            FROM test METADATA _score
+            | WHERE kql("content: fox")
+            | STATS m = max(_score), n = min(_score)
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("m", "n"));
+            assertColumnTypes(resp.columns(), List.of("double", "double"));
+            List<List<Object>> valuesList = getValuesList(resp.values());
+            assertEquals(1, valuesList.size());
+            assertThat((double) valuesList.get(0).get(0), Matchers.lessThan(1.0));
+            assertThat((double) valuesList.get(0).get(1), Matchers.greaterThan(0.0));
+        }
     }
 
     private void createAndPopulateIndex() {

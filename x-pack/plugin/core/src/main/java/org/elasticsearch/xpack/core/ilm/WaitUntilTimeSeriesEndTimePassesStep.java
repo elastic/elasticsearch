@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -43,8 +43,8 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.getProject().index(index);
+    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+        IndexMetadata indexMetadata = state.metadata().index(index);
         assert indexMetadata != null
             : "the index metadata for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
 

@@ -17,7 +17,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -75,7 +75,7 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
         return new RepositoriesNodeMeteringResponse(clusterService.localNode(), repositoriesService.repositoriesStats());
     }
 
-    static final class RepositoriesNodeStatsRequest extends TransportRequest {
+    static final class RepositoriesNodeStatsRequest extends AbstractTransportRequest {
         RepositoriesNodeStatsRequest() {}
 
         RepositoriesNodeStatsRequest(StreamInput in) throws IOException {

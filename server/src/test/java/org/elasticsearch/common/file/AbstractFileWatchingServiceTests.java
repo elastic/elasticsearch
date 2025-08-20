@@ -25,6 +25,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -96,6 +97,11 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         @Override
         protected boolean filesIsDirectory(Path path) {
             return Files.isDirectory(path);
+        }
+
+        @Override
+        protected boolean filesIsSymbolicLink(Path path) {
+            return Files.isSymbolicLink(path);
         }
 
         @Override
@@ -230,6 +236,23 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         assertThat(result, sameInstance(newWatchKey));
         assertTrue(result != prevWatchKey);
 
+        verify(service, times(2)).retryDelayMillis(anyInt());
+    }
+
+    public void testAccessDeniedRetry() throws IOException, InterruptedException {
+        var service = spy(fileWatchingService);
+        doAnswer(i -> 0L).when(service).retryDelayMillis(anyInt());
+
+        Files.createDirectories(service.watchedFileDir());
+        var mockedPath = spy(service.watchedFileDir());
+
+        doThrow(new AccessDeniedException("can't read state")).doThrow(new AccessDeniedException("can't read state - attempt 2"))
+            .doAnswer(i -> mockedPath)
+            .when(mockedPath)
+            .toRealPath();
+
+        var result = service.readFileUpdateState(mockedPath);
+        assertNotNull(result);
         verify(service, times(2)).retryDelayMillis(anyInt());
     }
 

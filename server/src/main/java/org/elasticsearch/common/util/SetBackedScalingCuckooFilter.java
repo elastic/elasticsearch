@@ -341,7 +341,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         } else if (isSetMode == false && other.isSetMode) {
             // Rather than converting the other to a cuckoo first, we can just
             // replay the values directly into our filter.
-            other.hashes.forEach(this::add);
+            other.hashes.forEach(this::addHash);
         } else {
             // Both are in cuckoo mode, merge raw fingerprints
 

@@ -1,5 +1,0 @@
-pr: 126273
-summary: Fix LTR rescorer with model alias
-area: Ranking
-type: bug
-issues: []

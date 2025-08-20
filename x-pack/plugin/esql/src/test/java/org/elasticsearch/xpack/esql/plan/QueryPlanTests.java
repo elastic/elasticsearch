@@ -77,19 +77,20 @@ public class QueryPlanTests extends ESTestCase {
     }
 
     public void testForEachWithExpressionTopLevel() throws Exception {
-        Alias one = new Alias(EMPTY, "one", of(42));
+        FieldAttribute one = fieldAttribute();
+        Alias oneAliased = new Alias(EMPTY, "one", one);
         FieldAttribute two = fieldAttribute();
 
-        Project project = new Project(EMPTY, relation(), asList(one, two));
+        Project project = new Project(EMPTY, relation(), asList(oneAliased, two));
 
         List<Object> list = new ArrayList<>();
-        project.forEachExpression(Literal.class, l -> {
-            if (l.value().equals(42)) {
-                list.add(l.value());
+        project.forEachExpression(FieldAttribute.class, l -> {
+            if (l.semanticEquals(one)) {
+                list.add(l);
             }
         });
 
-        assertEquals(singletonList(one.child().fold(FoldContext.small())), list);
+        assertEquals(singletonList(one), list);
     }
 
     public void testForEachWithExpressionTree() throws Exception {
@@ -122,26 +123,30 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(singletonList(one), list);
     }
 
+    // TODO: duplicate of testForEachWithExpressionTopLevel, let's remove it.
+    // (Also a duplicate in the original ql package.)
     public void testForEachWithExpressionTreeInCollection() throws Exception {
-        Alias one = new Alias(EMPTY, "one", of(42));
+        FieldAttribute one = fieldAttribute();
+        Alias oneAliased = new Alias(EMPTY, "one", one);
         FieldAttribute two = fieldAttribute();
 
-        Project project = new Project(EMPTY, relation(), asList(one, two));
+        Project project = new Project(EMPTY, relation(), asList(oneAliased, two));
 
         List<Object> list = new ArrayList<>();
-        project.forEachExpression(Literal.class, l -> {
-            if (l.value().equals(42)) {
-                list.add(l.value());
+        project.forEachExpression(FieldAttribute.class, l -> {
+            if (l.semanticEquals(one)) {
+                list.add(l);
             }
         });
 
-        assertEquals(singletonList(one.child().fold(FoldContext.small())), list);
+        assertEquals(singletonList(one), list);
     }
 
     public void testPlanExpressions() {
-        Alias one = new Alias(EMPTY, "one", of(42));
+        FieldAttribute one = fieldAttribute();
+        Alias oneAliased = new Alias(EMPTY, "one", one);
         FieldAttribute two = fieldAttribute();
-        Project project = new Project(EMPTY, relation(), asList(one, two));
+        Project project = new Project(EMPTY, relation(), asList(oneAliased, two));
 
         assertThat(Expressions.names(project.expressions()), contains("one", two.name()));
     }

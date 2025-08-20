@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.datastreams.options.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -59,7 +60,6 @@ public class GetDataStreamOptionsAction {
                 IndicesOptions.GatekeeperOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(true).allowSelectors(false)
             )
             .build();
-        private boolean includeDefaults = false;
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
             super(masterNodeTimeout);
@@ -69,7 +69,6 @@ public class GetDataStreamOptionsAction {
         public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
             super(masterNodeTimeout);
             this.names = names;
-            this.includeDefaults = includeDefaults;
         }
 
         public String[] getNames() {
@@ -95,7 +94,10 @@ public class GetDataStreamOptionsAction {
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            this.includeDefaults = in.readBoolean();
+            // This boolean was removed in 8.19
+            if (in.getTransportVersion().isPatchFrom(TransportVersions.DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS_8_19) == false) {
+                in.readBoolean();
+            }
         }
 
         @Override
@@ -103,14 +105,12 @@ public class GetDataStreamOptionsAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names)
-                && indicesOptions.equals(request.indicesOptions)
-                && includeDefaults == request.includeDefaults;
+            return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions, includeDefaults);
+            int result = Objects.hash(indicesOptions);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -123,10 +123,6 @@ public class GetDataStreamOptionsAction {
         @Override
         public IndicesOptions indicesOptions() {
             return indicesOptions;
-        }
-
-        public boolean includeDefaults() {
-            return includeDefaults;
         }
 
         public Request indicesOptions(IndicesOptions indicesOptions) {
@@ -142,11 +138,6 @@ public class GetDataStreamOptionsAction {
         @Override
         public IndicesRequest indices(String... indices) {
             this.names = indices;
-            return this;
-        }
-
-        public Request includeDefaults(boolean includeDefaults) {
-            this.includeDefaults = includeDefaults;
             return this;
         }
     }

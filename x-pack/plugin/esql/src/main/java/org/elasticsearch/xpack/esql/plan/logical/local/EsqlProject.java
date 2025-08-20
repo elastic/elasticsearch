@@ -21,6 +21,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * A projection when first parsed, i.e. obtained from {@code KEEP, DROP, RENAME}. After the analysis step, we use {@link Project}.
+ */
+// TODO: Consolidate with Project. We don't need the pre-/post-analysis distinction for other logical plans.
+// https://github.com/elastic/elasticsearch/issues/109195
 public class EsqlProject extends Project {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,

@@ -718,7 +718,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     "clear resources",
                     TransportFieldCapabilitiesAction.class.getCanonicalName(),
                     Level.TRACE,
-                    "clear index responses on cancellation"
+                    "clear index responses on cancellation submitted"
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();
@@ -906,6 +906,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            // skip rewriting on the coordinator
+            if (queryRewriteContext.convertToCoordinatorRewriteContext() != null) {
+                return this;
+            }
             try {
                 blockingLatch.await();
             } catch (InterruptedException e) {

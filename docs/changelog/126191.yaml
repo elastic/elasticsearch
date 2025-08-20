@@ -1,5 +1,0 @@
-pr: 126191
-summary: Fix NPE for missing Content Type header in OIDC Authenticator
-area: Authentication
-type: bug
-issues: []

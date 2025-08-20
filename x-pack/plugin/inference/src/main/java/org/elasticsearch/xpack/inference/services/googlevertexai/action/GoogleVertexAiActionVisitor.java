@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 
@@ -18,4 +19,7 @@ public interface GoogleVertexAiActionVisitor {
     ExecutableAction create(GoogleVertexAiEmbeddingsModel model, Map<String, Object> taskSettings);
 
     ExecutableAction create(GoogleVertexAiRerankModel model, Map<String, Object> taskSettings);
+
+    ExecutableAction create(GoogleVertexAiChatCompletionModel model, Map<String, Object> taskSettings);
+
 }

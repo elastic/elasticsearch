@@ -18,7 +18,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningFailureException;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -250,7 +250,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                 } else {
                     assertThat(getIndexSettingsAsMap("metrics-20210101"), hasEntry("index.number_of_replicas", "1"));
                 }
-                assertThat(indexExists(excludedIndex), is(false));
+                assertThat(indexExists(adminClient(), excludedIndex), is(false));
             });
 
             assertLongBusy(() -> verifyCcrMonitoring("metrics-20210101", "metrics-20210101"));
@@ -324,12 +324,12 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                     indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(leaderClient, dataStreamName, 1);
                 verifyDocuments(leaderClient, dataStreamName, numDocs);
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(client(), dataStreamName, 1);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs);
             });
@@ -338,7 +338,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             try (RestClient leaderClient = buildLeaderClient()) {
                 Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(leaderClient, dataStreamName, 1, 2);
 
                 Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
@@ -348,7 +348,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(client(), dataStreamName, 1, 2);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs + 1);
             });
@@ -357,13 +357,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             try (RestClient leaderClient = buildLeaderClient()) {
                 Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
-                verifyDataStream(
-                    leaderClient,
-                    dataStreamName,
-                    backingIndexName(dataStreamName, 1),
-                    backingIndexName(dataStreamName, 2),
-                    backingIndexName(dataStreamName, 3)
-                );
+                verifyDataStream(leaderClient, dataStreamName, 1, 2, 3);
 
                 Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
@@ -373,28 +367,14 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 3));
-                verifyDataStream(
-                    client(),
-                    dataStreamName,
-                    backingIndexName(dataStreamName, 1),
-                    backingIndexName(dataStreamName, 2),
-                    backingIndexName(dataStreamName, 3)
-                );
+                verifyDataStream(client(), dataStreamName, 1, 2, 3);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs + 2);
             });
 
         } finally {
-            cleanUpFollower(
-                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
-                List.of(dataStreamName),
-                List.of(autoFollowPatternName)
-            );
-            cleanUpLeader(
-                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
-                List.of(dataStreamName),
-                List.of()
-            );
+            cleanUpFollower(List.of(), List.of(dataStreamName), List.of(autoFollowPatternName));
+            cleanUpLeader(List.of(), List.of(dataStreamName), List.of());
         }
     }
 
@@ -421,19 +401,13 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                     indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(leaderClient, dataStreamName, 1);
                 verifyDocuments(leaderClient, dataStreamName, numDocs);
             }
-            logger.info(
-                "--> checking {} with index {} has been auto followed to {} with backing index {}",
-                dataStreamName,
-                backingIndexName(dataStreamName, 1),
-                dataStreamNameFollower,
-                backingIndexName(dataStreamNameFollower, 1)
-            );
+            logger.info("--> checking {} has been auto followed to {}", dataStreamName, dataStreamNameFollower);
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-                verifyDataStream(client(), dataStreamNameFollower, backingIndexName(dataStreamNameFollower, 1));
+                verifyDataStream(client(), dataStreamNameFollower, 1);
                 ensureYellow(dataStreamNameFollower);
                 verifyDocuments(client(), dataStreamNameFollower, numDocs);
             });
@@ -443,7 +417,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             try (RestClient leaderClient = buildLeaderClient()) {
                 Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(leaderClient, dataStreamName, 1, 2);
 
                 Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
@@ -453,12 +427,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
-                verifyDataStream(
-                    client(),
-                    dataStreamNameFollower,
-                    backingIndexName(dataStreamNameFollower, 1),
-                    backingIndexName(dataStreamNameFollower, 2)
-                );
+                verifyDataStream(client(), dataStreamNameFollower, 1, 2);
                 ensureYellow(dataStreamNameFollower);
                 verifyDocuments(client(), dataStreamNameFollower, numDocs + 1);
             });
@@ -468,13 +437,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             try (RestClient leaderClient = buildLeaderClient()) {
                 Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
-                verifyDataStream(
-                    leaderClient,
-                    dataStreamName,
-                    backingIndexName(dataStreamName, 1),
-                    backingIndexName(dataStreamName, 2),
-                    backingIndexName(dataStreamName, 3)
-                );
+                verifyDataStream(leaderClient, dataStreamName, 1, 2, 3);
 
                 Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
@@ -484,32 +447,14 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 3));
-                verifyDataStream(
-                    client(),
-                    dataStreamNameFollower,
-                    backingIndexName(dataStreamNameFollower, 1),
-                    backingIndexName(dataStreamNameFollower, 2),
-                    backingIndexName(dataStreamNameFollower, 3)
-                );
+                verifyDataStream(client(), dataStreamNameFollower, 1, 2, 3);
                 ensureYellow(dataStreamNameFollower);
                 verifyDocuments(client(), dataStreamNameFollower, numDocs + 2);
             });
 
         } finally {
-            cleanUpFollower(
-                List.of(
-                    backingIndexName(dataStreamNameFollower, 1),
-                    backingIndexName(dataStreamNameFollower, 2),
-                    backingIndexName(dataStreamNameFollower, 3)
-                ),
-                List.of(dataStreamNameFollower),
-                List.of(autoFollowPatternName)
-            );
-            cleanUpLeader(
-                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
-                List.of(dataStreamName),
-                List.of()
-            );
+            cleanUpFollower(List.of(), List.of(dataStreamNameFollower), List.of(autoFollowPatternName));
+            cleanUpLeader(List.of(), List.of(dataStreamName), List.of());
         }
     }
 
@@ -541,7 +486,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                     indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(leaderClient, dataStreamName, 1);
                 verifyDocuments(leaderClient, dataStreamName, initialNumDocs);
             }
 
@@ -549,10 +494,11 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             createAutoFollowPattern(client(), autoFollowPatternName, dataStreamName + "*", "leader_cluster", null);
 
             // Rollover and ensure only second backing index is replicated:
+            final List<String> backingIndexNames;
             try (RestClient leaderClient = buildLeaderClient()) {
                 Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                backingIndexNames = verifyDataStream(leaderClient, dataStreamName, 1, 2);
 
                 Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
@@ -562,31 +508,23 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 2));
+                verifyDataStream(client(), dataStreamName, 2);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, 1);
             });
 
             // Explicitly follow the first backing index and check that the data stream in follow cluster is updated correctly:
-            followIndex(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 1));
+            followIndex(backingIndexNames.getFirst(), backingIndexNames.getFirst());
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(client(), dataStreamName, 1, 2);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, initialNumDocs + 1);
             });
 
         } finally {
-            cleanUpFollower(
-                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
-                List.of(dataStreamName),
-                List.of(autoFollowPatternName)
-            );
-            cleanUpLeader(
-                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
-                List.of(dataStreamName),
-                List.of()
-            );
+            cleanUpFollower(List.of(), List.of(dataStreamName), List.of(autoFollowPatternName));
+            cleanUpLeader(List.of(), List.of(dataStreamName), List.of());
         }
     }
 
@@ -614,7 +552,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                 indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                 assertOK(leaderClient.performRequest(indexRequest));
             }
-            verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+            verifyDataStream(leaderClient, dataStreamName, 1);
             verifyDocuments(leaderClient, dataStreamName, initialNumDocs);
         }
 
@@ -622,10 +560,11 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
         createAutoFollowPattern(client(), autoFollowPatternName, dataStreamName + "*", "leader_cluster", null);
 
         // Rollover and ensure only second backing index is replicated:
+        final List<String> backingIndexNames;
         try (RestClient leaderClient = buildLeaderClient()) {
             Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
             assertOK(leaderClient.performRequest(rolloverRequest));
-            verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+            verifyDataStream(leaderClient, dataStreamName, 1, 2);
 
             Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
             indexRequest.addParameter("refresh", "true");
@@ -635,22 +574,17 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
 
             assertOK(leaderClient.performRequest(rolloverRequest));
             assertOK(leaderClient.performRequest(indexRequest));
-            verifyDataStream(
-                leaderClient,
-                dataStreamName,
-                backingIndexName(dataStreamName, 1),
-                backingIndexName(dataStreamName, 2),
-                backingIndexName(dataStreamName, 3)
-            );
+            backingIndexNames = verifyDataStream(leaderClient, dataStreamName, 1, 2, 3);
 
         }
 
-        assertBusy(() -> assertThat(indexExists(backingIndexName(dataStreamName, 2)), is(true)));
-        assertBusy(() -> assertThat(indexExists(backingIndexName(dataStreamName, 3)), is(true)));
+        awaitIndexExists(backingIndexNames.get(1));
+        awaitIndexExists(backingIndexNames.get(2));
 
         // Replace a backing index in the follower data stream with one that has a prefix (simulating a shrink)
 
-        String shrunkIndexName = SHRUNKEN_INDEX_PREFIX + DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+        final String secondBackingIndex = backingIndexNames.get(1);
+        String shrunkIndexName = SHRUNKEN_INDEX_PREFIX + secondBackingIndex;
         Request indexRequest = new Request("POST", "/" + shrunkIndexName + "/_doc");
         indexRequest.addParameter("refresh", "true");
         indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
@@ -666,7 +600,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                 + dataStreamName
                 + "\",\n"
                 + "        \"index\": \""
-                + DataStream.getDefaultBackingIndexName(dataStreamName, 2)
+                + secondBackingIndex
                 + "\"\n"
                 + "      }\n"
                 + "    },\n"
@@ -689,14 +623,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
         try (RestClient leaderClient = buildLeaderClient()) {
             Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
             assertOK(leaderClient.performRequest(rolloverRequest));
-            verifyDataStream(
-                leaderClient,
-                dataStreamName,
-                backingIndexName(dataStreamName, 1),
-                backingIndexName(dataStreamName, 2),
-                backingIndexName(dataStreamName, 3),
-                backingIndexName(dataStreamName, 4)
-            );
+            verifyDataStream(leaderClient, dataStreamName, 1, 2, 3, 4);
 
             indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
             indexRequest.addParameter("refresh", "true");
@@ -705,14 +632,11 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
         }
 
         assertBusy(() -> {
-            Request request = new Request("GET", "/_data_stream/" + dataStreamName);
-            Map<String, ?> response = toMap(client().performRequest(request));
-            List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
-            List<?> actualBackingIndexItems = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
+            List<String> actualBackingIndexItems = getDataStreamBackingIndexNames(dataStreamName);
             assertThat(actualBackingIndexItems.size(), is(3));
-            Map<String, String> writeIndexMap = (Map<String, String>) actualBackingIndexItems.get(2);
-            assertThat(writeIndexMap.get("index_name"), not(shrunkIndexName));
-            assertThat(writeIndexMap.get("index_name"), is(backingIndexName(dataStreamName, 4)));
+            String writeIndex = actualBackingIndexItems.get(2);
+            assertThat(writeIndex, not(shrunkIndexName));
+            assertThat(writeIndex, DataStreamTestHelper.backingIndexEqualTo(dataStreamName, 4));
             assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 3));
         });
     }
@@ -740,12 +664,12 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                     indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(leaderClient, dataStreamName, 1);
                 verifyDocuments(leaderClient, dataStreamName, numDocs);
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(client(), dataStreamName, 1);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs);
             });
@@ -754,7 +678,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             try (var leaderClient = buildLeaderClient()) {
                 var rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(leaderClient, dataStreamName, 1, 2);
 
                 var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
@@ -764,7 +688,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(client(), dataStreamName, 1, 2);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs + 1);
             });
@@ -779,12 +703,13 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                         "data stream [" + dataStreamName + "] cannot be rolled over, " + "because it is a replicated data stream"
                     )
                 );
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                backingIndexNames = verifyDataStream(client(), dataStreamName, 1, 2);
 
                 // Unfollow .ds-logs-tomcat-prod-000001
-                pauseFollow(backingIndexName(dataStreamName, 1));
-                closeIndex(backingIndexName(dataStreamName, 1));
-                unfollow(backingIndexName(dataStreamName, 1));
+                final String writeIndex = backingIndexNames.getFirst();
+                pauseFollow(writeIndex);
+                closeIndex(writeIndex);
+                unfollow(writeIndex);
 
                 // Try again
                 var rolloverRequest2 = new Request("POST", "/" + dataStreamName + "/_rollover");
@@ -795,7 +720,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                         "data stream [" + dataStreamName + "] cannot be rolled over, " + "because it is a replicated data stream"
                     )
                 );
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(client(), dataStreamName, 1, 2);
 
                 // Promote local data stream
                 var promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
@@ -804,13 +729,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                 // Try again and now the rollover should be successful because local data stream is now :
                 var rolloverRequest3 = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(client().performRequest(rolloverRequest3));
-                backingIndexNames = verifyDataStream(
-                    client(),
-                    dataStreamName,
-                    backingIndexName(dataStreamName, 1),
-                    backingIndexName(dataStreamName, 2),
-                    backingIndexName(dataStreamName, 3)
-                );
+                backingIndexNames = verifyDataStream(client(), dataStreamName, 1, 2, 3);
 
                 // TODO: verify that following a backing index for logs-tomcat-prod data stream in remote cluster fails,
                 // because local data stream isn't a replicated data stream anymore.
@@ -826,17 +745,8 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             }
 
         } finally {
-            if (backingIndexNames == null) {
-                // we failed to compute the actual backing index names in the test because we failed earlier on, guessing them on a
-                // best-effort basis
-                backingIndexNames = List.of(
-                    backingIndexName(dataStreamName, 1),
-                    backingIndexName(dataStreamName, 2),
-                    backingIndexName(dataStreamName, 3)
-                );
-            }
-            cleanUpFollower(backingIndexNames, List.of(dataStreamName), List.of(autoFollowPatternName));
-            cleanUpLeader(backingIndexNames.subList(0, 2), List.of(dataStreamName), List.of());
+            cleanUpFollower(List.of(), List.of(dataStreamName), List.of(autoFollowPatternName));
+            cleanUpLeader(List.of(), List.of(dataStreamName), List.of());
         }
     }
 
@@ -1000,12 +910,12 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                     indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
-                verifyDataStream(leaderClient, leaderDataStreamName, backingIndexName(leaderDataStreamName, 1));
+                verifyDataStream(leaderClient, leaderDataStreamName, 1);
                 verifyDocuments(leaderClient, leaderDataStreamName, numDocs);
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndicesInFollowCluster + 1));
-                verifyDataStream(client(), leaderDataStreamName, backingIndexName(leaderDataStreamName, 1));
+                verifyDataStream(client(), leaderDataStreamName, 1);
                 ensureYellow(leaderDataStreamName);
                 verifyDocuments(client(), leaderDataStreamName, numDocs);
             });
@@ -1044,7 +954,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                         getNumberOfSuccessfulFollowedIndices(leaderClient),
                         equalTo(initialNumberOfSuccessfulFollowedIndicesInLeaderCluster + 1)
                     );
-                    verifyDataStream(leaderClient, followerDataStreamName, backingIndexName(followerDataStreamName, 1));
+                    verifyDataStream(leaderClient, followerDataStreamName, 1);
                     ensureYellow(followerDataStreamName);
                     verifyDocuments(leaderClient, followerDataStreamName, numDocs);
                 });
@@ -1096,16 +1006,8 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                 verifyDocuments(leaderClient, aliasName, (numDocs + moreDocs) * 2);
             }
         } finally {
-            cleanUpFollower(
-                List.of(backingIndexName(followerDataStreamName, 1), backingIndexName(leaderDataStreamName, 1)),
-                List.of(followerDataStreamName, leaderDataStreamName),
-                List.of("id1")
-            );
-            cleanUpLeader(
-                List.of(backingIndexName(leaderDataStreamName, 1), backingIndexName(followerDataStreamName, 1)),
-                List.of(leaderDataStreamName, followerDataStreamName),
-                List.of("id2")
-            );
+            cleanUpFollower(List.of(), List.of(followerDataStreamName, leaderDataStreamName), List.of("id1"));
+            cleanUpLeader(List.of(), List.of(leaderDataStreamName, followerDataStreamName), List.of("id2"));
         }
     }
 
@@ -1216,7 +1118,6 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
         final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
 
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-        List<String> backingIndexNames = null;
         try {
             // Create index template
             Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));
@@ -1239,12 +1140,12 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
                     indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(leaderClient, dataStreamName, 1);
                 verifyDocuments(leaderClient, dataStreamName, numDocs);
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(client(), dataStreamName, 1);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs);
             });
@@ -1253,7 +1154,7 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             try (var leaderClient = buildLeaderClient()) {
                 var rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(leaderClient, dataStreamName, 1, 2);
 
                 var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
@@ -1263,33 +1164,22 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
             }
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                verifyDataStream(client(), dataStreamName, 1, 2);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs + 1);
             });
 
-            backingIndexNames = verifyDataStream(
-                client(),
-                dataStreamName,
-                backingIndexName(dataStreamName, 1),
-                backingIndexName(dataStreamName, 2)
-            );
+            verifyDataStream(client(), dataStreamName, 1, 2);
 
             // Promote local data stream
             var promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
             Response response = client().performRequest(promoteRequest);
             assertOK(response);
         } finally {
-            if (backingIndexNames == null) {
-                // we failed to compute the actual backing index names in the test because we failed earlier on, guessing them on a
-                // best-effort basis
-                backingIndexNames = List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
-            }
-
             // These cleanup methods are copied from the finally block of other Data Stream tests in this class however
             // they may no longer be required but have been included for completeness
-            cleanUpFollower(backingIndexNames, List.of(dataStreamName), List.of(autoFollowPatternName));
-            cleanUpLeader(backingIndexNames.subList(0, 1), List.of(dataStreamName), List.of());
+            cleanUpFollower(List.of(), List.of(dataStreamName), List.of(autoFollowPatternName));
+            cleanUpLeader(List.of(), List.of(dataStreamName), List.of());
             Request deleteTemplateRequest = new Request("DELETE", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));
             if (createFollowerTemplate) {
                 assertOK(client().performRequest(deleteTemplateRequest));

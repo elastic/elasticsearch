@@ -16,6 +16,7 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -103,6 +104,7 @@ public class RemoveProcessorTests extends ESTestCase {
                 some.put("map", map);
                 source.put("some", some);
             }
+            default -> throw new AssertionError("failure, got illegal switch case");
         }
         IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
         Map<String, Object> config = new HashMap<>();
@@ -111,6 +113,53 @@ public class RemoveProcessorTests extends ESTestCase {
         Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, null, null, config, null);
         processor.execute(document);
         assertThat(document.hasField("some.map.path"), is(false));
+    }
+
+    public void testIgnoreMissingAndNonIntegerInPath() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> some = new HashMap<>();
+        List<Object> array = new ArrayList<>();
+        Map<String, Object> path = new HashMap<>();
+
+        switch (randomIntBetween(0, 6)) {
+            case 0 -> {
+                // empty source
+            }
+            case 1 -> {
+                source.put("some", null);
+            }
+            case 2 -> {
+                some.put("array", null);
+                source.put("some", some);
+            }
+            case 3 -> {
+                some.put("array", array);
+                source.put("some", some);
+            }
+            case 4 -> {
+                array.add(null);
+                some.put("array", array);
+                source.put("some", some);
+            }
+            case 5 -> {
+                array.add(path);
+                some.put("array", array);
+                source.put("some", some);
+            }
+            case 6 -> {
+                array.add("foobar");
+                some.put("array", array);
+                source.put("some", some);
+            }
+            default -> throw new AssertionError("failure, got illegal switch case");
+        }
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "some.array.path");
+        config.put("ignore_missing", true);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, null, null, config, null);
+        processor.execute(document);
+        assertThat(document.hasField("some.array.path"), is(false));
     }
 
     public void testKeepFields() throws Exception {

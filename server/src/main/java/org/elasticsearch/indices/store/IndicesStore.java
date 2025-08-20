@@ -43,13 +43,14 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -236,7 +237,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         IndexShardRoutingTable indexShardRoutingTable
     ) {
         if (DiscoveryNode.isStateless(clusterService.getSettings())) {
-            deleteShardStoreOnApplierThread(indexShardRoutingTable.shardId(), clusterStateVersion);
+            deleteShardStoreOnApplierThread(indexShardRoutingTable.shardId(), clusterStateVersion, IndexRemovalReason.NO_LONGER_ASSIGNED);
             return;
         }
 
@@ -331,11 +332,11 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                 return;
             }
 
-            deleteShardStoreOnApplierThread(shardId, clusterStateVersion);
+            deleteShardStoreOnApplierThread(shardId, clusterStateVersion, IndexRemovalReason.NO_LONGER_ASSIGNED);
         }
     }
 
-    private void deleteShardStoreOnApplierThread(ShardId shardId, long clusterStateVersion) {
+    private void deleteShardStoreOnApplierThread(ShardId shardId, long clusterStateVersion, IndexRemovalReason indexRemovalReason) {
         clusterService.getClusterApplierService()
             .runOnApplierThread("indices_store ([" + shardId + "] active fully on other nodes)", Priority.HIGH, currentState -> {
                 if (clusterStateVersion != currentState.getVersion()) {
@@ -349,7 +350,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                     return;
                 }
                 try {
-                    indicesService.deleteShardStore("no longer used", shardId, currentState);
+                    indicesService.deleteShardStore("no longer used", shardId, currentState, indexRemovalReason);
                 } catch (Exception ex) {
                     logger.debug(() -> format("%s failed to delete unallocated shard, ignoring", shardId), ex);
                 }
@@ -462,7 +463,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
 
     }
 
-    private static class ShardActiveRequest extends TransportRequest {
+    private static class ShardActiveRequest extends AbstractTransportRequest {
         private final TimeValue timeout;
         private final ClusterName clusterName;
         private final String indexUUID;

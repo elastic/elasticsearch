@@ -1,4 +1,6 @@
 project: 'Elasticsearch'
+products:
+  - id: elasticsearch
 max_toc_depth: 2
 exclude:
   - README.md
@@ -96,8 +98,8 @@ subs:
   transforms-cap:   "Transforms"
   dfanalytics-cap:   "Data frame analytics"
   dfanalytics:   "data frame analytics"
-  dfanalytics-job:   "'{dataframe} analytics job'"
-  dfanalytics-jobs:   "'{dataframe} analytics jobs'"
+  dfanalytics-job:   "data frame analytics job"
+  dfanalytics-jobs:   "data frame analytics jobs"
   ctransforms:   "continuous transforms"
   regression:   "regression"
   regression-cap:   "Regression"
@@ -108,3 +110,6 @@ subs:
   feat-imp:   "feature importance"
   feat-imp-cap:   "Feature importance"
   nlp:   "natural language processing"
+  index-manage-app:   "Index Management"
+  connectors-app:   "Connectors"
+  ingest-pipelines-app:   "Ingest Pipelines"

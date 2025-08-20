@@ -50,7 +50,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         this.snapshots = in.readCollectionAsImmutableList(SnapshotInfo::readFrom);
         if (in.getTransportVersion().before(TransportVersions.REMOVE_SNAPSHOT_FAILURES)
-            && in.getTransportVersion().isPatchFrom(TransportVersions.REMOVE_SNAPSHOT_FAILURES_90) == false) {
+            && in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
             // Deprecated `failures` field
             in.readMap(StreamInput::readException);
         }
@@ -85,7 +85,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(snapshots);
         if (out.getTransportVersion().before(TransportVersions.REMOVE_SNAPSHOT_FAILURES)
-            && out.getTransportVersion().isPatchFrom(TransportVersions.REMOVE_SNAPSHOT_FAILURES_90) == false) {
+            && out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
             // Deprecated `failures` field
             out.writeMap(Map.of(), StreamOutput::writeException);
         }

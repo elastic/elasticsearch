@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,8 +35,6 @@ public record DesiredBalanceStats(
     long undesiredAllocations
 ) implements Writeable, ToXContentObject {
 
-    private static final TransportVersion COMPUTED_SHARD_MOVEMENTS_VERSION = TransportVersions.V_8_8_0;
-
     public DesiredBalanceStats {
         if (lastConvergedIndex < 0) {
             assert false : lastConvergedIndex;
@@ -54,7 +50,7 @@ public record DesiredBalanceStats(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
-            in.getTransportVersion().onOrAfter(COMPUTED_SHARD_MOVEMENTS_VERSION) ? in.readVLong() : -1,
+            in.readVLong(),
             in.readVLong(),
             in.readVLong(),
             in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
@@ -71,16 +67,12 @@ public record DesiredBalanceStats(
         out.writeVLong(computationExecuted);
         out.writeVLong(computationConverged);
         out.writeVLong(computationIterations);
-        if (out.getTransportVersion().onOrAfter(COMPUTED_SHARD_MOVEMENTS_VERSION)) {
-            out.writeVLong(computedShardMovements);
-        }
+        out.writeVLong(computedShardMovements);
         out.writeVLong(cumulativeComputationTime);
         out.writeVLong(cumulativeReconciliationTime);
-        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
-            out.writeVLong(unassignedShards);
-            out.writeVLong(totalAllocations);
-            out.writeVLong(undesiredAllocations);
-        }
+        out.writeVLong(unassignedShards);
+        out.writeVLong(totalAllocations);
+        out.writeVLong(undesiredAllocations);
     }
 
     @Override

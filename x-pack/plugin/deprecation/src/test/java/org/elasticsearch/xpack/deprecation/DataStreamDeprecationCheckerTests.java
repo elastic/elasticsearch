@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -48,17 +47,16 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DataStream dataStream = createTestDataStream(oldIndexCount, 0, newIndexCount, 0, nameToIndexMetadata, expectedIndices);
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has backing indices that were created before Elasticsearch 9.0.0",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + ".0",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -69,7 +67,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         );
 
         // We know that the data stream checks ignore the request.
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.size(), equalTo(1));
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
@@ -77,7 +75,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
     public void testOldIndicesCheckWithOnlyNewIndices() {
         // This tests what happens when any old indices that we have are closed. We expect no deprecation warning.
-        int newOpenIndexCount = randomIntBetween(0, 100);
+        int newOpenIndexCount = randomIntBetween(1, 100);
         int newClosedIndexCount = randomIntBetween(0, 100);
 
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
@@ -85,13 +83,12 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DataStream dataStream = createTestDataStream(0, 0, newOpenIndexCount, newClosedIndexCount, nameToIndexMetadata, expectedIndices);
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.size(), equalTo(0));
     }
 
@@ -117,17 +114,16 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             expectedIndices
         );
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has backing indices that were created before Elasticsearch 9.0.0",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + ".0",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -137,7 +133,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
@@ -276,18 +272,18 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             null
         );
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Old data stream with a compatibility version < 9.0 Have Been Ignored",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has read only backing indices that were created before Elasticsearch 9.0.0 and have been marked as "
-                + "OK to remain read-only after upgrade",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0 has Been Ignored",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has read only backing indices that were created before Elasticsearch "
+                + Version.CURRENT.major
+                + ".0 and have been marked as OK to remain read-only after upgrade",
             false,
             ofEntries(
                 entry("reindex_required", false),
@@ -297,7 +293,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
@@ -342,12 +338,12 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             randomBoolean(),
             null
         );
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        assertThat(checker.check(clusterState), equalTo(Map.of()));
+
+        assertThat(checker.check(project), equalTo(Map.of()));
     }
 
 }

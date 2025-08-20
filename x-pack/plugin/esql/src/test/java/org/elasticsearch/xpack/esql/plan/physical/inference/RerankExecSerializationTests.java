@@ -47,17 +47,12 @@ public class RerankExecSerializationTests extends AbstractPhysicalPlanSerializat
         return new RerankExec(instance.source(), child, inferenceId, queryText, fields, scoreAttribute());
     }
 
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
-
     private List<Alias> randomFields() {
         return randomList(0, 10, AliasTests::randomAlias);
     }
 
     static Literal string(String value) {
-        return new Literal(EMPTY, value, DataType.KEYWORD);
+        return Literal.keyword(EMPTY, value);
     }
 
     private Attribute scoreAttribute() {

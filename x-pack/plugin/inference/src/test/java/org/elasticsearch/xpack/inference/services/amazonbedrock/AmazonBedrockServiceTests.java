@@ -349,7 +349,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     exception.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -368,7 +368,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -390,7 +390,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -412,7 +412,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -959,7 +959,14 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         );
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -988,7 +995,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    public void testInfer_ThrowsValidationErrorWhenInputTypeIsSpecifiedForProviderThatDoesNotAcceptTaskType() throws IOException {
+    public void testInfer_SendsRequest_ForTitanEmbeddingsModel() throws IOException {
         var sender = mock(Sender.class);
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -1006,37 +1013,38 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             "secret"
         );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of(""),
-                    false,
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
             );
-            assertThat(
-                thrownException.getMessage(),
-                is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed for provider [amazontitan];")
+            var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()
+        ) {
+            var results = new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
+            requestSender.enqueue(results);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
 
-            verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.123F, 0.678F }))));
         }
-        verify(sender, times(1)).close();
-        verifyNoMoreInteractions(factory);
-        verifyNoMoreInteractions(sender);
     }
 
-    public void testInfer_SendsRequest_ForEmbeddingsModel() throws IOException {
+    public void testInfer_SendsRequest_ForCohereEmbeddingsModel() throws IOException {
         var sender = mock(Sender.class);
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -1046,7 +1054,14 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
                 var results = new TextEmbeddingFloatResults(
                     List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
@@ -1092,7 +1107,14 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
                 var mockResults = new ChatCompletionResults(List.of(new ChatCompletionResults.Result("test result")));
                 requestSender.enqueue(mockResults);
@@ -1136,7 +1158,14 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
             var model = AmazonBedrockChatCompletionModelTests.createModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -1170,7 +1199,14 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
             var embeddingSize = randomNonNegativeInt();
             var provider = randomFrom(AmazonBedrockProvider.values());
             var model = AmazonBedrockEmbeddingsModelTests.createModel(
@@ -1209,7 +1245,12 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         );
 
         try (
-            var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool));
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            );
             var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()
         ) {
             requestSender.enqueue(
@@ -1244,7 +1285,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new AmazonBedrockService(mock(), mock(), createWithEmptySettings(mock()))) {
+        try (var service = new AmazonBedrockService(mock(), mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -1288,7 +1329,14 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
                 {
                     var mockResults1 = new TextEmbeddingFloatResults(
@@ -1349,7 +1397,12 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
             mockClusterServiceEmpty()
         );
-        return new AmazonBedrockService(mock(HttpRequestSender.Factory.class), amazonBedrockFactory, createWithEmptySettings(threadPool));
+        return new AmazonBedrockService(
+            mock(HttpRequestSender.Factory.class),
+            amazonBedrockFactory,
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 
     private Map<String, Object> getRequestConfigMap(

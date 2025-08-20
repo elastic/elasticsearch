@@ -14,12 +14,6 @@ setup:
             - synonyms: "test => check"
               id: "test-id-3"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
 ---
 "Update a synonyms rule":
   - do:
@@ -85,3 +79,68 @@ setup:
         rule_id: "test-id-0"
         body:
           synonyms: "i-phone, iphone"
+
+---
+"Refresh can be specified":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_refresh_param ]
+      reason: "synonyms refresh param capability needed"
+
+  - do:
+      synonyms.put_synonym_rule:
+        refresh: false
+        set_id: "test-synonyms"
+        rule_id: "test-id-2"
+        body:
+          synonyms: "bye, goodbye, seeya"
+
+  - match: { result: "updated" }
+  # Reload analyzers info is not included
+  - not_exists: reload_analyzers_details
+
+---
+"Validation failure tests":
+  - do:
+      catch: /\[synonyms\] field can't be empty/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: ""
+
+  - do:
+      catch: /More than one explicit mapping specified in the same synonyms rule/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: "bye => => goodbye"
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: " => goodbye"
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: "bye => "
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: "bye, goodbye,  "

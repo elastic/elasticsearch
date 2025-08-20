@@ -94,7 +94,7 @@ public final class SpecifiedDocument implements ToXContentObject, Writeable {
         return builder.endObject();
     }
 
-    static final ConstructingObjectParser<SpecifiedDocument, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<SpecifiedDocument, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         a -> new SpecifiedDocument((String) a[0], (String) a[1])
     );

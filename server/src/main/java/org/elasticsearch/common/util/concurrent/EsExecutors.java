@@ -17,8 +17,6 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -393,11 +391,9 @@ public class EsExecutors {
 
         @Override
         public Thread newThread(Runnable r) {
-            return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
-                Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
-                t.setDaemon(true);
-                return t;
-            });
+            Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
+            t.setDaemon(true);
+            return t;
         }
     }
 
@@ -581,24 +577,43 @@ public class EsExecutors {
     }
 
     public static class TaskTrackingConfig {
-        // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
-        public static final double DEFAULT_EWMA_ALPHA = 0.3;
+        // This is a random starting point alpha.
+        public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
-        private final double ewmaAlpha;
+        private final boolean trackMaxQueueLatency;
+        private final double executionTimeEwmaAlpha;
 
-        public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, false, DEFAULT_EWMA_ALPHA);
-        public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, false, DEFAULT_EWMA_ALPHA);
+        public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
+            false,
+            false,
+            false,
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+        );
+        public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
+            true,
+            false,
+            false,
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+        );
 
-        public TaskTrackingConfig(boolean trackOngoingTasks, double ewmaAlpha) {
-            this(true, trackOngoingTasks, ewmaAlpha);
-        }
-
-        private TaskTrackingConfig(boolean trackExecutionTime, boolean trackOngoingTasks, double EWMAAlpha) {
+        /**
+         * @param trackExecutionTime Whether to track execution stats
+         * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
+         * @param trackMaxQueueLatency Whether to track max queue latency.
+         * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
+         */
+        private TaskTrackingConfig(
+            boolean trackExecutionTime,
+            boolean trackOngoingTasks,
+            boolean trackMaxQueueLatency,
+            double executionTimeEWMAAlpha
+        ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
-            this.ewmaAlpha = EWMAAlpha;
+            this.trackMaxQueueLatency = trackMaxQueueLatency;
+            this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
         }
 
         public boolean trackExecutionTime() {
@@ -609,8 +624,45 @@ public class EsExecutors {
             return trackOngoingTasks;
         }
 
-        public double getEwmaAlpha() {
-            return ewmaAlpha;
+        public boolean trackMaxQueueLatency() {
+            return trackMaxQueueLatency;
+        }
+
+        public double getExecutionTimeEwmaAlpha() {
+            return executionTimeEwmaAlpha;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private boolean trackExecutionTime = false;
+            private boolean trackOngoingTasks = false;
+            private boolean trackMaxQueueLatency = false;
+            private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+
+            public Builder() {}
+
+            public Builder trackExecutionTime(double alpha) {
+                trackExecutionTime = true;
+                ewmaAlpha = alpha;
+                return this;
+            }
+
+            public Builder trackOngoingTasks() {
+                trackOngoingTasks = true;
+                return this;
+            }
+
+            public Builder trackMaxQueueLatency() {
+                trackMaxQueueLatency = true;
+                return this;
+            }
+
+            public TaskTrackingConfig build() {
+                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+            }
         }
     }
 

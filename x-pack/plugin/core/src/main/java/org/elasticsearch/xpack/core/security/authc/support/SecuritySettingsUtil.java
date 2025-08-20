@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.apache.http.HttpHost;
+import org.elasticsearch.common.settings.Setting;
+
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Utilities for validating security settings.
@@ -82,6 +86,45 @@ public final class SecuritySettingsUtil {
         }
         for (final String settingValue : settingValues) {
             verifyNonNullNotEmpty(settingKey, settingValue, allowedValues);
+        }
+    }
+
+    public static void verifyProxySettings(
+        String key,
+        String hostValue,
+        Map<Setting<?>, Object> settings,
+        Setting.AffixSetting<String> hostKey,
+        Setting.AffixSetting<String> schemeKey,
+        Setting.AffixSetting<Integer> portKey
+    ) {
+        final String namespace = hostKey.getNamespace(hostKey.getConcreteSetting(key));
+
+        final Setting<Integer> portSetting = portKey.getConcreteSettingForNamespace(namespace);
+        final Integer port = (Integer) settings.get(portSetting);
+
+        final Setting<String> schemeSetting = schemeKey.getConcreteSettingForNamespace(namespace);
+        final String scheme = (String) settings.get(schemeSetting);
+
+        try {
+            new HttpHost(hostValue, port, scheme);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                "HTTP host for hostname ["
+                    + hostValue
+                    + "] (from ["
+                    + key
+                    + "]),"
+                    + " port ["
+                    + port
+                    + "] (from ["
+                    + portSetting.getKey()
+                    + "]) and "
+                    + "scheme ["
+                    + scheme
+                    + "] (from (["
+                    + schemeSetting.getKey()
+                    + "]) is invalid"
+            );
         }
     }
 

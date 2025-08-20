@@ -14,18 +14,19 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.hasKey;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.matchesPattern;
 
 /**
@@ -33,10 +34,26 @@ import static org.hamcrest.Matchers.matchesPattern;
  */
 public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
+     * @param requiresDeterministicFactory
+     *          True if the returned {@link Operator.OperatorFactory} should always generate an identical deterministic operator.
+     *          That is, for two different calls, both operators should do "exactly" the same.
+     */
+    protected record SimpleOptions(boolean requiresDeterministicFactory) {
+        public static final SimpleOptions DEFAULT = new SimpleOptions(false);
+    }
+
+    /**
      * The operator configured a "simple" or basic way, used for smoke testing
      * descriptions, {@link CircuitBreaker}s, and scatter/gather.
      */
-    protected abstract Operator.OperatorFactory simple();
+    protected abstract Operator.OperatorFactory simple(SimpleOptions options);
+
+    /**
+     * Calls {@link #simple(SimpleOptions)} with the default options.
+     */
+    protected final Operator.OperatorFactory simple() {
+        return simple(SimpleOptions.DEFAULT);
+    }
 
     /**
      * The description of the operator produced by {@link #simple}.
@@ -91,39 +108,44 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * Ensures that the Operator.Status of this operator has the standard fields.
      */
-    public void testOperatorStatus() throws IOException {
+    public final void testOperatorStatus() throws IOException {
         DriverContext driverContext = driverContext();
         try (var operator = simple().get(driverContext)) {
             Operator.Status status = operator.status();
+            if (status == null) {
+                assertEmptyStatus(null);
+                return;
+            }
 
-            assumeTrue("Operator does not provide a status", status != null);
-
-            var xContent = XContentType.JSON.xContent();
-            try (var xContentBuilder = XContentBuilder.builder(xContent)) {
+            try (var xContentBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 status.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
 
                 var bytesReference = BytesReference.bytes(xContentBuilder);
                 var map = XContentHelper.convertToMap(bytesReference, false, xContentBuilder.contentType()).v2();
 
-                if (operator instanceof SourceOperator) {
-                    assertThat(map, hasKey("pages_emitted"));
-                    assertThat(map, hasKey("rows_emitted"));
-                } else if (operator instanceof SinkOperator) {
-                    assertThat(map, hasKey("pages_received"));
-                    assertThat(map, hasKey("rows_received"));
-                } else {
-                    assertThat(map, either(hasKey("pages_processed")).or(both(hasKey("pages_received")).and(hasKey("pages_emitted"))));
-                    assertThat(map, hasKey("rows_received"));
-                    assertThat(map, hasKey("rows_emitted"));
-                }
+                assertEmptyStatus(map);
             }
         }
     }
 
     /**
+     * Assert that the status is sane.
+     */
+    protected void assertEmptyStatus(@Nullable Map<String, Object> map) {
+        MapMatcher matcher = matchesMap().extraOk();
+        if (map.containsKey("pages_processed")) {
+            matcher = matcher.entry("pages_processed", 0);
+        } else {
+            matcher = matcher.entry("pages_received", 0).entry("pages_emitted", 0);
+        }
+        matcher = matcher.entry("rows_received", 0).entry("rows_emitted", 0);
+        assertMap(map, matcher);
+    }
+
+    /**
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
-    protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
+    protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
         return new DriverContext(blockFactory.bigArrays(), blockFactory);
     }

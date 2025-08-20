@@ -8,15 +8,17 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
-import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
-import com.amazonaws.services.s3.model.MultipartUpload;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListMultipartUploadsRequest;
+import software.amazon.awssdk.services.s3.model.MultipartUpload;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -32,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
@@ -146,13 +149,15 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // construct our own repo instance so we can inject a threadpool that allows to control the passage of time
         try (
             var repository = new S3Repository(
+                ProjectId.DEFAULT,
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
                 node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
-                S3RepositoriesMetrics.NOOP
+                S3RepositoriesMetrics.NOOP,
+                SnapshotMetrics.NOOP
             )
         ) {
             repository.start();
@@ -176,8 +181,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                     }
 
                     List<MultipartUpload> listMultipartUploads() {
-                        return client.listMultipartUploads(new ListMultipartUploadsRequest(bucketName).withPrefix(registerBlobPath))
-                            .getMultipartUploads();
+                        return client.listMultipartUploads(
+                            ListMultipartUploadsRequest.builder().bucket(bucketName).prefix(registerBlobPath).build()
+                        ).uploads();
                     }
                 }
 
@@ -191,11 +197,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertEquals(bytes1, testHarness.readRegister());
                 assertArrayEquals(
                     bytes1.array(),
-                    client.getObject(new GetObjectRequest(bucketName, registerBlobPath)).getObjectContent().readAllBytes()
+                    client.getObject(GetObjectRequest.builder().bucket(bucketName).key(registerBlobPath).build()).readAllBytes()
                 );
 
                 // a fresh ongoing upload blocks other CAS attempts
-                client.initiateMultipartUpload(new InitiateMultipartUploadRequest(bucketName, registerBlobPath));
+                client.createMultipartUpload(CreateMultipartUploadRequest.builder().bucket(bucketName).key(registerBlobPath).build());
                 assertThat(testHarness.listMultipartUploads(), hasSize(1));
 
                 assertFalse(testHarness.tryCompareAndSet(bytes1, bytes2));
@@ -203,10 +209,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertThat(multipartUploads, hasSize(1));
 
                 // repo clock may not be exactly aligned with ours, but it should be close
-                final var age = blobStore.getThreadPool().absoluteTimeInMillis() - multipartUploads.get(0)
-                    .getInitiated()
-                    .toInstant()
-                    .toEpochMilli();
+                final var age = blobStore.getThreadPool().absoluteTimeInMillis() - multipartUploads.get(0).initiated().toEpochMilli();
                 final var ageRangeMillis = TimeValue.timeValueMinutes(1).millis();
                 assertThat(age, allOf(greaterThanOrEqualTo(-ageRangeMillis), lessThanOrEqualTo(ageRangeMillis)));
 
@@ -224,9 +227,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     public void testReadFromPositionLargerThanBlobLength() {
-        testReadFromPositionLargerThanBlobLength(
-            e -> asInstanceOf(AmazonS3Exception.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
-        );
+        testReadFromPositionLargerThanBlobLength(e -> {
+            final var s3Exception = asInstanceOf(S3Exception.class, e.getCause());
+            return s3Exception.statusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
+                && "InvalidRange".equals(s3Exception.awsErrorDetails().errorCode());
+        });
     }
 
     public void testCopy() {

@@ -72,7 +72,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 eq(clusterService),
                 eq(MockBigArrays.NON_RECYCLING_INSTANCE),
                 eq(recoverySettings),
-                any(RepositoriesMetrics.class)
+                any(RepositoriesMetrics.class),
+                any(SnapshotMetrics.class)
             )
         ).thenReturn(Collections.singletonMap("type1", factory));
         when(
@@ -82,7 +83,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 eq(clusterService),
                 eq(MockBigArrays.NON_RECYCLING_INSTANCE),
                 eq(recoverySettings),
-                any(RepositoriesMetrics.class)
+                any(RepositoriesMetrics.class),
+                any(SnapshotMetrics.class)
             )
         ).thenReturn(Collections.singletonMap("type2", factory));
 
@@ -96,7 +98,8 @@ public class RepositoriesModuleTests extends ESTestCase {
             MockBigArrays.NON_RECYCLING_INSTANCE,
             contentRegistry,
             recoverySettings,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            SnapshotMetrics.NOOP
         );
     }
 
@@ -108,7 +111,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 eq(clusterService),
                 eq(MockBigArrays.NON_RECYCLING_INSTANCE),
                 eq(recoverySettings),
-                any(RepositoriesMetrics.class)
+                any(RepositoriesMetrics.class),
+                any(SnapshotMetrics.class)
             )
         ).thenReturn(Collections.singletonMap("type1", factory));
         when(
@@ -118,7 +122,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 eq(clusterService),
                 eq(MockBigArrays.NON_RECYCLING_INSTANCE),
                 eq(recoverySettings),
-                any(RepositoriesMetrics.class)
+                any(RepositoriesMetrics.class),
+                any(SnapshotMetrics.class)
             )
         ).thenReturn(Collections.singletonMap("type1", factory));
 
@@ -133,7 +138,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                SnapshotMetrics.NOOP
             )
         );
 
@@ -159,7 +165,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                SnapshotMetrics.NOOP
             )
         );
 
@@ -174,7 +181,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 eq(clusterService),
                 eq(MockBigArrays.NON_RECYCLING_INSTANCE),
                 eq(recoverySettings),
-                any(RepositoriesMetrics.class)
+                any(RepositoriesMetrics.class),
+                any(SnapshotMetrics.class)
             )
         ).thenReturn(Collections.singletonMap("type1", factory));
         when(plugin2.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
@@ -192,7 +200,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                SnapshotMetrics.NOOP
             )
         );
 

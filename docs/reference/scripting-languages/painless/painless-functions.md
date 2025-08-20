@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-functions.html
+products:
+  - id: painless
 ---
 
 # Functions [painless-functions]

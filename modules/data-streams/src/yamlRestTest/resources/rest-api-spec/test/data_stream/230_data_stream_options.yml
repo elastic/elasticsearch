@@ -6,7 +6,7 @@ setup:
       capabilities:
         - method: POST
           path: /_index_template/{template}
-          capabilities: [ 'failure_store_in_template' ]
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       allowed_warnings:
@@ -45,6 +45,13 @@ teardown:
 
 ---
 "Edit data stream options":
+  - requires:
+      reason: "Data stream failures lifecycle was added in 8.19+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /_data_stream/{target}/_options
+          capabilities: [ 'failure_store.lifecycle' ]
   - do:
       indices.get_data_stream_options:
         name: "failure-data-stream"
@@ -58,6 +65,8 @@ teardown:
         body:
           failure_store:
             enabled: false
+            lifecycle:
+              data_retention: 30d
   - is_true: acknowledged
 
   - do:
@@ -66,6 +75,9 @@ teardown:
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: failure-data-stream }
   - match: { data_streams.0.options.failure_store.enabled: false }
+  - is_false: data_streams.0.options.failure_store.enabled
+  - match: { data_streams.0.options.failure_store.lifecycle.enabled: true }
+  - match: { data_streams.0.options.failure_store.lifecycle.data_retention: 30d }
 
   - do:
       indices.delete_data_stream_options:
@@ -113,3 +125,53 @@ teardown:
               number_of_replicas: 0
             data_stream_options: null
   - is_true: acknowledged
+
+---
+"Test partially resetting failure store options in template composition":
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_component_template/{template}
+          capabilities: [ 'data_stream_options.failure_store.lifecycle' ]
+  - do:
+      cluster.put_component_template:
+        name: my-component-template
+        body:
+          template:
+            data_stream_options:
+              failure_store:
+                enabled: true
+                lifecycle:
+                  data_retention: 10d
+  - is_true: acknowledged
+
+  - do:
+      cluster.put_component_template:
+        name: reset-lifecycle-template
+        body:
+          template:
+            data_stream_options:
+              failure_store:
+                lifecycle: null
+  - is_true: acknowledged
+
+  - do:
+      cluster.put_component_template:
+        name: reset-enabled-template
+        body:
+          template:
+            data_stream_options:
+              failure_store:
+                enabled: null
+  - is_true: acknowledged
+
+  - do:
+      indices.simulate_index_template:
+        name: my-simulated-template
+        body:
+          index_patterns: [ no-data-stream ]
+          composed_of: [my-component-template, reset-lifecycle-template, reset-enabled-template]
+          data_stream: {}
+  - match: { template.data_stream_options.failure_store: null }

@@ -4,9 +4,8 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
       "description":"Updates the data stream options of the selected data streams."
     },
-    "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "es.failure_store_feature_flag_enabled",
+    "stability": "stable",
+    "visibility": "public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

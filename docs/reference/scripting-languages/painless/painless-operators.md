@@ -1,15 +1,16 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-operators.html
+products:
+  - id: painless
 ---
 
 # Operators [painless-operators]
 
 An operator is the most basic action that can be taken to evaluate values in a script. An expression is one-to-many consecutive operations. Precedence is the order in which an operator will be evaluated relative to another operator. Associativity is the direction within an expression in which a specific operator is evaluated. The following table lists all available operators:
 
-|     |     |     |     |     |
-| --- | --- | --- | --- | --- |
 | **Operator** | **Category** | **Symbol(s)** | **Precedence** | **Associativity** |
+| --- | --- | --- | --- | --- |
 | [Precedence](/reference/scripting-languages/painless/painless-operators-general.md#precedence-operator) | [General](/reference/scripting-languages/painless/painless-operators-general.md) | () | 0 | left → right |
 | [Method Call](/reference/scripting-languages/painless/painless-operators-reference.md#method-call-operator) | [Reference](/reference/scripting-languages/painless/painless-operators-reference.md) | . () | 1 | left → right |
 | [Field Access](/reference/scripting-languages/painless/painless-operators-reference.md#field-access-operator) | [Reference](/reference/scripting-languages/painless/painless-operators-reference.md) | . | 1 | left → right |
@@ -23,9 +24,9 @@ An operator is the most basic action that can be taken to evaluate values in a s
 | [Map Initialization](/reference/scripting-languages/painless/painless-operators-reference.md#map-initialization-operator) | [Reference](/reference/scripting-languages/painless/painless-operators-reference.md) | [:] | 1 | left → right |
 | [Map Access](/reference/scripting-languages/painless/painless-operators-reference.md#map-access-operator) | [Reference](/reference/scripting-languages/painless/painless-operators-reference.md) | [] | 1 | left → right |
 | [Post Increment](/reference/scripting-languages/painless/painless-operators-numeric.md#post-increment-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) | ++ | 1 | left → right |
-| [Post Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#post-decrement-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) |  —  | 1 | left → right |
+| [Post Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#post-decrement-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) |  —  | 1 | left → right |
 | [Pre Increment](/reference/scripting-languages/painless/painless-operators-numeric.md#pre-increment-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) | ++ | 2 | right → left |
-| [Pre Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#pre-decrement-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) |  —  | 2 | right → left |
+| [Pre Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#pre-decrement-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) |  —  | 2 | right → left |
 | [Unary Positive](/reference/scripting-languages/painless/painless-operators-numeric.md#unary-positive-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) | + | 2 | right → left |
 | [Unary Negative](/reference/scripting-languages/painless/painless-operators-numeric.md#unary-negative-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) | - | 2 | right → left |
 | [Boolean Not](/reference/scripting-languages/painless/painless-operators-boolean.md#boolean-not-operator) | [Boolean](/reference/scripting-languages/painless/painless-operators-boolean.md) | ! | 2 | right → left |

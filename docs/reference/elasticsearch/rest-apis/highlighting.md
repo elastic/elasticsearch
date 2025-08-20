@@ -7,7 +7,7 @@ applies_to:
 
 # Highlighting [highlighting]
 
-Highlighters enable you to get highlighted snippets from one or more fields in your search results so you can show users where the query matches are. When you request highlights, the response contains an additional `highlight` element for each search hit that includes the highlighted fields and the highlighted fragments.
+Highlighters enable you to retrieve the best-matching highlighted snippets from one or more fields in your search results so you can show users where the query matches are. When you request highlights, the response contains an additional `highlight` element for each search hit that includes the highlighted fields and the highlighted fragments.
 
 ::::{note}
 Highlighters don’t reflect the boolean logic of a query when extracting terms to highlight. Thus, for some complex boolean queries (e.g nested boolean queries, queries using `minimum_should_match` etc.), parts of documents may be highlighted that don’t correspond to query matches.
@@ -108,7 +108,6 @@ boundary_scanner
 
     `sentence`
     :   Break highlighted fragments at the next sentence boundary, as determined by Java’s [BreakIterator](https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.md). You can specify the locale to use with `boundary_scanner_locale`.
-
         ::::{note}
         When used with the `unified` highlighter, the `sentence` scanner splits sentences bigger than `fragment_size` at the first word boundary next to `fragment_size`. You can set `fragment_size` to 0 to never split any sentence.
         ::::

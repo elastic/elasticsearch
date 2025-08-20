@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.action.role;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
@@ -27,7 +27,7 @@ public class ClearRolesCacheRequest extends BaseNodesRequest {
     /**
      * Sets the roles for which caches will be evicted. When not set all the roles will be evicted from the cache.
      *
-     * @param names    The role names
+     * @param names The role names
      */
     public ClearRolesCacheRequest names(String... names) {
         this.names = names;
@@ -41,7 +41,7 @@ public class ClearRolesCacheRequest extends BaseNodesRequest {
         return names;
     }
 
-    public static class Node extends TransportRequest {
+    public static class Node extends AbstractTransportRequest {
         private String[] names;
 
         public Node(StreamInput in) throws IOException {

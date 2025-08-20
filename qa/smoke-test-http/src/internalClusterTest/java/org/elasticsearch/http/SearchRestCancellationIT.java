@@ -12,8 +12,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -46,7 +44,6 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
@@ -94,7 +91,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
     }
 
     void verifyCancellationDuringQueryPhase(String searchAction, Request searchRequest) throws Exception {
-        Map<String, String> nodeIdToName = readNodesInfo();
+        Map<String, String> nodeIdToName = nodeIdsToNames();
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
@@ -137,7 +134,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
     }
 
     void verifyCancellationDuringFetchPhase(String searchAction, Request searchRequest) throws Exception {
-        Map<String, String> nodeIdToName = readNodesInfo();
+        Map<String, String> nodeIdToName = nodeIdsToNames();
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
@@ -151,16 +148,6 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
         disableBlocks(plugins);
         expectThrows(CancellationException.class, future::actionGet);
-    }
-
-    private static Map<String, String> readNodesInfo() {
-        Map<String, String> nodeIdToName = new HashMap<>();
-        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
-        assertFalse(nodesInfoResponse.hasFailures());
-        for (NodeInfo node : nodesInfoResponse.getNodes()) {
-            nodeIdToName.put(node.getNode().getId(), node.getNode().getName());
-        }
-        return nodeIdToName;
     }
 
     private static void ensureSearchTaskIsCancelled(String transportAction, Function<String, String> nodeIdToName) throws Exception {

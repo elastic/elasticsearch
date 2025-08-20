@@ -1,0 +1,123 @@
+setup:
+  - skip:
+      features:
+        - close_to
+  - requires:
+      test_runner_features: "close_to"
+
+  - do:
+      inference.put:
+        task_type: rerank
+        inference_id: my-rerank-model
+        body: >
+          {
+            "service": "test_reranking_service",
+            "service_settings": {
+              "model_id": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              topic:
+                type: keyword
+              subtopic:
+                type: keyword
+              inference_text_field:
+                type: text
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
+          topic: [ "science" ]
+          subtopic: [ "astronomy" ]
+          inference_text_field: "0"
+        refresh: true
+
+  - do:
+      index:
+        index: test-index
+        id: doc_3
+        body:
+          text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
+          topic: [ "geography" ]
+          inference_text_field: "1"
+        refresh: true
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
+          topic: [ "science" ]
+          subtopic: [ "technology" ]
+          inference_text_field: "-1"
+        refresh: true
+
+---
+"Simple text similarity rank retriever":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                # this one returns docs 1 and 2
+                standard:
+                  query:
+                    bool: {
+                      should: [
+                        {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                subtopic: "technology"
+                              }
+                            },
+                            boost: 10
+                          }
+                        },
+                        {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                subtopic: "astronomy"
+                              }
+                            },
+                            boost: 1
+                          }
+                        }
+                      ]
+                    }
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }

@@ -59,6 +59,11 @@
       "allow_partial_search_results": {
         "type": "boolean",
         "description": "Specify whether to tolerate shards missing when creating the point-in-time, or otherwise throw an exception. (default: false)"
+      },
+      "max_concurrent_shard_requests": {
+        "type": "number",
+        "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
+        "default": 5
       }
     },
     "body":{

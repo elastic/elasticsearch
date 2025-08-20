@@ -34,7 +34,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     );
 
     protected static final String UPGRADE_FROM_VERSION = System.getProperty("tests.upgrade_from_version");
-    protected static final boolean FIRST_MIXED_ROUND = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
+    protected static final boolean FIRST_MIXED_ROUND = Booleans.parseBoolean(System.getProperty("tests.first_round", "false"));
     protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     protected static boolean isOriginalCluster(String clusterVersion) {

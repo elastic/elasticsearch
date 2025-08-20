@@ -66,7 +66,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
     public void testIngestStats() throws Exception {
         NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
         SortedMap<String, long[]> processorStats = new TreeMap<>();
-        nodeStats.getIngestStats().processorStats().values().forEach(stats -> {
+        nodeStats.getIngestStats().processorStats().values().stream().flatMap(map -> map.values().stream()).forEach(stats -> {
             stats.forEach(stat -> {
                 processorStats.compute(stat.type(), (key, value) -> {
                     if (value == null) {
@@ -87,7 +87,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         });
 
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(List.of(nodeStats));
-        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().processorStats().size()));
+        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().pipelineStats().size()));
         StringBuilder processorStatsString = new StringBuilder("{");
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
         while (iter.hasNext()) {

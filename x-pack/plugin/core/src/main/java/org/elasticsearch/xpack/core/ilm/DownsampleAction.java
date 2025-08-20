@@ -52,6 +52,7 @@ public class DownsampleAction implements LifecycleAction {
     public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
     private static final ParseField WAIT_TIMEOUT_FIELD = new ParseField("wait_timeout");
+    static final String BWC_CLEANUP_TARGET_INDEX_NAME = "cleanup-target-index";
 
     private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -141,7 +142,7 @@ public class DownsampleAction implements LifecycleAction {
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
-        StepKey cleanupDownsampleIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
+        StepKey cleanupDownsampleIndexKey = new StepKey(phase, NAME, BWC_CLEANUP_TARGET_INDEX_NAME);
         StepKey generateDownsampleIndexNameKey = new StepKey(phase, NAME, DownsamplePrepareLifeCycleStateStep.NAME);
         StepKey downsampleKey = new StepKey(phase, NAME, DownsampleStep.NAME);
         StepKey waitForDownsampleIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
@@ -157,8 +158,8 @@ public class DownsampleAction implements LifecycleAction {
             timeSeriesIndexCheckBranchKey,
             nextStepKey,
             checkNotWriteIndex,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
                 assert indexMetadata != null : "invalid cluster metadata. index [" + index.getName() + "] metadata not found";
                 if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
                     return false;
@@ -258,8 +259,8 @@ public class DownsampleAction implements LifecycleAction {
             dataStreamCheckBranchingKey,
             swapAliasesKey,
             replaceDataStreamIndexKey,
-            (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
+            (index, project) -> {
+                IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }

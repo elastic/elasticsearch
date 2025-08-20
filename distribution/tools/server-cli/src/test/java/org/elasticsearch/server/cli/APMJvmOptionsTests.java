@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
-@ESTestCase.WithoutSecurityManager
 public class APMJvmOptionsTests extends ESTestCase {
 
     private Path installDir;
@@ -142,7 +141,7 @@ public class APMJvmOptionsTests extends ESTestCase {
         Path tempFile = createTempFile();
         Path apmPathDir = tempFile.getParent().resolve("modules").resolve("apm");
         Files.createDirectories(apmPathDir);
-        Path apmAgentFile = apmPathDir.resolve("elastic-apm-agent-0.0.0.jar");
+        Path apmAgentFile = apmPathDir.resolve("elastic-apm-agent-java8-0.0.0.jar");
         Files.move(tempFile, apmAgentFile);
 
         return tempFile.getParent();

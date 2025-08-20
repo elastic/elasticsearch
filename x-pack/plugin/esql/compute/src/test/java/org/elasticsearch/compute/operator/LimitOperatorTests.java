@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected LimitOperator.Factory simple() {
+    protected LimitOperator.Factory simple(SimpleOptions options) {
         return new LimitOperator.Factory(100);
     }
 
@@ -55,7 +55,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testStatus() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        LimitOperator op = simple().get(driverContext());
+        LimitOperator op = simple(SimpleOptions.DEFAULT).get(driverContext());
 
         LimitOperator.Status status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -77,7 +77,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testNeedInput() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (LimitOperator op = simple().get(driverContext())) {
+        try (LimitOperator op = simple(SimpleOptions.DEFAULT).get(driverContext())) {
             assertTrue(op.needsInput());
             Page p = new Page(blockFactory.newConstantNullBlock(10));
             op.addInput(p);

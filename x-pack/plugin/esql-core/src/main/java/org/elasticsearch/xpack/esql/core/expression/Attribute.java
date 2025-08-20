@@ -136,12 +136,22 @@ public abstract class Attribute extends NamedExpression {
     protected abstract String label();
 
     /**
-     * If this field is unsupported this contains the underlying ES types. If there
-     * is a type conflict this will have many elements, some or all of which may
-     * be actually supported types.
+     * Compares the size and datatypes of two lists of attributes for equality.
      */
-    @Nullable
-    public List<String> originalTypes() {
-        return null;
+    public static boolean dataTypeEquals(List<Attribute> left, List<Attribute> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i).dataType() != right.get(i).dataType()) {
+                return false;
+            }
+        }
+        return true;
     }
+
+    /**
+     * @return true if the attribute represents a TSDB dimension type
+     */
+    public abstract boolean isDimension();
 }

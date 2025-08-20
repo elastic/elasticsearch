@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleArrayBlock;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -141,26 +142,25 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         private Block build() {
-            Block[] blocks = new Block[4];
-            Block block;
+            DoubleBlock doubleBlock = null;
+            IntBlock countBlock = null;
             boolean success = false;
             try {
-                block = valuesBuilder.build().asBlock();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()] = block;
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex()] = block;
-                block.incRef();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex()] = block;
-                block.incRef();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()] = blockFactory.newConstantIntBlockWith(
-                    1,
-                    block.getPositionCount()
+                doubleBlock = valuesBuilder.build().asBlock();
+                countBlock = blockFactory.newConstantIntBlockWith(1, doubleBlock.getPositionCount());
+                AggregateMetricDoubleBlock aggBlock = new AggregateMetricDoubleArrayBlock(
+                    doubleBlock,
+                    doubleBlock,
+                    doubleBlock,
+                    countBlock
                 );
-                CompositeBlock compositeBlock = new CompositeBlock(blocks);
+                doubleBlock.incRef();
+                doubleBlock.incRef();
                 success = true;
-                return compositeBlock;
+                return aggBlock;
             } finally {
                 if (success == false) {
-                    Releasables.closeExpectNoException(blocks);
+                    Releasables.closeExpectNoException(doubleBlock, countBlock);
                 }
             }
         }

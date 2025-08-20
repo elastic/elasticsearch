@@ -35,9 +35,9 @@ public class RetryActionRequest extends AcknowledgedRequest<RetryActionRequest> 
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_90)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
             || in.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_19)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18)) {
+            || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_18_0)) {
             this.requireError = in.readBoolean();
         }
     }
@@ -82,9 +82,9 @@ public class RetryActionRequest extends AcknowledgedRequest<RetryActionRequest> 
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_90)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
             || out.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_19)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18)) {
+            || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_18_0)) {
             out.writeBoolean(requireError);
         }
     }

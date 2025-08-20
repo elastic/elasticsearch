@@ -1,0 +1,6 @@
+steps:
+  - label: pr-upgrade
+    command: ".buildkite/scripts/run-pr-upgrade-tests.sh"
+    agents:
+      image: "docker.elastic.co/ci-agent-images/eck-region/buildkite-agent:1.5"
+      memory: "4G"

@@ -22,10 +22,12 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleV
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
+    private static final String RERANK_RATE_LIMIT_ENDPOINT_ID = "rerank";
 
     public GoogleVertexAiRerankModel(
         String inferenceEntityId,
@@ -65,7 +67,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = buildUri(serviceSettings.projectId());
+            this.nonStreamingUri = buildUri(serviceSettings.projectId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -87,7 +89,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = new URI(uri);
+            this.nonStreamingUri = new URI(uri);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -131,5 +133,17 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
                 format("%s:%s", GoogleVertexAiUtils.DEFAULT_RANKING_CONFIG, GoogleVertexAiUtils.RANK)
             )
             .build();
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        // In VertexAI rate limiting is scoped to the project, region, model and endpoint.
+        // API Key does not affect the quota
+        // https://ai.google.dev/gemini-api/docs/rate-limits
+        // https://cloud.google.com/vertex-ai/docs/quotas
+        var projectId = getServiceSettings().projectId();
+        var modelId = getServiceSettings().modelId();
+
+        return Objects.hash(projectId, modelId, RERANK_RATE_LIMIT_ENDPOINT_ID);
     }
 }

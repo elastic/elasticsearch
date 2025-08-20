@@ -2,10 +2,15 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules.html
 navigation_title: General
+applies_to:
+  stack: all
 ---
-# Index modules [index-modules]
+# General index settings [index-modules]
 
-Index modules are modules created per index and control all aspects related to an index.
+:::{include} _snippets/serverless-availability.md
+:::
+
+This document contains the static and dynamic index settings that are not associated with any specific index module.
 
 ## Static index settings [_static_index_settings]
 
@@ -44,44 +49,32 @@ In {{es}} 7.0.0 and later versions, this setting affects how documents are distr
 
 
 
-$$$index-codec$$$ `index.codec`
+$$$index-codec$$$ `index.codec` {applies_to}`serverless: all`
 :   The `default` value compresses stored data with LZ4 compression, but this can be set to `best_compression` which uses [ZSTD](https://en.wikipedia.org/wiki/Zstd) for a higher compression ratio, at the expense of slower stored fields read performance. If you are updating the compression type, the new one will be applied after segments are merged. Segment merging can be forced using [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge). Experiments with indexing log datasets have shown that `best_compression` gives up to ~28% lower storage usage and similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared to `default` while affecting get by id latencies between ~10% and ~33%. The higher get by id latencies is not a concern for many use cases like logging or metrics, since these don’t really rely on get by id functionality (Get APIs or searching by _id).
 
-$$$index-mode-setting$$$ `index.mode`
+$$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
 :   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance.
 
-```console
-PUT my-index-000001
-{
-  "settings": {
-    "index":{
-      "mode":"standard" <1>
-    }
-  }
-}
-```
+        **Example**
 
-1. This index uses the `standard` index mode
+      ```console
+      PUT my-index-000001
+      {
+        "settings": {
+          "index":{
+            "mode":"standard" # This index uses the `standard` index mode
+          }
+        }
+      }
+      ```
+    **Supported values**
 
-
-Index mode supports the following values:
-
-`null`
-:   Default value (same as `standard`).
-
-`standard`
-:   Standard indexing with default settings.
-
-`lookup`
-: Index that can be used for lookup joins in ES|QL. Limited to 1 shard.
-
-
-`time_series`
-:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
-
-`logsdb`
-:   *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
-
+    The `index.mode` setting supports the following values:
+       - `null`:   Default value (same as `standard`).
+       -  `standard`:   Standard indexing with default settings.
+       -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in ES|QL. Limited to 1 shard.
+       - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
+       - `logsdb`: *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than the `index.number_of_routing_shards` unless the `index.number_of_routing_shards` value is also 1. for more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).
@@ -89,7 +82,11 @@ $$$routing-partition-size$$$ `index.routing_partition_size`
 $$$ccr-index-soft-deletes$$$
 
 `index.soft_deletes.enabled`
-:   [7.6.0] Indicates whether soft deletes are enabled on the index. Soft deletes can only be configured at index creation and only on indices created on or after {{es}} 6.5.0. Defaults to `true`.
+:   :::{admonition} Deprecated in 7.6.0
+    This setting was deprecated in 7.6.0.
+    :::
+
+    Indicates whether soft deletes are enabled on the index. Soft deletes can only be configured at index creation and only on indices created on or after {{es}} 6.5.0. Defaults to `true`.
 
 $$$ccr-index-soft-deletes-retention-period$$$
 
@@ -100,24 +97,22 @@ $$$load-fixed-bitset-filters-eagerly$$$ `index.load_fixed_bitset_filters_eagerly
 :   Indicates whether [cached filters](/reference/query-languages/query-dsl/query-filter-context.md) are pre-loaded for nested queries. Possible values are `true` (default) and `false`.
 
 $$$index-shard-check-on-startup$$$ `index.shard.check_on_startup`
-:   :::::{admonition}
-::::{warning}
-Expert users only. This setting enables some very expensive processing at shard startup and is only ever useful while diagnosing a problem in your cluster. If you do use it, you should do so only temporarily and remove it once it is no longer needed.
-::::
+:   ::::{warning}
+    Expert users only. This setting enables some very expensive processing at shard startup and is only ever useful while diagnosing a problem in your cluster. If you do use it, you should do so only temporarily and remove it once it is no longer needed.
+    ::::
 
+    {{es}} automatically performs integrity checks on the contents of shards at various points during their lifecycle. For instance, it verifies the checksum of every file transferred when recovering a replica or taking a snapshot. It also verifies the integrity of many important files when opening a shard, which happens when starting up a node and when finishing a shard recovery or relocation. You can therefore manually verify the integrity of a whole shard while it is running by taking a snapshot of it into a fresh repository or by recovering it onto a fresh node.
 
-{{es}} automatically performs integrity checks on the contents of shards at various points during their lifecycle. For instance, it verifies the checksum of every file transferred when recovering a replica or taking a snapshot. It also verifies the integrity of many important files when opening a shard, which happens when starting up a node and when finishing a shard recovery or relocation. You can therefore manually verify the integrity of a whole shard while it is running by taking a snapshot of it into a fresh repository or by recovering it onto a fresh node.
+    This setting determines whether {{es}} performs additional integrity checks while opening a shard. If these checks detect corruption then they will prevent the shard from being opened. It accepts the following values:
 
-This setting determines whether {{es}} performs additional integrity checks while opening a shard. If these checks detect corruption then they will prevent the shard from being opened. It accepts the following values:
+    `false`
+    :   Don’t perform additional checks for corruption when opening a shard. This is the default and recommended behaviour.
 
-`false`
-:   Don’t perform additional checks for corruption when opening a shard. This is the default and recommended behaviour.
+    `checksum`
+    :   Verify that the checksum of every file in the shard matches its contents. This will detect cases where the data read from disk differ from the data that {{es}} originally wrote, for instance due to undetected disk corruption or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth and may affect cluster performance by evicting important data from your filesystem cache.
 
-`checksum`
-:   Verify that the checksum of every file in the shard matches its contents. This will detect cases where the data read from disk differ from the data that {{es}} originally wrote, for instance due to undetected disk corruption or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth and may affect cluster performance by evicting important data from your filesystem cache.
-
-`true`
-:   Performs the same checks as `checksum` and also checks for logical inconsistencies in the shard, which could for instance be caused by the data being corrupted while it was being written due to faulty RAM or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth, and then performing various checks on the contents of the shard which take substantial time, CPU and memory.
+    `true`
+    :   Performs the same checks as `checksum` and also checks for logical inconsistencies in the shard, which could for instance be caused by the data being corrupted while it was being written due to faulty RAM or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth, and then performing various checks on the contents of the shard which take substantial time, CPU and memory.
 
 :::::
 
@@ -154,8 +149,10 @@ $$$dynamic-index-search-idle-after$$$
 
 $$$index-refresh-interval-setting$$$
 
-`index.refresh_interval`
-:   How often to perform a refresh operation, which makes recent changes to the index visible to search. Defaults to `1s`. Can be set to `-1` to disable refresh. If this setting is not explicitly set, shards that haven’t seen search traffic for at least `index.search.idle.after` seconds will not receive background refreshes until they receive a search request. Searches that hit an idle shard where a refresh is pending will trigger a refresh as part of the search operation for that shard only. This behavior aims to automatically optimize bulk indexing in the default case when no searches are performed. In order to opt out of this behavior an explicit value of `1s` should set as the refresh interval.
+`index.refresh_interval` {applies_to}`serverless: all`
+:   How often to perform a refresh operation, which makes recent changes to the index visible to search. If this setting is not explicitly set, shards that haven’t seen search traffic for at least `index.search.idle.after` seconds will not receive background refreshes until they receive a search request. Searches that hit an idle shard where a refresh is pending will trigger a refresh as part of the search operation for that shard only. This behavior aims to automatically optimize bulk indexing in the default case when no searches are performed. To opt out of this behavior, set an explicit value for the refresh interval, even if it matches the default value.
+
+    The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In both cases, the setting can be set to `-1` to disable refresh.
 
 $$$index-max-result-window$$$
 
@@ -207,7 +204,7 @@ $$$index-max-regex-length$$$
 
 $$$index-query-default-field$$$
 
-`index.query.default_field`
+`index.query.default_field` {applies_to}`serverless: all`
 :   (string or array of strings) Wildcard (`*`) patterns matching one or more fields. The following query types search these matching fields by default:
 
 * [More like this](/reference/query-languages/query-dsl/query-dsl-mlt-query.md)
@@ -243,12 +240,12 @@ $$$index-routing-allocation-enable-setting$$$
 
 $$$index-default-pipeline$$$
 
-`index.default_pipeline`
+`index.default_pipeline` {applies_to}`serverless: all`
 :   Default ingest pipeline for the index. Index requests will fail if the default pipeline is set and the pipeline does not exist. The default may be overridden using the `pipeline` parameter. The special pipeline name `_none` indicates no default ingest pipeline will run.
 
 $$$index-final-pipeline$$$
 
-`index.final_pipeline`
+`index.final_pipeline` {applies_to}`serverless: all`
 :   Final ingest pipeline for the index. Indexing requests will fail if the final pipeline is set and the pipeline does not exist. The final pipeline always runs after the request pipeline (if specified) and the default pipeline (if it exists). The special pipeline name `_none` indicates no final ingest pipeline will run.
 
     ::::{note}
@@ -256,5 +253,19 @@ $$$index-final-pipeline$$$
     ::::
 
 
-$$$index-hidden$$$ `index.hidden`
+$$$index-hidden$$$ `index.hidden` {applies_to}`serverless: all`
 :   Indicates whether the index should be hidden by default. Hidden indices are not returned by default when using a wildcard expression. This behavior is controlled per request through the use of the `expand_wildcards` parameter. Possible values are `true` and `false` (default).
+
+$$$index-dense-vector-hnsw-filter-heuristic$$$ `index.dense_vector.hnsw_filter_heuristic` {applies_to}`serverless: preview` {applies_to}`stack: preview 9.1`
+:   The heuristic to utilize when executing a filtered search against vectors in an HNSW graph. It can be set to:
+
+* `acorn` (default) - Only vectors that match the filter criteria are searched. This is the fastest option, and generally provides faster searches at similar recall to `fanout`, but `num_candidates` might need to be increased for exceptionally high recall requirements.
+* `fanout` - All vectors are compared with the query vector, but only those passing the criteria are added to the search results. Can be slower than `acorn`, but may yield higher recall.
+
+$$$index-esql-stored-fields-sequential-proportion$$$
+
+`index.esql.stored_fields_sequential_proportion` {applies_to}`stack: ga 9.1`
+:   Tuning parameter for deciding when {{esql}} will load [stored fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#stored-fields) using a strategy tuned for loading dense sequence of documents. Allows values between 0.0 and 1.0 and defaults to 0.2. Indices with documents smaller than 10kb may see speed improvements loading `text` fields by setting this lower.
+
+$$$index-dense-vector-hnsw-early-termination$$$ `index.dense_vector.hnsw_early_termination` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
+:   Whether to apply _patience_ based early termination strategy to knn queries over HNSW graphs (see [paper](https://cs.uwaterloo.ca/~jimmylin/publications/Teofili_Lin_ECIR2025.pdf)). This is only applicable to `dense_vector` fields with `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types. Defaults to `false`.

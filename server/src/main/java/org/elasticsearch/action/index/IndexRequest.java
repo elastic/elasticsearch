@@ -894,7 +894,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public Index getConcreteWriteIndex(IndexAbstraction ia, ProjectMetadata project) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && writeToFailureStore) {
+        if (writeToFailureStore) {
             if (ia.isDataStreamRelated() == false) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the targeted index is not a data stream"

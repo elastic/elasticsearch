@@ -1,5 +1,0 @@
-pr: 125595
-summary: Esql - Fix lucene push down behavior when a range contains nanos and millis
-area: ES|QL
-type: bug
-issues: []

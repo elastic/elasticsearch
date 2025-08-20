@@ -29,7 +29,7 @@ public class CrankyCircuitBreakerService extends CircuitBreakerService {
      */
     public static final String ERROR_MESSAGE = "cranky breaker";
 
-    private final CircuitBreaker breaker = new CircuitBreaker() {
+    public static final class CrankyCircuitBreaker implements CircuitBreaker {
         private final AtomicLong used = new AtomicLong();
 
         @Override
@@ -82,7 +82,9 @@ public class CrankyCircuitBreakerService extends CircuitBreakerService {
         public void setLimitAndOverhead(long limit, double overhead) {
 
         }
-    };
+    }
+
+    private final CrankyCircuitBreaker breaker = new CrankyCircuitBreaker();
 
     @Override
     public CircuitBreaker getBreaker(String name) {

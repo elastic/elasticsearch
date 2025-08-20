@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -130,7 +131,8 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
                 nodeId,
                 new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values())),
                 randomDslHealthInfo(),
-                randomRepoHealthInfo()
+                randomRepoHealthInfo(),
+                FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
             );
         }
         return healthInfoCache;

@@ -165,7 +165,6 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         assertThat(cloned.clusterAlias(), equalTo(request.clusterAlias()));
         assertThat(cloned.sessionId(), equalTo(request.sessionId()));
         RemoteClusterPlan plan = cloned.remoteClusterPlan();
-        assertThat(plan.plan(), equalTo(request.remoteClusterPlan().plan()));
         assertThat(plan.targetIndices(), equalTo(request.remoteClusterPlan().targetIndices()));
         OriginalIndices originalIndices = plan.originalIndices();
         assertThat(originalIndices.indices(), equalTo(request.remoteClusterPlan().originalIndices().indices()));
@@ -201,7 +200,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
+        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query, EsqlTestUtils.TEST_CFG)));
     }
 
     @Override

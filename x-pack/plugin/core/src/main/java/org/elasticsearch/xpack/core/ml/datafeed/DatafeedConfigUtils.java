@@ -135,11 +135,10 @@ public final class DatafeedConfigUtils {
                 case WEEK_OF_WEEKYEAR -> new TimeValue(7, TimeUnit.DAYS);
                 case DAY_OF_MONTH -> new TimeValue(1, TimeUnit.DAYS);
                 case HOUR_OF_DAY -> new TimeValue(1, TimeUnit.HOURS);
-                case MINUTES_OF_HOUR -> new TimeValue(1, TimeUnit.MINUTES);
+                case MINUTE_OF_HOUR -> new TimeValue(1, TimeUnit.MINUTES);
                 case SECOND_OF_MINUTE -> new TimeValue(1, TimeUnit.SECONDS);
-                case MONTH_OF_YEAR, YEAR_OF_CENTURY, QUARTER_OF_YEAR -> throw ExceptionsHelper.badRequestException(
-                    invalidDateHistogramCalendarIntervalMessage(calendarInterval)
-                );
+                case MONTH_OF_YEAR, YEAR_OF_CENTURY, QUARTER_OF_YEAR, YEARS_OF_CENTURY, MONTHS_OF_YEAR -> throw ExceptionsHelper
+                    .badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
             };
         } else {
             interval = TimeValue.parseTimeValue(calendarInterval, "date_histogram.calendar_interval");

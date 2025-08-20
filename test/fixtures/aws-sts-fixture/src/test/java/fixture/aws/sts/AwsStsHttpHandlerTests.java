@@ -134,7 +134,7 @@ public class AwsStsHttpHandlerTests extends ESTestCase {
     private static TestHttpResponse handleRequest(AwsStsHttpHandler handler, Map<String, String> body) {
         final var httpExchange = new TestHttpExchange(
             "POST",
-            "/assume-role-with-web-identity/",
+            "/",
             new BytesArray(
                 body.entrySet()
                     .stream()

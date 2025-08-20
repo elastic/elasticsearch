@@ -1480,6 +1480,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentRestoreDeleteAndClone() throws Exception {
+        internalCluster().startNode();
         final String repository = "test-repo";
         createRepository(logger, repository, "fs");
 
@@ -2137,7 +2138,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeleteIndexWithOutOfOrderFinalization() {
-
+        internalCluster().startNode();
         final var indexToDelete = "index-to-delete";
         final var indexNames = List.of(indexToDelete, "index-0", "index-1", "index-2");
 
@@ -2153,7 +2154,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final Map<String, SubscribableListener<Void>> otherIndexSnapshotListeners = indexNames.stream()
             .collect(Collectors.toMap(k -> k, k -> new SubscribableListener<>()));
         masterTransportService.<UpdateIndexShardSnapshotStatusRequest>addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> {
                 final var indexName = request.shardId().getIndexName();
                 if (indexName.equals(indexToDelete)) {

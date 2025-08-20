@@ -33,7 +33,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyParserTests extends ESTestCase {
 
     public static String TEST_ABSOLUTE_PATH_TO_FILE;

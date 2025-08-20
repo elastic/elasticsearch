@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
@@ -32,6 +34,17 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+/**
+ * Perform filters as early as possible in the logical plan by pushing them past certain plan nodes (like {@link Eval},
+ * {@link RegexExtract}, {@link Enrich}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
+ * Ideally, the filter ends up all the way down at the data source and can be turned into a Lucene query.
+ * When pushing down past nodes, only conditions that do not depend on fields created by those nodes are pushed down; if the condition
+ * consists of {@code AND}s, we split out the parts that do not depend on the previous node.
+ * For joins, it splits the filter condition into parts that can be applied to the left or right side of the join and only pushes down
+ * the left hand side filters to the left child.
+ *
+ * Also combines adjacent filters using a logical {@code AND}.
+ */
 public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {
     @Override
     protected LogicalPlan rule(Filter filter) {
@@ -70,6 +83,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             // Push down filters that do not rely on attributes created by RegexExtract
             var attributes = AttributeSet.of(Expressions.asAttributes(re.extractedFields()));
             plan = maybePushDownPastUnary(filter, re, attributes::contains, NO_OP);
+        } else if (child instanceof InferencePlan<?> inferencePlan) {
+            // Push down filters that do not rely on attributes created by Completion
+            var attributes = AttributeSet.of(inferencePlan.generatedAttributes());
+            plan = maybePushDownPastUnary(filter, inferencePlan, attributes::contains, NO_OP);
         } else if (child instanceof Enrich enrich) {
             // Push down filters that do not rely on attributes created by Enrich
             var attributes = AttributeSet.of(Expressions.asAttributes(enrich.enrichFields()));
@@ -79,7 +96,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         } else if (child instanceof OrderBy orderBy) {
             // swap the filter with its child
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
-        } else if (child instanceof Join join) {
+        } else if (child instanceof Join join && child instanceof InlineJoin == false) {
+            // TODO: could we do better here about pushing down filters for inlinestats?
+            // See also https://github.com/elastic/elasticsearch/issues/127497
+            // Push down past INLINESTATS if the condition is on the groupings
             return pushDownPastJoin(filter, join);
         }
         // cannot push past a Limit, this could change the tailing result set returned

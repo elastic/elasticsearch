@@ -28,6 +28,8 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  */
 public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFieldInfosCodec {
 
+    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene101PostingsFormat();
+
     private final StoredFieldsFormat storedFieldsFormat;
 
     private final PostingsFormat defaultPostingsFormat;
@@ -66,7 +68,7 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
     public Elasticsearch900Lucene101Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch900Lucene101", new Lucene101Codec());
         this.storedFieldsFormat = mode.getFormat();
-        this.defaultPostingsFormat = new Lucene101PostingsFormat();
+        this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
     }

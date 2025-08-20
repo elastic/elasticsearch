@@ -34,7 +34,6 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_index";
@@ -140,7 +139,8 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
                         "some_inference_text",
                         "some_field",
                         10,
-                        false
+                        false,
+                        null
                     )
                 )
             );

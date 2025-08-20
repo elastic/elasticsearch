@@ -52,6 +52,7 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,6 +71,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testBottomFieldSort() throws Exception {
@@ -859,7 +862,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         };
         CountDownLatch latch = new CountDownLatch(1);
-        List<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -903,14 +906,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
                 SearchResponse.Clusters.EMPTY,
-                null,
-                false
+                null
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
-                        protected void run() {
+                        public void run() {
                             latch.countDown();
                         }
                     };
@@ -927,7 +929,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(successfulOps.get(), equalTo(numShards));
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-            assertThat(phase.totalHits().value(), equalTo(2L));
+            assertThat(phase.totalHits().value, equalTo(2L));
         }
     }
 

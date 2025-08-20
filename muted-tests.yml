@@ -424,3 +424,6 @@ tests:
   - class: org.elasticsearch.packaging.test.PackageTests
     method: test42BundledJdkRemoved
     issue: https://github.com/elastic/elasticsearch/issues/131890
+  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+    method: test {yaml=reference/search/retriever/line_983}
+    issue: https://github.com/elastic/elasticsearch/issues/132854

@@ -68,7 +68,6 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
     }
 
     static boolean shouldUseDirectIO(SegmentReadState state) {
-        assert ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO;
         return FsDirectoryFactory.isHybridFs(state.directory);
     }
 

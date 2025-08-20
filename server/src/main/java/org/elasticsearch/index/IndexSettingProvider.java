@@ -16,6 +16,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -51,6 +52,20 @@ public interface IndexSettingProvider {
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     );
+
+    /**
+     * Called when the mappings for an index are updated.
+     * This method can be used to update index settings based on the new mappings.
+     *
+     * @param indexMetadata the index metadata for the index being updated
+     * @param documentMapper the document mapper containing the updated mappings
+     * @return additional settings to be applied to the index
+     *         or {@link Settings#EMPTY}/{@code null} if no additional settings are needed
+     */
+    @Nullable
+    default Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper) {
+        return Settings.EMPTY;
+    }
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

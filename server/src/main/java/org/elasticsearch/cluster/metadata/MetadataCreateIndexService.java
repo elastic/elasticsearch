@@ -1561,12 +1561,12 @@ public class MetadataCreateIndexService {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ProjectMetadata projectMetadata, RoutingTable routingTable) {
         validateIndexName(request.index(), projectMetadata, routingTable);
-        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings && request.settingsSystemProvided() == false);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, null, forbidPrivateIndexSettings);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1575,21 +1575,30 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        @Nullable Settings systemProvided,
+        final boolean forbidPrivateIndexSettings
+    ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
-            validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
+            validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, systemProvided, indexScopedSettings));
         }
         return validationErrors;
     }
 
-    private static List<String> validatePrivateSettingsNotExplicitlySet(Settings settings, IndexScopedSettings indexScopedSettings) {
+    private static List<String> validatePrivateSettingsNotExplicitlySet(
+        Settings settings,
+        @Nullable Settings systemProvided,
+        IndexScopedSettings indexScopedSettings
+    ) {
         List<String> validationErrors = new ArrayList<>();
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
                 assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
-            } else if (setting.isPrivateIndex()) {
+            } else if (setting.isPrivateIndex() && (systemProvided == null || settings.get(key).equals(systemProvided.get(key)) == false)) {
+                // if the setting is system provided, they're not set by the user
                 validationErrors.add("private index setting [" + key + "] can not be set explicitly");
             }
         }

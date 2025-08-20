@@ -680,7 +680,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, ESInetAddressPoint address) {
-        if (dimension) {
+        if (dimension && context.getRoutingFields().isNoop() == false) {
             context.getRoutingFields().addIp(fieldType().name(), address.getInetAddress());
         }
         LuceneDocument doc = context.doc();

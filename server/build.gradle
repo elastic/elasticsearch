@@ -59,6 +59,7 @@ dependencies {
   // utilities
   api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
+  api 'com.dynatrace.hash4j:hash4j:0.25.0'
 
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'

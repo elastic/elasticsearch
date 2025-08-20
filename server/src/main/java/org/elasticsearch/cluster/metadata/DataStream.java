@@ -74,6 +74,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.EMPTY_MAPPINGS;
@@ -97,6 +98,33 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+
+    private static final int MAX_LENGTH = 100;
+    private static final String REPLACEMENT = "_";
+    private static final Pattern DISALLOWED_IN_TYPE = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
+    private static final Pattern DISALLOWED_IN_DATASET = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
+    private static final Pattern DISALLOWED_IN_NAMESPACE = Pattern.compile("[\\\\/*?\"<>| ,#:]");
+
+    public static String sanitizeType(String type) {
+        return sanitizeDataStreamField(type, DISALLOWED_IN_TYPE);
+    }
+
+    public static String sanitizeDataset(String dataset) {
+        return sanitizeDataStreamField(dataset, DISALLOWED_IN_DATASET);
+    }
+
+    public static String sanitizeNamespace(String namespace) {
+        return sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    private static String sanitizeDataStreamField(String s, Pattern disallowedInDataset) {
+        if (s == null) {
+            return null;
+        }
+        s = s.toLowerCase(Locale.ROOT);
+        s = s.substring(0, Math.min(s.length(), MAX_LENGTH));
+        return disallowedInDataset.matcher(s).replaceAll(REPLACEMENT);
+    }
 
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {

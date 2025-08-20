@@ -1,5 +1,5 @@
 pr: 133080
-summary: "Fix(semantic_text): index underlying `dense_vector` field in older indices"
+summary: "Ensure underlying `dense_vector` fields are indexed in semantic_text fields in indices created prior to 8.11.0"
 area: Relevance
 type: bug
 issues: []

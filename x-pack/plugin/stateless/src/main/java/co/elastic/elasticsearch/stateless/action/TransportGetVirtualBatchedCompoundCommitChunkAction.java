@@ -31,6 +31,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RetryableAction;
@@ -39,6 +40,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -79,12 +81,10 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     public static final ActionType<GetVirtualBatchedCompoundCommitChunkResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportGetVirtualBatchedCompoundCommitChunkAction.class);
     protected final String transportPrimaryAction;
-    private final BigArrays bigArrays;
     private final IndicesService indicesService;
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private final GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure;
-    private final StatelessCommitService statelessCommitService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetVirtualBatchedCompoundCommitChunkAction(
@@ -94,16 +94,15 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         IndicesService indicesService,
         ClusterService clusterService,
         GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure,
-        StatelessCommitService statelessCommitService
+        StatelessCommitService statelessCommitService,
+        ProjectResolver projectResolver
     ) {
         super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.bigArrays = bigArrays;
         this.indicesService = indicesService;
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.vbccChunksPressure = vbccChunksPressure;
-        this.statelessCommitService = statelessCommitService;
         this.transportPrimaryAction = actionName + "[p]";
+        this.projectResolver = projectResolver;
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
@@ -187,7 +186,11 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         if (request.getPreferredNodeId() != null && clusterState.nodes().nodeExists(request.getPreferredNodeId())) {
             return clusterState.nodes().get(request.getPreferredNodeId());
         } else {
-            throw new ResourceNotFoundException("Unable to find node " + request.getPreferredNodeId() + " in the cluster state");
+            if (shouldRetryReadingFromTheBlobStore(clusterState, request.getShardId())) {
+                throw new ResourceNotFoundException("Unable to find node " + request.getPreferredNodeId() + " in the cluster state");
+            } else {
+                throw new NoSuchNodeException(request.getPreferredNodeId());
+            }
         }
     }
 
@@ -205,7 +208,8 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
                 var cause = ExceptionsHelper.unwrapCause(e);
                 // We don't want to retry on this exception, but still want to convert it to recoverable ResourceNotFoundException
-                if (cause instanceof NodeClosedException) {
+                var currentState = clusterService.state();
+                if (cause instanceof NodeClosedException && shouldRetryReadingFromTheBlobStore(currentState, request.getShardId())) {
                     l.onFailure(new ResourceNotFoundException("Unable to get virtual batched compound commit chunk", e));
                 } else {
                     l.onFailure(e);
@@ -215,6 +219,14 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 listener.onResponse(r);
             }), GetVirtualBatchedCompoundCommitChunkResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
+    }
+
+    private boolean shouldRetryReadingFromTheBlobStore(ClusterState clusterState, ShardId shardId) {
+        // When the indexing node crashes, the VBCC typically remains not uploaded, causing blob store
+        // reads to fail with 404 errors. These errors can be misleading since there won't be
+        // corresponding deletion log entries. Additionally, search replicas become unassigned when
+        // the primary node fails, making search operations likely to fail regardless.
+        return clusterState.routingTable(projectResolver.getProjectId()).shardRoutingTable(shardId).primaryShard().assignedToNode();
     }
 
     // package-private for testing

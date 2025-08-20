@@ -13,8 +13,8 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterName;
@@ -54,6 +54,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -931,7 +932,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(successfulOps.get(), equalTo(numShards));
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-            assertThat(phase.totalHits().value(), equalTo(2L));
+            assertThat(phase.totalHits().value, equalTo(2L));
         }
     }
 

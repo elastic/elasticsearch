@@ -81,27 +81,6 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
         bulk.get();
     }
 
-    private void createLocalIndex(int numDocs) throws Exception {
-        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
-        mapping.startObject("runtime");
-        {
-            mapping.startObject("const");
-            {
-                mapping.field("type", "long");
-                mapping.startObject("script").field("source", "").field("lang", "pause").endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-        mapping.endObject();
-        client(LOCAL_CLUSTER).admin().indices().prepareCreate("test").setMapping(mapping).get();
-        BulkRequestBuilder bulk = client(LOCAL_CLUSTER).prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < numDocs; i++) {
-            bulk.add(new IndexRequest().source("foo", i));
-        }
-        bulk.get();
-    }
-
     public void testCancel() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();

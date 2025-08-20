@@ -300,7 +300,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
+                throw new QueryShardException(context, "[" + NAME + "] failed to find nested object under path [" + path + "]");
             }
         }
         final BitSetProducer parentFilter;

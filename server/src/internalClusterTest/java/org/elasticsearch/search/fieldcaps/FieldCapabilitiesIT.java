@@ -564,26 +564,39 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     }
 
-    public void testDefaultIncludeIndices() throws Exception {
+    public void testRandomIncludeIndices() throws Exception {
         populateIndices();
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices("index-*");
         request.fields("*");
-        request.includeIndices(false); // default
+        boolean shouldAlwaysIncludeIndices = randomBoolean();
+        request.includeIndices(shouldAlwaysIncludeIndices);
 
         final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
         assertThat(response.getIndices(), arrayContainingInAnyOrder("index-1", "index-2"));
         assertThat(response.getField("timestamp"), aMapWithSize(1));
         assertThat(response.getField("timestamp"), hasKey("date"));
-        assertNull(response.getField("timestamp").get("date").indices());
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        } else {
+            assertNull(response.getField("timestamp").get("date").indices());
+        }
 
         assertThat(response.getField("field1"), aMapWithSize(1));
         assertThat(response.getField("field1"), hasKey("keyword"));
-        assertNull(response.getField("field1").get("keyword").indices());
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+        } else {
+            assertNull(response.getField("field1").get("keyword").indices());
+        }
 
         assertThat(response.getField("field2"), aMapWithSize(1));
         assertThat(response.getField("field2"), hasKey("long"));
-        assertNull(response.getField("field2").get("long").indices());
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+        } else {
+            assertNull(response.getField("field2").get("long").indices());
+        }
 
         assertThat(response.getField("field3"), aMapWithSize(2));
         assertThat(response.getField("field3"), hasKey("long"));

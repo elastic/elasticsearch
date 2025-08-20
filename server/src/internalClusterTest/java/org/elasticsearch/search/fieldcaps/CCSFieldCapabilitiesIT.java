@@ -179,29 +179,42 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
 
     }
 
-    public void testDefaultIncludeIndices() {
+    public void testRandomIncludeIndices() {
         String localIndex = "index-local";
         String remoteIndex = "index-remote";
         String remoteClusterAlias = "remote_cluster";
         populateIndices(localIndex, remoteIndex, remoteClusterAlias, false);
         remoteIndex = String.join(":", remoteClusterAlias, remoteIndex);
+        boolean shouldAlwaysIncludeIndices = randomBoolean();
         FieldCapabilitiesResponse response = client().prepareFieldCaps(localIndex, remoteIndex)
             .setFields("*")
-            .setIncludeIndices(false) // default
+            .setIncludeIndices(shouldAlwaysIncludeIndices)
             .get();
 
         assertThat(response.getIndices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
         assertThat(response.getField("timestamp"), aMapWithSize(1));
         assertThat(response.getField("timestamp"), hasKey("date"));
-        assertNull(response.getField("timestamp").get("date").indices());
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        } else {
+            assertNull(response.getField("timestamp").get("date").indices());
+        }
 
         assertThat(response.getField("field1"), aMapWithSize(1));
         assertThat(response.getField("field1"), hasKey("keyword"));
-        assertNull(response.getField("field1").get("keyword").indices());
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+        } else {
+            assertNull(response.getField("field1").get("keyword").indices());
+        }
 
         assertThat(response.getField("field2"), aMapWithSize(1));
         assertThat(response.getField("field2"), hasKey("long"));
-        assertNull(response.getField("field2").get("long").indices());
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+        } else {
+            assertNull(response.getField("field2").get("long").indices());
+        }
 
         assertThat(response.getField("field3"), aMapWithSize(2));
         assertThat(response.getField("field3"), hasKey("long"));

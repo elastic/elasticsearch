@@ -32,8 +32,9 @@ public record ESONFlat(List<ESONEntry> keys, ESONSource.Values values, AtomicRef
         this(keys, values, new AtomicReference<>());
     }
 
-    public ESONFlat(StreamInput in) throws IOException {
-        this(readKeys(in), new ESONSource.Values(in.readBytesReference()), new AtomicReference<>());
+    public static ESONFlat readFrom(StreamInput in) throws IOException {
+        BytesReference keys = in.readBytesReference();
+        return new ESONFlat(readKeys(in), new ESONSource.Values(in.readBytesReference()), new AtomicReference<>(keys));
     }
 
     public void writeTo(StreamOutput out) throws IOException {

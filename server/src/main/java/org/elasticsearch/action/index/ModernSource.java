@@ -42,7 +42,7 @@ public class ModernSource implements Writeable {
         }
         if (in.readBoolean()) {
             originalSourceSize = in.readVInt();
-            structuredSource = new ESONFlat(in);
+            structuredSource = ESONFlat.readFrom(in);
             originalSource = null;
         } else {
             originalSource = in.readBytesReference();

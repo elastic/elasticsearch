@@ -174,7 +174,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 resolveClusterTask.ensureNotCancelled();
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
-                boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true) == false;
+                boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true);
                 RemoteClusterClient remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                     clusterAlias,
                     searchCoordinationExecutor,

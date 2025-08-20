@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
@@ -44,6 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;

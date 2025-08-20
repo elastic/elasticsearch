@@ -10,23 +10,35 @@
 package org.elasticsearch.datageneration.matchers.source;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -353,6 +365,9 @@ interface FieldSpecificMatcher {
     }
 
     class NumberMatcher extends GenericMappingAwareMatcher {
+
+        private final FieldType fieldType;
+        private final NumberFieldMapper.NumberType numberType;
         NumberMatcher(
             String fieldType,
             XContentBuilder actualMappings,
@@ -361,6 +376,8 @@ interface FieldSpecificMatcher {
             Settings.Builder expectedSettings
         ) {
             super(fieldType, actualMappings, actualSettings, expectedMappings, expectedSettings);
+            this.fieldType = FieldType.tryParse(fieldType);
+            this.numberType = NumberFieldMapper.NumberType.valueOf(this.fieldType.name());
         }
 
         @Override
@@ -371,6 +388,32 @@ interface FieldSpecificMatcher {
             // Special case for number coercion from strings
             if (value instanceof String s && s.isEmpty()) {
                 return nullValue;
+            }
+
+            // Attempt to coerce string values into numbers
+            if (value instanceof String s) {
+                try (var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, "\"" + s + "\"")) {
+                    parser.nextToken();
+                    return numberType.parse(parser, true);
+                } catch (Exception e) {
+                    // malformed string
+                    return value;
+                }
+            }
+
+            // When a number mapping is coerced, the expected value will come from the above parser and will have the correct java type.
+            // Whereas, if it fits, the actual value will be in an Integer or a Double. To correctly treat expected and actual values as
+            // equal the actual value must be cast to the appropriate type.
+            if (value instanceof Integer v) {
+                return switch (fieldType) {
+                    case LONG -> v.longValue();
+                    case SHORT -> v.shortValue();
+                    case BYTE -> v.byteValue();
+                    default -> value;
+                };
+            }
+            if (value instanceof Double v) {
+                return fieldType == FieldType.FLOAT ? v.floatValue() : value;
             }
 
             return value;

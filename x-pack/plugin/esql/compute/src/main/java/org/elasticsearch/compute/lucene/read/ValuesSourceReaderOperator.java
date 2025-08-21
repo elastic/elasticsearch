@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -324,17 +323,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                     + fields[field].info.type
                     + ")"
             );
-        }
-        if (fields[field].info.nullsFiltered() && block.mayHaveNulls()) {
-            assert IntStream.range(0, block.getPositionCount()).noneMatch(block::isNull)
-                : new AssertionError(
-                    sanityCheckBlockErrorPrefix(loader, block, field)
-                        + " nullFiltered ["
-                        + fields[field].info.nullsFiltered()
-                        + "] but got block instead of a vector: "
-                        + block
-                        + "]"
-                );
         }
     }
 

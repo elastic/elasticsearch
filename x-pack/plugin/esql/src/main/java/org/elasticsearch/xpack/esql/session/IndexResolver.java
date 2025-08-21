@@ -91,6 +91,7 @@ public class IndexResolver {
         boolean includeAllDimensions,
         boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector,
+        boolean supportsDateRange,
         ActionListener<IndexResolution> listener
     ) {
         ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap(
@@ -104,6 +105,7 @@ public class IndexResolver {
             includeAllDimensions,
             supportsAggregateMetricDouble,
             supportsDenseVector,
+            supportsDateRange,
             ignoreVersion
         );
     }
@@ -119,6 +121,7 @@ public class IndexResolver {
         boolean includeAllDimensions,
         boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector,
+        boolean supportsDateRange,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         client.execute(
@@ -130,7 +133,10 @@ public class IndexResolver {
                 LOGGER.debug("minimum transport version {}", minimumVersion);
                 l.onResponse(
                     new Versioned<>(
-                        mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector)),
+                        mergedMappings(
+                            indexWildcard,
+                            new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector, supportsDateRange)
+                        ),
                         // The minimum transport version was added to the field caps response in 9.2.1; in clusters with older nodes,
                         // we don't have that information and need to assume the oldest supported version.
                         minimumVersion == null ? TransportVersion.minimumCompatible() : minimumVersion
@@ -140,7 +146,12 @@ public class IndexResolver {
         );
     }
 
-    public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}
+    public record FieldsInfo(
+        FieldCapabilitiesResponse caps,
+        boolean supportAggregateMetricDouble,
+        boolean supportDenseVector,
+        boolean supportDateRange
+    ) {}
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
@@ -278,6 +289,7 @@ public class IndexResolver {
         type = switch (type) {
             case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.supportAggregateMetricDouble ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED;
             case DENSE_VECTOR -> fieldsInfo.supportDenseVector ? DENSE_VECTOR : UNSUPPORTED;
+            case DATE_RANGE -> fieldsInfo.supportDateRange ? DATETIME : UNSUPPORTED;
             default -> type;
         };
         boolean aggregatable = first.isAggregatable();

@@ -398,6 +398,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("value_count", 25);
                     doc.endObject();
                 }
+                case DATE_RANGE -> {
+                    doc.startObject();
+                    doc.field("gte", "1989-01-01");
+                    doc.field("lt", "2025-01-01");
+                    doc.endObject();
+                }
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
@@ -438,6 +444,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // TODO: Fix this once we know the node versions.
                 yield nullValue();
             }
+            case DATE_RANGE -> {
+                // Currently, we cannot tell if all nodes support it or not so we treat it as unsupported.
+                // TODO: Fix this once we know the node versions.
+                yield nullValue();
+            }
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
     }
@@ -461,7 +472,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo
-                CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+                CARTESIAN_POINT, CARTESIAN_SHAPE,
+                // Excluded for now, until a proper workaround
+                DATE_RANGE -> false;
             default -> true;
         };
     }

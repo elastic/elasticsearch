@@ -481,6 +481,22 @@ public class BlockFactory {
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
     }
 
+    public DateRangeBlockBuilder newDateRangeBlockBuilder(int estimatedSize) {
+        return new DateRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public DateRangeBlock newConstantDateRangeBlock(DateRangeBlockBuilder.DateRangeLiteral value, int positions) {
+        var fromBuilder = newConstantLongBlockWith(value.from(), positions);
+        var toBuilder = newConstantLongBlockWith(value.to(), positions);
+        return new DateRangeArrayBlock(fromBuilder, toBuilder);
+    }
+
+    public DateRangeBlock newDateRangeBlock(long[] fromValues, long[] toValues, int positions) {
+        var from = newLongArrayVector(fromValues, positions).asBlock();
+        var to = newLongArrayVector(toValues, positions).asBlock();
+        return new DateRangeArrayBlock(from, to);
+    }
+
     /**
      * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */

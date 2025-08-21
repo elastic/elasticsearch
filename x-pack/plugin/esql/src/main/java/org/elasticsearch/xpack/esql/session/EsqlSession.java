@@ -597,6 +597,7 @@ public class EsqlSession {
             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
             false,
             false,
+            false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -815,6 +816,7 @@ public class EsqlSession {
                     preAnalysis.indexMode() == IndexMode.TIME_SERIES,
                     preAnalysis.supportsAggregateMetricDouble(),
                     preAnalysis.supportsDenseVector(),
+                    preAnalysis.supportDateRange(),
                     listener.delegateFailureAndWrap((l, indexResolution) -> {
                         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                         l.onResponse(

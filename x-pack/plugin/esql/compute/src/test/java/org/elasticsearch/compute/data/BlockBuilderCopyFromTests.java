@@ -109,6 +109,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                     (AggregateMetricDoubleBlock) block,
                     i
                 );
+                case DATE_RANGE -> ((DateRangeBlockBuilder) builder).copyFrom((DateRangeBlock) block, i);
                 default -> throw new IllegalArgumentException("unsupported type: " + elementType);
             }
 

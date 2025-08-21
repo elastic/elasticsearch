@@ -137,4 +137,9 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
         return factory.newAggregateMetricDoubleBlockBuilder(count);
     }
+
+    @Override
+    public BlockLoader.DateRangeBuilder dateRangeBuilder(int expectedCount) {
+        return factory.newDateRangeBlockBuilder(expectedCount);
+    }
 }

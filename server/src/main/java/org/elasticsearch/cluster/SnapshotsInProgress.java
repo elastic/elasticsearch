@@ -1291,8 +1291,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     } else {
                         // Record the deletion of the assigned-queued shard snapshot so that we can kick off the first QUEUED one
                         // in later snapshots.
-                        final var old = completedAssignedQueuedShards.put(shardEntry.getKey(), status);
-                        assert old == null : old;
+                        final ShardId shardId = shardEntry.getKey();
+                        final var old = completedAssignedQueuedShards.put(shardId, status);
+                        assert old == null
+                            : shardId
+                                + " has unexpected previous completed shard snapshot status: "
+                                + old
+                                + " that conflicts with the one from "
+                                + this;
                         assert isClone() == false
                             : "The state queued with generation should not be possible for a clone entry [" + this + "]";
                         final String reason = "assigned-queued aborted by snapshot deletion";

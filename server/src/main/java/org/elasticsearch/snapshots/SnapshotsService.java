@@ -1630,13 +1630,22 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             }
                             return abortedEntry;
                         } else {
-                            final var shardsBuilder = maybeUpdateWithCompletedAssignedQueuedShards(
-                                existing,
-                                completedAssignedQueuedShards,
-                                true,
-                                () -> ImmutableOpenMap.builder(existing.shards())
-                            );
-                            return shardsBuilder == null ? existing : existing.withShardStates(shardsBuilder.build());
+                            if (existing.isClone()) {
+                                final var clonesBuilder = maybeUpdateCloneWithCompletedAssignedQueuedShards(
+                                    existing,
+                                    completedAssignedQueuedShards,
+                                    currentState.nodes().getLocalNodeId(),
+                                    () -> ImmutableOpenMap.builder(existing.shardSnapshotStatusByRepoShardId())
+                                );
+                                return clonesBuilder == null ? existing : existing.withClones(clonesBuilder.build());
+                            } else {
+                                final var shardsBuilder = maybeUpdateSnapshotWithCompletedAssignedQueuedShards(
+                                    existing,
+                                    completedAssignedQueuedShards,
+                                    () -> ImmutableOpenMap.builder(existing.shards())
+                                );
+                                return shardsBuilder == null ? existing : existing.withShardStates(shardsBuilder.build());
+                            }
                         }
                     }).filter(Objects::nonNull).toList()
                 );
@@ -1751,43 +1760,86 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Update the snapshot entry with the completed assigned queue shard snapshots accumulated from processing earlier snapshots.
+     * Update a snapshot entry with the completed assigned queue shard snapshots accumulated from processing earlier snapshots.
      * These shard snapshots are completed because either their snapshots are deleted or the associated shards become unassigned.
      * In both cases, the shard snapshots for the same shards must be updated to propagate the changes.
      * @param entry The snapshot entry to update.
      * @param completedAssignedQueuedShards Completed assigned queued shard snapshots accumulated from processing earlier snapshots.
-     * @param removeAfterUpdate If true, the completed assigned queued shards will be removed from completedAssignedQueuedShards
-     *                          after updating the entry.
+     *                                      An entry is removed if it is not MISSING state so that it only updates to the first match.
      * @param shardsBuilderSupplier Supplier to get a builder for new shard snapshots if any update is applicable.
      * @return The updated map of shard snapshots for the snapshot entry, or null if no updates were made.
      */
-    static ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> maybeUpdateWithCompletedAssignedQueuedShards(
+    static ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> maybeUpdateSnapshotWithCompletedAssignedQueuedShards(
         SnapshotsInProgress.Entry entry,
         Map<ShardId, ShardSnapshotStatus> completedAssignedQueuedShards,
-        boolean removeAfterUpdate,
         Supplier<ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus>> shardsBuilderSupplier
     ) {
-        if (entry.isClone() == false && completedAssignedQueuedShards.isEmpty() == false) {
-            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = null;
-            final var iterator = completedAssignedQueuedShards.keySet().iterator();
-            while (iterator.hasNext()) {
-                final var shardId = iterator.next();
-                final var shardSnapshotStatus = entry.shards().get(shardId);
-                if (shardSnapshotStatus != null) {
-                    assert shardSnapshotStatus.isUnassignedQueued() : shardSnapshotStatus;
-                    if (shardsBuilder == null) {
-                        shardsBuilder = shardsBuilderSupplier.get();
-                    }
-                    shardsBuilder.put(shardId, completedAssignedQueuedShards.get(shardId));
-                    if (removeAfterUpdate) {
-                        iterator.remove();
-                    }
-                }
-            }
-            return shardsBuilder;
-        } else {
+        assert entry.isClone() == false : "unexpected clone " + entry;
+        if (entry.state().completed() || completedAssignedQueuedShards.isEmpty()) {
             return null;
         }
+        ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = null;
+        final var iterator = completedAssignedQueuedShards.keySet().iterator();
+        while (iterator.hasNext()) {
+            final var shardId = iterator.next();
+            final var shardSnapshotStatus = entry.shards().get(shardId);
+            if (shardSnapshotStatus != null) {
+                assert shardSnapshotStatus.isUnassignedQueued() : shardSnapshotStatus;
+                if (shardsBuilder == null) {
+                    shardsBuilder = shardsBuilderSupplier.get();
+                }
+                final ShardSnapshotStatus completedStatus = completedAssignedQueuedShards.get(shardId);
+                if (completedStatus.state() == ShardState.MISSING) {
+                    shardsBuilder.put(shardId, completedStatus);
+                } else {
+                    shardsBuilder.put(shardId, ShardSnapshotStatus.assignedQueued(completedStatus.nodeId(), completedStatus.generation()));
+                    iterator.remove();
+                }
+            }
+        }
+        return shardsBuilder;
+    }
+
+    /**
+     * Update a clone entry with the completed assigned queue shard snapshots accumulated from processing earlier snapshots.
+     * These shard snapshots are completed because either their snapshots are deleted or the associated shards become unassigned.
+     * In both cases, previous queued clone shard snapshots for the same shards can now start.
+     * @param entry The snapshot entry to update.
+     * @param completedAssignedQueuedShards Completed assigned queued shard snapshots accumulated from processing earlier snapshots.
+     *                                      Once an entry is applied for update, it is removed from the list.
+     * @param clonesBuilderSupplier Supplier to get a builder for new clone shard snapshots if any update is applicable.
+     * @return The updated map of clone shard snapshots for the snapshot entry, or null if no updates were made.
+     */
+    static ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> maybeUpdateCloneWithCompletedAssignedQueuedShards(
+        SnapshotsInProgress.Entry entry,
+        Map<ShardId, ShardSnapshotStatus> completedAssignedQueuedShards,
+        String localNodeId,
+        Supplier<ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus>> clonesBuilderSupplier
+    ) {
+        assert entry.isClone() : "expected a clone, but got " + entry;
+        if (entry.state().completed() || completedAssignedQueuedShards.isEmpty()) {
+            return null;
+        }
+        ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> clonesBuilder = null;
+        final var iterator = completedAssignedQueuedShards.keySet().iterator();
+        while (iterator.hasNext()) {
+            final var shardId = iterator.next();
+            final IndexId indexId = entry.indices().get(shardId.getIndexName());
+            if (indexId != null) {
+                final RepositoryShardId repoShardId = new RepositoryShardId(indexId, shardId.id());
+                if (SnapshotsServiceUtils.isQueued(entry.shardSnapshotStatusByRepoShardId().get(repoShardId))) {
+                    if (clonesBuilder == null) {
+                        clonesBuilder = clonesBuilderSupplier.get();
+                    }
+                    clonesBuilder.put(
+                        repoShardId,
+                        new ShardSnapshotStatus(localNodeId, completedAssignedQueuedShards.get(shardId).generation())
+                    );
+                    iterator.remove();
+                }
+            }
+        }
+        return clonesBuilder;
     }
 
     private void addDeleteListener(String deleteUUID, ActionListener<Void> listener) {
@@ -2520,36 +2572,49 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(oldEntries.size());
             final Map<ShardId, ShardSnapshotStatus> completedAssignedQueuedShards = new HashMap<>();
             for (SnapshotsInProgress.Entry entry : oldEntries) {
-                ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = maybeUpdateWithCompletedAssignedQueuedShards(
-                    entry,
-                    completedAssignedQueuedShards,
-                    false,
-                    () -> ImmutableOpenMap.builder(entry.shards())
-                );
-                boolean changed = shardsBuilder != null;
-
-                if (entry.hasAssignedQueuedShards() && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
-                    if (shardsBuilder == null) {
-                        shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                    }
-                    changed |= maybeStartAssignedQueuedShardSnapshots(
-                        clusterState,
+                if (entry.isClone()) {
+                    final var clonesBuilder = maybeUpdateCloneWithCompletedAssignedQueuedShards(
                         entry,
-                        snapshotsInProgress::isNodeIdForRemoval,
-                        shardsBuilder,
-                        perNodeShardSnapshotCounter,
-                        completedAssignedQueuedShards
+                        completedAssignedQueuedShards,
+                        initialState.nodes().getLocalNodeId(),
+                        () -> ImmutableOpenMap.builder(entry.shardSnapshotStatusByRepoShardId())
                     );
-                }
-
-                if (changed) {
-                    final var newEntry = entry.withShardStates(shardsBuilder.build());
-                    newEntries.add(newEntry);
-                    if (newEntry.state().completed()) {
-                        newlyCompletedEntries.add(newEntry);
+                    if (clonesBuilder != null) {
+                        newEntries.add(entry.withClones(clonesBuilder.build()));
+                    } else {
+                        newEntries.add(entry);
                     }
                 } else {
-                    newEntries.add(entry);
+                    ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder =
+                        maybeUpdateSnapshotWithCompletedAssignedQueuedShards(
+                            entry,
+                            completedAssignedQueuedShards,
+                            () -> ImmutableOpenMap.builder(entry.shards())
+                        );
+                    boolean changed = shardsBuilder != null;
+
+                    if (entry.hasAssignedQueuedShards() && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
+                        if (shardsBuilder == null) {
+                            shardsBuilder = ImmutableOpenMap.builder(entry.shards());
+                        }
+                        changed |= maybeStartAssignedQueuedShardSnapshots(
+                            clusterState,
+                            entry,
+                            snapshotsInProgress::isNodeIdForRemoval,
+                            shardsBuilder,
+                            perNodeShardSnapshotCounter,
+                            completedAssignedQueuedShards
+                        );
+                    }
+                    if (changed) {
+                        final var newEntry = entry.withShardStates(shardsBuilder.build());
+                        newEntries.add(newEntry);
+                        if (newEntry.state().completed()) {
+                            newlyCompletedEntries.add(newEntry);
+                        }
+                    } else {
+                        newEntries.add(entry);
+                    }
                 }
             }
             return snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
@@ -2589,10 +2654,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 );
                 if (newShardSnapshotStatus.equals(existingShardSnapshotStatus) == false) {
                     if (newShardSnapshotStatus.state().completed()) {
-                        assert newShardSnapshotStatus.state() == ShardState.MISSING : newShardSnapshotStatus;
+                        assert newShardSnapshotStatus.state() == ShardState.MISSING
+                            : shardId + " has unexpected completion state " + newShardSnapshotStatus + " in snapshot entry " + entry;
                         // There might be QUEUED shard snapshots of this shard in later snapshots and we need
                         // to propagate the completion to them.
-                        completedAssignedQueuedShards.put(shardId, newShardSnapshotStatus);
+                        final var old = completedAssignedQueuedShards.put(shardId, newShardSnapshotStatus);
+                        assert old == null
+                            : shardId
+                                + " has unexpected previous completed shard snapshot status: "
+                                + old
+                                + " that conflicts with the one from "
+                                + entry;
                     }
                     changedCount++;
                     if (newShardSnapshotStatus.state() == ShardState.INIT) {
@@ -2649,7 +2721,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         ) {
             // Completed snapshots do not require any updates so we just add them to the output list and keep going.
             // Also we short circuit if there are no more unconsumed updates to apply.
-            if (entry.state().completed() || shardUpdates.isEmpty()) {
+            if (entry.state().completed() || (shardUpdates.isEmpty() && completedAssignedQueuedShards.isEmpty())) {
                 return entry;
             }
             return new EntryContext(entry, shardUpdates, completedAssignedQueuedShards).computeUpdatedSnapshotEntryFromShardUpdates();
@@ -2717,7 +2789,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     }
                 }
 
-                maybeUpdateWithCompletedAssignedQueuedShards(entry, completedAssignedQueuedShards, false, this::shardsBuilder);
+                if (entry.isClone()) {
+                    maybeUpdateCloneWithCompletedAssignedQueuedShards(
+                        entry,
+                        completedAssignedQueuedShards,
+                        initialState.nodes().getLocalNodeId(),
+                        this::clonesBuilder
+                    );
+                } else {
+                    maybeUpdateSnapshotWithCompletedAssignedQueuedShards(entry, completedAssignedQueuedShards, this::shardsBuilder);
+                }
 
                 if (shardsBuilder != null) {
                     assert clonesBuilder == null

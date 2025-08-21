@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -49,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
@@ -62,7 +65,7 @@ public class RangeFieldMapper extends FieldMapper {
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
     public static class Defaults {
-        public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+        public static final DateFormatter DATE_FORMATTER = DEFAULT_DATE_TIME_FORMATTER;
         public static final Locale LOCALE = DateFieldMapper.DEFAULT_LOCALE;
     }
 
@@ -349,6 +352,97 @@ public class RangeFieldMapper extends FieldMapper {
                 context
             );
         }
+
+        public static class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+            private final String fieldName;
+
+            public DateRangeDocValuesLoader(String fieldName) {
+                this.fieldName = fieldName;
+            }
+
+            @Override
+            public Builder builder(BlockFactory factory, int expectedCount) {
+                return factory.longsFromDocValues(expectedCount);
+            }
+
+            @Override
+            public AllReader reader(LeafReaderContext context) throws IOException {
+                var docValues = context.reader().getBinaryDocValues(fieldName);
+                return new DateRangeDocValuesReader(docValues);
+                /*
+                if (docValues != null) {
+                    NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                    if (singleton != null) {
+                        return new BlockDocValuesReader.SingletonLongs(singleton);
+                    }
+                    return new BlockDocValuesReader.Longs(docValues);
+                }
+                NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
+                if (singleton != null) {
+                    return new BlockDocValuesReader.SingletonLongs(singleton);
+                }
+                return new ConstantNullsReader(); */
+            }
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new DateRangeDocValuesLoader(name());
+            }
+            throw new IllegalStateException("Cannot load blocks without doc values");
+        }
+    }
+
+    public static class DateRangeDocValuesReader extends BlockDocValuesReader {
+        private final BytesRef spare = new BytesRef();
+
+        private final BinaryDocValues numericDocValues;
+
+        public DateRangeDocValuesReader(BinaryDocValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        protected int docId() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return "";
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            try (BlockLoader.DateRangeBuilder builder = factory.dateRangeBuilder(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    read(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            read(docId, (BlockLoader.DateRangeBuilder) builder);
+        }
+
+        private void read(int doc, BlockLoader.DateRangeBuilder builder) throws IOException {
+            if (false == numericDocValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+
+            BytesRef ref = numericDocValues.binaryValue();
+            var ranges = BinaryRangeUtil.decodeLongRanges(ref);
+            for (var range : ranges) {
+                builder.from().appendLong((long) range.from);
+                builder.to().appendLong((long) range.to);
+            }
+        }
     }
 
     private final RangeType type;
@@ -423,7 +517,6 @@ public class RangeFieldMapper extends FieldMapper {
         if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
             return parseIpRangeFromCidr(parser);
         }
-
         if (start != XContentParser.Token.START_OBJECT) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),

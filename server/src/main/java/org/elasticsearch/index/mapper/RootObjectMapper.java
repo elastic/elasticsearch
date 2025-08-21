@@ -470,7 +470,7 @@ public class RootObjectMapper extends ObjectMapper {
             String fieldName = entry.getKey();
             Object fieldNode = entry.getValue();
             if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                || processField(builder, fieldName, fieldNode, parserContext, parserContext.getNamespaceValidator())) {
+                || processField(builder, fieldName, fieldNode, parserContext)) {
                 iterator.remove();
             }
         }
@@ -482,8 +482,7 @@ public class RootObjectMapper extends ObjectMapper {
         RootObjectMapper.Builder builder,
         String fieldName,
         Object fieldNode,
-        MappingParserContext parserContext,
-        RootObjectMapperNamespaceValidator namespaceValidator
+        MappingParserContext parserContext
     ) {
         if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
             if (fieldNode instanceof List) {
@@ -541,11 +540,6 @@ public class RootObjectMapper extends ObjectMapper {
         } else if (fieldName.equals("runtime")) {
             if (fieldNode instanceof Map) {
                 Map<String, RuntimeField> fields = RuntimeField.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true);
-                if (namespaceValidator != null) {
-                    for (String runtimeField : fields.keySet()) {
-                        namespaceValidator.validateNamespace(null, runtimeField);
-                    }
-                }
                 builder.addRuntimeFields(fields);
                 return true;
             } else {

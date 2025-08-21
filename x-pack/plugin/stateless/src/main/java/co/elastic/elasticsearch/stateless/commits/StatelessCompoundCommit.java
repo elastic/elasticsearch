@@ -273,7 +273,7 @@ public record StatelessCompoundCommit(
     }
 
     /**
-     * Returns the blob location with the minimum offset within the current term and generation.
+     * Returns the blob location with the maximum offset within the current term and generation.
      */
     public BlobLocation getMaxOffsetInCurrentGeneration() {
         return getBoundaryOffsetInCurrentGeneration(Comparator.reverseOrder());

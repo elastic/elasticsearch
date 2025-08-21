@@ -138,7 +138,8 @@ class AuthenticatorChain {
     }
 
     private static BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
-        Authenticator.Context context, Tracer tracer
+        Authenticator.Context context,
+        Tracer tracer
     ) {
         return (authenticator, listener) -> {
             if (context.shouldExtractCredentials()) {
@@ -187,8 +188,10 @@ class AuthenticatorChain {
                 listener.onResponse(result);
             }, onFailure);
 
-            ActionListener<AuthenticationResult<Authentication>> afterAuthResultListener = ActionListener.runAfter(authResultListener,
-                () -> tracer.stopTrace(context));
+            ActionListener<AuthenticationResult<Authentication>> afterAuthResultListener = ActionListener.runAfter(
+                authResultListener,
+                () -> tracer.stopTrace(context)
+            );
 
             tracer.startTrace(context.getThreadContext(), context, "authenticate", addUsefulMetadata(authenticator));
             authenticator.authenticate(context, afterAuthResultListener);

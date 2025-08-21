@@ -110,7 +110,7 @@ You can adjust the editor’s height by dragging its bottom border to your likin
 
 Each {{esql}} query starts with a [source command](commands/source-commands.md). A source command produces a table, typically with data from {{es}}.
 
-:::{image} /explore-analyze/images/elasticsearch-reference-source-command.svg
+:::{image} ../images/elasticsearch-reference-source-command.svg
 :alt: A source command producing a table from {{es}}
 :::
 
@@ -137,8 +137,9 @@ from sample_data
 
 A source command can be followed by one or more [processing commands](commands/processing-commands.md), separated by a pipe character: `|`. Processing commands change an input table by adding, removing, or changing rows and columns. Processing commands can perform filtering, projection, aggregation, and more.
 
-:::{image} /explore-analyze/images/elasticsearch-reference-esql-limit.png
+:::{image} ../images/elasticsearch-reference-esql-limit.png
 :alt: A processing command changing an input table
+:width: 500px
 :::
 
 For example, you can use the [`LIMIT`](commands/limit.md) command to limit the number of rows that are returned, up to a maximum of 10,000 rows:
@@ -161,8 +162,9 @@ FROM sample_data | LIMIT 3
 
 ### Sort a table [esql-getting-started-sort]
 
-:::{image} /explore-analyze/images/elasticsearch-reference-esql-sort.png
+:::{image} ../images/elasticsearch-reference-esql-sort.png
 :alt: A processing command sorting an input table
+:width: 500px
 :::
 
 Another processing command is the [`SORT`](commands/sort.md) command. By default, the rows returned by `FROM` don’t have a defined sort order. Use the `SORT` command to sort rows on one or more columns:
@@ -199,7 +201,7 @@ There are many other processing commands, like [`KEEP`](commands/keep.md) and [`
 
 You can chain processing commands, separated by a pipe character: `|`. Each processing command works on the output table of the previous command. The result of a query is the table produced by the final processing command.
 
-:::{image} /explore-analyze/images/elasticsearch-reference-esql-sort-limit.png
+:::{image} ../images/elasticsearch-reference-esql-sort-limit.png
 :alt: Processing commands can be chained
 :::
 
@@ -302,7 +304,7 @@ FROM sample_data
 
 {{esql}} enables you to [enrich](esql-enrich-data.md) a table with data from indices in {{es}}, using the [`ENRICH`](commands/enrich.md) command.
 
-:::{image} /explore-analyze/images/elasticsearch-reference-esql-enrich.png
+:::{image} ../images/elasticsearch-reference-esql-enrich.png
 :alt: esql enrich
 :::
 
@@ -415,9 +417,8 @@ For more about data processing with {{esql}}, refer to [Data processing with DIS
 
 ## Learn more [esql-getting-learn-more]
 
-To learn more about {{esql}}, refer to [{{esql}} reference](elasticsearch://reference/query-languages/esql.md).
-
-Learn more about using {{esql}} for Search use cases:
-
-- [Search and filter with {{esql}}](/solutions/search/esql-search-tutorial.md): A hands-on tutorial that shows you how to use {{esql}} to search and filter data.
-- [Using {{esql}} for search](/solutions/search/esql-for-search.md): An overview of your options for using {{esql}} for search use cases.
+- Explore the zero-setup, live [{{esql}} demo environment](http://esql.demo.elastic.co/).
+- 
+- Follow along with our hands-on tutorials:
+  - [Search and filter with {{esql}}](docs-content://solutions/search/esql-search-tutorial.md): A hands-on tutorial that shows you how to use {{esql}} to search and filter data.
+  - [Threat hunting with {{esql}}](docs-content://solutions/security/esql-for-security/esql-threat-hunting-tutorial.md): A hands-on tutorial that shows you how to use {{esql}} for advanced threat hunting techniques and security analysis.

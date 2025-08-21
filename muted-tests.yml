@@ -437,6 +437,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: cannot change committed ids to a branch
+  issue: https://github.com/elastic/elasticsearch/issues/133133
 
 # Examples:
 #

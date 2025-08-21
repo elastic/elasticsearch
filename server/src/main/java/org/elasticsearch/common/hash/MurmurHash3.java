@@ -29,6 +29,14 @@ public enum MurmurHash3 {
         /** higher 64 bits part **/
         public long h2;
 
+        public Hash128() {
+        }
+
+        public Hash128(long h1, long h2) {
+            this.h1 = h1;
+            this.h2 = h2;
+        }
+
         public byte[] getBytes() {
             byte[] hash = new byte[16];
             getBytes(hash, 0);

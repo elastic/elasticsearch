@@ -59,8 +59,7 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<Boolean
     }
 
     @Override
-    protected void appendMatch(BooleanBlock.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
-        throws IOException {
+    protected void appendMatch(BooleanBlock.Builder builder, Scorable scorer) throws IOException {
         builder.appendBoolean(true);
     }
 

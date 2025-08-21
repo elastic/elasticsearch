@@ -266,7 +266,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                     scoreBuilder,
                     ctx,
                     LuceneQueryEvaluator.this::appendNoMatch,
-                    (builder, scorer1, docId, ctc, query) -> LuceneQueryEvaluator.this.appendMatch(builder, scorer1, docId, ctx, query),
+                    (builder, scorer1, docId, ctc, query) -> LuceneQueryEvaluator.this.appendMatch(builder, scorer1),
                     weight.getQuery()
                 )
             ) {
@@ -309,12 +309,12 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
 
         private void scoreSingleDocWithScorer(T builder, int doc) throws IOException {
             if (scorer.iterator().docID() == doc) {
-                appendMatch(builder, scorer, doc, ctx, weight.getQuery());
+                appendMatch(builder, scorer);
             } else if (scorer.iterator().docID() > doc) {
                 appendNoMatch(builder);
             } else {
                 if (scorer.iterator().advance(doc) == doc) {
-                    appendMatch(builder, scorer, doc, ctx, weight.getQuery());
+                    appendMatch(builder, scorer);
                 } else {
                     appendNoMatch(builder);
                 }
@@ -409,8 +409,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
     /**
      * Appends a matching result to a builder created by @link createVectorBuilder}
      */
-    protected abstract void appendMatch(T builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
-        throws IOException;
+    protected abstract void appendMatch(T builder, Scorable scorer) throws IOException;
 
     /**
      * Appends a non matching result to a builder created by @link createVectorBuilder}

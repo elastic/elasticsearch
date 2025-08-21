@@ -61,8 +61,7 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleBlock.
     }
 
     @Override
-    protected void appendMatch(DoubleBlock.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
-        throws IOException {
+    protected void appendMatch(DoubleBlock.Builder builder, Scorable scorer) throws IOException {
         builder.appendDouble(scorer.score());
     }
 

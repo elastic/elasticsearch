@@ -245,7 +245,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         private final IndexMode indexMode;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
-        private Parameter<Boolean> store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, false);
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, false);
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
@@ -317,8 +317,8 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
             // don't enable norms by default if the index is LOGSDB or TSDB based
             this.norms = Parameter.normsParam(
-                    m -> ((TextFieldMapper) m).norms,
-                    () -> indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES
+                m -> ((TextFieldMapper) m).norms,
+                () -> indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES
             );
         }
 
@@ -471,18 +471,18 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         public TextFieldMapper build(MapperBuilderContext context) {
             this.isSyntheticSourceEnabled = context.isSourceSynthetic();
 
-            // backwards compatibility checks
-            if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion) == false) {
-                this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                    if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
-                        return isSyntheticSourceEnabled
-                            && isWithinMultiField == false
-                            && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                    } else {
-                        return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                    }
-                });
-            }
+            // // backwards compatibility checks
+            // if (this.store.isSet() == false && keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion) == false) {
+            // this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
+            // if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+            // return isSyntheticSourceEnabled
+            // && isWithinMultiField == false
+            // && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            // } else {
+            // return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            // }
+            // });
+            // }
 
             FieldType fieldType = TextParams.buildFieldType(
                 index,
@@ -506,13 +506,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
-        (n, c) -> new Builder(
-            n,
-            c.indexVersionCreated(),
-            c.getIndexSettings().getMode(),
-            c.getIndexAnalyzers(),
-            c.isWithinMultiField()
-        )
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexSettings().getMode(), c.getIndexAnalyzers(), c.isWithinMultiField())
     );
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
@@ -1305,7 +1299,6 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     }
 
-    private final IndexVersion indexCreatedVersion;
     private final IndexMode indexMode;
     private final boolean index;
     private final boolean store;

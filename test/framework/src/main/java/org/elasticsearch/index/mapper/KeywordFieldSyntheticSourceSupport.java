@@ -80,8 +80,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             // this is an ugly little hack that flips the order of ignored values, which is important for the text-family fields where the
             // ordering of produced synthetic source values can be different from what was supplied
             var syntheticSourceOutputList = flipOrder
-                    ? Stream.concat(ignoredValues.stream(), validValuesInCorrectOrder.stream()).toList()
-                    : Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
+                ? Stream.concat(ignoredValues.stream(), validValuesInCorrectOrder.stream()).toList()
+                : Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
             out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
         }
 

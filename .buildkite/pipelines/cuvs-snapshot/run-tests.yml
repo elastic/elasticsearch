@@ -7,6 +7,8 @@ steps:
       image: family/elasticsearch-ubuntu-2404-nvidia
       machineType: g2-standard-32
       buildDirectory: /dev/shm/bk
+    env:
+      GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
     matrix:
       setup:
         GRADLE_TASK:
@@ -16,5 +18,3 @@ steps:
           - checkPart4
           - checkPart5
           - checkPart6
-      env:
-        GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

@@ -7,6 +7,13 @@ steps:
         key: "packaging-tests-unix"
         command: .buildkite/scripts/cuvs-snapshot/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints {{matrix.GRADLE_TASK}}
         timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404-nvidia
+          machineType: g2-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
         matrix:
           setup:
             CHECK_TASK:
@@ -16,10 +23,3 @@ steps:
               - checkPart4
               - checkPart5
               - checkPart6
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2404-nvidia
-          machineType: g2-standard-32
-          buildDirectory: /dev/shm/bk
-        env:
-          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

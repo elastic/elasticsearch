@@ -7,7 +7,7 @@ navigation_title: Get started
 
 # Get started with {{esql}} queries [esql-getting-started]
 
-This guide shows how you can use {{esql}} to query and aggregate your data.
+This hands-on guide covers the basics of using {{esql}} to query and aggregate your data.
 
 ::::{tip}
 This getting started is also available as an [interactive Python notebook](https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/esql/esql-getting-started.ipynb) in the `elasticsearch-labs` GitHub repository.

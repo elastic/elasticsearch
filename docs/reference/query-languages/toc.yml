@@ -145,13 +145,12 @@ toc:
           - file: esql/esql-time-spans.md
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-multivalued-fields.md
-
-      - file: esql/limitations.md
       - file: esql/esql-examples.md
       - file: esql/esql-troubleshooting.md
         children:
           - file: esql/esql-query-log.md
           - file: esql/esql-task-management.md
+      - file: esql/limitations.md
   - file: sql.md
     children:
       - file: sql/sql-spec.md

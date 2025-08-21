@@ -26,7 +26,7 @@ For example, a query rule could be defined to match a user-entered query string 
 
 You can create and manage query rules using either:
 - [Query rules API]({{es-apis}}v9/group/endpoint-query_rules)
-- [Query Rules UI](docs-content://solutions/search/query-rules-ui)
+- [Query Rules UI](docs-content://solutions/search/query-rules-ui.md)
 
 You can search with query rules using either:
 - [Retrievers syntax](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md)

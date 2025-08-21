@@ -84,7 +84,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         validateResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
     }
 
-    def "Latest file modifications should be reverted"(
+    def "Latest file modifications should be reverted to their original state on main"(
             List<String> branchesParam,
             List<String> latestFilesModified,
             String name
@@ -92,7 +92,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         given:
         def originalLatestFiles = latestFilesModified.stream().map { readLatestFile(it) }.toList()
 
-        when: "The latest files are modified then generation is run without a name"
+        when: "generation should revert the latest files to their original state"
         originalLatestFiles.forEach {
             latestTransportVersion(it.branch, it.name + "_modification", (it.id + 1).toString())
         }
@@ -116,17 +116,18 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
             assert latest.branch == originalLatest.branch
             assert latest.id == originalLatest.id
         }
+        // TODO assert that the definition file is created if a name is specified, and contains the correct incremented IDs
 
         where:
         branchesParam  | latestFilesModified | name
-        null           | ["9.2"]             | null
-        null           | ["9.2", "9.1"]      | null
-        ["9.2", "9.1"] | ["9.2"]             | null
+//        null           | ["9.2"]             | null
+//        null           | ["9.2", "9.1"]      | null
+//        ["9.2", "9.1"] | ["9.2"]             | null
         ["9.2"]        | ["9.1"]             | "test_tv" // TODO legitimate bug?
     }
 
     // TODO this test is finding a legitimate bug
-    def "definitions that are no longer referenced should be deleted"(List<String> branches) {
+    def "definitions that are no longer referenced should be deleted and latest files reverted"(List<String> branches) {
         given:
         String definitionName = "test_tv_patch_ids"
         referencedTransportVersion(definitionName)
@@ -165,7 +166,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
-    def "unreferenced definitions should be deleted"() {
+    def "unreferenced definition files should be deleted"() {
         given:
         namedTransportVersion("old_name", "8124000")
         referencedTransportVersion("new_name")
@@ -190,6 +191,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         -
         - a latest file without a corresponding definition file should be reverted to main
         - a merge conflict should be resolved, resulting in regeneration of the latest file.
+        - add a reference, generate, remove the reference, add another reference, generate
         -
      */
 

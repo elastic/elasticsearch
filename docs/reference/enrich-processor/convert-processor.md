@@ -8,6 +8,8 @@ mapped_pages:
 
 Converts a field in the currently ingested document to a different type, such as converting a string to an integer. If the field value is an array, all members will be converted.
 
+## Supported types
+
 The supported types are: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, and `auto`.
 
 | Target `type` | Supported input values                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |

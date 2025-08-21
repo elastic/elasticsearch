@@ -34,7 +34,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -75,7 +74,6 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -179,6 +177,7 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ThreadPool.Names.SEARCH_COORDINATION);
                 SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
                     .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
                     .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
@@ -198,13 +197,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(
-            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-            ThreadPool.Names.SYSTEM_READ,
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
-        );
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ThreadPool.Names.SEARCH_COORDINATION);
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();

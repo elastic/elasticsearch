@@ -261,7 +261,7 @@ setup:
                   model_text: test
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[model_id] must not be null." }
+  - match: { error.reason: "Either query vector or query vector builder model ID must be specified" }
 
 ---
 "knn query against combined dense_vector and semantic_text fields using query vectors":

@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -704,10 +705,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return l;
         }
 
+        private List<Expression> resolveJoinFilters(List<Expression> filters, List<Attribute> leftOutput, List<Attribute> rightOutput) {
+            if (filters.isEmpty()) {
+                return emptyList();
+            }
+            List<Attribute> childrenOutput = new ArrayList<>(leftOutput);
+            childrenOutput.addAll(rightOutput);
+
+            List<Expression> resolvedFilters = new ArrayList<>(filters.size());
+            for (Expression filter : filters) {
+                resolvedFilters.add(filter.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput)));
+            }
+            return resolvedFilters;
+        }
+
         private Join resolveLookupJoin(LookupJoin join) {
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
+
             // rewrite the join into an equi-join between the field with the same name between left and right
             if (type instanceof UsingJoinType using) {
                 List<Attribute> cols = using.columns();
@@ -727,12 +743,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     );
                     return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
                 }
-                // resolve the using columns against the left and the right side then assemble the new join config
-                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
-                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+                List<Attribute> leftKeys = new ArrayList<>();
+                List<Attribute> rightKeys = new ArrayList<>();
+                List<Expression> resolvedFilters = new ArrayList<>();
+                List<Attribute> matchKeys;
+                if (join.candidateRightHandFilters().isEmpty() == false) {
+                    resolvedFilters = resolveJoinFilters(join.candidateRightHandFilters(), join.left().output(), join.right().output());
+                    // build leftKeys and rightKeys using the left side of the resolvedFilters.
+                    for (Expression expression : resolvedFilters) {
+                        if (expression instanceof EsqlBinaryComparison binaryComparison) {
+                            leftKeys.add((Attribute) binaryComparison.left());
+                            rightKeys.add((Attribute) binaryComparison.right());
+                        } else {
+                            throw new EsqlIllegalArgumentException("Unsupported join filter expression: " + expression);
+                        }
+                    }
+                    Set<Attribute> matchKeysSet = new HashSet<>(leftKeys);
+                    matchKeysSet.addAll(rightKeys);
+                    matchKeys = new ArrayList<>(matchKeysSet);
+                } else {
+                    // resolve the using columns against the left and the right side then assemble the new join config
+                    leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
+                    rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+                    matchKeys = leftKeys;
+                }
 
-                config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
-                join = new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
+                config = new JoinConfig(coreJoin, matchKeys, leftKeys, rightKeys);
+                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote(), resolvedFilters);
             } else if (type != JoinTypes.LEFT) {
                 // everything else is unsupported for now
                 // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
@@ -741,6 +778,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
             }
+
             return join;
         }
 

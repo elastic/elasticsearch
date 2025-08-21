@@ -48,7 +48,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -486,10 +485,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     }
 
     private boolean streamsRestrictedParamsUsed(BulkRequest bulkRequest) {
-        return Sets.difference(
-            bulkRequest.requestParamsUsed() == null ? Collections.emptySet() : bulkRequest.requestParamsUsed(),
-            STREAMS_ALLOWED_PARAMS
-        ).isEmpty() == false;
+        return Sets.difference(bulkRequest.requestParamsUsed(), STREAMS_ALLOWED_PARAMS).isEmpty() == false;
     }
 
     /**

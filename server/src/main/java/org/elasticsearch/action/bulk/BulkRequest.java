@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
@@ -86,7 +87,7 @@ public class BulkRequest extends LegacyActionRequest
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
-    private Set<String> paramsUsed;
+    private Set<String> paramsUsed = emptySet();
 
     private long sizeInBytes = 0;
 

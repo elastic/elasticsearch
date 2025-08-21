@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.info.DevelopmentBranch;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -24,8 +24,7 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.reverseOrder;
 import static java.util.Collections.unmodifiableList;
@@ -65,20 +64,13 @@ import static java.util.Comparator.comparing;
 
 public class BwcVersions implements Serializable {
 
-    private static final Pattern LINE_PATTERN = Pattern.compile(
-        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
-    );
     private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
     private final Version currentVersion;
     private final transient List<Version> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
 
-    public BwcVersions(List<String> versionLines, List<String> developmentBranches) {
-        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()), developmentBranches);
-    }
-
-    public BwcVersions(Version currentVersionProperty, List<Version> allVersions, List<String> developmentBranches) {
+    public BwcVersions(Version currentVersionProperty, List<Version> allVersions, List<DevelopmentBranch> developmentBranches) {
         if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }
@@ -88,20 +80,6 @@ public class BwcVersions implements Serializable {
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         this.unreleased = computeUnreleased(developmentBranches);
-    }
-
-    // Visible for testing
-    BwcVersions(List<String> versionLines, Version currentVersionProperty, List<String> developmentBranches) {
-        this(currentVersionProperty, parseVersionLines(versionLines), developmentBranches);
-    }
-
-    private static List<Version> parseVersionLines(List<String> versionLines) {
-        return versionLines.stream()
-            .map(LINE_PATTERN::matcher)
-            .filter(Matcher::matches)
-            .map(match -> new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3))))
-            .sorted()
-            .toList();
     }
 
     private void assertCurrentVersionMatchesParsed(Version currentVersionProperty) {
@@ -127,81 +105,46 @@ public class BwcVersions implements Serializable {
         getUnreleased().stream().filter(version -> version.equals(currentVersion) == false).map(unreleased::get).forEach(consumer);
     }
 
-    private String getBranchFor(Version version, List<String> developmentBranches) {
-        // If the current version matches a specific feature freeze branch, use that
-        if (developmentBranches.contains(version.getMajor() + "." + version.getMinor())) {
-            return version.getMajor() + "." + version.getMinor();
-        } else if (developmentBranches.contains(version.getMajor() + ".x")) { // Otherwise if an n.x branch exists and we are that major
-            return version.getMajor() + ".x";
-        } else { // otherwise we're the main branch
-            return "main";
-        }
-    }
-
-    private Map<Version, UnreleasedVersionInfo> computeUnreleased(List<String> developmentBranches) {
+    private Map<Version, UnreleasedVersionInfo> computeUnreleased(List<DevelopmentBranch> developmentBranches) {
         Map<Version, UnreleasedVersionInfo> result = new TreeMap<>();
+        Map<String, List<DevelopmentBranch>> bwcBranches = developmentBranches.stream()
+            .filter(developmentBranch -> developmentBranch.version().before(currentVersion))
+            .sorted(reverseOrder(comparing(DevelopmentBranch::version)))
+            .collect(Collectors.groupingBy(branch -> {
+                if (branch.version().getMajor() == currentVersion.getMajor()) {
+                    return "minor";
+                } else if (branch.version().getMajor() == currentVersion.getMajor() - 1) {
+                    return "major";
+                }
+                return "older";
+            }));
 
-        // The current version is always in development
-        String currentBranch = getBranchFor(currentVersion, developmentBranches);
-        result.put(currentVersion, new UnreleasedVersionInfo(currentVersion, currentBranch, ":distribution"));
+        developmentBranches.stream()
+            .filter(branch -> branch.version().equals(currentVersion))
+            .findFirst()
+            .ifPresent(
+                developmentBranch -> result.put(
+                    currentVersion,
+                    new UnreleasedVersionInfo(currentVersion, developmentBranch.name(), ":distribution")
+                )
+            );
 
-        // Check for an n.x branch as well
-        if (currentBranch.equals("main") && developmentBranches.stream().anyMatch(s -> s.endsWith(".x"))) {
-            // This should correspond to the latest new minor
-            Version version = versions.stream()
-                .sorted(Comparator.reverseOrder())
-                .filter(v -> v.getMajor() == (currentVersion.getMajor() - 1) && v.getRevision() == 0)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Unable to determine development version for branch"));
-            String branch = getBranchFor(version, developmentBranches);
-            assert branch.equals(currentVersion.getMajor() - 1 + ".x") : "Expected branch does not match development branch";
-
-            result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:minor"));
+        List<DevelopmentBranch> previousMinorBranches = bwcBranches.getOrDefault("minor", Collections.emptyList());
+        for (int i = 0; i < previousMinorBranches.size(); i++) {
+            DevelopmentBranch previousMinorBranch = previousMinorBranches.get(i);
+            result.put(
+                previousMinorBranch.version(),
+                new UnreleasedVersionInfo(previousMinorBranch.version(), previousMinorBranch.name(), ":distribution:bwc:minor" + (i + 1))
+            );
         }
 
-        // Now handle all the feature freeze branches
-        List<String> featureFreezeBranches = developmentBranches.stream()
-            .filter(b -> Pattern.matches("[0-9]+\\.[0-9]+", b))
-            .sorted(reverseOrder(comparing(s -> Version.fromString(s, Version.Mode.RELAXED))))
-            .toList();
-
-        int bugfixCount = 0;
-        boolean existingStaged = false;
-        for (int i = 0; i < featureFreezeBranches.size(); i++) {
-            String branch = featureFreezeBranches.get(i);
-            Version version = versions.stream()
-                .sorted(Comparator.reverseOrder())
-                .filter(v -> v.toString().startsWith(branch))
-                .findFirst()
-                .orElse(null);
-
-            // If we don't know about this version we can ignore it
-            if (version == null) {
-                continue;
-            }
-
-            // If this is the current version we can ignore as we've already handled it
-            if (version.equals(currentVersion)) {
-                continue;
-            }
-
-            // We only maintain compatibility back one major so ignore anything older
-            if (currentVersion.getMajor() - version.getMajor() > 1) {
-                continue;
-            }
-
-            // This is the maintenance version
-            if (i == featureFreezeBranches.size() - 1) {
-                result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:maintenance"));
-            } else if (version.getRevision() == 0) { // This is the next staged minor
-                String project = existingStaged ? "staged2" : "staged";
-                result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:" + project));
-                existingStaged = true;
-            } else { // This is a bugfix
-                bugfixCount++;
-                String project = "bugfix" + (bugfixCount > 1 ? bugfixCount : "");
-                result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:" + project));
-            }
+        List<DevelopmentBranch> previousMajorBranches = bwcBranches.getOrDefault("major", Collections.emptyList());
+        for (int i = 0; i < previousMajorBranches.size(); i++) {
+            DevelopmentBranch previousMajorBranch = previousMajorBranches.get(i);
+            result.put(
+                previousMajorBranch.version(),
+                new UnreleasedVersionInfo(previousMajorBranch.version(), previousMajorBranch.name(), ":distribution:bwc:major" + (i + 1))
+            );
         }
 
         return Collections.unmodifiableMap(result);
@@ -209,19 +152,6 @@ public class BwcVersions implements Serializable {
 
     public List<Version> getUnreleased() {
         return unreleased.keySet().stream().sorted().toList();
-    }
-
-    private void addUnreleased(Set<Version> unreleased, Version current, int index) {
-        if (current.getRevision() == 0) {
-            // If the current version is a new minor, the next version is also unreleased
-            Version next = versions.get(versions.size() - (index + 2));
-            unreleased.add(next);
-
-            // Keep looking through versions until we find the end of unreleased versions
-            addUnreleased(unreleased, next, index + 1);
-        } else {
-            unreleased.add(current);
-        }
     }
 
     public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {

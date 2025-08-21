@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;

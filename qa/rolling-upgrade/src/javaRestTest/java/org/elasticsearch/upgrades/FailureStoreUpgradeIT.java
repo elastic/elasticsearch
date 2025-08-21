@@ -193,8 +193,6 @@ public class FailureStoreUpgradeIT extends AbstractRollingUpgradeWithSecurityTes
             response = re.getResponse();
         }
         assertNotNull(response);
-        System.out.println(response);
-        System.out.println(responseAsMap(response));
         if (expectSuccess) {
             assertOK(response);
         } else {

@@ -110,7 +110,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChun
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.WARNING_MESSAGE_8X;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;

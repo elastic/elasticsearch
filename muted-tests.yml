@@ -552,9 +552,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on unmapped boolean field}
   issue: https://github.com/elastic/elasticsearch/issues/133029
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
-  method: testCrossClusterEnrichWithOnlyRemotePrivs
-  issue: https://github.com/elastic/elasticsearch/issues/133031
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/45_knn_search_bit/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/133037
@@ -603,15 +600,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testSortedDocValuesSingleUniqueValue
-  issue: https://github.com/elastic/elasticsearch/issues/133221
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testSortedNumberMergeAwayAllValuesWithSkipper
-  issue: https://github.com/elastic/elasticsearch/issues/133223
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testSortedSetDocValuesWithSkipperSmall
-  issue: https://github.com/elastic/elasticsearch/issues/133224
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupByNothing
   issue: https://github.com/elastic/elasticsearch/issues/133225
@@ -624,6 +612,15 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: latest can refer to an unreferenced definition
   issue: https://github.com/elastic/elasticsearch/issues/133257
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/100_knn_nested_search/nested kNN search inner_hits & profiling}
+  issue: https://github.com/elastic/elasticsearch/issues/133273
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testDefaultIndexOptions {p0=true}
+  issue: https://github.com/elastic/elasticsearch/issues/133326
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testDefaultIndexOptions {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/133327
 
 # Examples:
 #

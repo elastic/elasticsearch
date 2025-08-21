@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -1607,7 +1606,7 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testMetrics() {
         var query = "TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
-        if (Build.current().isSnapshot() == false) {
+        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
             var e = expectThrows(ParsingException.class, () -> parser.createStatement(query, EsqlTestUtils.TEST_CFG));
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
             return;

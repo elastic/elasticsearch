@@ -104,7 +104,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -157,7 +157,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -215,7 +215,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -253,7 +253,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 throw new AssertionError("unexpected method call");

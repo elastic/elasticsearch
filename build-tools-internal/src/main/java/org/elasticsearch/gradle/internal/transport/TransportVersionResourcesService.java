@@ -16,6 +16,7 @@ import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -98,25 +99,10 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     /** Return all named definitions, mapped by their name. */
     Map<String, TransportVersionDefinition> getNamedDefinitions() throws IOException {
-        Map<String, TransportVersionDefinition> definitions = new HashMap<>();
-        // temporarily include unreferenced in named until validation understands the distinction
-        for (var dir : List.of(NAMED_DIR, UNREFERENCED_DIR)) {
-            Path path = transportResourcesDir.resolve(dir);
-            if (Files.isDirectory(path) == false) {
-                continue;
-            }
-            try (var definitionsStream = Files.list(path)) {
-                for (var definitionFile : definitionsStream.toList()) {
-                    String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();
-                    var definition = TransportVersionDefinition.fromString(definitionFile.getFileName().toString(), contents);
-                    definitions.put(definition.name(), definition);
-                }
-            }
-        }
-        return definitions;
+        return readDefinitions(transportResourcesDir.resolve(NAMED_DIR));
     }
 
-    /** Test whether the given named definition exists */
+    /** Get a named definition from main if it exists there, or null otherwise */
     TransportVersionDefinition getNamedDefinitionFromMain(String name) {
         String resourcePath = getNamedDefinitionRelativePath(name).toString();
         return getMainFile(resourcePath, TransportVersionDefinition::fromString);
@@ -128,8 +114,29 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /** Return the path within the repository of the given named definition */
-    Path getRepositoryPath(TransportVersionDefinition definition) {
+    Path getNamedDefinitionRepositoryPath(TransportVersionDefinition definition) {
         return rootDir.relativize(transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name())));
+    }
+
+    // return the path, relative to the resources dir, of an unreferenced definition
+    private Path getUnreferencedDefinitionRelativePath(String name) {
+        return UNREFERENCED_DIR.resolve(name + ".csv");
+    }
+
+    /** Return all unreferenced definitions, mapped by their name. */
+    Map<String, TransportVersionDefinition> getUnreferencedDefinitions() throws IOException {
+        return readDefinitions(transportResourcesDir.resolve(UNREFERENCED_DIR));
+    }
+
+    /** Get a named definition from main if it exists there, or null otherwise */
+    TransportVersionDefinition getUnreferencedDefinitionFromMain(String name) {
+        String resourcePath = getUnreferencedDefinitionRelativePath(name).toString();
+        return getMainFile(resourcePath, TransportVersionDefinition::fromString);
+    }
+
+    /** Return the path within the repository of the given named definition */
+    Path getUnreferencedDefinitionRepositoryPath(TransportVersionDefinition definition) {
+        return rootDir.relativize(transportResourcesDir.resolve(getUnreferencedDefinitionRelativePath(definition.name())));
     }
 
     /** Read all latest files and return them mapped by their release branch */
@@ -152,7 +159,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /** Return the path within the repository of the given latest */
-    Path getRepositoryPath(TransportVersionLatest latest) {
+    Path getLatestRepositoryPath(TransportVersionLatest latest) {
         return rootDir.relativize(transportResourcesDir.resolve(getLatestRelativePath(latest.branch())));
     }
 
@@ -193,8 +200,24 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         if (getMainResources().contains(resourcePath) == false) {
             return null;
         }
-        String content = gitCommand("show", "main:./" + resourcePath).strip();
+
+        String content = gitCommand("show", "main:." + File.separator + resourcePath).strip();
         return parser.apply(resourcePath, content);
+    }
+
+    private static Map<String, TransportVersionDefinition> readDefinitions(Path dir) throws IOException {
+        if (Files.isDirectory(dir) == false) {
+            return Map.of();
+        }
+        Map<String, TransportVersionDefinition> definitions = new HashMap<>();
+        try (var definitionsStream = Files.list(dir)) {
+            for (var definitionFile : definitionsStream.toList()) {
+                String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();
+                var definition = TransportVersionDefinition.fromString(definitionFile.getFileName().toString(), contents);
+                definitions.put(definition.name(), definition);
+            }
+        }
+        return definitions;
     }
 
     // run a git command, relative to the transport version resources directory

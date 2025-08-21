@@ -52,7 +52,8 @@ public class InterceptedMatchQueryBuilder extends InterceptedQueryBuilder<MatchQ
 
     @Override
     protected QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextField) {
-        return new SemanticQueryBuilder(getFieldName(), getQuery(), null, embeddingsProvider);
+        return new SemanticQueryBuilder(getFieldName(), getQuery(), null, embeddingsProvider).boost(originalQuery.boost())
+            .queryName(originalQuery.queryName());
     }
 
     @Override

@@ -235,7 +235,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      */
     @Nullable
     public BitSet getBitSet(final Query query, final LeafReaderContext context) throws ExecutionException {
-        final long startTimeNs = relativeNanoTimeProvider.getAsLong();
+        final long cacheStart = relativeNanoTimeProvider.getAsLong();
 
         final IndexReader.CacheHelper coreCacheHelper = context.reader().getCoreCacheHelper();
         if (coreCacheHelper == null) {
@@ -282,9 +282,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 return result;
             });
             if (cacheKeyWasPresent.get()) {
-                hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - startTimeNs);
+                hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
             } else {
-                missesTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - startTimeNs);
+                missesTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
             }
             if (bitSet == NULL_MARKER) {
                 return null;

@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.TimeSeriesRestDriver;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
@@ -268,9 +269,10 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
+        String forceMergedIndexName = TimeSeriesRestDriver.waitAndGetForceMergedIndexName(client(), backingIndexName);
         assertBusy(() -> {
-            assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
-            Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
+            assertThat(explainIndex(client(), forceMergedIndexName).get("step"), is(PhaseCompleteStep.NAME));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), forceMergedIndexName);
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
             assertThat(settings.containsKey(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(false));
         }, 30, TimeUnit.SECONDS);

@@ -40,7 +40,8 @@ public record LifecycleExecutionState(
     String snapshotName,
     String shrinkIndexName,
     String snapshotIndexName,
-    String downsampleIndexName
+    String downsampleIndexName,
+    String forceMergeIndexName
 ) {
 
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
@@ -64,6 +65,7 @@ public record LifecycleExecutionState(
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
     private static final String SHRINK_INDEX_NAME = "shrink_index_name";
     private static final String DOWNSAMPLE_INDEX_NAME = "rollup_index_name";
+    private static final String FORCE_MERGE_INDEX_NAME = "force_merge_index_name";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
 
@@ -89,7 +91,8 @@ public record LifecycleExecutionState(
             .setShrinkIndexName(state.shrinkIndexName)
             .setSnapshotIndexName(state.snapshotIndexName)
             .setDownsampleIndexName(state.downsampleIndexName)
-            .setStepTime(state.stepTime);
+            .setStepTime(state.stepTime)
+            .setForceMergeIndexName(state.forceMergeIndexName);
     }
 
     public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
@@ -202,6 +205,10 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             builder.setDownsampleIndexName(downsampleIndexName);
         }
+        String forceMergeIndexName = customData.get(FORCE_MERGE_INDEX_NAME);
+        if (forceMergeIndexName != null) {
+            builder.setForceMergeIndexName(forceMergeIndexName);
+        }
         return builder.build();
     }
 
@@ -274,6 +281,9 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             result.put(DOWNSAMPLE_INDEX_NAME, downsampleIndexName);
         }
+        if (forceMergeIndexName != null) {
+            result.put(FORCE_MERGE_INDEX_NAME, forceMergeIndexName);
+        }
         return Collections.unmodifiableMap(result);
     }
 
@@ -307,6 +317,7 @@ public record LifecycleExecutionState(
         private String shrinkIndexName;
         private String snapshotIndexName;
         private String downsampleIndexName;
+        private String forceMergeIndexName;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -398,6 +409,11 @@ public record LifecycleExecutionState(
             return this;
         }
 
+        public Builder setForceMergeIndexName(String forceMergeIndexName) {
+            this.forceMergeIndexName = forceMergeIndexName;
+            return this;
+        }
+
         public LifecycleExecutionState build() {
             return new LifecycleExecutionState(
                 phase,
@@ -417,7 +433,8 @@ public record LifecycleExecutionState(
                 snapshotName,
                 shrinkIndexName,
                 snapshotIndexName,
-                downsampleIndexName
+                downsampleIndexName,
+                forceMergeIndexName
             );
         }
     }

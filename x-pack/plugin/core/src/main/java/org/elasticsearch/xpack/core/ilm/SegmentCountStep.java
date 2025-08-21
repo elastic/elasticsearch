@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -58,16 +57,17 @@ public class SegmentCountStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
-        Index index = indexMetadata.getIndex();
+        String clonedIndexName = indexMetadata.getLifecycleExecutionState().forceMergeIndexName();
+        String forceMergedIndexName = clonedIndexName != null ? clonedIndexName : indexMetadata.getIndex().getName();
         getClient(state.projectId()).admin()
             .indices()
-            .segments(new IndicesSegmentsRequest(index.getName()), ActionListener.wrap(response -> {
-                IndexSegments idxSegments = response.getIndices().get(index.getName());
+            .segments(new IndicesSegmentsRequest(forceMergedIndexName), ActionListener.wrap(response -> {
+                IndexSegments idxSegments = response.getIndices().get(forceMergedIndexName);
                 if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
                     final DefaultShardOperationFailedException[] failures = response.getShardFailures();
                     logger.info(
                         "[{}] retrieval of segment counts after force merge did not succeed, there were {} shard failures. failures: {}",
-                        index.getName(),
+                        forceMergedIndexName,
                         response.getFailedShards(),
                         failures == null
                             ? "n/a"
@@ -86,7 +86,7 @@ public class SegmentCountStep extends AsyncWaitStep {
                             .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
                         logger.info(
                             "[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
-                            index.getName(),
+                            forceMergedIndexName,
                             maxNumSegments,
                             unmergedShards.size(),
                             unmergedShardCounts

@@ -11,6 +11,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -23,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -59,7 +62,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -445,72 +447,68 @@ public final class TimeSeriesRestDriver {
         return shrunkenIndexName;
     }
 
-    @SuppressWarnings("unchecked")
     @Nullable
-    public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException {
-        String[] shrunkenIndexName = new String[1];
+    public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) {
+        final var shrunkenIndexName = waitAndGetPrefixedIndexName(client, originalIndex, SHRUNKEN_INDEX_PREFIX, "shrink_index_name");
+        logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName);
+        return shrunkenIndexName;
+    }
+
+    @Nullable
+    public static String waitAndGetForceMergedIndexName(RestClient client, String originalIndex) {
+        final var forceMergedIndexName = waitAndGetPrefixedIndexName(
+            client,
+            originalIndex,
+            ForceMergeAction.FORCE_MERGED_INDEX_PREFIX,
+            "force_merge_index_name"
+        );
+        logger.info("--> original index name is [{}], force-merged index name is [{}]", originalIndex, forceMergedIndexName);
+        return forceMergedIndexName;
+    }
+
+    @Nullable
+    public static String waitAndGetPrefixedIndexName(
+        RestClient client,
+        String originalIndex,
+        String indexPrefix,
+        String ilmExplainResponseField
+    ) {
+        SetOnce<String> prefixedIndexName = new SetOnce<>();
         waitUntil(() -> {
             try {
                 // we're including here the case where the original index was already deleted and we have to look for the shrunken index
-                Request explainRequest = new Request(
-                    "GET",
-                    SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex + "/_ilm/explain"
-                );
+                Request explainRequest = new Request("GET", indexPrefix + "*" + originalIndex + "," + originalIndex + "/_ilm/explain");
                 // Sometimes, the original index might already have been deleted, so we need to ignore unavailable (concrete) indices.
                 explainRequest.addParameter("ignore_unavailable", Boolean.toString(true));
                 explainRequest.addParameter("expand_wildcards", "open,hidden");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
                 Response response = client.performRequest(explainRequest);
-                Map<String, Object> responseMap;
-                try (InputStream is = response.getEntity().getContent()) {
-                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-                }
 
-                Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
-                Map<String, Object> explainIndexResponse = indexResponse.get(originalIndex);
-                if (explainIndexResponse == null) {
-                    // maybe we swapped the alias from the original index to the shrunken one already
-                    for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
-                        // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
-                        String indexName = indexToExplainMap.getKey();
-                        if (indexName.startsWith(SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
-                            explainIndexResponse = indexToExplainMap.getValue();
-                            break;
-                        }
-                    }
-                }
-
-                logger.info("--> index {}, explain {}", originalIndex, indexResponse);
-                if (explainIndexResponse == null) {
+                ObjectPath explainResponse = ObjectPath.createFromResponse(response);
+                String indexName = explainResponse.evaluateMapKeys("indices")
+                    .stream()
+                    .filter(k -> originalIndex.equals(k) || (k.startsWith(indexPrefix) && k.contains(originalIndex)))
+                    .findFirst()
+                    .orElse(null);
+                if (indexName == null) {
                     return false;
                 }
-                shrunkenIndexName[0] = (String) explainIndexResponse.get("shrink_index_name");
-                return shrunkenIndexName[0] != null;
+                // We need to use a stash because the index name contains dots so we can't use it directly in the object path.
+                final var stash = new Stash();
+                stash.stashValue("index_name", indexName);
+                Map<String, Object> indexResponse = explainResponse.evaluate("indices.$index_name", stash);
+                logger.info("--> index {}, explain {}", originalIndex, indexResponse);
+                String foundName = explainResponse.evaluate("indices.$index_name." + ilmExplainResponseField, stash);
+                if (foundName != null) {
+                    prefixedIndexName.set(foundName);
+                }
+                return foundName != null;
             } catch (IOException e) {
                 return false;
             }
         }, 30, TimeUnit.SECONDS);
-        logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
-        return shrunkenIndexName[0];
-    }
-
-    @SuppressWarnings("unchecked")
-    public static List<String> getBackingIndices(RestClient client, String dataStreamName) throws IOException {
-        Response getDataStream = client.performRequest(new Request("GET", "_data_stream/" + dataStreamName));
-        Map<String, Object> responseMap;
-        try (InputStream is = getDataStream.getEntity().getContent()) {
-            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-        }
-
-        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
-        assertThat(dataStreams.size(), is(1));
-        Map<String, Object> dataStream = dataStreams.get(0);
-        assertThat(dataStream.get("name"), is(dataStreamName));
-        List<String> indices = ((List<Map<String, Object>>) dataStream.get("indices")).stream()
-            .map(indexMap -> (String) indexMap.get("index_name"))
-            .toList();
-        return indices;
+        return prefixedIndexName.get();
     }
 
     private static void executeDummyClusterStateUpdate(RestClient client) throws IOException {

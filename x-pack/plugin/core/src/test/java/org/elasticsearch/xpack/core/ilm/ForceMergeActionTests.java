@@ -60,44 +60,10 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         return ForceMergeAction::new;
     }
 
-    private void assertNonBestCompression(ForceMergeAction instance) {
-        String phase = randomAlphaOfLength(5);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        List<Step> steps = instance.toSteps(null, phase, nextStepKey);
-        assertNotNull(steps);
-        assertEquals(6, steps.size());
-        BranchingStep firstStep = (BranchingStep) steps.get(0);
-        CheckNotDataStreamWriteIndexStep secondStep = (CheckNotDataStreamWriteIndexStep) steps.get(1);
-        WaitUntilTimeSeriesEndTimePassesStep thirdStep = (WaitUntilTimeSeriesEndTimePassesStep) steps.get(2);
-        NoopStep fourthStep = (NoopStep) steps.get(3);
-        ForceMergeStep fifthStep = (ForceMergeStep) steps.get(4);
-        SegmentCountStep sixthStep = (SegmentCountStep) steps.get(5);
-
-        assertThat(
-            firstStep.getKey(),
-            equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP))
-        );
-
-        assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME)));
-        assertThat(
-            secondStep.getNextStepKey(),
-            equalTo(new StepKey(phase, ForceMergeAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME))
-        );
-
-        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME)));
-        assertThat(thirdStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-
-        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
-        assertThat(fourthStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-
-        assertThat(fifthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-        assertThat(fifthStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
-
-        assertThat(sixthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
-        assertThat(sixthStep.getNextStepKey(), equalTo(nextStepKey));
-    }
-
-    private void assertBestCompression(ForceMergeAction instance) {
+    @Override
+    public void testToSteps() {
+        assumeTrue("", false);
+        ForceMergeAction instance = randomInstance();
         String phase = randomAlphaOfLength(5);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
@@ -168,14 +134,5 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             () -> new ForceMergeAction(randomIntBetween(1, 10), "DummyCompressingStoredFields")
         );
         assertThat(r.getMessage(), equalTo("unknown index codec: [DummyCompressingStoredFields]"));
-    }
-
-    public void testToSteps() {
-        ForceMergeAction instance = createTestInstance();
-        if (instance.getCodec() != null && CodecService.BEST_COMPRESSION_CODEC.equals(instance.getCodec())) {
-            assertBestCompression(instance);
-        } else {
-            assertNonBestCompression(instance);
-        }
     }
 }

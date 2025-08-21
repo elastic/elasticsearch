@@ -16,7 +16,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterSettings;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
@@ -77,7 +76,7 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         @Override
         protected void updateRemoteCluster(String clusterAlias, Settings settings) {
             String repositoryName = CcrRepository.NAME_PREFIX + clusterAlias;
-            if (RemoteConnectionStrategy.isConnectionEnabled(RemoteClusterSettings.toConfig(clusterAlias, settings))) {
+            if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, settings)) {
                 putRepository(repositoryName);
             } else {
                 deleteRepository(repositoryName);

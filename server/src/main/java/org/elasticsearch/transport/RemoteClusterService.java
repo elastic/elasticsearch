@@ -435,10 +435,7 @@ public final class RemoteClusterService extends RemoteClusterAware
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
         final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        final var linkedProjectConfig = RemoteClusterSettings.toConfigBuilder(clusterAlias, mergedSettings)
-            .originProjectId(projectId)
-            .linkedProjectAlias(clusterAlias)
-            .build();
+        final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, clusterAlias, mergedSettings);
         updateRemoteCluster(linkedProjectConfig, forceRebuild, listener);
     }
 
@@ -451,7 +448,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         final var clusterAlias = config.linkedProjectAlias();
         final var connectionMap = getConnectionsMapForProject(projectId);
         RemoteClusterConnection remote = connectionMap.get(clusterAlias);
-        if (RemoteConnectionStrategy.isConnectionEnabled(config) == false) {
+        if (config.isConnectionEnabled() == false) {
             try {
                 IOUtils.close(remote);
             } catch (IOException e) {
@@ -508,8 +505,8 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
-            final var config = RemoteClusterSettings.toConfigBuilder(clusterAlias, settings).originProjectId(projectId).build();
-            updateRemoteCluster(config, false, listener.map(ignored -> null));
+            final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, clusterAlias, settings);
+            updateRemoteCluster(linkedProjectConfig, false, listener.map(ignored -> null));
         }
 
         if (enabledClusters.isEmpty()) {

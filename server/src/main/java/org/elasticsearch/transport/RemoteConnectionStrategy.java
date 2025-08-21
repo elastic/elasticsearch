@@ -15,7 +15,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -112,24 +111,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return builder.build();
     }
 
-    static RemoteConnectionStrategy buildStrategy(
-        LinkedProjectConfig config,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager
-    ) {
-        return switch (config.connectionStrategy()) {
-            case SNIFF -> new SniffConnectionStrategy(config, transportService, connectionManager);
-            case PROXY -> new ProxyConnectionStrategy(config, transportService, connectionManager);
-        };
-    }
-
-    public static boolean isConnectionEnabled(LinkedProjectConfig config) {
-        return switch (config.connectionStrategy()) {
-            case SNIFF -> config.sniffSeedNodes().isEmpty() == false;
-            case PROXY -> Strings.isEmpty(config.proxyAddress()) == false;
-        };
-    }
-
     static InetSocketAddress parseConfiguredAddress(String configuredAddress) {
         final String host = parseHost(configuredAddress);
         final int port = parsePort(configuredAddress);
@@ -223,15 +204,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     }
 
     boolean shouldRebuildConnection(LinkedProjectConfig config) {
-        if (config.connectionStrategy().equals(strategyType()) == false) {
-            return true;
-        }
-        final ConnectionProfile oldProfile = connectionManager.getConnectionProfile();
-        final ConnectionProfile newProfile = new ConnectionProfile.Builder(oldProfile).setCompressionEnabled(config.connectionCompression())
-            .setCompressionScheme(config.connectionCompressionScheme())
-            .setPingInterval(config.clusterPingSchedule())
-            .build();
-        return connectionProfileChanged(oldProfile, newProfile) || strategyMustBeRebuilt(config);
+        return config.connectionStrategy().equals(strategyType()) == false
+            || connectionProfileChanged(config)
+            || strategyMustBeRebuilt(config);
     }
 
     protected abstract boolean strategyMustBeRebuilt(LinkedProjectConfig config);
@@ -302,7 +277,12 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return result;
     }
 
-    private static boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+    private boolean connectionProfileChanged(LinkedProjectConfig config) {
+        final var oldProfile = connectionManager.getConnectionProfile();
+        final var newProfile = new ConnectionProfile.Builder(oldProfile).setCompressionEnabled(config.connectionCompression())
+            .setCompressionScheme(config.connectionCompressionScheme())
+            .setPingInterval(config.clusterPingSchedule())
+            .build();
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false
             || Objects.equals(oldProfile.getCompressionScheme(), newProfile.getCompressionScheme()) == false;

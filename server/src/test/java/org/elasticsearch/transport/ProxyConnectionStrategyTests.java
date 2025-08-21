@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.transport.LinkedProjectConfig.ProxyConnectionStrategyConfig;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -722,22 +723,25 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         };
     }
 
-    private static LinkedProjectConfig proxyStrategyConfig(String linkedProjectAlias, int maxNumConnections, String proxyAddress) {
+    private static ProxyConnectionStrategyConfig proxyStrategyConfig(
+        String linkedProjectAlias,
+        int maxNumConnections,
+        String proxyAddress
+    ) {
         return proxyStrategyConfig(linkedProjectAlias, maxNumConnections, proxyAddress, null);
     }
 
-    private static LinkedProjectConfig proxyStrategyConfig(
+    private static ProxyConnectionStrategyConfig proxyStrategyConfig(
         String linkedProjectAlias,
         int maxNumConnections,
         String proxyAddress,
         String proxyServerName
     ) {
-        return LinkedProjectConfig.builder()
-            .linkedProjectAlias(linkedProjectAlias)
+        return LinkedProjectConfig.buildForAlias(linkedProjectAlias)
             .connectionStrategy(RemoteConnectionStrategy.ConnectionStrategy.PROXY)
             .maxNumConnections(maxNumConnections)
             .proxyAddress(proxyAddress)
             .proxyServerName(proxyServerName)
-            .build();
+            .buildProxyConnectionStrategyConfig();
     }
 }

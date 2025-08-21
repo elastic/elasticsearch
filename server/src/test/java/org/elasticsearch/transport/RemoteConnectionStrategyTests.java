@@ -40,7 +40,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             connectionManager
         );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
-            LinkedProjectConfig.builder().linkedProjectAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
+            LinkedProjectConfig.buildForAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
             mock(TransportService.class),
             remoteConnectionManager
         );
@@ -63,7 +63,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             connectionManager
         );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
-            LinkedProjectConfig.builder().linkedProjectAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
+            LinkedProjectConfig.buildForAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
             mock(TransportService.class),
             remoteConnectionManager
         );
@@ -89,7 +89,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             connectionManager
         );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
-            LinkedProjectConfig.builder().linkedProjectAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
+            LinkedProjectConfig.buildForAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
             mock(TransportService.class),
             remoteConnectionManager
         );

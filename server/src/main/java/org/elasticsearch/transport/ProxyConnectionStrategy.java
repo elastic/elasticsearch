@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.LinkedProjectConfig.ProxyConnectionStrategyConfig;
 
 public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -52,12 +53,16 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ConnectionManager.ConnectionValidator clusterNameValidator;
 
-    ProxyConnectionStrategy(LinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
+    ProxyConnectionStrategy(
+        ProxyConnectionStrategyConfig config,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager
+    ) {
         this(config, () -> resolveAddress(config.proxyAddress()), transportService, connectionManager);
     }
 
     ProxyConnectionStrategy(
-        LinkedProjectConfig config,
+        ProxyConnectionStrategyConfig config,
         Supplier<TransportAddress> address,
         TransportService transportService,
         RemoteConnectionManager connectionManager
@@ -65,7 +70,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         super(config, transportService, connectionManager);
         this.maxNumConnections = config.maxNumConnections();
         this.configuredAddress = config.proxyAddress();
-        this.configuredServerName = config.proxyServerName();
+        this.configuredServerName = config.serverName();
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
         this.clusterNameValidator = (newConnection, actualProfile, listener) -> {
@@ -106,9 +111,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
-        return config.maxNumConnections() != maxNumConnections
-            || configuredAddress.equals(config.proxyAddress()) == false
-            || Objects.equals(config.proxyServerName(), configuredServerName) == false;
+        assert config instanceof ProxyConnectionStrategyConfig : "expected config to be of type " + ProxyConnectionStrategy.class;
+        final var proxyConfig = (ProxyConnectionStrategyConfig) config;
+        return proxyConfig.maxNumConnections() != maxNumConnections
+            || configuredAddress.equals(proxyConfig.proxyAddress()) == false
+            || Objects.equals(proxyConfig.serverName(), configuredServerName) == false;
     }
 
     @Override

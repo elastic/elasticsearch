@@ -10,6 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -303,9 +304,12 @@ public class RemoteClusterSettings {
         return toConfigBuilder(clusterAlias, settings).build();
     }
 
+    public static LinkedProjectConfig toConfig(ProjectId originProjectId, String clusterAlias, Settings settings) {
+        return toConfigBuilder(clusterAlias, settings).originProjectId(originProjectId).build();
+    }
+
     public static LinkedProjectConfig.Builder toConfigBuilder(String clusterAlias, Settings settings) {
-        final var builder = LinkedProjectConfig.builder();
-        builder.linkedProjectAlias(clusterAlias);
+        final var builder = LinkedProjectConfig.buildForAlias(clusterAlias);
         readConnectionSettings(clusterAlias, settings, builder);
         readConnectionStrategySettings(clusterAlias, settings, builder);
         return builder;
@@ -328,6 +332,10 @@ public class RemoteClusterSettings {
             case SNIFF -> SniffConnectionStrategySettings.readSettings(clusterAlias, settings, builder);
             case PROXY -> ProxyConnectionStrategySettings.readSettings(clusterAlias, settings, builder);
         }
+    }
+
+    public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
+        return toConfig(clusterAlias, settings).isConnectionEnabled();
     }
 
     private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {
@@ -367,18 +375,14 @@ public class RemoteClusterSettings {
             final var mode = (ConnectionStrategy) settings.get(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias));
             final var builder = LinkedProjectConfig.builder().connectionStrategy(mode);
             return switch (mode) {
-                case SNIFF -> RemoteConnectionStrategy.isConnectionEnabled(
-                    builder.sniffSeedNodes(
-                        (List<String>) settings.get(
-                            SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias)
-                        )
-                    ).build()
-                );
-                case PROXY -> RemoteConnectionStrategy.isConnectionEnabled(
-                    builder.proxyAddress(
-                        (String) settings.get(ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias))
-                    ).build()
-                );
+                case SNIFF -> builder.sniffSeedNodes(
+                    (List<String>) settings.get(
+                        SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias)
+                    )
+                ).build().isConnectionEnabled();
+                case PROXY -> builder.proxyAddress(
+                    (String) settings.get(ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias))
+                ).build().isConnectionEnabled();
             };
         }
     }

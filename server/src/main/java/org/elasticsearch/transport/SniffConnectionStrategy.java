@@ -49,6 +49,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffConnectionStrategyConfig;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
@@ -65,10 +66,14 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final String proxyAddress;
     private final Executor managementExecutor;
 
-    SniffConnectionStrategy(LinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
+    SniffConnectionStrategy(
+        SniffConnectionStrategyConfig config,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager
+    ) {
         this(
             config,
-            config.sniffSeedNodes()
+            config.seedNodes()
                 .stream()
                 .map(
                     seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(
@@ -84,7 +89,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     SniffConnectionStrategy(
-        LinkedProjectConfig config,
+        SniffConnectionStrategyConfig config,
         List<Supplier<DiscoveryNode>> seedNodesSupplier,
         TransportService transportService,
         RemoteConnectionManager connectionManager
@@ -92,8 +97,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         super(config, transportService, connectionManager);
         this.proxyAddress = config.proxyAddress();
         this.maxNumRemoteConnections = config.maxNumConnections();
-        this.nodePredicate = config.sniffNodePredicate();
-        this.configuredSeedNodes = config.sniffSeedNodes();
+        this.nodePredicate = config.nodePredicate();
+        this.configuredSeedNodes = config.seedNodes();
         this.seedNodes = seedNodesSupplier;
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
     }
@@ -109,9 +114,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
-        return config.maxNumConnections() != maxNumRemoteConnections
-            || seedsChanged(configuredSeedNodes, config.sniffSeedNodes())
-            || proxyChanged(proxyAddress, config.proxyAddress());
+        assert config instanceof SniffConnectionStrategyConfig : "expected config to be of type " + SniffConnectionStrategyConfig.class;
+        final var sniffConfig = (SniffConnectionStrategyConfig) config;
+        return sniffConfig.maxNumConnections() != maxNumRemoteConnections
+            || seedsChanged(configuredSeedNodes, sniffConfig.seedNodes())
+            || proxyChanged(proxyAddress, sniffConfig.proxyAddress());
     }
 
     @Override

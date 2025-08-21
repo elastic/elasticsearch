@@ -58,6 +58,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffConnectionStrategyConfig;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY;
@@ -902,13 +903,13 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        LinkedProjectConfig.builder()
-                            .linkedProjectAlias(clusterAlias)
+                        LinkedProjectConfig.buildForAlias(clusterAlias)
+                            .connectionStrategy(RemoteConnectionStrategy.ConnectionStrategy.SNIFF)
                             .maxNumConnections(3)
                             .sniffNodePredicate(n -> true)
                             .sniffSeedNodes(seedNodes)
                             .proxyAddress(proxyAddress.toString())
-                            .build(),
+                            .buildSniffConnectionStrategyConfig(),
                         localService,
                         remoteConnectionManager
                     )
@@ -1213,22 +1214,25 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    private static LinkedProjectConfig sniffStrategyConfig(String linkedProjectAlias, int maxNumConnections, List<String> seedNodes) {
+    private static SniffConnectionStrategyConfig sniffStrategyConfig(
+        String linkedProjectAlias,
+        int maxNumConnections,
+        List<String> seedNodes
+    ) {
         return sniffStrategyConfig(linkedProjectAlias, maxNumConnections, n -> true, seedNodes);
     }
 
-    private static LinkedProjectConfig sniffStrategyConfig(
+    private static SniffConnectionStrategyConfig sniffStrategyConfig(
         String linkedProjectAlias,
         int maxNumConnections,
         Predicate<DiscoveryNode> nodePredicate,
         List<String> seedNodes
     ) {
-        return LinkedProjectConfig.builder()
-            .linkedProjectAlias(linkedProjectAlias)
+        return LinkedProjectConfig.buildForAlias(linkedProjectAlias)
             .connectionStrategy(RemoteConnectionStrategy.ConnectionStrategy.SNIFF)
             .maxNumConnections(maxNumConnections)
             .sniffNodePredicate(nodePredicate)
             .sniffSeedNodes(seedNodes)
-            .build();
+            .buildSniffConnectionStrategyConfig();
     }
 }

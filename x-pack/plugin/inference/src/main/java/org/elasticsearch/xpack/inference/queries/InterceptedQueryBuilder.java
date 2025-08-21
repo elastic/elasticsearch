@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.FilteredCCSQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -30,7 +31,9 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<InterceptedQueryBuilder<T>> {
+public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<InterceptedQueryBuilder<T>>
+    implements
+        FilteredCCSQueryBuilder<QueryBuilder> {
     protected T originalQuery;
     protected EmbeddingsProvider embeddingsProvider;
 
@@ -59,6 +62,11 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
     protected abstract String getQuery();
 
     protected abstract QueryBuilder copy(EmbeddingsProvider embeddingsProvider);
+
+    @Override
+    public QueryBuilder filter() {
+        return copy(null);
+    }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {

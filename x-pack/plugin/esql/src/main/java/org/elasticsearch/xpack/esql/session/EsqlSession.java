@@ -786,17 +786,11 @@ public class EsqlSession {
         EnrichResolution enrichResolution,
         Set<String> fieldNames,
         Set<String> wildcardJoinIndices,
-        InferenceResolution inferenceResolution,
-        boolean collectAllDimensions
+        InferenceResolution inferenceResolution
     ) {
 
-        public PreAnalysisResult(
-            EnrichResolution enrichResolution,
-            Set<String> fieldNames,
-            Set<String> wildcardJoinIndices,
-            boolean collectAllDimensions
-        ) {
-            this(null, new HashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY, collectAllDimensions);
+        public PreAnalysisResult(EnrichResolution enrichResolution, Set<String> fieldNames, Set<String> wildcardJoinIndices) {
+            this(null, new HashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
         }
 
         PreAnalysisResult withInferenceResolution(InferenceResolution newInferenceResolution) {
@@ -806,8 +800,7 @@ public class EsqlSession {
                 enrichResolution(),
                 fieldNames(),
                 wildcardJoinIndices(),
-                newInferenceResolution,
-                collectAllDimensions()
+                newInferenceResolution
             );
         }
 
@@ -818,8 +811,7 @@ public class EsqlSession {
                 enrichResolution(),
                 fieldNames(),
                 wildcardJoinIndices(),
-                inferenceResolution(),
-                collectAllDimensions()
+                inferenceResolution()
             );
         }
 

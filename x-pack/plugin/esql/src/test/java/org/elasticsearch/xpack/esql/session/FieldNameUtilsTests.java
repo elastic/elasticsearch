@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1613,7 +1612,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
             return;
         }
-        assertTsFieldNames(
+        assertFieldNames(
             query,
             Set.of(
                 "@timestamp",
@@ -2996,27 +2995,9 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, EnrichResolution enrichResolution, Set<String> expected, Set<String> wildCardIndices) {
-        EsqlSession.PreAnalysisResult preAnalysisResult = FieldNameUtils.resolveFieldNames(
-            parser.createStatement(query, EsqlTestUtils.TEST_CFG),
-            enrichResolution
-        );
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), enrichResolution);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
-        assertThat(preAnalysisResult.collectAllDimensions(), equalTo(false));
-    }
-
-    private void assertTsFieldNames(String query, Set<String> expected) {
-        // Expected may be unmodifiable
-        Set<String> tsExpected = new HashSet<>(expected);
-        tsExpected.add("@timestamp");
-        tsExpected.add("@timestamp.*");
-
-        EsqlSession.PreAnalysisResult preAnalysisResult = FieldNameUtils.resolveFieldNames(
-            parser.createStatement(query, EsqlTestUtils.TEST_CFG),
-            new EnrichResolution()
-        );
-        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(tsExpected));
-        assertThat("TS mode query should collect all dimensions", preAnalysisResult.collectAllDimensions(), equalTo(true));
     }
 
     private static EnrichResolution enrichResolutionWith(String enrichPolicyMatchField) {

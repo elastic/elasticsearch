@@ -682,7 +682,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         as(limit.child(), EsRelation.class);
     }
 
-    /**
+    /*
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[emp_no{f}#17],[emp_no{f}#17],[emp_no{r}#17]]
      *   |_EsqlProject[[emp_no{f}#17, salary{f}#22]]
@@ -698,7 +698,8 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             from test
             | keep emp_no, salary
             | inlinestats max = max(salary), max_a = max(salary) where null,
-                    min = min(salary), min_a = min(salary) where to_string(null) == "abc"
+                    min = min(salary),
+                    min_a = min(salary) where to_string(null) == "abc"
               by emp_no
             """);
         var limit = as(plan, Limit.class);

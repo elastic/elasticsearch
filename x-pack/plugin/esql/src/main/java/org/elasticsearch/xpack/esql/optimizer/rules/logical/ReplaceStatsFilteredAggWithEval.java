@@ -47,17 +47,13 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
         Aggregate aggregate;
-        Holder<InlineJoin> ij = new Holder<>();
+        InlineJoin ij = null;
         if (plan instanceof Aggregate a) {
             aggregate = a;
-        } else if (plan instanceof InlineJoin) {
-            ij.set((InlineJoin) plan);
+        } else if (plan instanceof InlineJoin inlineJoin) {
+            ij = inlineJoin;
             Holder<Aggregate> aggHolder = new Holder<>();
-            ij.get().right().forEachDown(p -> {
-                if (aggHolder.get() == null && p instanceof Aggregate a) {
-                    aggHolder.set(a);
-                }
-            });
+            inlineJoin.right().forEachDown(Aggregate.class, aggHolder::setIfAbsent);
             aggregate = aggHolder.get();
         } else {
             return plan; // not an Aggregate or InlineJoin, nothing to do
@@ -88,48 +84,52 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
 
             if (newEvals.isEmpty() == false) {
                 if (newAggs.isEmpty()) { // the Aggregate node is pruned
-                    if (ij.get() != null) { // this is an Aggregate part of right-hand side of an InlineJoin
+                    if (ij != null) { // this is an Aggregate part of right-hand side of an InlineJoin
+                        final LogicalPlan leftHandSide = ij.left(); // final so we can use it in the lambda below
                         // replace the right hand side Aggregate with an Eval
-                        InlineJoin newIJ = new InlineJoin(ij.get().source(), ij.get().left(), ij.get().right().transformDown(p -> {
-                            // both following steps are executed for an InlineJoin
+                        var newRight = ij.right().transformDown(p -> {
+                            // both following steps are executed for the hand-right side of the InlineJoin
                             if (p instanceof Aggregate a && a == aggregate) {
                                 // the aggregate becomes a simple Eval since it's not needed anymore (it was replaced with Literals)
                                 p = new Eval(aggregate.source(), aggregate.child(), newEvals);
                             } else if (p instanceof StubRelation) {
                                 // Remove the StubRelation since the right-hand side of the join is now part of the main plan
                                 // and it won't be executed separately by the EsqlSession inlinestats planning.
-                                p = ij.get().left();
+                                p = leftHandSide;
                             }
                             return p;
-                        }), ij.get().config());
+                        });
                         // project the correct output (the one of the former inlinejoin) and remove the InlineJoin altogether,
                         // replacing it with its right-hand side followed by its left-hand side
-                        plan = new Project(newIJ.source(), newIJ.right(), newIJ.output());
+                        plan = new Project(ij.source(), newRight, ij.output());
                     } else { // this is a standalone Aggregate
                         plan = localRelation(aggregate.source(), newEvals);
                     }
                 } else {
-                    if (ij.get() != null) { // this is an Aggregate part of right-hand side of an InlineJoin
-                        // only update the Aggregate and add an Eval for the removed aggregations
-                        plan = ij.get().transformUp(Aggregate.class, agg -> {
-                            // if the aggregate is not the one we are looking for, return it unchanged
-                            if (agg != aggregate) {
-                                return agg;
-                            }
-                            LogicalPlan newPlan = agg.with(aggregate.child(), aggregate.groupings(), newAggs);
-                            newPlan = new Eval(aggregate.source(), newPlan, newEvals);
-                            newPlan = new Project(aggregate.source(), newPlan, newProjections);
-                            return newPlan;
-                        });
+                    if (ij != null) { // this is an Aggregate part of right-hand side of an InlineJoin
+                        plan = ij.replaceRight(
+                            ij.right().transformUp(Aggregate.class, agg -> updateAggregate(agg, newAggs, newEvals, newProjections))
+                        );
                     } else { // this is a standalone Aggregate
-                        plan = aggregate.with(aggregate.child(), aggregate.groupings(), newAggs);
-                        plan = new Eval(aggregate.source(), plan, newEvals);
-                        plan = new Project(aggregate.source(), plan, newProjections);
+                        plan = updateAggregate(aggregate, newAggs, newEvals, newProjections);
                     }
                 }
             }
         }
         return plan;
+    }
+
+    private static LogicalPlan updateAggregate(
+        Aggregate agg,
+        List<NamedExpression> newAggs,
+        List<Alias> newEvals,
+        List<NamedExpression> newProjections
+    ) {
+        // only update the Aggregate and add an Eval for the removed aggregations
+        LogicalPlan newAgg = agg.with(agg.child(), agg.groupings(), newAggs);
+        newAgg = new Eval(agg.source(), newAgg, newEvals);
+        newAgg = new Project(agg.source(), newAgg, newProjections);
+        return newAgg;
     }
 
     private static LocalRelation localRelation(Source source, List<Alias> newEvals) {

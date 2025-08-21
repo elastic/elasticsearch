@@ -13,6 +13,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -26,7 +28,7 @@ import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
 
-public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
+public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin implements InternalSearchPlugin {
     private final InferencePlugin inferencePlugin;
 
     public LocalStateInferencePlugin(final Settings settings, final Path configPath) throws Exception {
@@ -72,5 +74,10 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
         return inferencePlugin.getMappedActionFilters();
+    }
+
+    @Override
+    public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
+        return inferencePlugin.getQueryRewriteInterceptors();
     }
 }

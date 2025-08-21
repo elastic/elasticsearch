@@ -281,7 +281,11 @@ schema:
     - name: "date1"
       encoding_type: "%A"
       format: "$DD/$MM/$YYYY"
-      description: "Date without time"
+      description: "Date without time, day first"
+    - name: "date2"
+      encoding_type: "%A"
+      format: "$YYYY-$MM-$DD"
+      description: "Date without time, year first"
     - name: "timeS"
       encoding_type: "%A"
       format: "$hh:$mm:$ss"
@@ -311,9 +315,8 @@ schema:
   multi_token_types:
     - name: "timestamp1"
       encoding_type: "%T"
-      # The following format covers usages that contain a comma, as in - "Oct 05, 2023 02:48:00 PM", because the comma is a trimmed character.
-      # See trimmed_characters in the special_characters section above.
-      format: "$Mon $DD $YYYY $timeS $AP"
+      # e.g Oct 05, 2023 02:48:00 PM
+      format: "$Mon, $DD $YYYY $timeS $AP"
       description: "Multi-token date"
     - name: "timestamp2"
       encoding_type: "%T"

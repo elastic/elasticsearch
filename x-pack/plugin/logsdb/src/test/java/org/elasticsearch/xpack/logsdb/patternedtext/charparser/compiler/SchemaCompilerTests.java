@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenTy
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.MultiTokenFormat;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.PatternUtils;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.Schema;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.EqualsStringConstraint;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.LengthStringConstraint;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraint
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.StringToIntMapConstraint;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -456,8 +459,8 @@ public class SchemaCompilerTests extends ESTestCase {
         assertEquals(7, timestamp1Format.getNumTimestampComponents());
         int[] timestampComponentsOrder = timestamp1Format.getTimestampComponentsOrder();
         assertEquals(TimestampComponentType.values().length, timestampComponentsOrder.length);
-        // "timestamp1" type format is: "$Mon $DD $YYYY $timeS $AP"
-        assertEquals("MMM dd yyyy hh:mm:ss a", timestamp1Format.getJavaTimeFormat());
+        // "timestamp1" type format is: "$Mon, $DD $YYYY $timeS $AP"
+        assertEquals("MMM, dd yyyy hh:mm:ss a", timestamp1Format.getJavaTimeFormat());
         assertEquals(0, timestampComponentsOrder[TimestampComponentType.MONTH_CODE]);
         assertEquals(1, timestampComponentsOrder[TimestampComponentType.DAY_CODE]);
         assertEquals(2, timestampComponentsOrder[TimestampComponentType.YEAR_CODE]);
@@ -465,6 +468,26 @@ public class SchemaCompilerTests extends ESTestCase {
         assertEquals(4, timestampComponentsOrder[TimestampComponentType.MINUTE_CODE]);
         assertEquals(5, timestampComponentsOrder[TimestampComponentType.SECOND_CODE]);
         assertEquals(6, timestampComponentsOrder[TimestampComponentType.AM_PM_CODE]);
+    }
+
+    public void testCreateTimestampFormat_withBracketLiterals() {
+        Schema schema = Schema.getInstance();
+        String rawFormat = "[$date2  {$timeMS} $TZOhhmm]";
+        List<Object> formatParts = PatternUtils.parseMultiTokenFormat(rawFormat, schema.getTokenTypes(), schema.getTokenBoundaryChars());
+        MultiTokenFormat multiTokenFormat = new MultiTokenFormat(rawFormat, formatParts);
+
+        TimestampFormat result = SchemaCompiler.createTimestampFormat(multiTokenFormat);
+
+        // bracket literals should be escaped in the Java time format; double-space should be preserved
+        assertEquals("'['yyyy-MM-dd  '{'hh:mm:ss.SSS'}' Z']'", result.getJavaTimeFormat());
+        int[] order = result.getTimestampComponentsOrder();
+        assertEquals(0, order[TimestampComponentType.YEAR_CODE]);
+        assertEquals(1, order[TimestampComponentType.MONTH_CODE]);
+        assertEquals(2, order[TimestampComponentType.DAY_CODE]);
+        assertEquals(3, order[TimestampComponentType.HOUR_CODE]);
+        assertEquals(4, order[TimestampComponentType.MINUTE_CODE]);
+        assertEquals(5, order[TimestampComponentType.SECOND_CODE]);
+        assertEquals(6, order[TimestampComponentType.MILLISECOND_CODE]);
     }
 
     private static int getBitmaskForInteger(int value, CompiledSchema compiledSchema) {

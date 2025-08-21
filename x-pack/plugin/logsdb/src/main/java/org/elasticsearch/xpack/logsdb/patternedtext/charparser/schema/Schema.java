@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.Type;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Loads and parses the schema.yaml file for token and sub-token definitions.
@@ -159,6 +161,9 @@ public class Schema {
 
     private ArrayList<MultiTokenType> parseMultiTokenTypes(List<Object> multiTokenTypesList) {
         ArrayList<MultiTokenType> result = new ArrayList<>();
+        // Create the set of boundary characters once
+        Set<Character> boundaryChars = getTokenBoundaryChars();
+
         for (Object obj : multiTokenTypesList) {
             Map<String, Object> typeMap = (Map<String, Object>) obj;
             String name = getConfigValue(typeMap, "name");
@@ -167,14 +172,25 @@ public class Schema {
             EncodingType encodingType = EncodingType.fromSymbol(encodingTypeStr.charAt(1));
 
             String rawFormat = (String) typeMap.get("format");
-            TokenType[] tokens = PatternUtils.parseMultiTokenFormat(rawFormat, tokenTypes);
-            MultiTokenFormat format = new MultiTokenFormat(rawFormat, tokens);
+            List<Object> formatParts = PatternUtils.parseMultiTokenFormat(rawFormat, tokenTypes, boundaryChars);
+            MultiTokenFormat format = new MultiTokenFormat(rawFormat, formatParts);
 
             String description = getConfigValue(typeMap, "description");
             result.addLast(new MultiTokenType(name, encodingType, format, description));
         }
 
         return result;
+    }
+
+    public Set<Character> getTokenBoundaryChars() {
+        Set<Character> boundaryChars = new HashSet<>();
+        for (char c : getTokenDelimiters()) {
+            boundaryChars.add(c);
+        }
+        for (char c : getTrimmedCharacters()) {
+            boundaryChars.add(c);
+        }
+        return boundaryChars;
     }
 
     public char[] getTokenDelimiters() {

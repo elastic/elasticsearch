@@ -330,43 +330,79 @@ public class PatternUtils {
     }
 
     /**
-     * Parses a multi-token format string into an array of TokenType objects.
-     * Assumes space characters are used as token delimiters.
+     * Parses a multi-token format string into a list of parts, which can be either a literal string or a {@link TokenType}.
      * Handles references to token types (e.g., {@code $time}) and subToken types (e.g., {@code $Mon}).
      *
-     * @param format The multi-token format string (e.g., {@code $Mon $DD, $YYYY} or {@code $datetime $TZA})
+     * @param format The multi-token format string (e.g., {@code $Mon, $DD $YYYY} or {@code $datetime $TZA})
      * @param tokenTypes Map of defined token types by name
-     * @return An array of TokenType objects that correspond to each token in the format
+     * @param boundaryChars A set of characters that define the boundaries of a token name
+     * @return A list of objects, where each object is either a {@link String} literal or a {@link TokenType}
      * @throws IllegalArgumentException if the format is invalid or contains unknown token references
      */
-    public static TokenType[] parseMultiTokenFormat(String format, List<TokenType> tokenTypes) {
+    public static List<Object> parseMultiTokenFormat(String format, List<TokenType> tokenTypes, Set<Character> boundaryChars) {
         if (format == null || format.isEmpty()) {
             throw new IllegalArgumentException("Format string cannot be null or empty");
         }
 
-        // Split into tokens based on spaces
-        String[] parts = format.split(" ");
-        TokenType[] result = new TokenType[parts.length];
-
-        for (int i = 0; i < parts.length; i++) {
-            String part = parts[i].trim();
-            if (part.isEmpty()) {
-                throw new IllegalArgumentException("Empty token in format: " + format);
-            }
-
-            if (part.startsWith("$")) {
-                // Reference to a token type
-                String tokenTypeName = part.substring(1);
-                TokenType token = findTokenTypeByName(tokenTypes, tokenTypeName);
-                if (token == null) {
-                    throw new IllegalArgumentException("Unknown token type: " + tokenTypeName);
+        List<Object> parts = new ArrayList<>();
+        StringBuilder currentPart = new StringBuilder();
+        boolean isTokenNamePart = false;
+        for (int i = 0; i < format.length(); i++) {
+            char c = format.charAt(i);
+            if (isTokenNamePart) {
+                if (c == '$') {
+                    throw new IllegalArgumentException("Token names must be separated by delimiters: " + format);
+                } else {
+                    if (boundaryChars.contains(c)) {
+                        // end of token name
+                        addMultiTokenPart(format, tokenTypes, currentPart, isTokenNamePart, parts);
+                        currentPart.setLength(0); // reset for next token
+                        isTokenNamePart = false;
+                    }
+                    currentPart.append(c);
                 }
-                result[i] = token;
             } else {
-                throw new IllegalArgumentException("Multi-token format must refer to token types and start with '$': " + part);
+                if (c == '$') {
+                    addMultiTokenPart(format, tokenTypes, currentPart, isTokenNamePart, parts);
+                    currentPart.setLength(0);
+                    isTokenNamePart = true;
+                } else if (boundaryChars.contains(c)) {
+                    currentPart.append(c);
+                } else {
+                    throw new IllegalArgumentException(
+                        "Invalid format - only token delimiters and trimmed characters are allowed between tokens: " + format
+                    );
+                }
             }
         }
-        return result;
+        addMultiTokenPart(format, tokenTypes, currentPart, isTokenNamePart, parts);
+        return parts;
+    }
+
+    private static void addMultiTokenPart(
+        String format,
+        List<TokenType> tokenTypes,
+        StringBuilder currentPart,
+        boolean isTokenNamePart,
+        List<Object> parts
+    ) {
+        // noinspection SizeReplaceableByIsEmpty
+        if (currentPart.length() > 0) {
+            if (isTokenNamePart) {
+                // if the last part is a token name, it must end with a boundary character
+                String tokenName = currentPart.toString();
+                TokenType token = findTokenTypeByName(tokenTypes, tokenName);
+                if (token == null) {
+                    throw new IllegalArgumentException("Unknown token type: " + tokenName + " in format: " + format);
+                }
+                parts.add(token);
+            } else {
+                // otherwise, it's a literal part
+                parts.add(currentPart.toString());
+            }
+        } else if (isTokenNamePart) {
+            throw new IllegalArgumentException("Token name cannot be empty in format: " + format);
+        }
     }
 
     private static SubTokenType findSubTokenTypeByName(List<SubTokenType> list, String name) {

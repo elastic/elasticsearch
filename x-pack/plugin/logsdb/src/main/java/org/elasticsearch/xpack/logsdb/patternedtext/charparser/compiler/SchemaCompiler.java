@@ -31,9 +31,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.ALPHABETIC_CHAR_CODE;
@@ -84,11 +84,11 @@ public class SchemaCompiler {
         BitmaskRegistry<MultiTokenType> multiTokenBitmaskRegistry = new BitmaskRegistry<>();
         for (org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.MultiTokenType multiTokenType : schema.getMultiTokenTypes()) {
             MultiTokenFormat format = multiTokenType.getFormat();
-            org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType[] tokens = format.getTokens();
+            List<org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType> tokens = format.getTokens();
 
             TimestampFormat timestampFormat = null;
             if (multiTokenType.encodingType() == EncodingType.TIMESTAMP) {
-                timestampFormat = createTimestampFormat(tokens);
+                timestampFormat = createTimestampFormat(format);
             }
 
             int subTokenCount = multiTokenType.getNumberOfSubTokens();
@@ -96,19 +96,19 @@ public class SchemaCompiler {
                 new MultiTokenType(multiTokenType.name(), multiTokenType.encodingType(), subTokenCount, timestampFormat)
             );
 
-            maxTokensPerMultiToken = Math.max(maxTokensPerMultiToken, tokens.length);
+            maxTokensPerMultiToken = Math.max(maxTokensPerMultiToken, tokens.size());
             maxSubTokensPerMultiToken = Math.max(maxSubTokensPerMultiToken, subTokenCount);
 
-            int bitmaskForTokenCount = tokenCountToMultiTokenBitmaskMap.computeIfAbsent(tokens.length, input -> 0);
+            int bitmaskForTokenCount = tokenCountToMultiTokenBitmaskMap.computeIfAbsent(tokens.size(), input -> 0);
             bitmaskForTokenCount |= multiTokenBitmask;
-            tokenCountToMultiTokenBitmaskMap.put(tokens.length, bitmaskForTokenCount);
+            tokenCountToMultiTokenBitmaskMap.put(tokens.size(), bitmaskForTokenCount);
 
             int bitmaskForSubTokenCount = subTokenCountToMultiTokenBitmaskMap.computeIfAbsent(subTokenCount, input -> 0);
             bitmaskForSubTokenCount |= multiTokenBitmask;
             subTokenCountToMultiTokenBitmaskMap.put(subTokenCount, bitmaskForSubTokenCount);
 
-            for (int i = 0; i < tokens.length; i++) {
-                String tokenName = tokens[i].name();
+            for (int i = 0; i < tokens.size(); i++) {
+                String tokenName = tokens.get(i).name();
                 ArrayList<Integer> bitmaskList = tokenTypeToMultiTokenBitmaskByPosition.computeIfAbsent(
                     tokenName,
                     input -> new ArrayList<>()
@@ -635,18 +635,26 @@ public class SchemaCompiler {
     // =================================================== Timestamp formatting ========================================================
 
     /**
-     * Creates a {@link TimestampFormat} from an array of {@link org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType}
-     * objects that represent timestamp components.
-     * @param formatTokens An array of TokenType objects representing the timestamp format.
+     * Creates a {@link TimestampFormat} from a {@link MultiTokenFormat} object that represents timestamp components.
+     * This method processes both token parts and literal string parts to construct the final Java time format.
+     * @param format The MultiTokenFormat object representing the timestamp format.
      * @return A TimestampFormat object containing the format string and an array indicating the order of timestamp components.
      */
-    static TimestampFormat createTimestampFormat(org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType[] formatTokens) {
-        StringJoiner javaTimeFormat = new StringJoiner(" ");
+    static TimestampFormat createTimestampFormat(MultiTokenFormat format) {
+        StringBuilder javaTimeFormat = new StringBuilder();
         int[] timestampComponentsOrder = new int[TimestampComponentType.values().length];
         Arrays.fill(timestampComponentsOrder, -1);
         int nextComponentIndex = 0;
-        for (org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType token : formatTokens) {
-            nextComponentIndex += appendTimestampComponents(token, javaTimeFormat, timestampComponentsOrder, nextComponentIndex);
+        for (Object part : format.getFormatParts()) {
+            if (part instanceof String) {
+                for (char c : ((String) part).toCharArray()) {
+                    appendDelimiter(javaTimeFormat, c);
+                }
+            } else if (part instanceof org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType token) {
+                StringBuilder tokenJavaTimeFormat = new StringBuilder();
+                nextComponentIndex += appendTimestampComponents(token, tokenJavaTimeFormat, timestampComponentsOrder, nextComponentIndex);
+                javaTimeFormat.append(tokenJavaTimeFormat);
+            }
         }
         return new TimestampFormat(javaTimeFormat.toString(), timestampComponentsOrder);
     }
@@ -654,14 +662,14 @@ public class SchemaCompiler {
     /**
      * Creates a {@link TimestampFormat} from a single {@link org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType}
      * object that represents a timestamp format.
-     * @param formatToken A TokenType object representing the timestamp format.
+     * @param timestampToken A TokenType object representing the timestamp format.
      * @return A TimestampFormat object containing the format string and an array indicating the order of timestamp components.
      */
-    static TimestampFormat createTimestampFormat(org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType formatToken) {
-        StringJoiner javaTimeFormat = new StringJoiner("");
+    static TimestampFormat createTimestampFormat(org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType timestampToken) {
+        StringBuilder javaTimeFormat = new StringBuilder();
         int[] timestampComponentsOrder = new int[TimestampComponentType.values().length];
         Arrays.fill(timestampComponentsOrder, -1);
-        appendTimestampComponents(formatToken, javaTimeFormat, timestampComponentsOrder, 0);
+        appendTimestampComponents(timestampToken, javaTimeFormat, timestampComponentsOrder, 0);
         return new TimestampFormat(javaTimeFormat.toString(), timestampComponentsOrder);
     }
 
@@ -669,14 +677,14 @@ public class SchemaCompiler {
      * Appends the details of a given token to the provided javaTimeFormat and updates the timestampComponentsOrder array to reflect the
      * order of timestamp components.
      * @param token the TokenType object representing the timestamp format
-     * @param javaTimeFormat the StringJoiner to append the Java time format string
+     * @param javaTimeFormat the StringBuilder to append the Java time format string
      * @param timestampComponentsOrder an array to store the order of timestamp components
      * @param nextComponentIndex the next index to use in the timestampComponentsOrder array
      * @return the number of timestamp components appended to the javaTimeFormat
      */
     private static int appendTimestampComponents(
         org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType token,
-        StringJoiner javaTimeFormat,
+        StringBuilder javaTimeFormat,
         int[] timestampComponentsOrder,
         int nextComponentIndex
     ) {
@@ -698,7 +706,7 @@ public class SchemaCompiler {
                 appendedComponents++;
             }
         }
-        javaTimeFormat.add(tokenJavaTimeFormat.toString());
+        javaTimeFormat.append(tokenJavaTimeFormat);
         return appendedComponents;
     }
 

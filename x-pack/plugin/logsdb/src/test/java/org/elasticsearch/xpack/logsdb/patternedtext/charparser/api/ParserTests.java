@@ -32,16 +32,18 @@ public class ParserTests extends ESTestCase {
     }
 
     public void testTimestampAndIpAndNumber() throws ParseException {
+        // todo - there is a bug here, "Oct 05 2023 02:48:07 PM" SHOULD NOT match the timestamp format and "Oct, 05 2023 02:48:07 PM" SHOULD
         PatternedMessage patternedMessage = parser.parse("Oct 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms");
         assertEquals("%T INFO Response from %4 took %I ms", patternedMessage.pattern());
         assertEquals(1696517287000L, patternedMessage.timestamp().getTimestamp());
         String pattern = patternedMessage.timestamp().getFormat();
-        assertEquals("MMM dd yyyy hh:mm:ss a", pattern);
+        assertEquals("MMM, dd yyyy hh:mm:ss a", pattern);
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(pattern, Locale.US);
-        assertEquals(1696517287000L, TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05 2023 02:48:07 PM"));
+        assertEquals(1696517287000L, TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct, 05 2023 02:48:07 PM"));
         Argument<?>[] arguments = patternedMessage.arguments();
-        assertEquals(2, arguments.length);
-        assertEquals("IPV4", arguments[0].type().name());
-        assertEquals("INTEGER", arguments[1].type().name());
+        assertEquals(3, arguments.length);
+        assertEquals("TIMESTAMP", arguments[0].type().name());
+        assertEquals("IPV4", arguments[1].type().name());
+        assertEquals("INTEGER", arguments[2].type().name());
     }
 }

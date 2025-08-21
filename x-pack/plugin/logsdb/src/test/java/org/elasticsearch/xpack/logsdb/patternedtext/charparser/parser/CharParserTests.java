@@ -9,12 +9,7 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.SchemaCompiler;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Argument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.Schema;
-
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
 
 public class CharParserTests extends ESTestCase {
 

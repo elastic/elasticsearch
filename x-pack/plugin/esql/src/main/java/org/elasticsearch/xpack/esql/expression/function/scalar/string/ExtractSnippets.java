@@ -82,6 +82,7 @@ public class ExtractSnippets extends EsqlScalarFunction
 
     @FunctionInfo(
         returnType = "keyword",
+        preview = true,
         description = """
             Extracts the most relevant snippets to return from a given input string""",
         examples = @Example(file = "keyword", tag = "extract_snippets")

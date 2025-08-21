@@ -1515,66 +1515,6 @@ setup:
   - length: { hits.hits: 0 }
 
 ---
-"Linear retriever with per-retriever normalizer override":
-  - requires:
-      cluster_features: [ "linear_retriever.top_level_normalizer" ]
-      reason: "Support for top-level normalizer in linear retriever"
-  - do:
-      search:
-        index: test
-        body:
-          retriever:
-            linear:
-              normalizer: minmax
-              retrievers: [
-                {
-                  retriever: {
-                    standard: {
-                      query: {
-                        constant_score: {
-                          filter: {
-                            term: {
-                              keyword: {
-                                value: "one"
-                              }
-                            }
-                          },
-                          boost: 5.0
-                        }
-                      }
-                    }
-                  },
-                  weight: 1.0,
-                  normalizer: l2_norm
-                },
-                {
-                  retriever: {
-                    standard: {
-                      query: {
-                        constant_score: {
-                          filter: {
-                            term: {
-                              keyword: {
-                                value: "four"
-                              }
-                            }
-                          },
-                          boost: 12.0
-                        }
-                      }
-                    }
-                  },
-                  weight: 1.0
-                }
-              ]
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "4" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.001} }
-  - close_to: { hits.hits.1._score: { value: 1.0, error: 0.001} }
-
----
 "Linear retriever with mixed normalizers - inheritance test":
   - requires:
       cluster_features: [ "linear_retriever.top_level_normalizer" ]
@@ -1657,6 +1597,10 @@ setup:
   # Third retriever: L2 norm on [6.0] = 1.0, final = 1.0 * 2.0 = 2.0
   - match: { hits.hits.0._id: "3" }  # Highest score due to weight=2.0
   - close_to: { hits.hits.0._score: { value: 2.0, error: 0.001} }
+  - match: { hits.hits.1._id: "1" }  # Second score = 1.0
+  - close_to: { hits.hits.1._score: { value: 1.0, error: 0.001} }
+  - match: { hits.hits.2._id: "2" }  # Third score = 1.0
+  - close_to: { hits.hits.2._score: { value: 1.0, error: 0.001} }
 
 ---
 "Linear retriever with identity normalizer (no normalization)":

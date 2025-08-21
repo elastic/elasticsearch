@@ -75,7 +75,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
                 new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null)
             );
             weights[i] = randomFloat();
-            normalizers[i] = randomFrom(SCORE_NORMALIZERS);
+            normalizers[i] = randomScoreNormalizer();
         }
 
         return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);

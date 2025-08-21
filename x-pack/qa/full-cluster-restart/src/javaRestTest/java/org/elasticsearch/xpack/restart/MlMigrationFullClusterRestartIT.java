@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.is;
 
-public class MlMigrationFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
+public class MlMigrationFullClusterRestartIT extends MlFullClusterRestartTestCase {
 
     private static final String OLD_CLUSTER_OPEN_JOB_ID = "migration-old-cluster-open-job";
     private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "migration-old-cluster-started-datafeed";

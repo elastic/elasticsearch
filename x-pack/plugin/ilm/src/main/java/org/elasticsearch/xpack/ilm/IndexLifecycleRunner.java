@@ -236,7 +236,7 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof AsyncWaitStep) {
             logger.debug("[{}] running periodic policy with current-step [{}]", index, currentStep.getKey());
-            ((AsyncWaitStep) currentStep).evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            ((AsyncWaitStep) currentStep).evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {

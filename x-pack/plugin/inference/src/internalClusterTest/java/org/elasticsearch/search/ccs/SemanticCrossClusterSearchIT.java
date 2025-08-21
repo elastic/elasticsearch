@@ -131,7 +131,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
             assertNotNull(response);
-            assertEquals(0, response.getFailedShards());
+            assertFalse(response.getClusters().hasPartialResults());
             assertEquals(10, response.getHits().getHits().length);
         });
     }
@@ -149,7 +149,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
             assertNotNull(response);
-            assertEquals(0, response.getFailedShards());
+            assertFalse(response.getClusters().hasPartialResults());
             assertEquals(10, response.getHits().getHits().length);
         });
     }

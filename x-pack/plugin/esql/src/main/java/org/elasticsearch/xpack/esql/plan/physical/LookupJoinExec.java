@@ -39,7 +39,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
      * the right hand side by a {@link EsQueryExec}, and thus lose the information of which fields we'll get from the lookup index.
      */
     private final List<Attribute> addedFields;
-    private final Expression optionalRightHandFilters;
+    private final List<Expression> candidateRightHandFilters;
     private List<Attribute> lazyOutput;
 
     public LookupJoinExec(
@@ -49,13 +49,13 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         List<Attribute> leftFields,
         List<Attribute> rightFields,
         List<Attribute> addedFields,
-        Expression optionalRightHandFilters
+        List<Expression> candidateRightHandFilters
     ) {
         super(source, left, lookup);
         this.leftFields = leftFields;
         this.rightFields = rightFields;
         this.addedFields = addedFields;
-        this.optionalRightHandFilters = optionalRightHandFilters;
+        this.candidateRightHandFilters = (candidateRightHandFilters != null) ? candidateRightHandFilters : new ArrayList<>();
     }
 
     private LookupJoinExec(StreamInput in) throws IOException {
@@ -64,9 +64,9 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
-            this.optionalRightHandFilters = in.readOptionalNamedWriteable(Expression.class);
+            this.candidateRightHandFilters = in.readNamedWriteableCollectionAsList(Expression.class);
         } else {
-            this.optionalRightHandFilters = null; // For versions before the field was added, we default to null
+            this.candidateRightHandFilters = new ArrayList<>(); // For versions before the field was added, we default to null
         }
     }
 
@@ -77,14 +77,14 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
-            out.writeOptionalNamedWriteable(getOptionalRightHandFilters());
+            out.writeNamedWriteableCollection(getCandidateRightHandFilters());
         }
-        // as the optionalRightHandFilters are optional it is OK to not write them if the node does not support it
+        // as the candidateRightHandFilters are optional it is OK to not write them if the node does not support it
         // it will still work, but performance might be worse
     }
 
-    public Expression getOptionalRightHandFilters() {
-        return optionalRightHandFilters;
+    public List<Expression> getCandidateRightHandFilters() {
+        return candidateRightHandFilters;
     }
 
     @Override
@@ -155,12 +155,12 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public LookupJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
-        return new LookupJoinExec(source(), left, right, leftFields, rightFields, addedFields, optionalRightHandFilters);
+        return new LookupJoinExec(source(), left, right, leftFields, rightFields, addedFields, candidateRightHandFilters);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, LookupJoinExec::new, left(), right(), leftFields, rightFields, addedFields, optionalRightHandFilters);
+        return NodeInfo.create(this, LookupJoinExec::new, left(), right(), leftFields, rightFields, addedFields, candidateRightHandFilters);
     }
 
     @Override
@@ -178,11 +178,11 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         return leftFields.equals(other.leftFields)
             && rightFields.equals(other.rightFields)
             && addedFields.equals(other.addedFields)
-            && Objects.equals(optionalRightHandFilters, other.optionalRightHandFilters);
+            && Objects.equals(candidateRightHandFilters, other.candidateRightHandFilters);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields, optionalRightHandFilters);
+        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields, candidateRightHandFilters);
     }
 }

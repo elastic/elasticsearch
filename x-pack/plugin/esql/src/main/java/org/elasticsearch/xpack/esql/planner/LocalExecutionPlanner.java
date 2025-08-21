@@ -799,7 +799,7 @@ public class LocalExecutionPlanner {
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
-                join.getOptionalRightHandFilters()
+                join.getCandidateRightHandFilters()
             ),
             layout
         );

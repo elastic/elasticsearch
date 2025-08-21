@@ -64,7 +64,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     @Override
     public LogicalPlan surrogate() {
         // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Join(source(), left(), right(), config(), isRemote(), optionalRightHandFilters());
+        return new Join(source(), left(), right(), config(), isRemote(), candidateRightHandFilters());
     }
 
     @Override

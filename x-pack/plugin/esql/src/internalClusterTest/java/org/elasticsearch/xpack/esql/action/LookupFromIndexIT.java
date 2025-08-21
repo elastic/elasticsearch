@@ -229,16 +229,17 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private Expression buildGreaterThanFilter(long value) {
+    private List<Expression> buildGreaterThanFilter(long value) {
         FieldAttribute filterAttribute = new FieldAttribute(
             Source.EMPTY,
             "l",
             new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        return new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
+        Expression greaterThan = new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
+        return List.of(greaterThan);
     }
 
-    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, Expression filter) throws IOException {
+    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, List<Expression> filters) throws IOException {
         String[] fieldMappers = new String[keyTypes.size() * 2];
         for (int i = 0; i < keyTypes.size(); i++) {
             fieldMappers[2 * i] = "key" + i;
@@ -268,15 +269,16 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
         Predicate<Integer> filterPredicate = l -> true;
-        if (filter != null) {
-            if (filter instanceof GreaterThan gt
+        if (filters != null) {
+            if (filters.size() == 1
+                && filters.get(0) instanceof GreaterThan gt
                 && gt.left() instanceof FieldAttribute fa
                 && fa.name().equals("l")
                 && gt.right() instanceof Literal lit) {
                 long value = ((Number) lit.value()).longValue();
                 filterPredicate = l -> l > value;
             } else {
-                fail("Unsupported filter type in test baseline generation: " + filter);
+                fail("Unsupported filter type in test baseline generation: " + filters);
             }
         }
 
@@ -375,7 +377,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 "lookup",
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY,
-                filter
+                filters
             );
             DriverContext driverContext = driverContext();
             try (

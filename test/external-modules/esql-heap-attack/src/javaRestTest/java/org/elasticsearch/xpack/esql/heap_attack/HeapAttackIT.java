@@ -773,7 +773,11 @@ public class HeapAttackIT extends ESRestTestCase {
                 query.append("id").append(i);
             }
             if (lookupEntries != lookupEntriesToKeep) {
-                query.append(" | WHERE filter_key < ").append(lookupEntriesToKeep);
+                // add a filter to reduce the number of matches
+                // we add both a Lucine pushable filter and a non-pushable filter
+                // this is to make sure that even if there are non-pushable filters the pushable filters is still applied
+                query.append(" | WHERE ABS(filter_key) > -1 AND filter_key < ").append(lookupEntriesToKeep);
+
             }
             query.append(" | STATS COUNT(location) | LIMIT 100\"}");
             return responseAsMap(query(query.toString(), null));

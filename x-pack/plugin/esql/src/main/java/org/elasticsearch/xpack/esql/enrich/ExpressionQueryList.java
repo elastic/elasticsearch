@@ -42,39 +42,42 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     public ExpressionQueryList(
         List<QueryList> queryLists,
         SearchExecutionContext context,
-        Expression optionalFilter,
+        List<Expression> candidateRightHandFilters,
         ClusterService clusterService
     ) {
-        if (queryLists.size() < 2 && optionalFilter == null) {
+        if (queryLists.size() < 2 && (candidateRightHandFilters == null || candidateRightHandFilters.isEmpty())) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists");
         }
         this.queryLists = queryLists;
         this.context = context;
-        buildPrePostJoinFilter(optionalFilter, clusterService);
+        buildPrePostJoinFilter(candidateRightHandFilters, clusterService);
     }
 
-    private void buildPrePostJoinFilter(Expression optionalFilter, ClusterService clusterService) {
-        try {
-            // If the pre-join filter is a FilterExec, we can convert it to a QueryBuilder
-            // try to convert it to a QueryBuilder, if not possible apply it after the join
-            if (optionalFilter instanceof TranslationAware translationAware) {
-                LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
-                    SearchContextStats.from(List.of(context)),
-                    new EsqlFlags(clusterService.getClusterSettings())
-                );
-                if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
-                    preJoinFilters.add(
-                        translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder().toQuery(context)
+    private void buildPrePostJoinFilter(List<Expression> candidateRightHandFilters, ClusterService clusterService) {
+        if (candidateRightHandFilters == null || candidateRightHandFilters.isEmpty()) {
+            return; // no filters to apply
+        }
+        for (Expression filter : candidateRightHandFilters) {
+            try {
+                if (filter instanceof TranslationAware translationAware) {
+                    LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
+                        SearchContextStats.from(List.of(context)),
+                        new EsqlFlags(clusterService.getClusterSettings())
                     );
+                    if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
+                        preJoinFilters.add(
+                            translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder().toQuery(context)
+                        );
+                    }
                 }
+                // If the filter is not translatable we will not apply it for now
+                // as performance testing showed no performance improvement.
+                // We can revisit this in the future if needed, once we have more optimized workflow in place.
+                // The filter is optional, so it is OK to ignore it if it cannot be translated.
+            } catch (IOException e) {
+                // as the filter is optional an error in its application will be ignored
+                logger.error(() -> "Failed to translate optional pre-join filter: [" + filter + "]", e);
             }
-            // If the filter is not translatable we will not apply it for now
-            // as performance testing showed no performance improvement.
-            // We can revisit this in the future if needed, once we have more optimized workflow in place.
-            // The filter is optional, so it is OK to ignore it if it cannot be translated.
-        } catch (IOException e) {
-            // as the filter is optional an error in its application will be ignored
-            logger.error(() -> "Failed to translate optional pre-join filter: [" + optionalFilter + "]", e);
         }
     }
 

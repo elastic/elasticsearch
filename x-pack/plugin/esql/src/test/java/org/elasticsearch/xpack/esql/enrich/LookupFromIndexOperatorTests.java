@@ -188,17 +188,18 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         );
     }
 
-    private Expression buildLessThanFilter(int value) {
+    private List<Expression> buildLessThanFilter(int value) {
         FieldAttribute filterAttribute = new FieldAttribute(
             Source.EMPTY,
             "lint",
             new EsField("lint", DataType.INTEGER, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        return new LessThan(
+        Expression lessThan = new LessThan(
             new Source(new Location(0, 0), "lint < " + value),
             filterAttribute,
             new Literal(Source.EMPTY, value, DataType.INTEGER)
         );
+        return List.of(lessThan);
     }
 
     @Override

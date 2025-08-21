@@ -119,7 +119,7 @@ public class LocalMapper {
                     config.leftFields(),
                     config.rightFields(),
                     join.rightOutputFields(),
-                    join.optionalRightHandFilters()
+                    join.candidateRightHandFilters()
                 );
             }
         }

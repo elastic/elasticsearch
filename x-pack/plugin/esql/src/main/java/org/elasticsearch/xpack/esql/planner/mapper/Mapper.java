@@ -236,7 +236,7 @@ public class Mapper {
                     config.leftFields(),
                     config.rightFields(),
                     join.rightOutputFields(),
-                    join.optionalRightHandFilters()
+                    join.candidateRightHandFilters()
                 );
             }
         }

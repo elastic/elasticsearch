@@ -89,7 +89,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.extractFields,
             request.matchFields,
             request.source,
-            request.optionalFilter
+            request.candidateRightHandFilters
         );
     }
 
@@ -113,10 +113,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
             queryLists.add(q);
         }
-        if (queryLists.size() == 1 && request.optionalFilter == null) {
+        if (queryLists.size() == 1 && (request.candidateRightHandFilters == null || request.candidateRightHandFilters.isEmpty())) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists, context, request.optionalFilter, clusterService);
+        return new ExpressionQueryList(queryLists, context, request.candidateRightHandFilters, clusterService);
 
     }
 
@@ -132,7 +132,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public static class Request extends AbstractLookupService.Request {
         private final List<MatchConfig> matchFields;
-        private final Expression optionalFilter;
+        private final List<Expression> candidateRightHandFilters;
 
         Request(
             String sessionId,
@@ -142,17 +142,18 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source,
-            Expression optionalFilter
+            List<Expression> candidateRightHandFilters
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
-            this.optionalFilter = optionalFilter;
+            this.candidateRightHandFilters = candidateRightHandFilters != null ? candidateRightHandFilters : new ArrayList<>();
+            ;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
         private final List<MatchConfig> matchFields;
-        private final Expression optionalFilter;
+        private final List<Expression> candidateRightHandFilters;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -165,11 +166,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields,
             List<MatchConfig> matchFields,
             Source source,
-            Expression optionalFilter
+            List<Expression> candidateRightHandFilters
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
-            this.optionalFilter = optionalFilter;
+            this.candidateRightHandFilters = candidateRightHandFilters != null ? candidateRightHandFilters : new ArrayList<>();
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -215,9 +216,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
-            Expression optionalFilter = null;
+            List<Expression> candidateRightHandFilters = new ArrayList<>();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
-                optionalFilter = planIn.readOptionalNamedWriteable(Expression.class);
+                candidateRightHandFilters = planIn.readNamedWriteableCollectionAsList(Expression.class);
+            } else {
+                candidateRightHandFilters = new ArrayList<>();
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -228,7 +231,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 extractFields,
                 matchFields,
                 source,
-                optionalFilter
+                candidateRightHandFilters
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -272,9 +275,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 out.writeString(source.text());
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
-                planOut.writeOptionalNamedWriteable(optionalFilter);
+                planOut.writeNamedWriteableCollection(candidateRightHandFilters);
             }
-            // otherwise we will not send the optionalFilter, as it is optional that is OK
+            // otherwise we will not send the candidateRightHandFilters, as it is optional that is OK
         }
 
         @Override
@@ -282,7 +285,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             return " ,match_fields="
                 + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "))
                 + ", optional_filter="
-                + optionalFilter;
+                + candidateRightHandFilters.stream().map(Expression::toString).collect(Collectors.joining(", "));
         }
     }
 

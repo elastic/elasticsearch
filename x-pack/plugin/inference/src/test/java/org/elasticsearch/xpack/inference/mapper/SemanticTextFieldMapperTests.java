@@ -110,6 +110,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChun
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
@@ -1746,6 +1747,28 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             }
             sourceBuilder.field(InferenceMetadataFieldsMapper.NAME, inferenceMetadataFields);
         }
+    }
+
+    public void testOldIndexSemanticTextSparseVersionRaisesError() throws IOException {
+        final XContentBuilder fieldMapping = fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "another_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "sparse_embedding");
+            b.endObject();
+        });
+
+        MapperParsingException exception = assertThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping,
+                true,
+                IndexVersions.V_8_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
+            )
+        );
+        assertTrue(exception.getMessage().contains(ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR));
+        assertTrue(exception.getRootCause() instanceof IllegalArgumentException);
     }
 
     static String randomFieldName(int numLevel) {

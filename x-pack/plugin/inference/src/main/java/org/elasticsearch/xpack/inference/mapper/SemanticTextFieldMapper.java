@@ -101,6 +101,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
@@ -155,6 +156,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
     static final String INDEX_OPTIONS_FIELD = "index_options";
+    public static final String ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR = "Creating a [semantic_text] field with [sparse_vector] models"
+        + " is not supported on this index. Try using a [dense_vector] model or create a new index with version 8.11+.";
 
     public static final TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
@@ -1246,6 +1249,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     ) {
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
+                if (indexVersionCreated.before(NEW_SPARSE_VECTOR)) {
+                    throw new IllegalArgumentException(ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR);
+                }
                 SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,

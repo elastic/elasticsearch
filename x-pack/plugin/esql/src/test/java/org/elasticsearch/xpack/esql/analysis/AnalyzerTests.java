@@ -2444,6 +2444,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval scalar = v_magnitude([1, 2, 3])
             """), "mapping-dense_vector.json");
@@ -2459,6 +2461,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNoDenseVectorFailsForMagnitude() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
         var query = String.format(Locale.ROOT, "row a = 1 |  eval scalar = v_magnitude(0.342)");
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
         assertThat(
@@ -2468,7 +2472,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));

@@ -102,7 +102,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION;

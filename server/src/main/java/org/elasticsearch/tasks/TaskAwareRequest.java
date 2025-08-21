@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
@@ -49,6 +50,13 @@ public interface TaskAwareRequest {
      */
     default Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new Task(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
+    /**
+     * Returns the task object that should be used to keep track of the processing of the request, with an extra local node ID.
+     */
+    default Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return createTask(taskId.getId(), type, action, parentTaskId, headers);
     }
 
     /**

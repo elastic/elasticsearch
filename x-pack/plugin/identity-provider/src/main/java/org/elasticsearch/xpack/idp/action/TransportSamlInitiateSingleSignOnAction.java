@@ -13,9 +13,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -139,7 +139,7 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
                         identityProvider
                     );
                     try {
-                        final Response response = builder.build(user, authenticationState);
+                        final Response response = builder.build(user, authenticationState, request.getAttributes());
                         listener.onResponse(
                             new SamlInitiateSingleSignOnResponse(
                                 user.getServiceProvider().getEntityId(),

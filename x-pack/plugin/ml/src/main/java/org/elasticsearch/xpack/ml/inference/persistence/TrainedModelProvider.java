@@ -14,6 +14,8 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -28,6 +30,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -43,6 +46,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -105,6 +109,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -1008,7 +1013,7 @@ public class TrainedModelProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
-                long totalHitCount = response.getHits().getTotalHits().value + foundResourceIds.size();
+                long totalHitCount = response.getHits().getTotalHits().value() + foundResourceIds.size();
                 Set<String> foundFromDocs = new HashSet<>();
                 for (SearchHit hit : response.getHits().getHits()) {
                     Map<String, Object> docSource = hit.getSourceAsMap();
@@ -1053,63 +1058,98 @@ public class TrainedModelProvider {
     }
 
     public void getInferenceStats(String[] modelIds, @Nullable TaskId parentTaskId, ActionListener<List<InferenceStats>> listener) {
-        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        Arrays.stream(modelIds).map(TrainedModelProvider::buildStatsSearchRequest).forEach(multiSearchRequest::add);
-        if (multiSearchRequest.requests().isEmpty()) {
-            listener.onResponse(Collections.emptyList());
-            return;
-        }
-        if (parentTaskId != null) {
-            multiSearchRequest.setParentTask(parentTaskId);
-        }
-        executeAsyncWithOrigin(
-            client.threadPool().getThreadContext(),
-            ML_ORIGIN,
-            multiSearchRequest,
-            ActionListener.<MultiSearchResponse>wrap(responses -> {
-                List<InferenceStats> allStats = new ArrayList<>(modelIds.length);
-                int modelIndex = 0;
-                assert responses.getResponses().length == modelIds.length : "mismatch between search response size and models requested";
-                for (MultiSearchResponse.Item response : responses.getResponses()) {
-                    if (response.isFailure()) {
-                        if (ExceptionsHelper.unwrapCause(response.getFailure()) instanceof ResourceNotFoundException) {
-                            modelIndex++;
-                            continue;
-                        }
+
+        SubscribableListener.<ClusterHealthResponse>newForked((delegate) -> {
+            // first wait for the index to be available
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                ML_ORIGIN,
+                new ClusterHealthRequest(new TimeValue(2, TimeUnit.SECONDS), MlStatsIndex.indexPattern()).waitForYellowStatus(),
+                delegate,
+                client.admin().cluster()::health
+            );
+        })
+            .<List<InferenceStats>>andThen(
+                client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                client.threadPool().getThreadContext(),
+                (delegate, clusterHealthResponse) -> {
+                    if (clusterHealthResponse.isTimedOut()) {
                         logger.error(
-                            () -> "[" + Strings.arrayToCommaDelimitedString(modelIds) + "] search failed for models",
-                            response.getFailure()
+                            "getInferenceStats Timed out waiting for index [{}] to be available, "
+                                + "this will probably cause the request to fail",
+                            MlStatsIndex.indexPattern()
                         );
-                        listener.onFailure(
-                            ExceptionsHelper.serverError(
-                                "Searching for stats for models [{}] failed",
-                                response.getFailure(),
-                                Strings.arrayToCommaDelimitedString(modelIds)
-                            )
-                        );
+                    }
+
+                    MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+                    Arrays.stream(modelIds).map(TrainedModelProvider::buildStatsSearchRequest).forEach(multiSearchRequest::add);
+                    if (multiSearchRequest.requests().isEmpty()) {
+                        delegate.onResponse(Collections.emptyList());
                         return;
                     }
-                    try {
-                        InferenceStats inferenceStats = handleMultiNodeStatsResponse(response.getResponse(), modelIds[modelIndex++]);
-                        if (inferenceStats != null) {
-                            allStats.add(inferenceStats);
-                        }
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                        return;
+                    if (parentTaskId != null) {
+                        multiSearchRequest.setParentTask(parentTaskId);
                     }
+                    executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        ML_ORIGIN,
+                        multiSearchRequest,
+                        ActionListener.<MultiSearchResponse>wrap(responses -> {
+                            List<InferenceStats> allStats = new ArrayList<>(modelIds.length);
+                            int modelIndex = 0;
+                            assert responses.getResponses().length == modelIds.length
+                                : "mismatch between search response size and models requested";
+                            for (MultiSearchResponse.Item response : responses.getResponses()) {
+                                if (response.isFailure()) {
+                                    if (ExceptionsHelper.unwrapCause(response.getFailure()) instanceof ResourceNotFoundException) {
+                                        modelIndex++;
+                                        continue;
+                                    }
+                                    logger.error(
+                                        () -> "[" + Strings.arrayToCommaDelimitedString(modelIds) + "] search failed for models",
+                                        response.getFailure()
+                                    );
+                                    delegate.onFailure(
+                                        ExceptionsHelper.serverError(
+                                            "Searching for stats for models [{}] failed",
+                                            response.getFailure(),
+                                            Strings.arrayToCommaDelimitedString(modelIds)
+                                        )
+                                    );
+                                    return;
+                                }
+                                try {
+                                    InferenceStats inferenceStats = handleMultiNodeStatsResponse(
+                                        response.getResponse(),
+                                        modelIds[modelIndex++]
+                                    );
+                                    if (inferenceStats != null) {
+                                        allStats.add(inferenceStats);
+                                    }
+                                } catch (Exception e) {
+                                    delegate.onFailure(e);
+                                    return;
+                                }
+                            }
+                            delegate.onResponse(allStats);
+                        }, e -> {
+                            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                            if (unwrapped instanceof ResourceNotFoundException) {
+                                delegate.onResponse(Collections.emptyList());
+                                return;
+                            }
+                            delegate.onFailure((Exception) unwrapped);
+                        }),
+                        client::multiSearch
+                    );
+
                 }
-                listener.onResponse(allStats);
-            }, e -> {
-                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-                if (unwrapped instanceof ResourceNotFoundException) {
-                    listener.onResponse(Collections.emptyList());
-                    return;
-                }
-                listener.onFailure((Exception) unwrapped);
-            }),
-            client::multiSearch
-        );
+            )
+            .addListener(
+                listener,
+                client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                client.threadPool().getThreadContext()
+            );
     }
 
     private static SearchRequest buildStatsSearchRequest(String modelId) {

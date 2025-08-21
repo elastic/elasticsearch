@@ -225,6 +225,21 @@
                   "scope" : {
                     "type" : "object",
                     "enabled" : false
+                  },
+                  "params": {
+                    "type": "object",
+                    "enabled": false,
+                    "properties": {
+                      "force_time_shift": {
+                        "type": "object",
+                        "enabled": false,
+                        "properties": {
+                          "time_shift_amount": {
+                            "type": "long"
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               },

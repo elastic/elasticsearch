@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -93,6 +94,40 @@ public class MapXContentParserTests extends ESTestCase {
             ) {
                 assertEquals(copied.map(), Map.of("a", "b"));
             }
+        }
+    }
+
+    public void testParseBooleanStringValue() throws IOException {
+        try (
+            XContentParser parser = new MapXContentParser(
+                xContentRegistry(),
+                LoggingDeprecationHandler.INSTANCE,
+                Map.of("bool_key", "true"),
+                randomFrom(XContentType.values())
+            )
+        ) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+            assertTrue(parser.isBooleanValue());
+            assertTrue(parser.booleanValue());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        }
+
+        try (
+            XContentParser parser = new MapXContentParser(
+                xContentRegistry(),
+                LoggingDeprecationHandler.INSTANCE,
+                Map.of("bool_key", "false"),
+                randomFrom(XContentType.values())
+            )
+        ) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+            assertTrue(parser.isBooleanValue());
+            assertFalse(parser.booleanValue());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         }
     }
 

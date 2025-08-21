@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
@@ -24,18 +26,23 @@ import org.gradle.api.tasks.Optional;
 public abstract class ReplaceByKey implements RestTestTransformByParentObject {
     private final String requiredChildKey;
     private final String newChildKey;
-    private final JsonNode replacementNode;
+    private final SerializableJsonNode replacementNode;
     private final String testName;
 
-    public ReplaceByKey(String requiredChildKey, JsonNode replacementNode) {
+    public ReplaceByKey(String requiredChildKey, SerializableJsonNode<JsonNode> replacementNode) {
         this(requiredChildKey, replacementNode, null);
     }
 
-    public ReplaceByKey(String requiredChildKey, JsonNode replacementNode, String testName) {
+    public ReplaceByKey(String requiredChildKey, SerializableJsonNode<JsonNode> replacementNode, String testName) {
         this(requiredChildKey, requiredChildKey, replacementNode, testName);
     }
 
-    public ReplaceByKey(String requiredChildKey, String newChildKey, JsonNode replacementNode, String testName) {
+    public ReplaceByKey(
+        String requiredChildKey,
+        String newChildKey,
+        SerializableJsonNode<? extends JsonNode> replacementNode,
+        String testName
+    ) {
         this.requiredChildKey = requiredChildKey;
         this.newChildKey = newChildKey;
         this.replacementNode = replacementNode;
@@ -59,7 +66,7 @@ public abstract class ReplaceByKey implements RestTestTransformByParentObject {
 
     @Input
     @Optional
-    public JsonNode getReplacementNode() {
+    public SerializableJsonNode<? extends JsonNode> getReplacementNode() {
         return replacementNode;
     }
 
@@ -68,4 +75,10 @@ public abstract class ReplaceByKey implements RestTestTransformByParentObject {
     public String getTestName() {
         return testName;
     }
+
+    protected void updateReplacement(ObjectNode matchNode) {
+        matchNode.remove(requiredChildKey());
+        matchNode.set(getNewChildKey(), replacementNode.toJsonNode());
+    }
+
 }

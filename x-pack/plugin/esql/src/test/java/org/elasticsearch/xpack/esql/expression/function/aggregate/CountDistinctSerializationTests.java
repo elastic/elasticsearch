@@ -34,9 +34,4 @@ public class CountDistinctSerializationTests extends AbstractExpressionSerializa
         }
         return new CountDistinct(source, field, precision);
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

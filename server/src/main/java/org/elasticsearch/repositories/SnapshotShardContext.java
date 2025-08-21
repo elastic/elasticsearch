@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -11,6 +12,7 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -66,7 +68,8 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(commitRef.closingBefore(listener));
+        super(new SubscribableListener<>());
+        addListener(commitRef.closingBefore(listener));
         this.store = store;
         this.mapperService = mapperService;
         this.snapshotId = snapshotId;
@@ -129,5 +132,9 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
             assert false : "commit ref closed early in state " + snapshotStatus;
             throw new IndexShardSnapshotFailedException(store.shardId(), "Store got closed concurrently");
         }
+    }
+
+    public void addListener(ActionListener<ShardSnapshotResult> listener) {
+        ((SubscribableListener<ShardSnapshotResult>) this.delegate).addListener(listener);
     }
 }

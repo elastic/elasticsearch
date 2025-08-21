@@ -65,6 +65,11 @@
         "type":"boolean",
         "description":"Specify whether wildcard and prefix queries should be analyzed (default: false)"
       },
+      "ccs_minimize_roundtrips":{
+        "type":"boolean",
+        "default":false,
+        "description":"When doing a cross-cluster search, setting it to true may improve overall search latency, particularly when searching clusters with a large number of shards. However, when set to true, the progress of searches on the remote clusters will not be received until the search finishes on all clusters."
+      },
       "default_operator":{
         "type":"enum",
         "options":[
@@ -125,6 +130,11 @@
       "preference":{
         "type":"string",
         "description":"Specify the node or shard the operation should be performed on (default: random)"
+      },
+      "rest_total_hits_as_int":{
+        "type":"boolean",
+        "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+        "default":false
       },
       "q":{
         "type":"string",

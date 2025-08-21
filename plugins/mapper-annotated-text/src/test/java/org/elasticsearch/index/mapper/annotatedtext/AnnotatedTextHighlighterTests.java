@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.annotatedtext;
@@ -38,11 +39,13 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Locale;
@@ -84,7 +87,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         int noMatchSize,
         String[] expectedPassages,
         int maxAnalyzedOffset,
-        Integer queryMaxAnalyzedOffset
+        Integer queryMaxAnalyzedOffsetIn
     ) throws Exception {
 
         try (Directory dir = newDirectory()) {
@@ -115,8 +118,9 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 for (int i = 0; i < markedUpInputs.length; i++) {
                     annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
                 }
+                QueryMaxAnalyzedOffset queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(queryMaxAnalyzedOffsetIn, maxAnalyzedOffset);
                 if (queryMaxAnalyzedOffset != null) {
-                    wrapperAnalyzer = new LimitTokenOffsetAnalyzer(wrapperAnalyzer, queryMaxAnalyzedOffset);
+                    wrapperAnalyzer = new LimitTokenOffsetAnalyzer(wrapperAnalyzer, queryMaxAnalyzedOffset.getNotNull());
                 }
                 AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
                 hiliteAnalyzer.setAnnotations(annotations);
@@ -129,7 +133,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 }
 
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-                assertThat(topDocs.totalHits.value, equalTo(1L));
+                assertThat(topDocs.totalHits.value(), equalTo(1L));
                 String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
                 UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, hiliteAnalyzer);
                 builder.withBreakIterator(() -> breakIterator);
@@ -164,7 +168,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         // on marked-up
         // content using an "annotated_text" type field.
         String url = "https://en.wikipedia.org/wiki/Key_Word_in_Context";
-        String encodedUrl = URLEncoder.encode(url, "UTF-8");
+        String encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8);
         String annotatedWord = "[highlighting](" + encodedUrl + ")";
         String highlightedAnnotatedWord = "[highlighting]("
             + AnnotatedPassageFormatter.SEARCH_HIT_TYPE
@@ -308,6 +312,19 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 + "To avoid this error, set the query parameter [max_analyzed_offset] to a value less than index setting [20] and this "
                 + "will tolerate long field values by truncating them.",
             e.getMessage()
+        );
+
+        // Same as before, but force using index maxOffset (20) as queryMaxOffset by passing -1.
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "[Long Text exceeds](Long+Text+exceeds) MAX analyzed offset)" },
+            query,
+            Locale.ROOT,
+            breakIterator,
+            0,
+            new String[] { "Long Text [exceeds](_hit_term=exceeds) MAX analyzed offset)" },
+            20,
+            -1
         );
 
         assertHighlightOneDoc(

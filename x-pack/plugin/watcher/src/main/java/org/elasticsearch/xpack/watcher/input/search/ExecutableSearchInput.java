@@ -91,7 +91,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         try {
 
             if (logger.isDebugEnabled()) {
-                logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
+                logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value());
             }
 
             final Payload payload;

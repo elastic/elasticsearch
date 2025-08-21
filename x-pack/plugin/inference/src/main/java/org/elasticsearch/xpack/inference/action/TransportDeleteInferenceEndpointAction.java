@@ -9,8 +9,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -20,11 +18,14 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,8 +47,8 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
-    private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceEndpointAction.class);
     private final Executor executor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteInferenceEndpointAction(
@@ -55,9 +56,9 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         ModelRegistry modelRegistry,
-        InferenceServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteInferenceEndpointAction.NAME,
@@ -66,13 +67,13 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteInferenceEndpointAction.Request::new,
-            indexNameExpressionResolver,
             DeleteInferenceEndpointAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.executor = threadPool.executor(UTILITY_THREAD_POOL_NAME);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -91,7 +92,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
-        SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
+        SubscribableListener.<UnparsedModel>newForked(modelConfigListener -> {
             // Get the model from the registry
 
             modelRegistry.getModel(request.getInferenceEndpointId(), modelConfigListener);
@@ -112,12 +113,54 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 if (errorString != null) {
                     listener.onFailure(new ElasticsearchStatusException(errorString, RestStatus.CONFLICT));
                     return;
+                } else if (isInferenceIdReserved(request.getInferenceEndpointId())) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            Strings.format(
+                                "[%s] is a reserved inference endpoint. Use the force=true query parameter "
+                                    + "to delete the inference endpoint.",
+                                request.getInferenceEndpointId()
+                            ),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
                 }
             }
 
             var service = serviceRegistry.getService(unparsedModel.service());
+            Model model;
             if (service.isPresent()) {
-                service.get().stop(request.getInferenceEndpointId(), listener);
+                try {
+                    model = service.get()
+                        .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+                } catch (Exception e) {
+                    if (request.isForceDelete()) {
+                        listener.onResponse(true);
+                        return;
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Strings.format(
+                                    "Failed to parse model configuration for inference endpoint [%s]",
+                                    request.getInferenceEndpointId()
+                                ),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                        return;
+                    }
+                }
+                service.get().stop(model, listener.delegateResponse((l, e) -> {
+                    if (request.isForceDelete()) {
+                        l.onResponse(true);
+                    } else {
+                        l.onFailure(e);
+                    }
+                }));
+            } else if (request.isForceDelete()) {
+                listener.onResponse(true);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -180,6 +223,10 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         return null;
     }
 
+    private boolean isInferenceIdReserved(String inferenceEndpointId) {
+        return modelRegistry.containsDefaultConfigId(inferenceEndpointId);
+    }
+
     private static String buildErrorString(String inferenceEndpointId, Set<String> pipelines, Set<String> indexes) {
         StringBuilder errorString = new StringBuilder();
 
@@ -207,21 +254,16 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     }
 
     private static Set<String> endpointIsReferencedInIndex(final ClusterState state, final String inferenceEndpointId) {
-        Set<String> indexes = extractIndexesReferencingInferenceEndpoints(state.getMetadata(), Set.of(inferenceEndpointId));
-        return indexes;
+        return extractIndexesReferencingInferenceEndpoints(state.getMetadata(), Set.of(inferenceEndpointId));
     }
 
     private static Set<String> endpointIsReferencedInPipelines(final ClusterState state, final String inferenceEndpointId) {
-        Set<String> modelIdsReferencedByPipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(
-            state,
-            Set.of(inferenceEndpointId)
-        );
-        return modelIdsReferencedByPipelines;
+        return InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(inferenceEndpointId));
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteInferenceEndpointAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.WRITE);
     }
 
 }

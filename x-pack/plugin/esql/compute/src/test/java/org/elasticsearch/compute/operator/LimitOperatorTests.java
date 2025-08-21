@@ -7,23 +7,27 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected LimitOperator.Factory simple() {
+    protected LimitOperator.Factory simple(SimpleOptions options) {
         return new LimitOperator.Factory(100);
     }
 
@@ -51,7 +55,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testStatus() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        LimitOperator op = simple().get(driverContext());
+        LimitOperator op = simple(SimpleOptions.DEFAULT).get(driverContext());
 
         LimitOperator.Status status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -73,7 +77,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testNeedInput() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (LimitOperator op = simple().get(driverContext())) {
+        try (LimitOperator op = simple(SimpleOptions.DEFAULT).get(driverContext())) {
             assertTrue(op.needsInput());
             Page p = new Page(blockFactory.newConstantNullBlock(10));
             op.addInput(p);
@@ -125,21 +129,67 @@ public class LimitOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testEarlyTermination() {
+        int numDrivers = between(1, 4);
+        final List<Driver> drivers = new ArrayList<>();
+        final int limit = between(1, 10_000);
+        final LimitOperator.Factory limitFactory = new LimitOperator.Factory(limit);
+        final AtomicInteger receivedRows = new AtomicInteger();
+        for (int i = 0; i < numDrivers; i++) {
+            DriverContext driverContext = driverContext();
+            SourceOperator sourceOperator = new SourceOperator() {
+                boolean finished = false;
+
+                @Override
+                public void finish() {
+                    finished = true;
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return finished;
+                }
+
+                @Override
+                public Page getOutput() {
+                    return new Page(randomBlock(driverContext.blockFactory(), between(1, 100)));
+                }
+
+                @Override
+                public void close() {
+
+                }
+            };
+            SinkOperator sinkOperator = new PageConsumerOperator(p -> {
+                receivedRows.addAndGet(p.getPositionCount());
+                p.releaseBlocks();
+            });
+            drivers.add(
+                new Driver(
+                    "unset",
+                    "test",
+                    "cluster",
+                    "node",
+                    0,
+                    0,
+                    driverContext,
+                    () -> "test",
+                    sourceOperator,
+                    List.of(limitFactory.get(driverContext)),
+                    sinkOperator,
+                    TimeValue.timeValueMillis(1),
+                    () -> {}
+                )
+            );
+        }
+        runDriver(drivers);
+        assertThat(receivedRows.get(), equalTo(limit));
+    }
+
     Block randomBlock(BlockFactory blockFactory, int size) {
         if (randomBoolean()) {
             return blockFactory.newConstantNullBlock(size);
         }
-        return BasicBlockTests.randomBlock(blockFactory, randomElement(), size, false, 1, 1, 0, 0).block();
-    }
-
-    static ElementType randomElement() {
-        List<ElementType> l = new ArrayList<>();
-        for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
-                continue;
-            }
-            l.add(e);
-        }
-        return randomFrom(l);
+        return RandomBlock.randomBlock(blockFactory, randomElementType(), size, false, 1, 1, 0, 0).block();
     }
 }

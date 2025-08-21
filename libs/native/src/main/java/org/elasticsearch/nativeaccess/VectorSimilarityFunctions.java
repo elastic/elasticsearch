@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess;
@@ -39,4 +40,34 @@ public interface VectorSimilarityFunctions {
      * vector data bytes. The third argument is the length of the vector data.
      */
     MethodHandle squareDistanceHandle7u();
+
+    /**
+     * Produces a method handle returning the cosine of float32 vectors.
+     *
+     * <p> The type of the method handle will have {@code float} as return type, The type of
+     * its first and second arguments will be {@code MemorySegment}, whose contents is the
+     * vector data floats. The third argument is the length of the vector data - number of
+     * 4-byte float32 elements.
+     */
+    MethodHandle cosineHandleFloat32();
+
+    /**
+     * Produces a method handle returning the dot product of float32 vectors.
+     *
+     * <p> The type of the method handle will have {@code float} as return type, The type of
+     * its first and second arguments will be {@code MemorySegment}, whose contents is the
+     * vector data floats. The third argument is the length of the vector data - number of
+     * 4-byte float32 elements.
+     */
+    MethodHandle dotProductHandleFloat32();
+
+    /**
+     * Produces a method handle returning the square distance of float32 vectors.
+     *
+     * <p> The type of the method handle will have {@code float} as return type, The type of
+     * its first and second arguments will be {@code MemorySegment}, whose contents is the
+     * vector data floats. The third argument is the length of the vector data - number of
+     * 4-byte float32 elements.
+     */
+    MethodHandle squareDistanceHandleFloat32();
 }

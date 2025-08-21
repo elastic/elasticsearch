@@ -131,7 +131,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
 
     public void testTotalDocsSmallerThanSize() {
         float[] queryVector = { 0.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, null, null);
 
         assertResponse(
             client().prepareSearch("tiny_index")
@@ -164,7 +164,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
 
     public void testBM25AndKnn() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(101, 1))
@@ -206,8 +206,8 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
     public void testMultipleOnlyKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(51, 1))
@@ -217,7 +217,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
                 .addFetchField("text0")
                 .setSize(19),
             response -> {
-                assertEquals(51, response.getHits().getTotalHits().value);
+                assertEquals(51, response.getHits().getTotalHits().value());
                 assertEquals(19, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -259,8 +259,8 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
     public void testBM25AndMultipleKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(51, 1))
@@ -332,7 +332,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
 
     public void testBM25AndKnnWithBucketAggregation() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(101, 1))
@@ -356,7 +356,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
                 .setSize(11)
                 .addAggregation(AggregationBuilders.terms("sums").field("int")),
             response -> {
-                assertEquals(101, response.getHits().getTotalHits().value);
+                assertEquals(101, response.getHits().getTotalHits().value());
                 assertEquals(11, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -390,8 +390,8 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
     public void testMultipleOnlyKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(51, 1))
@@ -459,8 +459,8 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
     public void testBM25AndMultipleKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(51, 1))
@@ -486,7 +486,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
                 .addAggregation(AggregationBuilders.terms("sums").field("int"))
                 .setStats("search"),
             response -> {
-                assertEquals(51, response.getHits().getTotalHits().value);
+                assertEquals(51, response.getHits().getTotalHits().value());
                 assertEquals(19, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -709,7 +709,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
 
     public void testMultiBM25AndSingleKnn() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(101, 1))
@@ -768,7 +768,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
 
     public void testMultiBM25AndSingleKnnWithAggregation() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(101, 1))
@@ -844,8 +844,8 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
     public void testMultiBM25AndMultipleKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(101, 1))
@@ -907,8 +907,8 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
     public void testMultiBM25AndMultipleKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null, null);
         assertResponse(
             client().prepareSearch("nrd_index")
                 .setRankBuilder(new RRFRankBuilder(101, 1))

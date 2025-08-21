@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -24,6 +25,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Locale;
@@ -84,37 +86,49 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     private void assertDateMathEquals(String text, String expected, String pattern, Locale locale) {
-        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern), locale);
-        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time").withLocale(locale).parse(expected))
-            .toInstant()
-            .toEpochMilli();
+        Instant gotInstant = dateMathToInstant(text, DateFormatter.forPattern(pattern), locale).truncatedTo(ChronoUnit.MILLIS);
+        Instant expectedInstant = DateFormatters.from(
+            DateFormatter.forPattern("strict_date_optional_time").withLocale(locale).parse(expected)
+        ).toInstant().truncatedTo(ChronoUnit.MILLIS);
 
-        assertThat(gotMillisJava, equalTo(expectedMillis));
+        assertThat(gotInstant, equalTo(expectedInstant));
     }
 
     public void testWeekBasedDates() {
-        // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
+        // the years and weeks this outputs depends on where the first day of the first week is for each year
         DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");
 
-        // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
         assertThat(
-            DateFormatters.from(dateFormatter.parse("2016-01")),
+            DateFormatters.from(dateFormatter.parse("2016-02")),
+            equalTo(ZonedDateTime.of(2016, 01, 03, 0, 0, 0, 0, ZoneOffset.UTC))
+        );
+
+        assertThat(
+            DateFormatters.from(dateFormatter.parse("2015-02")),
+            equalTo(ZonedDateTime.of(2015, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC))
+        );
+
+        dateFormatter = DateFormatters.forPattern("YYYY");
+
+        assertThat(DateFormatters.from(dateFormatter.parse("2016")), equalTo(ZonedDateTime.of(2015, 12, 27, 0, 0, 0, 0, ZoneOffset.UTC)));
+        assertThat(DateFormatters.from(dateFormatter.parse("2015")), equalTo(ZonedDateTime.of(2014, 12, 28, 0, 0, 0, 0, ZoneOffset.UTC)));
+
+        // the built-in formats use different week definitions (ISO instead of locale)
+        dateFormatter = DateFormatters.forPattern("weekyear_week");
+
+        assertThat(
+            DateFormatters.from(dateFormatter.parse("2016-W01")),
             equalTo(ZonedDateTime.of(2016, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC))
         );
 
-        // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
         assertThat(
-            DateFormatters.from(dateFormatter.parse("2015-01")),
+            DateFormatters.from(dateFormatter.parse("2015-W01")),
             equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC))
         );
 
-        // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
-        dateFormatter = DateFormatters.forPattern("YYYY");
+        dateFormatter = DateFormatters.forPattern("weekyear");
 
-        // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
         assertThat(DateFormatters.from(dateFormatter.parse("2016")), equalTo(ZonedDateTime.of(2016, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC)));
-
-        // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
         assertThat(DateFormatters.from(dateFormatter.parse("2015")), equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC)));
     }
 
@@ -246,6 +260,32 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(formatter.format(instant), is("-0.12345"));
             assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
+        {
+            Instant instant = Instant.from(formatter.parse("12345."));
+            assertThat(instant.getEpochSecond(), is(12L));
+            assertThat(instant.getNano(), is(345_000_000));
+            assertThat(formatter.format(instant), is("12345"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("12345.0."));
+            assertThat(e.getMessage(), is("failed to parse date field [12345.0.] with format [epoch_millis]"));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-86400000"));
+            assertThat(instant.getEpochSecond(), is(-86400L));
+            assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("-86400000"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-86400000.999999"));
+            assertThat(instant.getEpochSecond(), is(-86401L));
+            assertThat(instant.getNano(), is(999000001));
+            assertThat(formatter.format(instant), is("-86400000.999999"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+
     }
 
     /**
@@ -599,8 +639,8 @@ public class DateFormattersTests extends ESTestCase {
         assertDateMathEquals("1500", "1500-01-01T23:59:59.999", "uuuu");
         assertDateMathEquals("2022", "2022-01-01T23:59:59.999", "uuuu");
         assertDateMathEquals("2022", "2022-01-01T23:59:59.999", "yyyy");
-        // cannot reliably default week based years due to locale changing. See JavaDateFormatter javadocs
-        assertDateMathEquals("2022", "2022-01-03T23:59:59.999", "YYYY", Locale.ROOT);
+        // weird locales can change this to epoch-based
+        assertDateMathEquals("2022", "2021-12-26T23:59:59.999", "YYYY", Locale.ROOT);
     }
 
     private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
@@ -695,6 +735,23 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(javaFormatted, equalTo("-292275055-05-16T16:47:04.192Z"));
     }
 
+    public void testMinNanos() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145Z"));
+
+        // Note - since this is a negative value, the nanoseconds are being subtracted, which is why we get this value.
+        javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("1677-09-21T00:12:43.145224192Z"));
+    }
+
+    public void testMaxNanos() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatNanos(Long.MAX_VALUE);
+        assertThat(javaFormatted, equalTo("2262-04-11T23:47:16.854Z"));
+
+        javaFormatted = DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(Long.MAX_VALUE);
+        assertThat(javaFormatted, equalTo("2262-04-11T23:47:16.854775807Z"));
+    }
+
     public void testYearParsing() {
         // this one is considered a year
         assertParses("1234", "strict_date_optional_time||epoch_millis");
@@ -771,30 +828,28 @@ public class DateFormattersTests extends ESTestCase {
         String text = "2014-06-06T12:01:02.123";
         ElasticsearchParseException e1 = expectThrows(
             ElasticsearchParseException.class,
-            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern), randomLocale(random()))
+            () -> dateMathToInstant(text, DateFormatter.forPattern(pattern), randomLocale(random()))
         );
         assertThat(e1.getMessage(), containsString(pattern));
         assertThat(e1.getMessage(), containsString(text));
     }
 
-    private long dateMathToMillis(String text, DateFormatter dateFormatter, Locale locale) {
+    private Instant dateMathToInstant(String text, DateFormatter dateFormatter, Locale locale) {
         DateFormatter javaFormatter = dateFormatter.withLocale(locale);
         DateMathParser javaDateMath = javaFormatter.toDateMathParser();
-        return javaDateMath.parse(text, () -> 0, true, (ZoneId) null).toEpochMilli();
+        return javaDateMath.parse(text, () -> 0, true, null);
     }
 
     public void testDayOfWeek() {
-        // 7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
         ZonedDateTime now = LocalDateTime.of(2009, 11, 15, 1, 32, 8, 328402).atZone(ZoneOffset.UTC); // Sunday
         DateFormatter javaFormatter = DateFormatter.forPattern("8e").withZone(ZoneOffset.UTC);
-        assertThat(javaFormatter.format(now), equalTo("7"));
+        assertThat(javaFormatter.format(now), equalTo("1"));
     }
 
     public void testStartOfWeek() {
-        // 2019-21 (ok joda) vs 2019-22 (java by default) but 2019-21 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
         ZonedDateTime now = LocalDateTime.of(2019, 5, 26, 1, 32, 8, 328402).atZone(ZoneOffset.UTC);
         DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww").withZone(ZoneOffset.UTC);
-        assertThat(javaFormatter.format(now), equalTo("2019-21"));
+        assertThat(javaFormatter.format(now), equalTo("2019-22"));
     }
 
     // these parsers should allow both ',' and '.' as a decimal point
@@ -863,11 +918,11 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testCustomLocales() {
         // also ensure that locale based dates are the same
-        DateFormatter formatter = DateFormatter.forPattern("E, d MMM yyyy HH:mm:ss Z").withLocale(LocaleUtils.parse("de"));
-        assertParses("Di, 05 Dez 2000 02:55:00 -0800", formatter);
-        assertParses("Mi, 06 Dez 2000 02:55:00 -0800", formatter);
-        assertParses("Do, 07 Dez 2000 00:00:00 -0800", formatter);
-        assertParses("Fr, 08 Dez 2000 00:00:00 -0800", formatter);
+        DateFormatter formatter = DateFormatter.forPattern("E, d MMM yyyy HH:mm:ss Z").withLocale(LocaleUtils.parse("fr"));
+        assertParses("mar., 5 déc. 2000 02:55:00 -0800", formatter);
+        assertParses("mer., 6 déc. 2000 02:55:00 -0800", formatter);
+        assertParses("jeu., 7 déc. 2000 00:00:00 -0800", formatter);
+        assertParses("ven., 8 déc. 2000 00:00:00 -0800", formatter);
     }
 
     public void testFormatsValidParsing() {
@@ -1215,16 +1270,16 @@ public class DateFormattersTests extends ESTestCase {
         assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_millis", 19);
         assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_fraction", 19);
         assertParses("2018-12-31", "strict_date_optional_time");
-        assertParseException("2018-12-1", "strict_date_optional_time", 7);
-        assertParseException("2018-1-31", "strict_date_optional_time", 4);
+        assertParseException("2018-12-1", "strict_date_optional_time", 8);
+        assertParseException("2018-1-31", "strict_date_optional_time", 5);
         assertParseException("10000-01-31", "strict_date_optional_time", 4);
         assertParses("2010-01-05T02:00", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30Z", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30+0100", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30+01:00", "strict_date_optional_time");
-        assertParseException("2018-12-31T10:15:3", "strict_date_optional_time", 16);
-        assertParseException("2018-12-31T10:5:30", "strict_date_optional_time", 13);
+        assertParseException("2018-12-31T10:15:3", "strict_date_optional_time", 17);
+        assertParseException("2018-12-31T10:5:30", "strict_date_optional_time", 14);
         assertParseException("2018-12-31T9:15:30", "strict_date_optional_time", 11);
         assertParses("2015-01-04T00:00Z", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30.1Z", "strict_date_time");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -61,11 +62,11 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     private void assertKeystoreUpgrade(String file, int version, @Nullable String password) throws Exception {
-        final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
+        final Path keystore = KeyStoreWrapper.keystorePath(env.configDir());
         try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(file); OutputStream os = Files.newOutputStream(keystore)) {
             is.transferTo(os);
         }
-        try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configFile())) {
+        try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configDir())) {
             assertNotNull(beforeUpgrade);
             assertThat(beforeUpgrade.getFormatVersion(), equalTo(version));
         }
@@ -76,7 +77,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute();
         terminal.reset();
 
-        try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
+        try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configDir())) {
             assertNotNull(afterUpgrade);
             assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.CURRENT_VERSION));
             afterUpgrade.decrypt(password != null ? password.toCharArray() : new char[0]);
@@ -86,6 +87,6 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testKeystoreDoesNotExist() {
         final UserException e = expectThrows(UserException.class, this::execute);
-        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
+        assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configDir()) + "]")));
     }
 }

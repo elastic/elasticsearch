@@ -1,0 +1,37 @@
+{
+  "indices.create_from":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index-from-source.html",
+      "description":"This API creates a destination from a source index. It copies the mappings and settings from the source index while allowing request settings and mappings to override the source values."
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_create_from/{source}/{dest}",
+          "methods":[ "PUT", "POST"],
+          "parts":{
+            "source":{
+              "type":"string",
+              "description":"The source index name"
+            },
+            "dest":{
+              "type":"string",
+              "description":"The destination index name"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The body contains the fields `mappings_override`, `settings_override`, and `remove_index_blocks`.",
+      "required":false
+    }
+  }
+}
+

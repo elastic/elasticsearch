@@ -1,0 +1,90 @@
+default
+required_capability: mv_pseries_weighted_sum
+
+// tag::example[]
+ROW a = [70.0, 45.0, 21.0, 21.0, 21.0]
+| EVAL sum = MV_PSERIES_WEIGHTED_SUM(a, 1.5)
+| KEEP sum
+// end::example[]
+;
+
+// tag::example-result[]
+sum:double
+94.45465156212452
+// end::example-result[]
+;
+
+oneElement
+required_capability: mv_pseries_weighted_sum
+
+ROW data = [3.0]
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 9999.9)
+| KEEP score;
+
+score:double
+3.0
+;
+
+zeroP
+required_capability: mv_pseries_weighted_sum
+
+ROW data = [3.0, 10.0, 15.0]
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 0.0)
+| KEEP score;
+
+score:double
+28.0
+;
+
+negativeP
+required_capability: mv_pseries_weighted_sum
+
+ROW data = [10.0, 5.0, 3.0]
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, -2.0)
+| KEEP score;
+
+score:double
+57.0
+;
+
+composed
+required_capability: mv_pseries_weighted_sum
+
+ROW data = [21.0, 45.0, 21.0, 70.0, 21.0]
+| EVAL sorted = MV_SORT(data, "desc")
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(sorted, 1.5)
+| EVAL normalized_score = ROUND(100 * score / 261.2, 2)
+| KEEP normalized_score, score;
+
+normalized_score:double|score:double
+36.16                  |94.45465156212452
+;
+
+multivalueAggregation
+required_capability: mv_pseries_weighted_sum
+
+FROM alerts
+| WHERE host.name is not null
+| SORT host.name, kibana.alert.risk_score
+| STATS score=MV_PSERIES_WEIGHTED_SUM(
+    TOP(kibana.alert.risk_score, 10000, "desc"), 1.5
+) BY host.name
+| EVAL normalized_score = ROUND(100 * score / 261.2, 2)
+| KEEP host.name, normalized_score, score
+| SORT normalized_score DESC;
+
+host.name:keyword|normalized_score:double|score:double
+test-host-1      |36.16                  |94.45465156212452
+test-host-2      |13.03                  |34.036822671263614
+;
+
+asArgument
+required_capability: mv_pseries_weighted_sum
+
+ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
+| EVAL score = ROUND(MV_PSERIES_WEIGHTED_SUM(data, 1.5), 1)
+| KEEP score;
+
+score:double
+94.5
+;

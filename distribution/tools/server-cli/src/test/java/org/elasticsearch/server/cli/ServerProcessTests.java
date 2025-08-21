@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -56,7 +57,6 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class ServerProcessTests extends ESTestCase {
 
@@ -65,6 +65,7 @@ public class ServerProcessTests extends ESTestCase {
     protected final Map<String, String> sysprops = new HashMap<>();
     protected final Map<String, String> envVars = new HashMap<>();
     Path esHomeDir;
+    Path logsDir;
     Settings.Builder nodeSettings;
     ProcessValidator processValidator;
     MainMethod mainCallback;
@@ -87,12 +88,14 @@ public class ServerProcessTests extends ESTestCase {
 
     @Before
     public void resetEnv() {
+        esHomeDir = createTempDir();
         terminal.reset();
         sysprops.clear();
         sysprops.put("os.name", "Linux");
         sysprops.put("java.home", "javahome");
+        sysprops.put("es.path.home", esHomeDir.toString());
+        logsDir = esHomeDir.resolve("logs");
         envVars.clear();
-        esHomeDir = createTempDir();
         nodeSettings = Settings.builder();
         processValidator = null;
         mainCallback = null;
@@ -204,15 +207,7 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     ServerArgs createServerArgs(boolean daemonize, boolean quiet) {
-        return new ServerArgs(
-            daemonize,
-            quiet,
-            null,
-            secrets,
-            nodeSettings.build(),
-            esHomeDir.resolve("config"),
-            esHomeDir.resolve("logs")
-        );
+        return new ServerArgs(daemonize, quiet, null, secrets, nodeSettings.build(), esHomeDir.resolve("config"), logsDir);
     }
 
     ServerProcess startProcess(boolean daemonize, boolean quiet) throws Exception {
@@ -237,7 +232,7 @@ public class ServerProcessTests extends ESTestCase {
             assertThat(pb.redirectInput(), equalTo(ProcessBuilder.Redirect.PIPE));
             assertThat(pb.redirectOutput(), equalTo(ProcessBuilder.Redirect.INHERIT));
             assertThat(pb.redirectError(), equalTo(ProcessBuilder.Redirect.PIPE));
-            assertThat(pb.directory(), nullValue()); // leave default, which is working directory
+            assertThat(String.valueOf(pb.directory()), equalTo(esHomeDir.resolve("logs").toString()));
         };
         mainCallback = (args, stdin, stderr, exitCode) -> {
             try (PrintStream err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
@@ -427,5 +422,27 @@ public class ServerProcessTests extends ESTestCase {
         mainExit.countDown();
         int exitCode = server.waitFor();
         assertThat(exitCode, equalTo(-9));
+    }
+
+    public void testLogsDirIsFile() throws Exception {
+        Files.createFile(logsDir);
+        var e = expectThrows(UserException.class, this::runForeground);
+        assertThat(e.getMessage(), containsString("exists but is not a directory"));
+    }
+
+    public void testLogsDirCreateParents() throws Exception {
+        Path testDir = createTempDir();
+        logsDir = testDir.resolve("subdir/logs");
+        processValidator = pb -> assertThat(String.valueOf(pb.directory()), equalTo(logsDir.toString()));
+        runForeground();
+    }
+
+    public void testLogsCreateFailure() throws Exception {
+        Path testDir = createTempDir();
+        Path parentFile = testDir.resolve("exists");
+        Files.createFile(parentFile);
+        logsDir = parentFile.resolve("logs");
+        var e = expectThrows(UserException.class, this::runForeground);
+        assertThat(e.getMessage(), containsString("Unable to create logs dir"));
     }
 }

@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fieldvisitor;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -52,17 +55,27 @@ public abstract class StoredFieldLoader {
         return create(spec.requiresSource(), spec.requiredStoredFields());
     }
 
+    public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
+        return create(loadSource, fields, false);
+    }
+
     /**
      * Creates a new StoredFieldLoader
-     * @param loadSource should this loader load the _source field
-     * @param fields     a set of additional fields the loader should load
+     *
+     * @param loadSource           indicates whether this loader should load the {@code _source} field.
+     * @param fields               a set of additional fields that the loader should load.
+     * @param forceSequentialReader if {@code true}, forces the use of a sequential leaf reader;
+     *                              otherwise, uses the heuristic defined in {@link StoredFieldLoader#reader(LeafReaderContext, int[])}.
      */
-    public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
+    public static StoredFieldLoader create(boolean loadSource, Set<String> fields, boolean forceSequentialReader) {
+        if (loadSource == false && fields.isEmpty()) {
+            return StoredFieldLoader.empty();
+        }
         List<String> fieldsToLoad = fieldsToLoad(loadSource, fields);
         return new StoredFieldLoader() {
             @Override
             public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
-                return new ReaderStoredFieldLoader(reader(ctx, docs), loadSource, fields);
+                return new ReaderStoredFieldLoader(forceSequentialReader ? sequentialReader(ctx) : reader(ctx, docs), loadSource, fields);
             }
 
             @Override
@@ -192,9 +205,25 @@ public abstract class StoredFieldLoader {
         private final CustomFieldsVisitor visitor;
         private int doc = -1;
 
+        private static CustomFieldsVisitor getFieldsVisitor(Set<String> fields, boolean loadSource) {
+            if (fields.contains(IgnoredSourceFieldMapper.NAME)) {
+                return new CustomFieldsVisitor(fields, loadSource) {
+                    @Override
+                    public Status needsField(FieldInfo fieldInfo) {
+                        if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
+                            return Status.YES;
+                        }
+                        return super.needsField(fieldInfo);
+                    }
+                };
+            }
+
+            return new CustomFieldsVisitor(fields, loadSource);
+        }
+
         ReaderStoredFieldLoader(CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader, boolean loadSource, Set<String> fields) {
             this.reader = reader;
-            this.visitor = new CustomFieldsVisitor(fields, loadSource);
+            this.visitor = getFieldsVisitor(fields, loadSource);
         }
 
         @Override

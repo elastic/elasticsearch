@@ -72,11 +72,8 @@
           "store": false
         },
         /*
-         pairs of (32bit PC offset, 32bit line number) followed by 64bit PC range base at the end.
-         To find line number for a given PC: find lowest offset such as offsetBase+PC >= offset, then read corresponding line number.
-         offsetBase could seemingly be available from exec_pc_range (it's the first value of the pair), but it's not the case.
-         Ranges are stored as points, which cannot be retrieve when disabling _source.
-         See https://www.elastic.co/guide/en/elasticsearch/reference/current/point.html .
+         To find the line number for a given address: find the first offset in Symbol.linetable.offsets such that offset <= base+address,
+         then read corresponding line number (at the same index) in Symbol.linetable.lines.
 
          Linetable: base for offsets (64bit PC range base)
         */

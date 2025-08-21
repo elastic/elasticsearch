@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -199,10 +200,10 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
                 )
                 .setSize(5),
             response -> {
-                assertNull(response.getHits().getTotalHits());
+                assertEquals(new TotalHits(0, TotalHits.Relation.EQUAL_TO), response.getHits().getTotalHits());
                 assertEquals(0, response.getHits().getHits().length);
                 assertEquals(5, response.getSuccessfulShards());
-                assertEquals(4, response.getSkippedShards());
+                assertEquals(5, response.getSkippedShards());
             }
         );
 

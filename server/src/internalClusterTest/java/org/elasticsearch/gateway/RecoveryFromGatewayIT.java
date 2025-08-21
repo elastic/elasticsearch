@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -13,8 +14,6 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -142,8 +140,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             previousTerms = new HashMap<>();
         }
         final Map<String, long[]> result = new HashMap<>();
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
-        for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        for (IndexMetadata indexMetadata : state.metadata().getProject().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
             final long[] current = IntStream.range(0, indexMetadata.getNumberOfShards()).mapToLong(indexMetadata::primaryTerm).toArray();
@@ -316,7 +314,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
-        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(firstNode)).get();
+        client().execute(
+            TransportAddVotingConfigExclusionsAction.TYPE,
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, firstNode)
+        ).get();
 
         internalCluster().fullRestart(new RestartCallback() {
             @Override
@@ -342,7 +343,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
-        client().execute(TransportClearVotingConfigExclusionsAction.TYPE, new ClearVotingConfigExclusionsRequest()).get();
+        client().execute(TransportClearVotingConfigExclusionsAction.TYPE, new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT))
+            .get();
     }
 
     public void testLatestVersionLoaded() throws Exception {
@@ -364,7 +366,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
-        String metadataUuid = clusterAdmin().prepareState().execute().get().getState().getMetadata().clusterUUID();
+        String metadataUuid = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().getMetadata().clusterUUID();
         assertThat(metadataUuid, not(equalTo("_na_")));
 
         logger.info("--> closing first node, and indexing more data to the second node");
@@ -405,7 +407,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        indicesAdmin().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value"))
+            .get();
 
         logger.info("--> stopping the second node");
         internalCluster().stopRandomDataNode();
@@ -420,16 +424,19 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
 
-        assertThat(clusterAdmin().prepareState().execute().get().getState().getMetadata().clusterUUID(), equalTo(metadataUuid));
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().getMetadata().clusterUUID(),
+            equalTo(metadataUuid)
+        );
 
         for (int i = 0; i < 10; i++) {
             assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 3);
         }
 
-        ClusterState state = clusterAdmin().prepareState().get().getState();
-        assertThat(state.metadata().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
-        assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
-        assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        assertThat(state.metadata().getProject().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
+        assertThat(state.metadata().getProject().index("test").getAliases().get("test_alias"), notNullValue());
+        assertThat(state.metadata().getProject().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {
@@ -441,13 +448,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(
-                Settings.builder()
-                    .put("number_of_shards", 1)
-                    .put("number_of_replicas", 1)
-
+                indexSettings(1, 1)
                     // disable merges to keep segments the same
                     .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-
                     // expire retention leases quickly
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
             )
@@ -573,19 +576,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
     }
 
-    public void assertSyncIdsNotNull() {
-        IndexStats indexStats = indicesAdmin().prepareStats("test").get().getIndex("test");
-        for (ShardStats shardStats : indexStats.getShards()) {
-            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-        }
-    }
-
     public void testStartedShardFoundIfStateNotYetProcessed() throws Exception {
         // nodes may need to report the shards they processed the initial recovered cluster state from the master
         final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
         final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-            indicesAdmin().prepareGetSettings("test").get().getIndexToSettings().get("test")
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get().getIndexToSettings().get("test")
         );
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);

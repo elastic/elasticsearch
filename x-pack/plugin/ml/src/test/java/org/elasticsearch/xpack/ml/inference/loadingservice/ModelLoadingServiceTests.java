@@ -762,14 +762,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
         if (ingestToo) {
             set.add(IngestMetadata.TYPE);
         }
-        when(event.changedCustomMetadataSet()).thenReturn(set);
+        when(event.changedCustomProjectMetadataSet()).thenReturn(set);
         when(event.state()).thenReturn(withModelReferencesAndAliasChange(isIngestNode, modelId, modelIdAndAliases));
         return event;
     }
 
     private static ClusterChangedEvent ingestChangedEvent(boolean isIngestNode, String... modelId) throws IOException {
         ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.changedCustomMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
+        when(event.changedCustomProjectMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
         when(event.state()).thenReturn(buildClusterStateWithModelReferences(isIngestNode, modelId));
         return event;
     }

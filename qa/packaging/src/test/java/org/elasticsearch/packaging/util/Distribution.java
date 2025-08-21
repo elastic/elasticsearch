@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util;
@@ -28,14 +29,12 @@ public class Distribution {
             this.packaging = Packaging.TAR;
         } else if (filename.endsWith(".docker.tar")) {
             this.packaging = Packaging.DOCKER;
-        } else if (filename.endsWith(".ubi.tar")) {
-            this.packaging = Packaging.DOCKER_UBI;
         } else if (filename.endsWith(".ironbank.tar")) {
             this.packaging = Packaging.DOCKER_IRON_BANK;
-        } else if (filename.endsWith(".cloud.tar")) {
-            this.packaging = Packaging.DOCKER_CLOUD;
         } else if (filename.endsWith(".cloud-ess.tar")) {
             this.packaging = Packaging.DOCKER_CLOUD_ESS;
+        } else if (filename.endsWith(".wolfi.tar")) {
+            this.packaging = Packaging.DOCKER_WOLFI;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
@@ -60,7 +59,7 @@ public class Distribution {
      */
     public boolean isDocker() {
         return switch (packaging) {
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> true;
+            case DOCKER, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> true;
             default -> false;
         };
     }
@@ -72,10 +71,9 @@ public class Distribution {
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM()),
         DOCKER(".docker.tar", Platforms.isDocker()),
-        DOCKER_UBI(".ubi.tar", Platforms.isDocker()),
         DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker()),
-        DOCKER_CLOUD(".cloud.tar", Platforms.isDocker()),
-        DOCKER_CLOUD_ESS(".cloud-ess.tar", Platforms.isDocker());
+        DOCKER_CLOUD_ESS(".cloud-ess.tar", Platforms.isDocker()),
+        DOCKER_WOLFI(".wolfi.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

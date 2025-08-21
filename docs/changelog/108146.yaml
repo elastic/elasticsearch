@@ -1,5 +1,0 @@
-pr: 108146
-summary: Allow deletion of the ELSER inference service when reference in ingest
-area: Machine Learning
-type: bug
-issues: []

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
@@ -30,7 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestCase<ReloadAnalyzersResponse> {
 
     @SuppressWarnings({ "unchecked" })
-    private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>(
         "reload_analyzer",
         true,
         arg -> {
@@ -66,8 +67,8 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
         declareBroadcastFields(PARSER);
         PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, ReloadAnalyzersResponse.RELOAD_DETAILS_FIELD);
         ENTRY_PARSER.declareString(constructorArg(), ReloadAnalyzersResponse.INDEX_FIELD);
-        ENTRY_PARSER.declareStringArray(constructorArg(), ReloadAnalyzersResponse.RELOADED_ANALYZERS_FIELD);
         ENTRY_PARSER.declareStringArray(constructorArg(), ReloadAnalyzersResponse.RELOADED_NODE_IDS_FIELD);
+        ENTRY_PARSER.declareStringArray(constructorArg(), ReloadAnalyzersResponse.RELOADED_ANALYZERS_FIELD);
     }
 
     @Override

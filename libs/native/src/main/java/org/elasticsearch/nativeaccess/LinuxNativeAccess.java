@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess;
@@ -12,11 +13,13 @@ import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFProg;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFilter;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Map;
 
 class LinuxNativeAccess extends PosixNativeAccess {
+
+    private static final int STATX_BLOCKS = 0x400; /* Want/got stx_blocks */
 
     /** the preferred method is seccomp(2), since we can apply to all threads of the process */
     static final int SECCOMP_SET_MODE_FILTER = 1;   // since Linux 3.17
@@ -88,9 +91,16 @@ class LinuxNativeAccess extends PosixNativeAccess {
     private final Systemd systemd;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8));
+        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8, 64, 144, 48, 64));
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
-        this.systemd = new Systemd(libraryProvider.getLibrary(SystemdLibrary.class));
+        String socketPath = System.getenv("NOTIFY_SOCKET");
+        if (socketPath == null) {
+            this.systemd = null; // not running under systemd
+        } else {
+            logger.debug("Systemd socket path: {}", socketPath);
+            var buffer = newBuffer(64);
+            this.systemd = new Systemd(libraryProvider.getLibrary(PosixCLibrary.class), socketPath, buffer);
+        }
     }
 
     @Override
@@ -118,6 +128,16 @@ class LinuxNativeAccess extends PosixNativeAccess {
             \t{} soft memlock unlimited
             \t{} hard memlock unlimited""", user, user, user);
         logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
+    }
+
+    @Override
+    protected boolean nativePreallocate(int fd, long currentSize, long newSize) {
+        final int rc = linuxLibc.fallocate(fd, 0, currentSize, newSize - currentSize);
+        if (rc != 0) {
+            logger.warn("fallocate failed: " + libc.strerror(libc.errno()));
+            return false;
+        }
+        return true;
     }
 
     /**

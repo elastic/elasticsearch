@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -19,8 +21,10 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Loads values from {@code _source}. This whole process is very slow and cast-tastic,
@@ -229,7 +233,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         protected void append(BlockLoader.Builder builder, Object v) {
-            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, (String) v));
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, Objects.toString(v)));
         }
 
         @Override
@@ -296,6 +300,49 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         public String toString() {
             return "BlockSourceReader.Doubles";
+        }
+    }
+
+    /**
+     * Load {@code float}s from {@code _source}.
+     */
+    public static class DenseVectorBlockLoader extends SourceBlockLoader {
+        private final int dimensions;
+
+        public DenseVectorBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, int dimensions) {
+            super(fetcher, lookup);
+            this.dimensions = dimensions;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.denseVectors(expectedCount, dimensions);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
+            return new DenseVectors(fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "DenseVectors";
+        }
+    }
+
+    private static class DenseVectors extends BlockSourceReader {
+        DenseVectors(ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.FloatBuilder) builder).appendFloat(((Number) v).floatValue());
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.DenseVectors";
         }
     }
 
@@ -380,9 +427,49 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     /**
+     * Load {@code ip}s from {@code _source}.
+     */
+    public static class IpsBlockLoader extends SourceBlockLoader {
+        public IpsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+            super(fetcher, lookup);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
+            return new Ips(fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "Ips";
+        }
+    }
+
+    private static class Ips extends BlockSourceReader {
+        Ips(ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(InetAddressPoint.encode((InetAddress) v)));
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Ips";
+        }
+    }
+
+    /**
      * Convert a {@link String} into a utf-8 {@link BytesRef}.
      */
-    static BytesRef toBytesRef(BytesRef scratch, String v) {
+    public static BytesRef toBytesRef(BytesRef scratch, String v) {
         int len = UnicodeUtil.maxUTF8Length(v.length());
         if (scratch.bytes.length < len) {
             scratch.bytes = new byte[len];

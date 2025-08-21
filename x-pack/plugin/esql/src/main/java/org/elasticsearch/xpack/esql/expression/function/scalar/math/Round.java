@@ -31,12 +31,11 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -48,7 +47,6 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression field, decimals;
 
-    // @TODO: add support for "integer", "long", "unsigned_long" once tests are fixed
     @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = """
         Rounds a number to the specified number of decimal places.
         Defaults to 0, which returns the nearest integer. If the
@@ -64,7 +62,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             optional = true,
             name = "decimals",
-            type = { "integer" },  // TODO long is supported here too
+            type = { "integer", "long" },
             description = "The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`."
         ) Expression decimals
     ) {
@@ -104,7 +102,15 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return decimals == null ? TypeResolution.TYPE_RESOLVED : isWholeNumber(decimals, sourceText(), SECOND);
+        return decimals == null
+            ? TypeResolution.TYPE_RESOLVED
+            : isType(
+                decimals,
+                dt -> dt.isWholeNumber() && dt != DataType.UNSIGNED_LONG,
+                sourceText(),
+                SECOND,
+                "whole number except unsigned_long or counter types"
+            );
     }
 
     @Override
@@ -124,11 +130,16 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "Long")
     static long process(long val, long decimals) {
-        return Maths.round(val, decimals).longValue();
+        return Maths.round(val, decimals);
     }
 
-    @Evaluator(extraName = "UnsignedLong")
+    @Evaluator(extraName = "UnsignedLong", warnExceptions = ArithmeticException.class)
     static long processUnsignedLong(long val, long decimals) {
+        if (decimals <= -20) {
+            // Unsigned long max value is 2^64 - 1, which has 20 digits
+            return longToUnsignedLong(0, false);
+        }
+
         Number ul = unsignedLongAsNumber(val);
         if (ul instanceof BigInteger bi) {
             BigInteger rounded = Maths.round(bi, decimals);
@@ -167,7 +178,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType fieldType = dataType();
         if (fieldType == DataType.DOUBLE) {
             return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
@@ -185,7 +196,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, ExpressionEvaluator.Factory> toEvaluator,
+        ToEvaluator toEvaluator,
         BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> noDecimals,
         TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> withDecimals
     ) {

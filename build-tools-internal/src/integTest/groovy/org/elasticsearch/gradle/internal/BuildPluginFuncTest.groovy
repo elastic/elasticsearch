@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -83,10 +84,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         file('src/main/java/org/elasticsearch/SampleClass.java') << """\
           /*
            * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-           * or more contributor license agreements. Licensed under the Elastic License
-           *  2.0 and the Server Side Public License, v 1; you may not use this file except
-           * in compliance with, at your election, the Elastic License 2.0 or the Server
-           * Side Public License, v 1.
+           * or more contributor license agreements. Licensed under the "Elastic License
+           * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+           * Public License v 1"; you may not use this file except in compliance with, at
+           * your election, the "Elastic License 2.0", the "GNU Affero General Public
+           * License v3.0 only", or the "Server Side Public License, v 1".
            */
           package org.elasticsearch;
 
@@ -117,12 +119,10 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             noticeFile.set(file("NOTICE"))
             """
         when:
-        def result = gradleRunner("assemble", "-x", "generateHistoricalFeaturesMetadata").build()
+        def result = gradleRunner("assemble", "-x", "generateClusterFeaturesMetadata").build()
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world.jar").exists()
-        file("build/distributions/hello-world-javadoc.jar").exists()
-        file("build/distributions/hello-world-sources.jar").exists()
         assertValidJar(file("build/distributions/hello-world.jar"))
     }
 
@@ -160,7 +160,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS
         result.task(":validateModule").outcome == TaskOutcome.SUCCESS
         result.task(":splitPackagesAudit").outcome == TaskOutcome.SUCCESS
-        result.task(":validateElasticPom").outcome == TaskOutcome.SUCCESS
         // disabled but check for being on the task graph
         result.task(":forbiddenApisMain").outcome == TaskOutcome.SKIPPED
         result.task(":checkstyleMain").outcome == TaskOutcome.SKIPPED

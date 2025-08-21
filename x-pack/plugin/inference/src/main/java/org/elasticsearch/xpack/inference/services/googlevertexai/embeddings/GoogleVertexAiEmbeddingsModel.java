@@ -9,25 +9,33 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.googlevertexai.GoogleVertexAiActionVisitor;
-import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
-    private URI uri;
+    public static GoogleVertexAiEmbeddingsModel of(GoogleVertexAiEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var requestTaskSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        return new GoogleVertexAiEmbeddingsModel(
+            model,
+            GoogleVertexAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings)
+        );
+    }
 
     public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
@@ -35,6 +43,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -44,6 +53,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             service,
             GoogleVertexAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            chunkingSettings,
             GoogleVertexAiSecretSettings.fromMap(secrets)
         );
     }
@@ -52,22 +62,27 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         super(model, serviceSettings);
     }
 
+    public GoogleVertexAiEmbeddingsModel(GoogleVertexAiEmbeddingsModel model, GoogleVertexAiEmbeddingsTaskSettings taskSettings) {
+        super(model, taskSettings);
+    }
+
     // Should only be used directly for testing
-    GoogleVertexAiEmbeddingsModel(
+    public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
         try {
-            this.uri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            this.nonStreamingUri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -89,7 +104,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = new URI(uri);
+            this.nonStreamingUri = new URI(uri);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -115,10 +130,6 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return (GoogleVertexAiEmbeddingsRateLimitServiceSettings) super.rateLimitServiceSettings();
     }
 
-    public URI uri() {
-        return uri;
-    }
-
     @Override
     public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
@@ -139,5 +150,18 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
                 format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
             )
             .build();
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        // In VertexAI rate limiting is scoped to the project, region, model and endpoint.
+        // API Key does not affect the quota
+        // https://ai.google.dev/gemini-api/docs/rate-limits
+        // https://cloud.google.com/vertex-ai/docs/quotas
+        var projectId = getServiceSettings().projectId();
+        var location = getServiceSettings().location();
+        var modelId = getServiceSettings().modelId();
+
+        return Objects.hash(projectId, location, modelId, GoogleVertexAiUtils.PREDICT);
     }
 }

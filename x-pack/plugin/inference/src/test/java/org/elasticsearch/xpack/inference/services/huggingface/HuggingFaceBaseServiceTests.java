@@ -13,13 +13,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.junit.After;
 import org.junit.Before;
@@ -27,11 +25,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Mockito.mock;
@@ -68,9 +66,12 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
+                false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -92,7 +93,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
     private static final class TestService extends HuggingFaceService {
         TestService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents);
+            super(factory, serviceComponents, mockClusterServiceEmpty());
         }
 
         @Override
@@ -103,18 +104,6 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current();
-        }
-
-        @Override
-        protected HuggingFaceModel createModel(
-            String inferenceEntityId,
-            TaskType taskType,
-            Map<String, Object> serviceSettings,
-            Map<String, Object> secretSettings,
-            String failureMessage,
-            ConfigurationParseContext context
-        ) {
-            return null;
         }
     }
 }

@@ -239,6 +239,11 @@ public final class TransformConfigUpdate implements Writeable {
         return isNullOrEqual(headers, config.getHeaders()) == false;
     }
 
+    public boolean changesDestIndex(TransformConfig config) {
+        var updatedIndex = dest == null ? null : dest.getIndex();
+        return isNullOrEqual(updatedIndex, config.getDestination().getIndex()) == false;
+    }
+
     private static boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.state;
 
@@ -147,7 +148,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             // Build the list of shards for which recoveries will be blocked
             final Set<ShardId> blockedShards = commands.stream()
                 .map(c -> (MoveAllocationCommand) c)
-                .map(c -> new ShardId(clusterService.state().metadata().index(c.index()).getIndex(), c.shardId()))
+                .map(c -> new ShardId(clusterService.state().metadata().getProject().index(c.index()).getIndex(), c.shardId()))
                 .collect(Collectors.toSet());
             assertThat(blockedShards, hasSize(indices.length));
 
@@ -228,7 +229,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
 
             for (String index : acknowledgedCloses) {
                 assertResponse(prepareSearch(index).setSize(0).setTrackTotalHits(true), response -> {
-                    long docsCount = response.getHits().getTotalHits().value;
+                    long docsCount = response.getHits().getTotalHits().value();
                     assertEquals(
                         "Expected "
                             + docsPerIndex.get(index)

@@ -19,17 +19,16 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -96,8 +95,7 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            ActionFilters actionFilters
         ) {
             super(
                 UpdateIndexMigrationVersionAction.NAME,
@@ -106,7 +104,6 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 UpdateIndexMigrationVersionResponse::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
@@ -142,20 +139,19 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
             }
 
             ClusterState execute(ClusterState currentState) {
-                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(currentState.metadata().getIndices().get(indexName));
+                final var project = currentState.metadata().getProject();
+                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(project.indices().get(indexName));
                 indexMetadataBuilder.putCustom(
                     MIGRATION_VERSION_CUSTOM_KEY,
                     Map.of(MIGRATION_VERSION_CUSTOM_DATA_KEY, Integer.toString(indexMigrationVersion))
                 );
                 indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
 
-                final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(
-                    currentState.metadata().getIndices()
-                );
+                final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(project.indices());
                 builder.put(indexName, indexMetadataBuilder.build());
 
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).indices(builder.build()).build())
+                    .putProjectMetadata(ProjectMetadata.builder(project).indices(builder.build()).build())
                     .build();
             }
 

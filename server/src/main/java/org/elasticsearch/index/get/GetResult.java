@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.get;
@@ -17,17 +18,14 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,20 +35,18 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GetResult.class);
 
     public static final String _INDEX = "_index";
     public static final String _ID = "_id";
-    private static final String _VERSION = "_version";
-    private static final String _SEQ_NO = "_seq_no";
-    private static final String _PRIMARY_TERM = "_primary_term";
-    private static final String FOUND = "found";
-    private static final String FIELDS = "fields";
+    static final String _VERSION = "_version";
+    static final String _SEQ_NO = "_seq_no";
+    static final String _PRIMARY_TERM = "_primary_term";
+    static final String FOUND = "found";
+    static final String FIELDS = "fields";
 
     private final String index;
     private final String id;
@@ -78,8 +74,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             if (source.length() == 0) {
                 source = null;
             }
-            documentFields = in.readMapValues(DocumentField::new, DocumentField::getName);
-            metaFields = in.readMapValues(DocumentField::new, DocumentField::getName);
+            documentFields = DocumentField.readFieldsFromMapValues(in);
+            metaFields = DocumentField.readFieldsFromMapValues(in);
         } else {
             metaFields = Collections.emptyMap();
             documentFields = Collections.emptyMap();
@@ -248,7 +244,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
         for (DocumentField field : metaFields.values()) {
             // TODO: can we avoid having an exception here?
-            if (field.getName().equals(IgnoredFieldMapper.NAME)) {
+            if (field.getName().equals(IgnoredFieldMapper.NAME) || field.getName().startsWith(IgnoredSourceFieldMapper.NAME)) {
                 builder.field(field.getName(), field.getValues());
             } else {
                 builder.field(field.getName(), field.<Object>getValue());
@@ -275,9 +271,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {
@@ -289,79 +282,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         }
         builder.endObject();
         return builder;
-    }
-
-    public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-        return fromXContentEmbedded(parser, null, null);
-    }
-
-    public static GetResult fromXContentEmbedded(XContentParser parser, String index, String id) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-
-        String currentFieldName = parser.currentName();
-        long version = -1;
-        long seqNo = UNASSIGNED_SEQ_NO;
-        long primaryTerm = UNASSIGNED_PRIMARY_TERM;
-        Boolean found = null;
-        BytesReference source = null;
-        Map<String, DocumentField> documentFields = new HashMap<>();
-        Map<String, DocumentField> metaFields = new HashMap<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (_INDEX.equals(currentFieldName)) {
-                    index = parser.text();
-                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 && MapperService.TYPE_FIELD_NAME.equals(currentFieldName)) {
-                    deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
-                } else if (_ID.equals(currentFieldName)) {
-                    id = parser.text();
-                } else if (_VERSION.equals(currentFieldName)) {
-                    version = parser.longValue();
-                } else if (_SEQ_NO.equals(currentFieldName)) {
-                    seqNo = parser.longValue();
-                } else if (_PRIMARY_TERM.equals(currentFieldName)) {
-                    primaryTerm = parser.longValue();
-                } else if (FOUND.equals(currentFieldName)) {
-                    found = parser.booleanValue();
-                } else {
-                    metaFields.put(currentFieldName, new DocumentField(currentFieldName, Collections.singletonList(parser.objectText())));
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (SourceFieldMapper.NAME.equals(currentFieldName)) {
-                    try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
-                        // the original document gets slightly modified: whitespaces or pretty printing are not preserved,
-                        // it all depends on the current builder settings
-                        builder.copyCurrentStructure(parser);
-                        source = BytesReference.bytes(builder);
-                    }
-                } else if (FIELDS.equals(currentFieldName)) {
-                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                        DocumentField getField = DocumentField.fromXContent(parser);
-                        documentFields.put(getField.getName(), getField);
-                    }
-                } else {
-                    parser.skipChildren(); // skip potential inner objects for forward compatibility
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (IgnoredFieldMapper.NAME.equals(currentFieldName)) {
-                    metaFields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));
-                } else {
-                    parser.skipChildren(); // skip potential inner arrays for forward compatibility
-                }
-            }
-        }
-        return new GetResult(index, id, seqNo, primaryTerm, version, found, source, documentFields, metaFields);
-    }
-
-    public static GetResult fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-
-        return fromXContentEmbedded(parser);
     }
 
     @Override

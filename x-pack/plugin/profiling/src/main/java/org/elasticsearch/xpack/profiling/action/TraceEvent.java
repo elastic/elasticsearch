@@ -7,53 +7,29 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import java.util.Objects;
-
 final class TraceEvent {
-    final String stacktraceID;
+    long count;
     double annualCO2Tons;
     double annualCostsUSD;
-    long count;
     SubGroup subGroups;
 
-    TraceEvent(String stacktraceID) {
-        this(stacktraceID, 0);
+    TraceEvent() {
+        this(0);
     }
 
-    TraceEvent(String stacktraceID, long count) {
-        this.stacktraceID = stacktraceID;
+    TraceEvent(long count) {
         this.count = count;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        TraceEvent event = (TraceEvent) o;
-        return count == event.count && Objects.equals(stacktraceID, event.stacktraceID);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(stacktraceID, count);
     }
 
     @Override
     public String toString() {
         return "TraceEvent{"
-            + "stacktraceID='"
-            + stacktraceID
-            + '\''
+            + "count="
+            + count
             + ", annualCO2Tons="
             + annualCO2Tons
             + ", annualCostsUSD="
             + annualCostsUSD
-            + ", count="
-            + count
             + ", subGroups="
             + subGroups
             + '}';

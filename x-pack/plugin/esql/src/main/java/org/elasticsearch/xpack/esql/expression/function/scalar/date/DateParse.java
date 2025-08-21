@@ -26,18 +26,14 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
@@ -61,8 +57,8 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(name = "datePattern", type = { "keyword", "text" }, description = """
             The date format. Refer to the
-            https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter`
-            documentation] for the syntax. If `null`, the function returns `null`.""", optional = true) Expression first,
+            {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax.
+            If `null`, the function returns `null`.""", optional = true) Expression first,
         @Param(
             name = "dateString",
             type = { "keyword", "text" },
@@ -132,34 +128,33 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
-    static long process(BytesRef val, BytesRef formatter, @Fixed ZoneId zoneId) throws IllegalArgumentException {
-        return dateTimeToLong(val.utf8ToString(), toFormatter(formatter, zoneId));
+    static long process(BytesRef val, BytesRef formatter) throws IllegalArgumentException {
+        return dateTimeToLong(val.utf8ToString(), toFormatter(formatter));
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        ZoneId zone = UTC; // TODO session timezone?
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
             return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
-        if (EsqlDataTypes.isString(format.dataType()) == false) {
+        if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
         }
         if (format.foldable()) {
             try {
-                DateFormatter formatter = toFormatter(format.fold(), zone);
+                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()));
                 return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
         ExpressionEvaluator.Factory formatEvaluator = toEvaluator.apply(format);
-        return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, zone);
+        return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator);
     }
 
-    private static DateFormatter toFormatter(Object format, ZoneId zone) {
-        return forPattern(((BytesRef) format).utf8ToString()).withZone(zone);
+    private static DateFormatter toFormatter(Object format) {
+        return forPattern(((BytesRef) format).utf8ToString());
     }
 
     @Override

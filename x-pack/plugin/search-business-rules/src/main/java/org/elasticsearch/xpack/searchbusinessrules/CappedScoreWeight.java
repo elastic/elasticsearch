@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 
@@ -36,8 +37,22 @@ public abstract class CappedScoreWeight extends Weight {
     }
 
     @Override
-    public Scorer scorer(LeafReaderContext context) throws IOException {
-        return new CappedScorer(this, innerWeight.scorer(context), maxScore);
+    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+        ScorerSupplier innerScorerSupplier = innerWeight.scorerSupplier(context);
+        if (innerScorerSupplier == null) {
+            return null;
+        }
+        return new ScorerSupplier() {
+            @Override
+            public Scorer get(long leadCost) throws IOException {
+                return new CappedScorer(innerScorerSupplier.get(leadCost), maxScore);
+            }
+
+            @Override
+            public long cost() {
+                return innerScorerSupplier.cost();
+            }
+        };
     }
 
     @Override

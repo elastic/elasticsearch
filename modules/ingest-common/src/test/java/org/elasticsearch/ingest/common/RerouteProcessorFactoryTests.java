@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -46,7 +47,7 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> create(Map.of("destination", "foo", "dataset", "bar"))
         );
-        assertThat(e.getMessage(), equalTo("[destination] can only be set if dataset and namespace are not set"));
+        assertThat(e.getMessage(), equalTo("[destination] can only be set if type, dataset, and namespace are not set"));
     }
 
     public void testFieldReference() throws Exception {
@@ -73,6 +74,6 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
     }
 
     private static RerouteProcessor create(Map<String, Object> config) throws Exception {
-        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config));
+        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config), null);
     }
 }

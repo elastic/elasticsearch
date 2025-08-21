@@ -54,8 +54,6 @@ setup:
   - do:
       indices.close:
         index : test_index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       snapshot.restore:
@@ -90,3 +88,61 @@ setup:
   - match: {hits.total:      1    }
   - length: {hits.hits:      1    }
   - match: {hits.hits.0._id: "1" }
+
+---
+"Failed to snapshot indices with synthetic source":
+  - skip:
+      features: ["allowed_warnings"]
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test_synthetic
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+            index:
+              mapping.source.mode: synthetic
+
+  - do:
+      snapshot.create:
+        repository: test_repo_restore_1
+        snapshot: test_snapshot_2
+        wait_for_completion: true
+        body: |
+          { 
+            "indices": "test_synthetic",
+            "include_global_state": false
+          }
+
+  - match: { snapshot.snapshot: test_snapshot_2 }
+  - match: { snapshot.state : PARTIAL }
+  - match: { snapshot.shards.successful: 0 }
+  - match: { snapshot.shards.failed : 1 }
+  - match: { snapshot.failures.0.index: "test_synthetic" }
+  - match: { snapshot.failures.0.reason : "IllegalStateException[Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source]" }
+  - is_true: snapshot.version
+  - gt: { snapshot.version_id: 0}
+
+  - do:
+      snapshot.create:
+        repository: test_repo_restore_1
+        snapshot: test_snapshot_3
+        wait_for_completion: true
+        body: |
+          { 
+            "indices": "test_*",
+            "include_global_state": false
+          }
+
+  - match: { snapshot.snapshot: test_snapshot_3 }
+  - match: { snapshot.state : PARTIAL }
+  - match: { snapshot.shards.successful: 1 }
+  - match: { snapshot.shards.failed : 1 }
+  - match: { snapshot.failures.0.index: "test_synthetic" }
+  - match: { snapshot.failures.0.reason: "IllegalStateException[Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source]" }
+  - is_true: snapshot.version
+  - gt: { snapshot.version_id: 0}

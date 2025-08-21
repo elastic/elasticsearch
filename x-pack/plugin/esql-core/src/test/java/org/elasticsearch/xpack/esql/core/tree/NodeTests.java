@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -65,6 +67,16 @@ public class NodeTests extends ESTestCase {
         public Dummy(Source source, List<Dummy> children, String thing) {
             super(source, children);
             this.thing = thing;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
         }
 
         public String thing() {

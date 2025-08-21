@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -12,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,12 +66,8 @@ public class TransportResolveClusterActionTests extends ESTestCase {
             ResolveClusterActionRequest request = new ResolveClusterActionRequest(new String[] { "test" }) {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
-                    throw new UnsupportedOperationException(
-                        "ResolveClusterAction requires at least version "
-                            + TransportVersions.V_8_13_0.toReleaseVersion()
-                            + " but was "
-                            + out.getTransportVersion().toReleaseVersion()
-                    );
+                    String versionErrorMessage = ResolveClusterActionRequest.createVersionErrorMessage(out.getTransportVersion());
+                    throw new UnsupportedOperationException(versionErrorMessage);
                 }
             };
             ClusterService clusterService = new ClusterService(
@@ -88,13 +84,10 @@ public class TransportResolveClusterActionTests extends ESTestCase {
                 null
             );
 
-            IllegalArgumentException ex = expectThrows(
+            final var ex = safeAwaitFailure(
                 IllegalArgumentException.class,
-                () -> PlainActionFuture.<ResolveClusterActionResponse, RuntimeException>get(
-                    future -> action.doExecute(null, request, future),
-                    10,
-                    TimeUnit.SECONDS
-                )
+                ResolveClusterActionResponse.class,
+                listener -> action.doExecute(null, request, listener)
             );
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));
@@ -111,30 +104,30 @@ public class TransportResolveClusterActionTests extends ESTestCase {
 
         // as long as there is one non-closed index it should return true
         indices = new ArrayList<>();
-        indices.add(new ResolveIndexAction.ResolvedIndex("foo", null, new String[] { "open" }, ".ds-foo"));
+        indices.add(new ResolveIndexAction.ResolvedIndex("foo", null, new String[] { "open" }, ".ds-foo", null));
         assertThat(TransportResolveClusterAction.hasNonClosedMatchingIndex(indices), equalTo(true));
 
-        indices.add(new ResolveIndexAction.ResolvedIndex("bar", null, new String[] { "system" }, ".ds-bar"));
+        indices.add(new ResolveIndexAction.ResolvedIndex("bar", null, new String[] { "system" }, ".ds-bar", null));
         assertThat(TransportResolveClusterAction.hasNonClosedMatchingIndex(indices), equalTo(true));
 
-        indices.add(new ResolveIndexAction.ResolvedIndex("baz", null, new String[] { "system", "open", "hidden" }, null));
+        indices.add(new ResolveIndexAction.ResolvedIndex("baz", null, new String[] { "system", "open", "hidden" }, null, null));
         assertThat(TransportResolveClusterAction.hasNonClosedMatchingIndex(indices), equalTo(true));
 
-        indices.add(new ResolveIndexAction.ResolvedIndex("quux", null, new String[0], null));
+        indices.add(new ResolveIndexAction.ResolvedIndex("quux", null, new String[0], null, null));
         assertThat(TransportResolveClusterAction.hasNonClosedMatchingIndex(indices), equalTo(true));
 
-        indices.add(new ResolveIndexAction.ResolvedIndex("wibble", null, new String[] { "system", "closed" }, null));
+        indices.add(new ResolveIndexAction.ResolvedIndex("wibble", null, new String[] { "system", "closed" }, null, null));
         assertThat(TransportResolveClusterAction.hasNonClosedMatchingIndex(indices), equalTo(true));
 
         // if only closed indexes are present, should return false
         indices.clear();
-        indices.add(new ResolveIndexAction.ResolvedIndex("wibble", null, new String[] { "system", "closed" }, null));
+        indices.add(new ResolveIndexAction.ResolvedIndex("wibble", null, new String[] { "system", "closed" }, null, null));
         assertThat(TransportResolveClusterAction.hasNonClosedMatchingIndex(indices), equalTo(false));
-        indices.add(new ResolveIndexAction.ResolvedIndex("wobble", null, new String[] { "closed" }, null));
+        indices.add(new ResolveIndexAction.ResolvedIndex("wobble", null, new String[] { "closed" }, null, null));
         assertThat(TransportResolveClusterAction.hasNonClosedMatchingIndex(indices), equalTo(false));
 
         // now add a non-closed index and should return true
-        indices.add(new ResolveIndexAction.ResolvedIndex("aaa", null, new String[] { "hidden" }, null));
+        indices.add(new ResolveIndexAction.ResolvedIndex("aaa", null, new String[] { "hidden" }, null, null));
         assertThat(TransportResolveClusterAction.hasNonClosedMatchingIndex(indices), equalTo(true));
     }
 }

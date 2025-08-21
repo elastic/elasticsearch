@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -35,8 +36,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -212,24 +211,20 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     var value = generateValue();
-                    return new SyntheticSourceExample(value.text, value.text, value.tokenCount, this::mapping);
+                    return new SyntheticSourceExample(value.text, value.text, this::mapping);
                 }
 
                 var values = randomList(1, 5, this::generateValue);
-
                 var textArray = values.stream().map(Value::text).toList();
 
-                var blockExpectedList = values.stream().map(Value::tokenCount).filter(Objects::nonNull).toList();
-                var blockExpected = blockExpectedList.size() == 1 ? blockExpectedList.get(0) : blockExpectedList;
-
-                return new SyntheticSourceExample(textArray, textArray, blockExpected, this::mapping);
+                return new SyntheticSourceExample(textArray, textArray, this::mapping);
             }
 
             private record Value(String text, Integer tokenCount) {}
 
             private Value generateValue() {
                 if (rarely()) {
-                    return new Value(null, null);
+                    return new Value(null, nullValue);
                 }
 
                 var text = randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
@@ -255,11 +250,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
                 return List.of();
             }
         };
-    }
-
-    protected Function<Object, Object> loadBlockExpected() {
-        // we can get either a number from doc values or null
-        return v -> v != null ? (Number) v : null;
     }
 
     @Override

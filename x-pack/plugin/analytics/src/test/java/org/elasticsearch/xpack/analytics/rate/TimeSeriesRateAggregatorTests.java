@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
@@ -69,8 +70,12 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         };
         AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"), dimensionField("dim"));
         testCase(iw -> {
-            iw.addDocuments(docs(1000, "1", 15, 37, 60, /*reset*/ 14));
-            iw.addDocuments(docs(1000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
+            for (Document document : docs(1000, "1", 15, 37, 60, /*reset*/ 14)) {
+                iw.addDocument(document);
+            }
+            for (Document document : docs(1000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40)) {
+                iw.addDocument(document);
+            }
         }, verifier, aggTestConfig);
     }
 
@@ -109,8 +114,12 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"), dimensionField("dim"))
             .withSplitLeavesIntoSeperateAggregators(false);
         testCase(iw -> {
-            iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
-            iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
+            for (Document document : docs(2000, "1", 15, 37, 60, /*reset*/ 14)) {
+                iw.addDocument(document);
+            }
+            for (Document document : docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40)) {
+                iw.addDocument(document);
+            }
         }, verifier, aggTestConfig);
     }
 
@@ -147,10 +156,14 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
         AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
             .withSplitLeavesIntoSeperateAggregators(false);
-        expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
             iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
         }, verifier, aggTestConfig));
+        assertThat(
+            e.getMessage(),
+            startsWith("Wrapping a time-series rate aggregation within a DeferableBucketAggregator is not supported.")
+        );
     }
 
     private List<Document> docs(long startTimestamp, String dim, long... values) throws IOException {
@@ -163,9 +176,9 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     }
 
     private static BytesReference tsid(String dim) throws IOException {
-        TimeSeriesIdFieldMapper.TimeSeriesIdBuilder idBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-        idBuilder.addString("dim", dim);
-        return idBuilder.buildTsidHash();
+        var routingFields = new RoutingPathFields(null);
+        routingFields.addString("dim", dim);
+        return routingFields.buildHash();
     }
 
     private Document doc(long timestamp, BytesReference tsid, long counterValue, String dim) {
@@ -197,7 +210,8 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             null,
             false,
             TimeSeriesParams.MetricType.COUNTER,
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            false
         );
     }
 

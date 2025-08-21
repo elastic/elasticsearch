@@ -10,9 +10,6 @@ package org.elasticsearch.xpack.application.connector.syncjob;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -65,7 +62,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *     <li>The hostname of the worker to run the sync job.</li>
  * </ul>
  */
-public class ConnectorSyncJob implements Writeable, ToXContentObject {
+public class ConnectorSyncJob implements ToXContentObject {
 
     static final ParseField CANCELATION_REQUESTED_AT_FIELD = new ParseField("cancelation_requested_at");
 
@@ -211,27 +208,6 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         this.totalDocumentCount = totalDocumentCount;
         this.triggerMethod = Objects.requireNonNullElse(triggerMethod, ConnectorSyncJobTriggerMethod.ON_DEMAND);
         this.workerHostname = workerHostname;
-    }
-
-    public ConnectorSyncJob(StreamInput in) throws IOException {
-        this.cancelationRequestedAt = in.readOptionalInstant();
-        this.canceledAt = in.readOptionalInstant();
-        this.completedAt = in.readOptionalInstant();
-        this.connector = in.readNamedWriteable(Connector.class);
-        this.createdAt = in.readInstant();
-        this.deletedDocumentCount = in.readLong();
-        this.error = in.readOptionalString();
-        this.id = in.readString();
-        this.indexedDocumentCount = in.readLong();
-        this.indexedDocumentVolume = in.readLong();
-        this.jobType = in.readEnum(ConnectorSyncJobType.class);
-        this.lastSeen = in.readOptionalInstant();
-        this.metadata = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
-        this.startedAt = in.readOptionalInstant();
-        this.status = in.readEnum(ConnectorSyncStatus.class);
-        this.totalDocumentCount = in.readOptionalLong();
-        this.triggerMethod = in.readEnum(ConnectorSyncJobTriggerMethod.class);
-        this.workerHostname = in.readOptionalString();
     }
 
     @SuppressWarnings("unchecked")
@@ -546,28 +522,6 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalInstant(cancelationRequestedAt);
-        out.writeOptionalInstant(canceledAt);
-        out.writeOptionalInstant(completedAt);
-        out.writeNamedWriteable(connector);
-        out.writeInstant(createdAt);
-        out.writeLong(deletedDocumentCount);
-        out.writeOptionalString(error);
-        out.writeString(id);
-        out.writeLong(indexedDocumentCount);
-        out.writeLong(indexedDocumentVolume);
-        out.writeEnum(jobType);
-        out.writeOptionalInstant(lastSeen);
-        out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeGenericValue);
-        out.writeOptionalInstant(startedAt);
-        out.writeEnum(status);
-        out.writeOptionalLong(totalDocumentCount);
-        out.writeEnum(triggerMethod);
-        out.writeOptionalString(workerHostname);
     }
 
     public boolean equals(Object other) {

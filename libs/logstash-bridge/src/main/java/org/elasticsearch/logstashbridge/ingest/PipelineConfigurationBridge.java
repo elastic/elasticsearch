@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.logstashbridge.ingest;
 
@@ -14,7 +15,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
-public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineConfiguration> {
+/**
+ * An external bridge for {@link PipelineConfiguration}
+ */
+public class PipelineConfigurationBridge extends StableBridgeAPI.ProxyInternal<PipelineConfiguration> {
     public PipelineConfigurationBridge(final PipelineConfiguration delegate) {
         super(delegate);
     }
@@ -24,21 +28,25 @@ public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineC
     }
 
     public String getId() {
-        return delegate.getId();
+        return internalDelegate.getId();
     }
 
-    public Map<String, Object> getConfigAsMap() {
-        return delegate.getConfigAsMap();
+    public Map<String, Object> getConfig() {
+        return internalDelegate.getConfig();
+    }
+
+    public Map<String, Object> getConfig(final boolean unmodifiable) {
+        return internalDelegate.getConfig(unmodifiable);
     }
 
     @Override
     public int hashCode() {
-        return delegate.hashCode();
+        return internalDelegate.hashCode();
     }
 
     @Override
     public String toString() {
-        return delegate.toString();
+        return internalDelegate.toString();
     }
 
     @Override
@@ -46,7 +54,7 @@ public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineC
         if (this == obj) {
             return true;
         } else if (obj instanceof PipelineConfigurationBridge other) {
-            return delegate.equals(other.delegate);
+            return internalDelegate.equals(other.internalDelegate);
         } else {
             return false;
         }

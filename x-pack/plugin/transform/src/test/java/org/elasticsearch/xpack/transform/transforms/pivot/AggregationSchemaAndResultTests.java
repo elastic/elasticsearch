@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -92,10 +93,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                     String[] nameTypePair = Strings.split(field, "_");
                     String type = nameTypePair != null ? nameTypePair[0] : "long";
 
-                    fieldCaps.put(
-                        field,
-                        Collections.singletonMap(type, new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap()))
-                    );
+                    fieldCaps.put(field, Collections.singletonMap(type, new FieldCapabilitiesBuilder(field, type).build()));
                 }
 
                 // FieldCapabilitiesResponse is package private, thats why we use a mock

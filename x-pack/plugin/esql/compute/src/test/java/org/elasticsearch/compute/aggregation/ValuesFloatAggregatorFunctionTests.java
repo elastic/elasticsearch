@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -28,8 +29,8 @@ public class ValuesFloatAggregatorFunctionTests extends AggregatorFunctionTestCa
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesFloatAggregatorFunctionSupplier();
     }
 
     @Override
@@ -38,9 +39,9 @@ public class ValuesFloatAggregatorFunctionTests extends AggregatorFunctionTestCa
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
+    public void assertSimpleOutput(List<Page> input, Block result) {
         TreeSet<?> set = new TreeSet<>((List<?>) BlockUtils.toJavaObject(result, 0));
-        Object[] values = input.stream().flatMap(AggregatorFunctionTestCase::allFloats).collect(Collectors.toSet()).toArray(Object[]::new);
+        Object[] values = input.stream().flatMap(p -> allFloats(p.getBlock(0))).collect(Collectors.toSet()).toArray(Object[]::new);
         if (false == set.containsAll(Arrays.asList(values))) {
             assertThat(set, containsInAnyOrder(values));
         }

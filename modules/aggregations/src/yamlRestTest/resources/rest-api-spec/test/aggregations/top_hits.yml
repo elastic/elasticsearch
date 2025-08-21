@@ -349,16 +349,17 @@ sequence number and primary term:
 ---
 synthetic _source:
   - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: introduced in 8.4.0
+      cluster_features: ["mapper.source.mode_from_index_setting"]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: test_synthetic
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               page:
                 type: keyword

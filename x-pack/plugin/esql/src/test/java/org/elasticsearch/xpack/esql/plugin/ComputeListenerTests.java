@@ -10,26 +10,20 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverSleeps;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,75 +35,74 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.test.tasks.MockTaskManager.SPY_TASK_MANAGER_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 
 public class ComputeListenerTests extends ESTestCase {
     private ThreadPool threadPool;
-    private TransportService transportService;
 
     @Before
     public void setUpTransportService() {
         threadPool = new TestThreadPool(getTestName());
-        transportService = MockTransportService.createNewService(
-            Settings.builder().put(SPY_TASK_MANAGER_SETTING.getKey(), true).build(),
-            VersionInformation.CURRENT,
-            TransportVersionUtils.randomVersion(),
-            threadPool
-        );
-        transportService.start();
-        TaskCancellationService cancellationService = new TaskCancellationService(transportService);
-        transportService.getTaskManager().setTaskCancellationService(cancellationService);
-        Mockito.clearInvocations(transportService.getTaskManager());
     }
 
     @After
     public void shutdownTransportService() {
-        transportService.close();
         terminate(threadPool);
     }
 
-    private CancellableTask newTask() {
-        return new CancellableTask(
-            randomIntBetween(1, 100),
-            "test-type",
-            "test-action",
-            "test-description",
-            TaskId.EMPTY_TASK_ID,
-            Map.of()
+    private DriverCompletionInfo randomCompletionInfo() {
+        return new DriverCompletionInfo(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomList(
+                0,
+                2,
+                () -> new DriverProfile(
+                    randomIdentifier(),
+                    randomIdentifier(),
+                    randomIdentifier(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    List.of(),
+                    DriverSleeps.empty()
+                )
+            ),
+            randomList(
+                0,
+                2,
+                () -> new PlanProfile(randomIdentifier(), randomIdentifier(), randomIdentifier(), randomAlphaOfLengthBetween(1, 1024))
+            )
         );
     }
 
-    private ComputeResponse randomResponse() {
-        int numProfiles = randomIntBetween(0, 2);
-        List<DriverProfile> profiles = new ArrayList<>(numProfiles);
-        for (int i = 0; i < numProfiles; i++) {
-            profiles.add(new DriverProfile(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), List.of()));
-        }
-        return new ComputeResponse(profiles);
-    }
-
     public void testEmpty() {
-        PlainActionFuture<ComputeResponse> results = new PlainActionFuture<>();
-        try (ComputeListener ignored = new ComputeListener(transportService, newTask(), results)) {
+        PlainActionFuture<DriverCompletionInfo> results = new PlainActionFuture<>();
+        try (var ignored = new ComputeListener(threadPool, () -> {}, results)) {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
-        assertThat(results.actionGet(10, TimeUnit.SECONDS).getProfiles(), empty());
+        assertThat(results.actionGet(10, TimeUnit.SECONDS).driverProfiles(), empty());
     }
 
     public void testCollectComputeResults() {
-        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        PlainActionFuture<DriverCompletionInfo> future = new PlainActionFuture<>();
+        long documentsFound = 0;
+        long valuesLoaded = 0;
         List<DriverProfile> allProfiles = new ArrayList<>();
-        try (ComputeListener computeListener = new ComputeListener(transportService, newTask(), future)) {
+        AtomicInteger onFailure = new AtomicInteger();
+        try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, future)) {
             int tasks = randomIntBetween(1, 100);
             for (int t = 0; t < tasks; t++) {
                 if (randomBoolean()) {
@@ -120,26 +113,30 @@ public class ComputeListenerTests extends ESTestCase {
                         threadPool.generic()
                     );
                 } else {
-                    ComputeResponse resp = randomResponse();
-                    allProfiles.addAll(resp.getProfiles());
-                    ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
+                    var info = randomCompletionInfo();
+                    documentsFound += info.documentsFound();
+                    valuesLoaded += info.valuesLoaded();
+                    allProfiles.addAll(info.driverProfiles());
+                    ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
                     threadPool.schedule(
-                        ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
+                        ActionRunnable.wrap(subListener, l -> l.onResponse(info)),
                         TimeValue.timeValueNanos(between(0, 100)),
                         threadPool.generic()
                     );
                 }
             }
         }
-        ComputeResponse result = future.actionGet(10, TimeUnit.SECONDS);
+        DriverCompletionInfo actual = future.actionGet(10, TimeUnit.SECONDS);
+        assertThat(actual.documentsFound(), equalTo(documentsFound));
+        assertThat(actual.valuesLoaded(), equalTo(valuesLoaded));
         assertThat(
-            result.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+            actual.driverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
         );
-        Mockito.verifyNoInteractions(transportService.getTaskManager());
+        assertThat(onFailure.get(), equalTo(0));
     }
 
-    public void testCancelOnFailure() throws Exception {
+    public void testCancelOnFailure() {
         Queue<Exception> rootCauseExceptions = ConcurrentCollections.newQueue();
         IntStream.range(0, between(1, 100))
             .forEach(
@@ -147,13 +144,13 @@ public class ComputeListenerTests extends ESTestCase {
             );
         int successTasks = between(1, 50);
         int failedTasks = between(1, 100);
-        PlainActionFuture<ComputeResponse> rootListener = new PlainActionFuture<>();
-        CancellableTask rootTask = newTask();
-        try (ComputeListener computeListener = new ComputeListener(transportService, rootTask, rootListener)) {
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        final AtomicInteger onFailure = new AtomicInteger();
+        try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, rootListener)) {
             for (int i = 0; i < successTasks; i++) {
-                ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
+                ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
                 threadPool.schedule(
-                    ActionRunnable.wrap(subListener, l -> l.onResponse(randomResponse())),
+                    ActionRunnable.wrap(subListener, l -> l.onResponse(randomCompletionInfo())),
                     TimeValue.timeValueNanos(between(0, 100)),
                     threadPool.generic()
                 );
@@ -169,24 +166,26 @@ public class ComputeListenerTests extends ESTestCase {
                 }), TimeValue.timeValueNanos(between(0, 100)), threadPool.generic());
             }
         }
-        assertBusy(rootListener::isDone);
-        ExecutionException failure = expectThrows(ExecutionException.class, () -> rootListener.get(1, TimeUnit.SECONDS));
+        ExecutionException failure = expectThrows(ExecutionException.class, () -> rootListener.get(10, TimeUnit.SECONDS));
         Throwable cause = failure.getCause();
         assertNotNull(failure);
         assertThat(cause, instanceOf(CircuitBreakingException.class));
         assertThat(failure.getSuppressed().length, lessThan(10));
-        Mockito.verify(transportService.getTaskManager(), Mockito.times(1))
-            .cancelTaskAndDescendants(eq(rootTask), eq("cancelled on failure"), eq(false), any());
+        assertThat(onFailure.get(), greaterThanOrEqualTo(1));
     }
 
     public void testCollectWarnings() throws Exception {
+        AtomicLong documentsFound = new AtomicLong();
+        AtomicLong valuesLoaded = new AtomicLong();
         List<DriverProfile> allProfiles = new ArrayList<>();
         Map<String, Set<String>> allWarnings = new HashMap<>();
-        ActionListener<ComputeResponse> rootListener = new ActionListener<>() {
+        ActionListener<DriverCompletionInfo> rootListener = new ActionListener<>() {
             @Override
-            public void onResponse(ComputeResponse result) {
+            public void onResponse(DriverCompletionInfo result) {
+                assertThat(result.documentsFound(), equalTo(documentsFound.get()));
+                assertThat(result.valuesLoaded(), equalTo(valuesLoaded.get()));
                 assertThat(
-                    result.getProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+                    result.driverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
                     equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
                 );
                 Map<String, Set<String>> responseHeaders = threadPool.getThreadContext()
@@ -202,11 +201,12 @@ public class ComputeListenerTests extends ESTestCase {
                 throw new AssertionError(e);
             }
         };
+        AtomicInteger onFailure = new AtomicInteger();
         CountDownLatch latch = new CountDownLatch(1);
         try (
-            ComputeListener computeListener = new ComputeListener(
-                transportService,
-                newTask(),
+            var computeListener = new ComputeListener(
+                threadPool,
+                onFailure::incrementAndGet,
                 ActionListener.runAfter(rootListener, latch::countDown)
             )
         ) {
@@ -220,8 +220,10 @@ public class ComputeListenerTests extends ESTestCase {
                         threadPool.generic()
                     );
                 } else {
-                    ComputeResponse resp = randomResponse();
-                    allProfiles.addAll(resp.getProfiles());
+                    var resp = randomCompletionInfo();
+                    documentsFound.addAndGet(resp.documentsFound());
+                    valuesLoaded.addAndGet(resp.valuesLoaded());
+                    allProfiles.addAll(resp.driverProfiles());
                     int numWarnings = randomIntBetween(1, 5);
                     Map<String, String> warnings = new HashMap<>();
                     for (int i = 0; i < numWarnings; i++) {
@@ -230,7 +232,7 @@ public class ComputeListenerTests extends ESTestCase {
                     for (Map.Entry<String, String> e : warnings.entrySet()) {
                         allWarnings.computeIfAbsent(e.getKey(), v -> new HashSet<>()).add(e.getValue());
                     }
-                    ActionListener<ComputeResponse> subListener = computeListener.acquireCompute();
+                    var subListener = computeListener.acquireCompute();
                     threadPool.schedule(ActionRunnable.wrap(subListener, l -> {
                         for (Map.Entry<String, String> e : warnings.entrySet()) {
                             threadPool.getThreadContext().addResponseHeader(e.getKey(), e.getValue());
@@ -241,6 +243,6 @@ public class ComputeListenerTests extends ESTestCase {
             }
         }
         assertTrue(latch.await(10, TimeUnit.SECONDS));
-        Mockito.verifyNoInteractions(transportService.getTaskManager());
+        assertThat(onFailure.get(), equalTo(0));
     }
 }

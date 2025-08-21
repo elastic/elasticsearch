@@ -25,21 +25,21 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -57,6 +57,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "cartesian_point",
             "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
             "geo_shape",
@@ -64,9 +65,10 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "ip",
             "keyword",
             "long",
-            "text",
+            "unsigned_long",
             "version" },
-        description = "Concatenates values of two multi-value fields."
+        description = "Concatenates values of two multi-value fields.",
+        examples = { @Example(file = "date", tag = "mv_append_date") }
     )
     public MvAppend(
         Source source,
@@ -77,6 +79,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -85,6 +88,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" }
         ) Expression field1,
         @Param(
@@ -94,6 +98,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -102,6 +107,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" }
         ) Expression field2
     ) {
@@ -132,16 +138,16 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field1, EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isRepresentableExceptCounters(field1, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
-        dataType = field1.dataType();
+        dataType = field1.dataType().noText();
         if (dataType == DataType.NULL) {
-            dataType = field2.dataType();
-            return isType(field2, EsqlDataTypes::isRepresentable, sourceText(), SECOND, "representable");
+            dataType = field2.dataType().noText();
+            return isRepresentableExceptCounters(field2, sourceText(), SECOND);
         }
-        return isType(field2, t -> t == dataType, sourceText(), SECOND, dataType.typeName());
+        return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
     }
 
     @Override
@@ -150,9 +156,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(dataType())) {
             case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));

@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  * Custom cluster state metadata that stores all the snapshot lifecycle
  * policies and their associated metadata
  */
-public class SnapshotLifecycleMetadata implements Metadata.Custom {
+public class SnapshotLifecycleMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "snapshot_lifecycle";
 
@@ -121,7 +121,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new SnapshotLifecycleMetadataDiff((SnapshotLifecycleMetadata) previousState, this);
     }
 
@@ -132,7 +132,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -143,14 +143,13 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            ChunkedToXContentHelper.xContentValuesMap(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations),
-            Iterators.single((builder, params) -> {
-                builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
-                builder.field(STATS_FIELD.getPreferredName(), this.slmStats);
-                return builder;
-            })
+            ChunkedToXContentHelper.xContentObjectFields(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations),
+            Iterators.single(
+                (builder, p) -> builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode)
+                    .field(STATS_FIELD.getPreferredName(), this.slmStats)
+            )
         );
     }
 
@@ -178,7 +177,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
             && this.slmStats.equals(other.slmStats);
     }
 
-    public static class SnapshotLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class SnapshotLifecycleMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, SnapshotLifecyclePolicyMetadata>> lifecycles;
         final OperationMode operationMode;
@@ -206,7 +205,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             TreeMap<String, SnapshotLifecyclePolicyMetadata> newLifecycles = new TreeMap<>(
                 lifecycles.apply(((SnapshotLifecycleMetadata) part).snapshotConfigurations)
             );
@@ -231,7 +230,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_4_0;
+            return TransportVersions.ZERO;
         }
 
     }

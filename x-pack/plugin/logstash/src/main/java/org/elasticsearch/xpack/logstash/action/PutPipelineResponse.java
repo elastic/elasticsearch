@@ -24,7 +24,6 @@ public class PutPipelineResponse extends ActionResponse {
     }
 
     public PutPipelineResponse(StreamInput in) throws IOException {
-        super(in);
         this.status = in.readEnum(RestStatus.class);
     }
 

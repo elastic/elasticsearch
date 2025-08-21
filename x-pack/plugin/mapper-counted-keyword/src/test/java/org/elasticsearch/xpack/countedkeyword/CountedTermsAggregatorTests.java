@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -40,7 +41,9 @@ public class CountedTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAggregatesCountedKeywords() throws Exception {
-        FieldMapper mapper = new CountedKeywordFieldMapper.Builder("stacktraces").build(MapperBuilderContext.root(false, false));
+        FieldMapper mapper = new CountedKeywordFieldMapper.Builder("stacktraces", Mapper.SourceKeepMode.NONE).build(
+            MapperBuilderContext.root(false, false)
+        );
         MappedFieldType fieldType = mapper.fieldType();
 
         CountedTermsAggregationBuilder aggregationBuilder = new CountedTermsAggregationBuilder("st").field("stacktraces");

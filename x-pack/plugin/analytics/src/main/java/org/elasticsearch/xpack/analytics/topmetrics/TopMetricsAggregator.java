@@ -40,11 +40,9 @@ import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.REGISTRY_KEY;
 
 /**
@@ -148,9 +146,14 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     static class Metrics implements BucketedSort.ExtraData, Releasable {
         private final MetricValues[] values;
+        private final List<String> names;
 
         Metrics(MetricValues[] values) {
             this.values = values;
+            names = new ArrayList<>(values.length);
+            for (MetricValues value : values) {
+                names.add(value.name);
+            }
         }
 
         boolean needsScores() {
@@ -182,7 +185,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         List<String> names() {
-            return Arrays.stream(values).map(v -> v.name).collect(toList());
+            return names;
         }
 
         @Override

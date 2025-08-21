@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.routing;
@@ -32,6 +33,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -59,7 +61,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         }
         refresh();
         internalCluster().stopRandomDataNode();
-        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
         String[] preferences = new String[] {
             "_local",
             "_prefer_nodes:somenode",
@@ -67,25 +69,20 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             "_prefer_nodes:somenode,server2" };
         for (String pref : preferences) {
             logger.info("--> Testing out preference={}", pref);
-            assertResponse(prepareSearch().setSize(0).setPreference(pref), response -> {
+            assertResponses(response -> {
                 assertThat(RestStatus.OK, equalTo(response.status()));
                 assertThat(pref, response.getFailedShards(), greaterThanOrEqualTo(0));
-            });
-            assertResponse(prepareSearch().setPreference(pref), response -> {
-                assertThat(RestStatus.OK, equalTo(response.status()));
-                assertThat(pref, response.getFailedShards(), greaterThanOrEqualTo(0));
-            });
+            }, prepareSearch().setSize(0).setPreference(pref), prepareSearch().setPreference(pref));
         }
 
         // _only_local is a stricter preference, we need to send the request to a data node
-        assertResponse(dataNodeClient().prepareSearch().setSize(0).setPreference("_only_local"), response -> {
+        assertResponses(response -> {
             assertThat(RestStatus.OK, equalTo(response.status()));
             assertThat("_only_local", response.getFailedShards(), greaterThanOrEqualTo(0));
-        });
-        assertResponse(dataNodeClient().prepareSearch().setPreference("_only_local"), response -> {
-            assertThat(RestStatus.OK, equalTo(response.status()));
-            assertThat("_only_local", response.getFailedShards(), greaterThanOrEqualTo(0));
-        });
+        },
+            dataNodeClient().prepareSearch().setSize(0).setPreference("_only_local"),
+            dataNodeClient().prepareSearch().setPreference("_only_local")
+        );
     }
 
     public void testNoPreferenceRandom() {
@@ -120,19 +117,11 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
-        assertResponse(
+        assertResponses(
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(1L)),
             prepareSearch().setQuery(matchAllQuery()),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
-        );
-
-        assertResponse(
             prepareSearch().setQuery(matchAllQuery()).setPreference("_local"),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
-        );
-
-        assertResponse(
-            prepareSearch().setQuery(matchAllQuery()).setPreference("1234"),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+            prepareSearch().setQuery(matchAllQuery()).setPreference("1234")
         );
     }
 

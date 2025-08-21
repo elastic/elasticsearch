@@ -1,8 +1,8 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 esplugin {
-  name 'x-pack-text-structure'
-  description 'Elasticsearch Expanded Pack Plugin - Text Structure'
-  classname 'org.elasticsearch.xpack.textstructure.TextStructurePlugin'
+  name = 'x-pack-text-structure'
+  description = 'Elasticsearch Expanded Pack Plugin - Text Structure'
+  classname ='org.elasticsearch.xpack.textstructure.TextStructurePlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {
@@ -12,7 +12,7 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  api project(':libs:elasticsearch-grok')
+  api project(':libs:grok')
   api "com.ibm.icu:icu4j:${versions.icu4j}"
   api "net.sf.supercsv:super-csv:${versions.supercsv}"
 }

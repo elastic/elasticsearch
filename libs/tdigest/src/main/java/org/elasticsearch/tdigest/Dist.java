@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
+
 import java.util.List;
 import java.util.function.Function;
 
@@ -102,6 +104,10 @@ public class Dist {
         return cdf(x, data.size(), data::get);
     }
 
+    public static double cdf(final double x, TDigestDoubleArray data) {
+        return cdf(x, data.size(), data::get);
+    }
+
     private static double quantile(final double q, final int length, Function<Integer, Double> elementGetter) {
         if (length == 0) {
             return Double.NaN;
@@ -131,6 +137,10 @@ public class Dist {
     }
 
     public static double quantile(final double q, List<Double> data) {
+        return quantile(q, data.size(), data::get);
+    }
+
+    public static double quantile(final double q, TDigestDoubleArray data) {
         return quantile(q, data.size(), data::get);
     }
 }

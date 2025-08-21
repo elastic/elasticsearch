@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.time.Clock;
 import java.util.Arrays;
@@ -134,7 +135,8 @@ public final class DestinationIndex {
         String[] destIndexAllowedSettings,
         ActionListener<CreateIndexRequest> listener
     ) {
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(config.getSource().getIndex())
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT)
+            .indices(config.getSource().getIndex())
             .indicesOptions(IndicesOptions.lenientExpandOpen())
             .names(PRESERVED_SETTINGS);
         ClientHelper.executeWithHeadersAsync(
@@ -147,6 +149,7 @@ public final class DestinationIndex {
                 final Settings settings = settings(settingsResponse, destIndexAllowedSettings);
                 MappingsMerger.mergeMappings(
                     client,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     config.getHeaders(),
                     config.getSource(),
                     delegate.delegateFailureAndWrap(

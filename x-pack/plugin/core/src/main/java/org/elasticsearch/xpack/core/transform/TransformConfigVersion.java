@@ -331,10 +331,8 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
 
     public static TransformConfigVersion getTransformConfigVersionForNode(DiscoveryNode node) {
         String transformConfigVerStr = node.getAttributes().get(TRANSFORM_CONFIG_VERSION_NODE_ATTR);
-        if (transformConfigVerStr != null) {
-            return fromString(transformConfigVerStr);
-        }
-        return fromId(node.getPre811VersionId().orElseThrow(() -> new IllegalStateException("getting legacy version id not possible")));
+        if (transformConfigVerStr == null) throw new IllegalStateException(TRANSFORM_CONFIG_VERSION_NODE_ATTR + " not present on node");
+        return fromString(transformConfigVerStr);
     }
 
     // Parse an TransformConfigVersion from a string.

@@ -13,21 +13,25 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToInteger}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToIntegerFromBooleanEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator bool;
+
+  public ToIntegerFromBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator bool,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.bool = bool;
   }
 
   @Override
-  public String name() {
-    return "ToIntegerFromBoolean";
+  public EvalOperator.ExpressionEvaluator next() {
+    return bool;
   }
 
   @Override
@@ -45,7 +49,7 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static int evalValue(BooleanVector container, int index) {
+  private int evalValue(BooleanVector container, int index) {
     boolean value = container.getBoolean(index);
     return ToInteger.fromBoolean(value);
   }
@@ -80,29 +84,39 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static int evalValue(BooleanBlock container, int index) {
+  private int evalValue(BooleanBlock container, int index) {
     boolean value = container.getBoolean(index);
     return ToInteger.fromBoolean(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToIntegerFromBooleanEvaluator[" + "bool=" + bool + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(bool);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory bool;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory bool) {
       this.source = source;
+      this.bool = bool;
     }
 
     @Override
     public ToIntegerFromBooleanEvaluator get(DriverContext context) {
-      return new ToIntegerFromBooleanEvaluator(field.get(context), source, context);
+      return new ToIntegerFromBooleanEvaluator(source, bool.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToIntegerFromBooleanEvaluator[field=" + field + "]";
+      return "ToIntegerFromBooleanEvaluator[" + "bool=" + bool + "]";
     }
   }
 }

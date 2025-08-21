@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.common.Strings;
@@ -49,7 +48,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
@@ -318,7 +316,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -365,7 +363,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
         index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
+        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -459,7 +457,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String firstBackingIndex = getDataStreamBackingIndexNames(dataStream).getFirst();
         logger.info("--> firstBackingIndex: {}", firstBackingIndex);
         assertBusy(
             () -> assertThat(
@@ -540,7 +538,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String firstBackingIndex = getBackingIndices(client(), dataStream).get(0);
+        String firstBackingIndex = getDataStreamBackingIndexNames(dataStream).getFirst();
         logger.info("--> firstBackingIndex: {}", firstBackingIndex);
         assertBusy(
             () -> assertThat(

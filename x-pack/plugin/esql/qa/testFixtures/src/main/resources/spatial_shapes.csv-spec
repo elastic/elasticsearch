@@ -319,6 +319,47 @@ wkt:keyword                               |pt:geo_shape
 ;
 
 ###############################################
+# Tests for GEO_SHAPE type with ST_ENVELOPE, ST_XMIN, etc.
+#
+
+polygonEnvelope
+required_capability: st_envelope
+
+// tag::st_envelope[]
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL envelope = ST_ENVELOPE(city_boundary)
+| KEEP abbrev, airport, envelope
+// end::st_envelope[]
+| LIMIT 1
+;
+
+// tag::st_envelope-result[]
+abbrev:keyword | airport:text  | envelope:geo_shape
+CPH            |  Copenhagen   | BBOX(12.453, 12.6398, 55.7327, 55.6318)
+// end::st_envelope-result[]
+;
+
+polygonEnvelopeXYMinMax
+required_capability: st_envelope
+
+// tag::st_x_y_min_max[]
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL envelope = ST_ENVELOPE(city_boundary)
+| EVAL xmin = ST_XMIN(envelope), xmax = ST_XMAX(envelope), ymin = ST_YMIN(envelope), ymax = ST_YMAX(envelope)
+| KEEP abbrev, airport, xmin, xmax, ymin, ymax
+// end::st_x_y_min_max[]
+| LIMIT 1
+;
+
+// tag::st_x_y_min_max-result[]
+abbrev:keyword | airport:text  | xmin:double | xmax:double | ymin:double | ymax:double 
+CPH            |  Copenhagen   | 12.453      | 12.6398     | 55.6318     | 55.7327
+// end::st_x_y_min_max-result[]
+;
+
+###############################################
 # Tests for CARTESIAN_SHAPE type
 #
 

@@ -18,11 +18,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -38,6 +40,15 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests that licenses can be installed start to finish via the REST API.
  */
 public class LicenseInstallationIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .keystore("bootstrap.password", "x-pack-test-password")
+        .user("x_pack_rest_user", "x-pack-test-password")
+        .systemProperty("es.queryable_built_in_roles_enabled", "false")
+        .build();
 
     @Override
     protected Settings restClientSettings() {
@@ -158,5 +169,10 @@ public class LicenseInstallationIT extends ESRestTestCase {
             Map<String, Object> innerMap = (Map<String, Object>) entityAsMap(getLicenseResponse).get("license");
             assertThat("the cluster should be using a trial license", innerMap.get("type"), equalTo("trial"));
         });
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

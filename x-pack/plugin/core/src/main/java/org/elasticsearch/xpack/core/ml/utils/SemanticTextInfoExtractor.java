@@ -30,18 +30,14 @@ public class SemanticTextInfoExtractor {
 
         Set<String> referenceIndices = new HashSet<>();
 
-        Map<String, IndexMetadata> indices = metadata.indices();
+        Map<String, IndexMetadata> indices = metadata.getProject().indices();
 
         indices.forEach((indexName, indexMetadata) -> {
-            if (indexMetadata.getInferenceFields() != null) {
-                Map<String, InferenceFieldMetadata> inferenceFields = indexMetadata.getInferenceFields();
-                if (inferenceFields.entrySet()
-                    .stream()
-                    .anyMatch(
-                        entry -> entry.getValue().getInferenceId() != null && endpointIds.contains(entry.getValue().getInferenceId())
-                    )) {
-                    referenceIndices.add(indexName);
-                }
+            Map<String, InferenceFieldMetadata> inferenceFields = indexMetadata.getInferenceFields();
+            if (inferenceFields.values()
+                .stream()
+                .anyMatch(im -> endpointIds.contains(im.getInferenceId()) || endpointIds.contains(im.getSearchInferenceId()))) {
+                referenceIndices.add(indexName);
             }
         });
 

@@ -1,0 +1,22 @@
+---
+"Ensure index state is exposed":
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
+      reason: index state added to stats in 8.1.0
+
+  - do:
+      indices.create:
+        index: openindex
+  - do:
+      indices.create:
+        index: closedindex
+  - do:
+      indices.close:
+        index: closedindex
+  - do:
+      indices.stats:
+        expand_wildcards: [open,closed]
+        forbid_closed_indices: false
+
+  - match: { indices.openindex.status: open }
+  - match: { indices.closedindex.status: close }

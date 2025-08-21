@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -47,7 +48,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         Supplier<ColumnExtractOperator.Evaluator> expEval = () -> new FirstWord(0);
         return new ColumnExtractOperator.Factory(
             new ElementType[] { ElementType.BYTES_REF },

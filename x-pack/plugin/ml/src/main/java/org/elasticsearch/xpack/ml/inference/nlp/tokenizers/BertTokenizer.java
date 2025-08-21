@@ -170,11 +170,6 @@ public class BertTokenizer extends NlpTokenizer {
     }
 
     @Override
-    int defaultSpanForChunking(int maxWindowSize) {
-        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
-    }
-
-    @Override
     int getNumExtraTokensForSeqPair() {
         return 3;
     }

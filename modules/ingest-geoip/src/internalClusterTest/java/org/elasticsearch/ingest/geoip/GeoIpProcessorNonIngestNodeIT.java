@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -11,22 +12,16 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.NodeRoles;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
@@ -43,53 +38,46 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
      */
     public void testLazyLoading() throws IOException {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/37342", Constants.WINDOWS);
-        final BytesReference bytes;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
+        putJsonPipeline("geoip", (builder, params) -> {
+            builder.field("description", "test");
+            builder.startArray("processors");
             {
-                builder.field("description", "test");
-                builder.startArray("processors");
+                builder.startObject();
                 {
-                    builder.startObject();
+                    builder.startObject("geoip");
                     {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-city");
-                            builder.field("database_file", "GeoLite2-City.mmdb");
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-country");
-                            builder.field("database_file", "GeoLite2-Country.mmdb");
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject();
-                    {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-asn");
-                            builder.field("database_file", "GeoLite2-ASN.mmdb");
-                        }
-                        builder.endObject();
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-city");
+                        builder.field("database_file", "GeoLite2-City.mmdb");
                     }
                     builder.endObject();
                 }
-                builder.endArray();
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-country");
+                        builder.field("database_file", "GeoLite2-Country.mmdb");
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject();
+                {
+                    builder.startObject("geoip");
+                    {
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-asn");
+                        builder.field("database_file", "GeoLite2-ASN.mmdb");
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
             }
-            builder.endObject();
-            bytes = BytesReference.bytes(builder);
-        }
-        assertAcked(clusterAdmin().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
+            return builder.endArray();
+        });
         // the geo-IP databases should not be loaded on any nodes as they are all non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames()).forEach(node -> assertDatabaseLoadStatus(node, false));
 

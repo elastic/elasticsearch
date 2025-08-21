@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -224,13 +226,14 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             }
         }
 
-        final IndexMetadata indexMetadata = clusterAdmin().prepareState()
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setIndices(indexName)
             .setMetadata(true)
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
         assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), nullValue());
         final int numPrimaries = getNumShards(indexName).numPrimaries;
@@ -251,13 +254,14 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(numPrimaries));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        final IndexMetadata restoredIndexMetadata = clusterAdmin().prepareState()
+        final IndexMetadata restoredIndexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setIndices(indexName)
             .setMetadata(true)
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
             assertThat(restoredIndexMetadata.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
@@ -307,12 +311,19 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that old mapping is restored");
-        MappingMetadata mappings = clusterAdmin().prepareState().get().getState().getMetadata().getIndices().get("test-idx").mapping();
+        MappingMetadata mappings = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .getMetadata()
+            .getProject()
+            .indices()
+            .get("test-idx")
+            .mapping();
         assertThat(mappings.sourceAsMap().toString(), containsString("baz"));
         assertThat(mappings.sourceAsMap().toString(), not(containsString("foo")));
 
         logger.info("--> assert that old settings are restored");
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test-idx").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test-idx").get();
         assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10s"));
     }
 
@@ -325,21 +336,21 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> create aliases");
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAlias("test-idx-1", "alias-123")
                 .addAlias("test-idx-2", "alias-123")
                 .addAlias("test-idx-3", "alias-123")
                 .addAlias("test-idx-1", "alias-1")
         );
 
-        assertFalse(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
 
         createSnapshot("test-repo", "test-snap", Collections.emptyList());
 
         logger.info("-->  delete all indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2", "test-idx-3");
-        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-1").get().getAliases().isEmpty());
 
         logger.info("--> restore snapshot with aliases");
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
@@ -354,18 +365,18 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> check that aliases are restored");
-        assertFalse(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-1").get().getAliases().isEmpty());
 
         logger.info("-->  update aliases");
-        assertAcked(indicesAdmin().prepareAliases().removeAlias("test-idx-3", "alias-123"));
-        assertAcked(indicesAdmin().prepareAliases().addAlias("test-idx-3", "alias-3"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test-idx-3", "alias-123"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test-idx-3", "alias-3"));
 
         logger.info("-->  delete and close indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
         assertAcked(indicesAdmin().prepareClose("test-idx-3"));
-        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-1").get().getAliases().isEmpty());
 
         logger.info("--> restore snapshot without aliases");
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
@@ -380,9 +391,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> check that aliases are not restored and existing aliases still exist");
-        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("alias-3").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-1").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-3").get().getAliases().isEmpty());
     }
 
     public void testRestoreTemplates() throws Exception {
@@ -416,7 +427,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  delete test template");
         assertThat(indicesAdmin().prepareDeleteTemplate("test-template").get().isAcknowledged(), equalTo(true));
-        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> restore cluster state");
@@ -429,7 +440,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template is restored");
-        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
     }
 
@@ -444,7 +455,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(
             client.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAlias("test-idx-1", "alias-1", false)
                 .addAlias("test-idx-2", "alias-2", false)
                 .addAlias("test-idx-3", "alias-3", false)
@@ -628,7 +639,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             long restorePause = 0L;
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-                restorePause += repositoriesService.repository("test-repo").getRestoreThrottleTimeInNanos();
+                restorePause += repositoriesService.repository("test-repo").getSnapshotStats().totalReadThrottledNanos();
             }
             assertThat(restorePause, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(1, 5)).nanos()));
             assertFalse(restoreSnapshotResponse.isDone());
@@ -670,9 +681,12 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexRandom(true, builders);
         flushAndRefresh();
 
-        assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "foo")), numdocs);
+        assertHitCount(
+            numdocs,
+            client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "foo")),
+            client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar"))
+        );
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")), 0);
-        assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar")), numdocs);
 
         createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
@@ -722,14 +736,17 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that correct settings are restored");
-        GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings("test-idx").get();
+        GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test-idx").get();
         assertThat(getSettingsResponse.getSetting("test-idx", INDEX_REFRESH_INTERVAL_SETTING.getKey()), equalTo("5s"));
         // Make sure that number of shards didn't change
         assertThat(getSettingsResponse.getSetting("test-idx", SETTING_NUMBER_OF_SHARDS), equalTo("" + numberOfShards));
         assertThat(getSettingsResponse.getSetting("test-idx", "index.analysis.analyzer.my_analyzer.type"), equalTo("standard"));
 
-        assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")), numdocs);
-        assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar")), numdocs);
+        assertHitCount(
+            numdocs,
+            client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")),
+            client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar"))
+        );
 
         logger.info("--> delete the index and recreate it while deleting all index settings");
         cluster().wipeIndices("test-idx");
@@ -745,13 +762,96 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that correct settings are restored and index is still functional");
-        getSettingsResponse = client.admin().indices().prepareGetSettings("test-idx").get();
+        getSettingsResponse = client.admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test-idx").get();
         assertThat(getSettingsResponse.getSetting("test-idx", INDEX_REFRESH_INTERVAL_SETTING.getKey()), equalTo("5s"));
         // Make sure that number of shards didn't change
         assertThat(getSettingsResponse.getSetting("test-idx", SETTING_NUMBER_OF_SHARDS), equalTo("" + numberOfShards));
 
-        assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")), numdocs);
-        assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar")), numdocs);
+        assertHitCount(
+            numdocs,
+            client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")),
+            client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar"))
+        );
+    }
+
+    public void testRestoreChangeIndexMode() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(indexSettings())));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        for (IndexMode mode : IndexMode.values()) {
+            var error = expectThrows(SnapshotRestoreException.class, () -> {
+                client.admin()
+                    .cluster()
+                    .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                    .setIndexSettings(Settings.builder().put("index.mode", mode.name()))
+                    .setWaitForCompletion(true)
+                    .get();
+            });
+            assertThat(error.getMessage(), containsString("cannot modify setting [index.mode] on restore"));
+        }
+    }
+
+    public void testRestoreChangeSyntheticSource() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(indexSettings())));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        var error = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                .setIndexSettings(Settings.builder().put("index.mapping.source.mode", "synthetic"))
+                .setWaitForCompletion(true)
+                .get();
+        });
+        assertThat(error.getMessage(), containsString("cannot modify setting [index.mapping.source.mode] on restore"));
+    }
+
+    public void testRestoreChangeRecoveryUseSyntheticSource() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(indexSettings())));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        var error = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                .setIndexSettings(Settings.builder().put("index.recovery.use_synthetic_source", true))
+                .setWaitForCompletion(true)
+                .get();
+        });
+        assertThat(error.getMessage(), containsString("cannot modify setting [index.recovery.use_synthetic_source] on restore"));
+    }
+
+    public void testRestoreChangeIndexSorts() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setMapping("host.name", "type=keyword", "@timestamp", "type=date")
+                .setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", List.of("@timestamp", "host.name")))
+        );
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        var error = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                .setIndexSettings(Settings.builder().putList("index.sort.field", List.of("host.name")))
+                .setWaitForCompletion(true)
+                .get();
+        });
+        assertThat(error.getMessage(), containsString("cannot modify setting [index.sort.field] on restore"));
     }
 
     public void testRecreateBlocksOnRestore() throws Exception {
@@ -818,7 +918,14 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .get();
             assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-            ClusterBlocks blocks = client.admin().cluster().prepareState().clear().setBlocks(true).get().getState().blocks();
+            ClusterBlocks blocks = client.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setBlocks(true)
+                .get()
+                .getState()
+                .blocks();
             // compute current index settings (as we cannot query them if they contain SETTING_BLOCKS_METADATA)
             Settings mergedSettings = Settings.builder().put(initialSettings).put(changedSettings).build();
             logger.info("--> merged block settings {}", mergedSettings);

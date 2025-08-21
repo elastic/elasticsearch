@@ -26,9 +26,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ValuesDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+    private final boolean withNulls = randomBoolean();
+
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesDoubleAggregatorFunctionSupplier();
     }
 
     @Override
@@ -40,7 +42,8 @@ public class ValuesDoubleGroupingAggregatorFunctionTests extends GroupingAggrega
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongDoubleTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
+            LongStream.range(0, size)
+                .mapToObj(l -> Tuple.tuple(randomLongBetween(0, 100), withNulls && randomBoolean() ? null : randomDouble()))
         );
     }
 

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -30,19 +30,23 @@ public class ResolveClusterActionRequestTests extends AbstractWireSerializingTes
 
     @Override
     protected ResolveClusterActionRequest createTestInstance() {
-        String[] names = generateRandomStringArray(1, 7, false);
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean()
-        );
-        return new ResolveClusterActionRequest(names, indicesOptions);
+        if (randomInt(5) == 3) {
+            return new ResolveClusterActionRequest(new String[0], IndicesOptions.DEFAULT, true, randomBoolean());
+        } else {
+            String[] names = generateRandomStringArray(1, 7, false);
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            return new ResolveClusterActionRequest(names, indicesOptions, false, randomBoolean());
+        }
     }
 
     @Override
@@ -68,12 +72,6 @@ public class ResolveClusterActionRequestTests extends AbstractWireSerializingTes
         Consumer<ResolveClusterActionRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);
         return mutatedInstance;
-    }
-
-    public void testValidation() {
-        ResolveClusterActionRequest request = new ResolveClusterActionRequest(new String[0]);
-        ActionRequestValidationException exception = request.validate();
-        assertNotNull(exception);
     }
 
     public void testLocalIndicesPresent() {

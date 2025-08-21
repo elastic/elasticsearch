@@ -83,6 +83,10 @@
       "require_alias": {
         "type": "boolean",
         "description": "When true, requires destination is an alias. Default is false"
+      },
+      "include_source_on_error": {
+        "type": "boolean",
+        "description": "True or false if to include the document source in the error message in case of parsing errors. Defaults to true."
       }
     },
     "body":{

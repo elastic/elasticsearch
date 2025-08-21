@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.redact;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.GrokCaptureExtracter;
@@ -55,6 +56,12 @@ public class RedactProcessor extends AbstractProcessor {
     private static final String DEFAULT_REDACTED_START = "<";
     private static final String DEFAULT_REDACTED_END = ">";
 
+    protected static final String REDACT_KEY = "_redact";
+    protected static final String IS_REDACTED_KEY = "_is_redacted";
+    protected static final String METADATA_PATH_REDACT = IngestDocument.INGEST_KEY + "." + REDACT_KEY;
+    // indicates if document has been redacted, path: _ingest._redact._is_redacted
+    protected static final String METADATA_PATH_REDACT_IS_REDACTED = METADATA_PATH_REDACT + "." + IS_REDACTED_KEY;
+
     private final String redactField;
     private final List<Grok> groks;
     private final boolean ignoreMissing;
@@ -64,6 +71,8 @@ public class RedactProcessor extends AbstractProcessor {
 
     private final XPackLicenseState licenseState;
     private final boolean skipIfUnlicensed;
+
+    private final boolean traceRedact;
 
     RedactProcessor(
         String tag,
@@ -76,7 +85,8 @@ public class RedactProcessor extends AbstractProcessor {
         String redactedEndToken,
         MatcherWatchdog matcherWatchdog,
         XPackLicenseState licenseState,
-        boolean skipIfUnlicensed
+        boolean skipIfUnlicensed,
+        boolean traceRedact
     ) {
         super(tag, description);
         this.redactField = redactField;
@@ -94,6 +104,7 @@ public class RedactProcessor extends AbstractProcessor {
         }
         this.licenseState = licenseState;
         this.skipIfUnlicensed = skipIfUnlicensed;
+        this.traceRedact = traceRedact;
     }
 
     @Override
@@ -128,6 +139,8 @@ public class RedactProcessor extends AbstractProcessor {
         try {
             String redacted = matchRedact(fieldValue, groks, redactedStartToken, redactedEndToken);
             ingestDocument.setFieldValue(redactField, redacted);
+            updateMetadataIfNecessary(ingestDocument, fieldValue, redacted);
+
             return ingestDocument;
         } catch (RuntimeException e) {
             // grok throws a RuntimeException when the watchdog interrupts the match
@@ -203,6 +216,21 @@ public class RedactProcessor extends AbstractProcessor {
         } while (offset != length);
     }
 
+    private void updateMetadataIfNecessary(IngestDocument ingestDocument, String fieldValue, String redacted) {
+        if (traceRedact == false || fieldValue == null) {
+            return;
+        }
+
+        Boolean isRedactedMetadata = ingestDocument.getFieldValue(METADATA_PATH_REDACT_IS_REDACTED, Boolean.class, true);
+        boolean alreadyRedacted = Boolean.TRUE.equals(isRedactedMetadata);
+        boolean isRedacted = fieldValue.equals(redacted) == false;
+
+        // document newly redacted
+        if (alreadyRedacted == false && isRedacted) {
+            ingestDocument.setFieldValue(METADATA_PATH_REDACT_IS_REDACTED, true);
+        }
+    }
+
     /**
      * A Grok capture extractor which tracks matched regions
      * and the Grok pattern name for redaction later.
@@ -267,9 +295,13 @@ public class RedactProcessor extends AbstractProcessor {
          */
         String redactMatches(byte[] utf8Bytes, String redactStartToken, String redactEndToken) {
             var merged = mergeOverlappingReplacements(replacementPositions);
-            int longestPatternName = merged.stream().mapToInt(r -> r.patternName.getBytes(StandardCharsets.UTF_8).length).max().getAsInt();
+            int maxPatternNameLength = merged.stream()
+                .mapToInt(r -> r.patternName.getBytes(StandardCharsets.UTF_8).length)
+                .max()
+                .getAsInt();
 
-            int maxPossibleLength = longestPatternName * merged.size() + utf8Bytes.length;
+            int maxPossibleLength = (redactStartToken.length() + maxPatternNameLength + redactEndToken.length()) * merged.size()
+                + utf8Bytes.length;
             byte[] redact = new byte[maxPossibleLength];
 
             int readOffset = 0;
@@ -379,7 +411,8 @@ public class RedactProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
@@ -388,6 +421,8 @@ public class RedactProcessor extends AbstractProcessor {
 
             String redactStart = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "prefix", DEFAULT_REDACTED_START);
             String redactEnd = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "suffix", DEFAULT_REDACTED_END);
+
+            boolean traceRedact = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_redact", false);
 
             if (matchPatterns == null || matchPatterns.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
@@ -406,7 +441,8 @@ public class RedactProcessor extends AbstractProcessor {
                     redactEnd,
                     matcherWatchdog,
                     licenseState,
-                    skipIfUnlicensed
+                    skipIfUnlicensed,
+                    traceRedact
                 );
             } catch (Exception e) {
                 throw newConfigurationException(

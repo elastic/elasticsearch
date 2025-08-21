@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -34,8 +35,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,44 +107,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             );
         }
         return query;
-    }
-
-    @Override
-    protected Map<String, RangeQueryBuilder> getAlternateVersions() {
-        Map<String, RangeQueryBuilder> alternateVersions = new HashMap<>();
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(INT_FIELD_NAME);
-
-        rangeQueryBuilder.includeLower(randomBoolean());
-        rangeQueryBuilder.includeUpper(randomBoolean());
-
-        if (randomBoolean()) {
-            rangeQueryBuilder.from(randomIntBetween(1, 100));
-        }
-
-        if (randomBoolean()) {
-            rangeQueryBuilder.to(randomIntBetween(101, 200));
-        }
-
-        String query = Strings.format(
-            """
-                {
-                    "range":{
-                        "%s": {
-                            "include_lower":%s,
-                            "include_upper":%s,
-                            "from":%s,
-                            "to":%s
-                        }
-                    }
-                }""",
-            INT_FIELD_NAME,
-            rangeQueryBuilder.includeLower(),
-            rangeQueryBuilder.includeUpper(),
-            rangeQueryBuilder.from(),
-            rangeQueryBuilder.to()
-        );
-        alternateVersions.put(query, rangeQueryBuilder);
-        return alternateVersions;
     }
 
     @Override
@@ -419,8 +380,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             {
               "range" : {
                 "timestamp" : {
-                  "from" : "2015-01-01 00:00:00",
-                  "to" : "now",
+                  "gte" : "2015-01-01 00:00:00",
+                  "lte" : "now",
                   "boost" : 1.0,
                   "_name" : "my_range"
                 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.cli;
@@ -15,6 +16,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.junit.Before;
@@ -125,5 +127,16 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
             assertThat(settings.get("simple.setting"), equalTo("override"));
         };
         execute("-Esimple.setting=original");
+    }
+
+    public void testDuplicateCommandLineSetting() {
+        var e = expectThrows(UserException.class, () -> execute("-E", "my.setting=foo", "-E", "my.setting=bar"));
+        assertThat(e.getMessage(), equalTo("setting [my.setting] set twice via command line -E"));
+    }
+
+    public void testConflictingPathCommandLineSettingWithSysprop() {
+        sysprops.put("es.path.data", "foo");
+        var e = expectThrows(UserException.class, () -> execute("-E", "path.data=bar"));
+        assertThat(e.getMessage(), equalTo("setting [path.data] found via command-line -E and system property [es.path.data]"));
     }
 }

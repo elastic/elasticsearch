@@ -27,7 +27,7 @@ import org.elasticsearch.core.Releasables;
  * call {@link #enableGroupIdTracking} to transition the state into a mode
  * where it'll track which {@code groupIds} have been written.
  * <p>
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayState.java.st} instead.
  * </p>
  */
 final class BooleanArrayState extends AbstractArrayState implements GroupingAggregatorState {
@@ -49,7 +49,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
     }
 
     boolean getOrDefault(int groupId) {
-        return groupId < values.size() ? values.get(groupId) : init;
+        return groupId < size ? values.get(groupId) : init;
     }
 
     void set(int groupId, boolean value) {
@@ -102,7 +102,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < values.size()) {
+                if (group < size) {
                     valuesBuilder.appendBoolean(values.get(group));
                 } else {
                     valuesBuilder.appendBoolean(false); // TODO can we just use null?

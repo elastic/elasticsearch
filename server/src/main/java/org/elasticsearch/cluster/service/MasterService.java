@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
@@ -34,19 +36,18 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -54,6 +55,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -108,6 +110,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected final ThreadPool threadPool;
     private final TaskManager taskManager;
+    private final ThreadContext.StoredContext clusterStateUpdateContext;
 
     private volatile ExecutorService threadPoolExecutor;
     private final AtomicInteger totalQueueSize = new AtomicInteger();
@@ -128,6 +131,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.threadPool = threadPool;
         this.taskManager = taskManager;
+        this.clusterStateUpdateContext = getClusterStateUpdateContext(threadPool.getThreadContext());
 
         final var queuesByPriorityBuilder = new EnumMap<Priority, PerPriorityQueue>(Priority.class);
         for (final var priority : Priority.values()) {
@@ -135,6 +139,15 @@ public class MasterService extends AbstractLifecycleComponent {
         }
         this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
         this.unbatchedExecutor = new UnbatchedExecutor();
+    }
+
+    private static ThreadContext.StoredContext getClusterStateUpdateContext(ThreadContext threadContext) {
+        try (var ignored = threadContext.newStoredContext()) {
+            // capture the context in which to run all cluster state updates here where we know it to be very clean
+            assert threadContext.isDefaultContext() : "must only create MasterService in a clean ThreadContext";
+            threadContext.markAsSystemContext();
+            return threadContext.newStoredContext();
+        }
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -505,16 +518,18 @@ public class MasterService extends AbstractLifecycleComponent {
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
             Builder builder = incrementVersion(newClusterState);
-            if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-                builder.routingTable(newClusterState.routingTable().withIncrementedVersion());
-            }
             if (previousClusterState.metadata() != newClusterState.metadata()) {
                 builder.metadata(newClusterState.metadata().withIncrementedVersion());
             }
 
             final var previousMetadata = newClusterState.metadata();
             newClusterState = builder.build();
-            assert previousMetadata.sameIndicesLookup(newClusterState.metadata());
+            if (Assertions.ENABLED) {
+                for (ProjectMetadata previousProject : previousMetadata.projects().values()) {
+                    final var newProject = newClusterState.metadata().projects().get(previousProject.id());
+                    assert newProject == null || previousProject.sameIndicesLookup(newProject);
+                }
+            }
         }
 
         return newClusterState;
@@ -534,10 +549,6 @@ public class MasterService extends AbstractLifecycleComponent {
         }
         if (oldState.metadata().version() != newState.metadata().version()) {
             return false;
-        }
-        if (oldState.routingTable().version() != newState.routingTable().version()) {
-            // GatewayService is special and for odd legacy reasons gets to do this:
-            return oldState.clusterRecovered() == false && newState.clusterRecovered() && newState.routingTable().version() == 0;
         }
         return true;
     }
@@ -662,7 +673,7 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        public void onAckFailure(@Nullable Exception e) {
+        public void onAckFailure(Exception e) {
             try (ThreadContext.StoredContext ignore = context.get()) {
                 restoreResponseHeaders.run();
                 listener.onAckFailure(e);
@@ -694,6 +705,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private static class TaskAckListener {
 
         private final ContextPreservingAckListener contextPreservingAckListener;
+        private final TimeValue ackTimeout;
         private final CountDown countDown;
         private final DiscoveryNode masterNode;
         private final ThreadPool threadPool;
@@ -708,6 +720,7 @@ public class MasterService extends AbstractLifecycleComponent {
             ThreadPool threadPool
         ) {
             this.contextPreservingAckListener = contextPreservingAckListener;
+            this.ackTimeout = Objects.requireNonNull(contextPreservingAckListener.ackTimeout());
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
             this.masterNode = nodes.getMasterNode();
@@ -722,14 +735,7 @@ public class MasterService extends AbstractLifecycleComponent {
             this.countDown = new CountDown(countDown + 1); // we also wait for onCommit to be called
         }
 
-        @UpdateForV9 // properly forbid ackTimeout == null after enough time has passed to be sure it's not used in production
         public void onCommit(TimeValue commitTime) {
-            TimeValue ackTimeout = contextPreservingAckListener.ackTimeout();
-            if (ackTimeout == null) {
-                assert false : "ackTimeout must always be present: " + contextPreservingAckListener;
-                ackTimeout = TimeValue.ZERO;
-            }
-
             if (ackTimeout.millis() < 0) {
                 if (countDown.countDown()) {
                     finish();
@@ -907,7 +913,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public Releasable captureResponseHeaders() {
-            final var storedContext = threadContext.newStoredContext();
+            final var storedContext = threadContextSupplier.get();
             return Releasables.wrap(() -> {
                 final var newResponseHeaders = threadContext.getResponseHeaders();
                 if (newResponseHeaders.isEmpty()) {
@@ -1336,8 +1342,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
         assert totalQueueSize.get() > 0;
         final var threadContext = threadPool.getThreadContext();
-        try (var ignored = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+        try (var ignored = threadContext.newStoredContext()) {
+            clusterStateUpdateContext.restore();
             threadPoolExecutor.execute(queuesProcessor);
         }
     }
@@ -1431,7 +1437,7 @@ public class MasterService extends AbstractLifecycleComponent {
      *
      * @param name The name of the queue, which is mostly useful for debugging.
      *
-     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorites other than {@link Priority#NORMAL}
+     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorities other than {@link Priority#NORMAL}
      *                 where possible. A stream of higher-priority tasks can starve lower-priority ones from running. Higher-priority tasks
      *                 should definitely re-use the same {@link MasterServiceTaskQueue} so that they are executed in batches.
      *
@@ -1696,7 +1702,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 Strings.collectionToDelimitedStringWithLimit((Iterable<String>) () -> tasksBySource.entrySet().stream().map(entry -> {
                     var tasksDescription = executor.describeTasks(entry.getValue());
                     return tasksDescription.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasksDescription + "]";
-                }).filter(s -> s.isEmpty() == false).iterator(), ", ", "", "", MAX_TASK_DESCRIPTION_CHARS, output);
+                }).filter(s -> s.isEmpty() == false).iterator(), ", ", MAX_TASK_DESCRIPTION_CHARS, output);
                 if (output.length() > MAX_TASK_DESCRIPTION_CHARS) {
                     output.append(" (").append(tasks.size()).append(" tasks in total)");
                 }

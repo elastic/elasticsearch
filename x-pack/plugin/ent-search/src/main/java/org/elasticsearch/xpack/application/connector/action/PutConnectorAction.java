@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,12 +26,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class PutConnectorAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/put";
+    public static final String NAME = "cluster:admin/xpack/connector/put";
     public static final ActionType<ConnectorCreateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private PutConnectorAction() {/* no instances */}
 
-    public static class Request extends ConnectorActionRequest implements IndicesRequest, ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         @Nullable
         private final String connectorId;
@@ -146,6 +145,10 @@ public class PutConnectorAction {
             ActionRequestValidationException validationException = null;
 
             validationException = validateIndexName(indexName, validationException);
+
+            if (Boolean.TRUE.equals(isNative)) {
+                validationException = validateManagedConnectorIndexPrefix(indexName, validationException);
+            }
 
             return validationException;
         }

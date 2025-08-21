@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -27,6 +25,7 @@ import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -90,7 +89,7 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName);
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, executePolicyRequest).actionGet();
 
-        var simulatePipelineRequest = new SimulatePipelineRequest(new BytesArray("""
+        var simulatePipelineRequest = jsonSimulatePipelineRequest("""
             {
               "pipeline": {
                 "processors": [
@@ -119,7 +118,7 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
                 }
               ]
             }
-            """), XContentType.JSON);
+            """);
         var response = clusterAdmin().simulatePipeline(simulatePipelineRequest).actionGet();
         var result = (SimulateDocumentBaseResult) response.getResults().get(0);
         assertThat(result.getFailure(), nullValue());
@@ -132,7 +131,7 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         assertThat(statsResponse.getCacheStats().get(0).misses(), equalTo(1L));
         assertThat(statsResponse.getCacheStats().get(0).hits(), equalTo(0L));
 
-        simulatePipelineRequest = new SimulatePipelineRequest(new BytesArray("""
+        simulatePipelineRequest = jsonSimulatePipelineRequest("""
             {
               "pipeline": {
                 "processors": [
@@ -155,7 +154,7 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
                 }
               ]
             }
-            """), XContentType.JSON);
+            """);
         response = clusterAdmin().simulatePipeline(simulatePipelineRequest).actionGet();
         result = (SimulateDocumentBaseResult) response.getResults().get(0);
         assertThat(result.getFailure(), nullValue());

@@ -25,8 +25,9 @@ import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolea
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.TRUE_ORD;
 
 /**
- * Maps a {@link BooleanBlock} column to group ids. Assigns group
- * {@code 0} to {@code false} and group {@code 1} to {@code true}.
+ * Maps a {@link BooleanBlock} column to group ids. Assigns
+ * {@code 0} to {@code null}, {@code 1} to {@code false}, and
+ * {@code 2} to {@code true}.
  */
 final class BooleanBlockHash extends BlockHash {
     private final int channel;

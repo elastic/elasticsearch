@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
+
+import java.util.function.IntConsumer;
 
 public non-sealed interface Kernel32Library extends NativeLibrary {
     interface Handle {}
@@ -80,6 +83,17 @@ public non-sealed interface Kernel32Library extends NativeLibrary {
      * @see <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ms686234%28v=vs.85%29.aspx">SetProcessWorkingSetSize docs</a>
      */
     boolean SetProcessWorkingSetSize(Handle handle, long minSize, long maxSize);
+
+    /**
+     * Retrieves the actual number of bytes of disk storage used to store a specified file.
+     *
+     * https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getcompressedfilesizew
+     *
+     * @param lpFileName the path string
+     * @param lpFileSizeHigh pointer to high-order DWORD for compressed file size (or null if not needed)
+     * @return the low-order DWORD for compressed file size
+     */
+    int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh);
 
     /**
      * Retrieves the short path form of the specified path.

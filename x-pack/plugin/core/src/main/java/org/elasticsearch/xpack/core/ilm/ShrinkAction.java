@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
@@ -69,9 +68,9 @@ public class ShrinkAction implements LifecycleAction {
         .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), (String) null)
         .build();
 
-    private Integer numberOfShards;
-    private ByteSizeValue maxPrimaryShardSize;
-    private boolean allowWriteAfterShrink;
+    private final Integer numberOfShards;
+    private final ByteSizeValue maxPrimaryShardSize;
+    private final boolean allowWriteAfterShrink;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
@@ -89,11 +88,13 @@ public class ShrinkAction implements LifecycleAction {
                 throw new IllegalArgumentException("[max_primary_shard_size] must be greater than 0");
             }
             this.maxPrimaryShardSize = maxPrimaryShardSize;
+            this.numberOfShards = null;
         } else {
             if (numberOfShards <= 0) {
                 throw new IllegalArgumentException("[" + NUMBER_OF_SHARDS_FIELD.getPreferredName() + "] must be greater than 0");
             }
             this.numberOfShards = numberOfShards;
+            this.maxPrimaryShardSize = null;
         }
         this.allowWriteAfterShrink = allowWriteAfterShrink;
     }
@@ -106,7 +107,7 @@ public class ShrinkAction implements LifecycleAction {
             this.numberOfShards = null;
             this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
-        this.allowWriteAfterShrink = in.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE) && in.readBoolean();
+        this.allowWriteAfterShrink = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) && in.readBoolean();
     }
 
     public Integer getNumberOfShards() {
@@ -130,7 +131,7 @@ public class ShrinkAction implements LifecycleAction {
         } else {
             maxPrimaryShardSize.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeBoolean(this.allowWriteAfterShrink);
         }
     }
@@ -186,7 +187,7 @@ public class ShrinkAction implements LifecycleAction {
             preShrinkBranchingKey,
             checkNotWriteIndex,
             lastOrNextStep,
-            (indexMetadata, clusterState, listener) -> {
+            (projectId, indexMetadata, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
                         "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "
@@ -199,7 +200,8 @@ public class ShrinkAction implements LifecycleAction {
                     return;
                 }
                 String indexName = indexMetadata.getIndex().getName();
-                client.admin()
+                client.projectClient(projectId)
+                    .admin()
                     .indices()
                     .prepareStats(indexName)
                     .clear()
@@ -230,10 +232,9 @@ public class ShrinkAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             readOnlyKey,
-            Instant::now,
-            client
+            Instant::now
         );
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client, false);
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(
             checkTargetShardsCountKey,
             cleanupShrinkIndexKey,
@@ -287,8 +288,8 @@ public class ShrinkAction implements LifecycleAction {
             dataStreamCheckBranchingKey,
             aliasKey,
             replaceDataStreamIndexKey,
-            (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+            (index, project) -> {
+                IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }
@@ -327,7 +328,7 @@ public class ShrinkAction implements LifecycleAction {
             allowWriteAfterShrinkStep
         );
 
-        return steps.filter(Objects::nonNull).collect(Collectors.toList());
+        return steps.filter(Objects::nonNull).toList();
     }
 
     @Override

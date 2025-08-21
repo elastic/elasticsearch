@@ -1,19 +1,34 @@
-
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 
+esplugin {
+  name = 'queryable-reserved-roles-test'
+  description = 'A test plugin for testing that changes to reserved roles are made queryable'
+  classname = 'org.elasticsearch.xpack.security.role.QueryableBuiltInRolesTestPlugin'
+  extendedPlugins = ['x-pack-core', 'x-pack-security']
+}
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  compileOnly project(':x-pack:plugin:core')
+  compileOnly project(':x-pack:plugin:security')
+  clusterPlugins project(':x-pack:plugin:security:qa:security-basic')
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
+tasks.named("javadoc").configure { enabled = false }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm) {
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
-  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("javaRestTest").configure { enabled = false }
 }

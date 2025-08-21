@@ -1,2 +1,0 @@
-This package contains both free and subscription features.
-<<license-settings,Start a 30-day trial>> to try out all of the features.

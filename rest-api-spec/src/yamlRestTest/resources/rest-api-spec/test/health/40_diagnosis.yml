@@ -26,4 +26,4 @@
   - length:  { indicators.shards_availability.diagnosis: 1 }
   - is_true: indicators.shards_availability.diagnosis.0.affected_resources
   - length:  { indicators.shards_availability.diagnosis.0.affected_resources: 1 }
-  - match:   { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "red_index" }
+  - match:   { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_index" }

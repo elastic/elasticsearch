@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -21,11 +22,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
@@ -33,6 +36,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -122,6 +127,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
     private final OperationListener operationListener;
+    private final TranslogOperationAsserter operationAsserter;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -149,7 +155,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer
+        final LongConsumer persistedSequenceNumberConsumer,
+        final TranslogOperationAsserter operationAsserter
     ) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
@@ -157,6 +164,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.primaryTermSupplier = primaryTermSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.operationListener = config.getOperationListener();
+        this.operationAsserter = operationAsserter;
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         this.bigArrays = config.getBigArrays();
@@ -217,6 +225,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             IOUtils.closeWhileHandlingException(readers);
             throw e;
         }
+    }
+
+    public static void deleteAll(Path translogLocation) throws IOException {
+        IOUtils.rm(translogLocation);
     }
 
     /** recover all translog files found on disk */
@@ -581,6 +593,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 bigArrays,
                 diskIoBufferPool,
                 operationListener,
+                operationAsserter,
                 config.fsync()
             );
         } catch (final IOException e) {
@@ -966,7 +979,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public record Location(long generation, long translogLocation, int size) implements Comparable<Location> {
 
-        public static Location EMPTY = new Location(0, 0, 0);
+        public static final Location EMPTY = new Location(0, 0, 0);
 
         @Override
         public String toString() {
@@ -1216,9 +1229,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public long estimateSize() {
             return (2 * id.length()) + source.length() + (routing != null ? 2 * routing.length() : 0) + (4 * Long.BYTES); // timestamp,
-                                                                                                                          // seq_no,
-                                                                                                                          // primary_term,
-                                                                                                                          // and version
+            // seq_no,
+            // primary_term,
+            // and version
         }
 
         public String id() {
@@ -1264,17 +1277,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return false;
             }
 
-            Index index = (Index) o;
-
-            if (version != index.version
-                || seqNo != index.seqNo
-                || primaryTerm != index.primaryTerm
-                || id.equals(index.id) == false
-                || autoGeneratedIdTimestamp != index.autoGeneratedIdTimestamp
-                || source.equals(index.source) == false) {
-                return false;
-            }
-            return Objects.equals(routing, index.routing);
+            Index other = (Index) o;
+            return autoGeneratedIdTimestamp == other.autoGeneratedIdTimestamp && equalsWithoutAutoGeneratedTimestamp(this, other, true);
         }
 
         @Override
@@ -1310,6 +1314,43 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return autoGeneratedIdTimestamp;
         }
 
+        public static boolean equalsWithoutAutoGeneratedTimestamp(Translog.Index o1, Translog.Index o2, boolean checkSourceBytes) {
+            if (o1.version != o2.version
+                || o1.seqNo != o2.seqNo
+                || o1.primaryTerm != o2.primaryTerm
+                || o1.id.equals(o2.id) == false
+                || Objects.equals(o1.routing, o2.routing) == false) {
+                return false;
+            }
+
+            if (checkSourceBytes) {
+                return o1.source.equals(o2.source);
+            }
+
+            var s1 = Source.fromBytes(o1.source);
+            var s2 = Source.fromBytes(o2.source);
+            try (
+                var actualParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    s1.internalSourceRef(),
+                    s1.sourceContentType()
+                )
+            ) {
+                var actualMap = actualParser.map();
+                try (
+                    var expectedParser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        s2.internalSourceRef(),
+                        s2.sourceContentType()
+                    )
+                ) {
+                    var expectedMap = expectedParser.map();
+                    return expectedMap.equals(actualMap);
+                }
+            } catch (IOException exc) {
+                return false;
+            }
+        }
     }
 
     public static final class Delete extends Operation {
@@ -1957,6 +1998,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             BigArrays.NON_RECYCLING_INSTANCE,
             DiskIoBufferPool.INSTANCE,
             TranslogConfig.NOOP_OPERATION_LISTENER,
+            TranslogOperationAsserter.DEFAULT,
             true
         );
         writer.close();

@@ -1,33 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.SuppressForbidden;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+        Path esHome = Path.of(sysprops.get("es.path.home"));
         String distroType = sysprops.get("es.distribution.type");
+        String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        String libraryPath = findLibraryPath(sysprops);
 
-        return Stream.concat(
+        boolean useEntitlements = true;
+        return Stream.of(
             Stream.of(
                 /*
                  * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property
@@ -39,8 +41,6 @@ final class SystemJvmOptions {
                  * networkaddress.cache.negative ttl; set to -1 to cache forever.
                  */
                 "-Des.networkaddress.cache.negative.ttl=10",
-                // Allow to set the security manager.
-                "-Djava.security.manager=allow",
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size
@@ -60,31 +60,32 @@ final class SystemJvmOptions {
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
+                // temporary until we get off-heap vector stats in Lucene 10.3
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene90=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene91=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene92=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene94=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene95=org.elasticsearch.server",
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
-                /*
-                 * Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
-                 * parsing will break in an incompatible way for some date patterns and locales.
-                 */
-                "-Djava.locale.providers=SPI,COMPAT",
-                /*
-                 * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary
-                 * while we explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
-                 */
-                "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
-                maybeEnableNativeAccess(),
-                maybeOverrideDockerCgroup(distroType),
-                maybeSetActiveProcessorCount(nodeSettings),
-                setReplayFile(distroType, isHotspot),
-                "-Djava.library.path=" + libraryPath,
-                "-Djna.library.path=" + libraryPath,
-                // Pass through distribution type
-                "-Des.distribution.type=" + distroType
+                "-Djava.locale.providers=CLDR",
+                // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
+                "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
+                // Pass through some properties
+                "-Des.path.home=" + esHome,
+                "-Des.distribution.type=" + distroType,
+                "-Des.java.type=" + javaType
             ),
-            maybeWorkaroundG1Bug()
-        ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+            maybeEnableNativeAccess(useEntitlements),
+            maybeOverrideDockerCgroup(distroType),
+            maybeSetActiveProcessorCount(nodeSettings),
+            maybeSetReplayFile(distroType, isHotspot),
+            maybeWorkaroundG1Bug(),
+            maybeAttachEntitlementAgent(esHome, useEntitlements)
+        ).flatMap(s -> s).toList();
     }
 
     /*
@@ -101,42 +102,49 @@ final class SystemJvmOptions {
      * that cgroup statistics are available for the container this process
      * will run in.
      */
-    private static String maybeOverrideDockerCgroup(String distroType) {
+    private static Stream<String> maybeOverrideDockerCgroup(String distroType) {
         if ("docker".equals(distroType)) {
-            return "-Des.cgroups.hierarchy.override=/";
+            return Stream.of("-Des.cgroups.hierarchy.override=/");
         }
-        return "";
+        return Stream.empty();
     }
 
-    private static String setReplayFile(String distroType, boolean isHotspot) {
+    private static Stream<String> maybeSetReplayFile(String distroType, boolean isHotspot) {
         if (isHotspot == false) {
             // the replay file option is only guaranteed for hotspot vms
-            return "";
+            return Stream.empty();
         }
         String replayDir = "logs";
         if ("rpm".equals(distroType) || "deb".equals(distroType)) {
             replayDir = "/var/log/elasticsearch";
         }
-        return "-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log";
+        return Stream.of("-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log");
     }
 
     /*
      * node.processors determines thread pool sizes for Elasticsearch. When it
      * is set, we need to also tell the JVM to respect a different value
      */
-    private static String maybeSetActiveProcessorCount(Settings nodeSettings) {
+    private static Stream<String> maybeSetActiveProcessorCount(Settings nodeSettings) {
         if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
             int allocated = EsExecutors.allocatedProcessors(nodeSettings);
-            return "-XX:ActiveProcessorCount=" + allocated;
+            return Stream.of("-XX:ActiveProcessorCount=" + allocated);
         }
-        return "";
+        return Stream.empty();
     }
 
-    private static String maybeEnableNativeAccess() {
+    private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
+        var enableNativeAccessOptions = new ArrayList<String>();
         if (Runtime.version().feature() >= 21) {
-            return "--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core";
+            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            if (useEntitlements) {
+                enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
+                if (Runtime.version().feature() >= 24) {
+                    enableNativeAccessOptions.add("--illegal-native-access=deny");
+                }
+            }
         }
-        return "";
+        return enableNativeAccessOptions.stream();
     }
 
     /*
@@ -150,37 +158,34 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static String findLibraryPath(Map<String, String> sysprops) {
-        // working dir is ES installation, so we use relative path here
-        Path platformDir = Paths.get("lib", "platform");
-        String existingPath = sysprops.get("java.library.path");
-        assert existingPath != null;
-
-        String osname = sysprops.get("os.name");
-        String os;
-        if (osname.startsWith("Windows")) {
-            os = "windows";
-        } else if (osname.startsWith("Linux")) {
-            os = "linux";
-        } else if (osname.startsWith("Mac OS")) {
-            os = "darwin";
-        } else {
-            os = "unsupported_os[" + osname + "]";
+    private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {
+        if (useEntitlements == false) {
+            return Stream.empty();
         }
-        String archname = sysprops.get("os.arch");
-        String arch;
-        if (archname.equals("amd64") || archname.equals("x86_64")) {
-            arch = "x64";
-        } else if (archname.equals("aarch64")) {
-            arch = archname;
-        } else {
-            arch = "unsupported_arch[" + archname + "]";
-        }
-        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + getPathSeparator() + existingPath;
-    }
 
-    @SuppressForbidden(reason = "no way to get path separator with nio")
-    private static String getPathSeparator() {
-        return File.pathSeparator;
+        Path dir = esHome.resolve("lib/entitlement-bridge");
+        if (Files.exists(dir) == false) {
+            throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
+        }
+        String bridgeJar;
+        try (var s = Files.list(dir)) {
+            var candidates = s.limit(2).toList();
+            if (candidates.size() != 1) {
+                throw new IllegalStateException("Expected one jar in " + dir + "; found " + candidates.size());
+            }
+            bridgeJar = candidates.get(0).toString();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
+        }
+        // We instrument classes in these modules to call the bridge. Because the bridge gets patched
+        // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
+        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+        return Stream.of(
+            "-XX:+EnableDynamicAgentLoading",
+            "-Djdk.attach.allowAttachSelf=true",
+            "--patch-module=java.base=" + bridgeJar,
+            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
+                + modulesContainingEntitlementInstrumentation
+        );
     }
 }

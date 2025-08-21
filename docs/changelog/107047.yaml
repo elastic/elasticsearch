@@ -1,6 +1,0 @@
-pr: 107047
-summary: "Search/Mapping: KnnVectorQueryBuilder  support for allowUnmappedFields"
-area: Search
-type: bug
-issues:
-  - 106846

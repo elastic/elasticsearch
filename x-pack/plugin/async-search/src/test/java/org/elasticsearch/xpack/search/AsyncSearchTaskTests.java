@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -33,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.After;
@@ -424,28 +426,57 @@ public class AsyncSearchTaskTests extends ESTestCase {
         assertThat(failure.get(), instanceOf(RuntimeException.class));
     }
 
+    public void testDelayedOnListShardsShouldNotResultInExceptions() throws InterruptedException {
+        try (AsyncSearchTask task = createAsyncSearchTask()) {
+            int numShards = randomIntBetween(0, 10);
+            List<SearchShard> shards = new ArrayList<>();
+
+            // All local shards.
+            for (int i = 0; i < numShards; i++) {
+                shards.add(new SearchShard(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, new ShardId("0", "0", 1)));
+            }
+
+            int numSkippedShards = randomIntBetween(0, 10);
+            List<SearchShard> skippedShards = new ArrayList<>();
+            for (int i = 0; i < numSkippedShards; i++) {
+                skippedShards.add(new SearchShard(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, new ShardId("0", "0", 1)));
+            }
+
+            int totalShards = numShards + numSkippedShards;
+            for (int i = 0; i < numShards; i++) {
+                task.getSearchProgressActionListener()
+                    .onPartialReduce(shards.subList(i, i + 1), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+            }
+
+            task.getSearchProgressActionListener()
+                .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+
+            SearchResponse searchResponse = newSearchResponse(totalShards, totalShards, numSkippedShards);
+            task.getSearchProgressActionListener()
+                .onClusterResponseMinimizeRoundtrips(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, searchResponse);
+
+            /**
+             * We're calling onListShards() at last. Previously, this delay would have resulted in an NPE for other `onABC()` methods.
+             * Now, we should not see any Exceptions or errors (be it NPE or anything else).
+             */
+            task.getSearchProgressActionListener()
+                .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
+
+            ActionListener.respondAndRelease((AsyncSearchTask.Listener) task.getProgressListener(), searchResponse);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false);
+        }
+    }
+
     private static SearchResponse newSearchResponse(
         int totalShards,
         int successfulShards,
         int skippedShards,
         ShardSearchFailure... failures
     ) {
-        return new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            InternalAggregations.EMPTY,
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            100,
-            failures,
-            SearchResponse.Clusters.EMPTY
-        );
+        return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+            .shards(totalShards, successfulShards, skippedShards)
+            .shardFailures(failures)
+            .build();
     }
 
     private static void assertCompletionListeners(

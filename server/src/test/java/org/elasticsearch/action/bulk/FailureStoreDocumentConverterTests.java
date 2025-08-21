@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -42,18 +43,18 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
         }
         boolean withPipelineOrigin = randomBoolean();
         if (withPipelineOrigin) {
-            ingestException.addHeader(
+            ingestException.addBodyHeader(
                 CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER,
                 Arrays.asList("some-failing-pipeline", "some-pipeline")
             );
         }
         boolean withProcessorTag = randomBoolean();
         if (withProcessorTag) {
-            ingestException.addHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
+            ingestException.addBodyHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
         }
         boolean withProcessorType = randomBoolean();
         if (withProcessorType) {
-            ingestException.addHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
+            ingestException.addBodyHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
         }
         if (randomBoolean()) {
             exception = new RemoteTransportException("Test exception wrapper, please ignore", exception);
@@ -90,11 +91,11 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
         assertThat(ObjectPath.eval("error.message", convertedRequest.sourceAsMap()), is(equalTo("Test exception please ignore")));
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            startsWith("org.elasticsearch.ElasticsearchException: Test exception please ignore")
+            startsWith("o.e.ElasticsearchException: Test exception please ignore")
         );
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            containsString("at org.elasticsearch.action.bulk.FailureStoreDocumentConverterTests.testFailureStoreDocumentConversion")
+            containsString("at o.e.a.b.FailureStoreDocumentConverterTests.testFailureStoreDocumentConversion")
         );
         assertThat(
             ObjectPath.eval("error.pipeline_trace", convertedRequest.sourceAsMap()),

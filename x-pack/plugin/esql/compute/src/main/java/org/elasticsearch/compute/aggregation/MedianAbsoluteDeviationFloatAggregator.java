@@ -20,8 +20,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 class MedianAbsoluteDeviationFloatAggregator {
 
-    public static QuantileStates.SingleState initSingle() {
-        return new QuantileStates.SingleState(QuantileStates.MEDIAN);
+    public static QuantileStates.SingleState initSingle(DriverContext driverContext) {
+        return new QuantileStates.SingleState(driverContext.breaker(), QuantileStates.MEDIAN);
     }
 
     public static void combine(QuantileStates.SingleState current, float v) {
@@ -36,8 +36,8 @@ class MedianAbsoluteDeviationFloatAggregator {
         return state.evaluateMedianAbsoluteDeviation(driverContext);
     }
 
-    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new QuantileStates.GroupingState(bigArrays, QuantileStates.MEDIAN);
+    public static QuantileStates.GroupingState initGrouping(DriverContext driverContext, BigArrays bigArrays) {
+        return new QuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), QuantileStates.MEDIAN);
     }
 
     public static void combine(QuantileStates.GroupingState state, int groupId, float v) {
@@ -48,16 +48,7 @@ class MedianAbsoluteDeviationFloatAggregator {
         state.add(groupId, inValue);
     }
 
-    public static void combineStates(
-        QuantileStates.GroupingState current,
-        int currentGroupId,
-        QuantileStates.GroupingState state,
-        int statePosition
-    ) {
-        current.add(currentGroupId, state.getOrNull(statePosition));
-    }
-
-    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateMedianAbsoluteDeviation(selected, driverContext);
+    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.evaluateMedianAbsoluteDeviation(selected, ctx.driverContext());
     }
 }

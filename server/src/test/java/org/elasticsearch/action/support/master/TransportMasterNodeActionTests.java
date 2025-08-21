@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support.master;
 
@@ -88,6 +89,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -214,7 +217,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Response() {}
 
         Response(StreamInput in) throws IOException {
-            super(in);
             identity = in.readLong();
         }
 
@@ -256,7 +258,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 Request::new,
-                TestIndexNameExpressionResolver.newInstance(),
                 Response::new,
                 executor
             );
@@ -299,7 +300,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 ClusterUpdateSettingsRequest::new,
-                TestIndexNameExpressionResolver.newInstance(),
                 Response::new,
                 executor
             );
@@ -485,7 +485,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     public void testMasterBecomesAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request();
         if (randomBoolean()) {
-            request.masterNodeTimeout(TimeValue.MINUS_ONE);
+            request.masterNodeTimeout(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT);
         }
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -575,7 +575,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 // simulate master restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.remove(masterNode);
-                masterNode = DiscoveryNodeUtils.create(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
+                masterNode = DiscoveryNodeUtils.create(masterNode.getId(), masterNode.getAddress(), masterNode.getVersionInformation());
                 nodesBuilder.add(masterNode);
                 nodesBuilder.masterNodeId(masterNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
@@ -596,7 +596,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             listener.get();
         } else {
             ElasticsearchException t = new ElasticsearchException("test");
-            t.addHeader("header", "is here");
+            t.addBodyHeader("header", "is here");
             transport.handleRemoteError(capturedRequest.requestId(), t);
             assertTrue(listener.isDone());
             try {
@@ -607,7 +607,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 assertThat(cause, instanceOf(ElasticsearchException.class));
                 final ElasticsearchException es = (ElasticsearchException) cause;
                 assertThat(es.getMessage(), equalTo(t.getMessage()));
-                assertThat(es.getHeader("header"), equalTo(t.getHeader("header")));
+                assertThat(es.getBodyHeader("header"), equalTo(t.getBodyHeader("header")));
             }
         }
     }
@@ -676,11 +676,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
         }, task, request, listener);
 
-        final int genericThreads = threadPool.info(ThreadPool.Names.GENERIC).getMax();
-        final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.GENERIC);
-        final CyclicBarrier barrier = new CyclicBarrier(genericThreads + 1);
-        final CountDownLatch latch = new CountDownLatch(1);
-
         if (cancelBeforeStart == false) {
             assertThat(listener.isDone(), equalTo(false));
 
@@ -699,6 +694,39 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
             setState(clusterService, newStateBuilder.build());
         }
+        expectThrows(TaskCancelledException.class, listener);
+    }
+
+    /**
+     * Verify that the listener is invoked immediately when the task is cancelled, instead of waiting for the next ClusterStateObserver run.
+     */
+    public void testTaskCancellationDirectly() {
+        ClusterBlock block = new ClusterBlock(1, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block))
+            .build();
+
+        // Update the cluster state with a block so the request waits until it's unblocked
+        setState(clusterService, stateWithBlock);
+
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+
+        Request request = new Request();
+        final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+                Set<ClusterBlock> blocks = state.blocks().global();
+                return blocks.isEmpty() ? null : new ClusterBlockException(blocks);
+            }
+        }, task, request, listener);
+
+        assertThat(listener.isDone(), equalTo(false));
+
+        taskManager.cancel(task, "", () -> {});
+        assertThat(task.isCancelled(), equalTo(true));
         expectThrows(TaskCancelledException.class, listener);
     }
 
@@ -840,9 +868,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         // nothing should happen here, since the request doesn't touch any of the immutable state keys
         noHandler.validateForReservedState(new Request(), clusterState);
 
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("a", "a value").build()
-        ).transientSettings(Settings.builder().put("e", "e value").build());
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("a", "a value").build())
+            .transientSettings(Settings.builder().put("e", "e value").build());
 
         FakeClusterStateUpdateAction action = new FakeClusterStateUpdateAction(
             "internal:testClusterSettings",
@@ -854,14 +882,15 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertTrue(action.supportsReservedState());
 
-        assertTrue(
-            expectThrows(IllegalArgumentException.class, () -> action.validateForReservedState(request, clusterState)).getMessage()
-                .contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]")
+        var exception = expectThrows(IllegalArgumentException.class, () -> action.validateForReservedState(request, clusterState));
+        assertThat(
+            exception.getMessage(),
+            allOf(containsString("[a] set as read-only by [namespace_one]"), containsString("[e] set as read-only by [namespace_two]"))
         );
 
-        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("m", "m value").build()
-        ).transientSettings(Settings.builder().put("n", "n value").build());
+        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("m", "m value").build())
+            .transientSettings(Settings.builder().put("n", "n value").build());
 
         // this should just work, no conflicts
         action.validateForReservedState(okRequest, clusterState);

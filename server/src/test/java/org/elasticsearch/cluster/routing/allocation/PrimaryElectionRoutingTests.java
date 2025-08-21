@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -42,7 +43,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -78,7 +79,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));
         // verify where the primary is
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node2"));
-        assertThat(clusterState.metadata().index("test").primaryTerm(0), equalTo(2L));
+        assertThat(clusterState.metadata().getProject().index("test").primaryTerm(0), equalTo(2L));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node3"));
     }
 
@@ -94,7 +95,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -111,8 +112,8 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
 
         assertThat(shardsWithState(routingNodes, STARTED).size(), equalTo(2));
         assertThat(shardsWithState(routingNodes, INITIALIZING).size(), equalTo(2));
-        assertThat(clusterState.metadata().index("test").primaryTerm(0), equalTo(1L));
-        assertThat(clusterState.metadata().index("test").primaryTerm(1), equalTo(1L));
+        assertThat(clusterState.metadata().getProject().index("test").primaryTerm(0), equalTo(1L));
+        assertThat(clusterState.metadata().getProject().index("test").primaryTerm(1), equalTo(1L));
 
         // now, fail one node, while the replica is initializing, and it also holds a primary
         logger.info("--> fail node with primary");
@@ -126,6 +127,6 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(shardsWithState(routingNodes, INITIALIZING).size(), equalTo(0));
         assertThat(shardsWithState(routingNodes, UNASSIGNED).size(), equalTo(3)); // 2 replicas and one primary
         assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(STARTED).findFirst().get().primary(), equalTo(true));
-        assertThat(clusterState.metadata().index("test").primaryTerm(0), equalTo(2L));
+        assertThat(clusterState.metadata().getProject().index("test").primaryTerm(0), equalTo(2L));
     }
 }

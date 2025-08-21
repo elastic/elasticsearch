@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.sql.analysis.index;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapsUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
@@ -149,7 +151,7 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "org/elasticsearch/xpack/sql/index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
@@ -159,7 +161,7 @@ public class IndexResolverTests extends ESTestCase {
         assertNull(esIndex.mapping().get("_doc_count"));
         assertEquals(INTEGER, esIndex.mapping().get("_not_meta_field").getDataType());
         assertEquals(KEYWORD, esIndex.mapping().get("text").getDataType());
-        assertEquals(Set.of("index"), resolution.get().concreteIndices());
+        assertEquals(Set.of("org/elasticsearch/xpack/sql/index"), resolution.get().concreteIndices());
     }
 
     public void testFlattenedHiddenSubfield() throws Exception {
@@ -174,12 +176,12 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "org/elasticsearch/xpack/sql/index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
-        assertEquals(Set.of("index"), resolution.get().concreteIndices());
+        assertEquals(Set.of("org/elasticsearch/xpack/sql/index"), resolution.get().concreteIndices());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getProperties().get("_keyed").getDataType());
         assertEquals(OBJECT, esIndex.mapping().get("nested_field").getDataType());
@@ -204,12 +206,12 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "a.b.c.e", "foo", true, true);
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "org/elasticsearch/xpack/sql/index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
-        assertEquals(Set.of("index"), resolution.get().concreteIndices());
+        assertEquals(Set.of("org/elasticsearch/xpack/sql/index"), resolution.get().concreteIndices());
         assertEquals(TEXT, esIndex.mapping().get("a").getDataType());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getDataType());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getProperties().get("c").getDataType());
@@ -240,12 +242,12 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "org/elasticsearch/xpack/sql/index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
-        assertEquals(Set.of("index"), resolution.get().concreteIndices());
+        assertEquals(Set.of("org/elasticsearch/xpack/sql/index"), resolution.get().concreteIndices());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
         assertEquals(OBJECT, esIndex.mapping().get("nested_field").getDataType());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field1").getDataType());
@@ -281,24 +283,8 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, fieldName + ".keyword", "keyword", true, true);
 
         Map<String, FieldCapabilities> multi = new HashMap<>();
-        multi.put(
-            "long",
-            new FieldCapabilities(fieldName, "long", false, true, true, new String[] { "one-index" }, null, null, Collections.emptyMap())
-        );
-        multi.put(
-            "text",
-            new FieldCapabilities(
-                fieldName,
-                "text",
-                false,
-                true,
-                false,
-                new String[] { "another-index" },
-                null,
-                null,
-                Collections.emptyMap()
-            )
-        );
+        multi.put("long", new FieldCapabilitiesBuilder(fieldName, "long").indices("one-index").build());
+        multi.put("text", new FieldCapabilitiesBuilder(fieldName, "text").indices("another-index").isAggregatable(false).build());
         fieldCaps.put(fieldName, multi);
 
         String wildcard = "*";
@@ -362,7 +348,7 @@ public class IndexResolverTests extends ESTestCase {
             Map<String, EsField> mapping = Maps.newMapWithExpectedSize(1);
             String fieldName = "field" + (i + 1);
             mapping.put(fieldName, new KeywordEsField(fieldName));
-            expectedIndices[i] = new EsIndex("index" + (i + 1), mapping);
+            expectedIndices[i] = new EsIndex("org/elasticsearch/xpack/sql/index" + (i + 1), mapping);
         }
         Arrays.sort(expectedIndices, Comparator.comparing(EsIndex::name));
 
@@ -384,7 +370,7 @@ public class IndexResolverTests extends ESTestCase {
             Map<String, EsField> mapping = Maps.newMapWithExpectedSize(1);
             String fieldName = "field" + (i + 1);
             mapping.put(fieldName, new KeywordEsField(fieldName));
-            String indexName = "index" + (i + 1);
+            String indexName = "org/elasticsearch/xpack/sql/index" + (i + 1);
             expectedIndices[i] = new EsIndex(indexName, mapping, Set.of(indexName));
             indexNames.add(indexName);
         }
@@ -399,7 +385,7 @@ public class IndexResolverTests extends ESTestCase {
             "_version",
             singletonMap(
                 "_index",
-                new FieldCapabilities("_version", "_version", true, false, false, null, null, null, Collections.emptyMap())
+                new FieldCapabilitiesBuilder("_version", "_version").isMetadataField(true).isAggregatable(false).isSearchable(false).build()
             )
         );
         assertTrue(mergedMappings("*", new String[] { "empty" }, versionFC).isValid());
@@ -466,8 +452,9 @@ public class IndexResolverTests extends ESTestCase {
     private static FieldCapabilitiesResponse readFieldCapsResponse(String resourceName) throws IOException {
         InputStream stream = IndexResolverTests.class.getResourceAsStream("/" + resourceName);
         BytesReference ref = Streams.readFully(stream);
-        XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, ref, XContentType.JSON);
-        return FieldCapabilitiesResponse.fromXContent(parser);
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, ref, XContentType.JSON)) {
+            return FieldCapsUtils.parseFieldCapsResponse(parser);
+        }
     }
 
     public static IndexResolution merge(EsIndex... indices) {
@@ -597,7 +584,10 @@ public class IndexResolverTests extends ESTestCase {
         Map<String, FieldCapabilities> cap = new HashMap<>();
         cap.put(
             type,
-            new FieldCapabilities(name, type, isMetadataField, isSearchable, isAggregatable, null, null, null, Collections.emptyMap())
+            new FieldCapabilitiesBuilder(name, type).isMetadataField(isMetadataField)
+                .isSearchable(isSearchable)
+                .isAggregatable(isAggregatable)
+                .build()
         );
         fieldCaps.put(name, cap);
     }

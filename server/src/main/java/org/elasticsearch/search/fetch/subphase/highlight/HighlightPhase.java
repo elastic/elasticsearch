@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -65,7 +66,7 @@ public class HighlightPhase implements FetchSubPhase {
                 Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = fieldContext.builders;
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
-                    Highlighter highlighter = getHighlighter(fieldContext.field);
+                    Highlighter highlighter = getHighlighter(fieldContext.field, fieldContext.fieldType);
                     HighlightField highlightField = highlighter.highlight(fieldContext);
                     if (highlightField != null) {
                         // Note that we make sure to use the original field name in the response. This is because the
@@ -79,10 +80,10 @@ public class HighlightPhase implements FetchSubPhase {
         };
     }
 
-    private Highlighter getHighlighter(SearchHighlightContext.Field field) {
+    private Highlighter getHighlighter(SearchHighlightContext.Field field, MappedFieldType fieldType) {
         String highlighterType = field.fieldOptions().highlighterType();
         if (highlighterType == null) {
-            highlighterType = "unified";
+            highlighterType = fieldType.getDefaultHighlighter();
         }
         Highlighter highlighter = highlighters.get(highlighterType);
         if (highlighter == null) {
@@ -102,8 +103,6 @@ public class HighlightPhase implements FetchSubPhase {
         Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
         for (SearchHighlightContext.Field field : highlightContext.fields()) {
-            Highlighter highlighter = getHighlighter(field);
-
             Collection<String> fieldNamesToHighlight = context.getSearchExecutionContext().getMatchingFieldNames(field.field());
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
@@ -111,6 +110,7 @@ public class HighlightPhase implements FetchSubPhase {
             boolean sourceRequired = false;
             for (String fieldName : fieldNamesToHighlight) {
                 MappedFieldType fieldType = context.getSearchExecutionContext().getFieldType(fieldName);
+                Highlighter highlighter = getHighlighter(field, fieldType);
 
                 // We should prevent highlighting if a field is anything but a text, match_only_text,
                 // or keyword field.
@@ -124,7 +124,8 @@ public class HighlightPhase implements FetchSubPhase {
                 if (fieldNameContainsWildcards) {
                     if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false
                         && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false
-                        && fieldType.typeName().equals("match_only_text") == false) {
+                        && fieldType.typeName().equals("match_only_text") == false
+                        && fieldType.typeName().equals("patterned_text") == false) {
                         continue;
                     }
                     if (highlighter.canHighlight(fieldType) == false) {

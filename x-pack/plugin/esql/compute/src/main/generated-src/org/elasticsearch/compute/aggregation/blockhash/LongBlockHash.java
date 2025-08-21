@@ -28,6 +28,7 @@ import java.util.BitSet;
 
 /**
  * Maps a {@link LongBlock} column to group ids.
+ * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
 final class LongBlockHash extends BlockHash {
     private final int channel;
@@ -50,6 +51,7 @@ final class LongBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+        // TODO track raw counts and which implementation we pick for the profiler - #114008
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
             seenNull = true;
@@ -71,6 +73,9 @@ final class LongBlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
+     */
     IntVector add(LongVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
@@ -82,6 +87,12 @@ final class LongBlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
+     * <p>
+     *     For nulls, a 0 group ID is used. For multivalues, a multivalue is used with all the group IDs.
+     * </p>
+     */
     IntBlock add(LongBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();

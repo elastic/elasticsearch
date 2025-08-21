@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.core.security.action.role;
 import org.elasticsearch.client.internal.Client;
 
 public interface PutRoleRequestBuilderFactory {
-    PutRoleRequestBuilder create(Client client, boolean restrictRequest);
+    PutRoleRequestBuilder create(Client client);
 
     class Default implements PutRoleRequestBuilderFactory {
         @Override
-        public PutRoleRequestBuilder create(Client client, boolean restrictRequest) {
-            // by default, we don't apply extra restrictions to Put Role requests and don't require checks against file-based roles
-            // these dependencies are only used by our stateless implementation
+        public PutRoleRequestBuilder create(Client client) {
             return new PutRoleRequestBuilder(client);
         }
     }

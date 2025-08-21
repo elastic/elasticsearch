@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.enrich.LocalStateEnrich;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,12 +65,10 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
                 assertThat(response.getResponses().length, equalTo(numSearches));
                 for (int i = 0; i < numSearches; i++) {
                     assertThat(response.getResponses()[i].isFailure(), is(false));
-                    assertThat(response.getResponses()[i].getResponse().getHits().getTotalHits().value, equalTo(1L));
-                    assertThat(response.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().size(), equalTo(1));
-                    assertThat(
-                        response.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().get("key1"),
-                        equalTo("value1")
-                    );
+                    assertThat(response.getResponses()[i].getResponse().getHits().getTotalHits().value(), equalTo(1L));
+                    Map<String, Object> sourceAsMap = response.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap();
+                    assertThat(sourceAsMap.size(), equalTo(1));
+                    assertThat(sourceAsMap.get("key1"), equalTo("value1"));
                 }
             }
         );

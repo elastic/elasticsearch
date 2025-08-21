@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,7 +41,8 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * Internally it uses {@link TransportPutLifecycleAction} and
  * {@link TransportDeleteLifecycleAction} to add, update and delete ILM policies.
  */
-public class ReservedLifecycleAction implements ReservedClusterStateHandler<List<LifecyclePolicy>> {
+@FixForMultiProject // ILM is not a thing on serverless, so this will only ever operate on default project. How do we handle this long-term?
+public class ReservedLifecycleAction implements ReservedProjectStateHandler<List<LifecyclePolicy>> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -64,8 +67,11 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
         List<LifecyclePolicy> policies = (List<LifecyclePolicy>) input;
 
         for (var policy : policies) {
-            // timeouts don't matter here
-            PutLifecycleRequest request = new PutLifecycleRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policy);
+            PutLifecycleRequest request = new PutLifecycleRequest(
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                policy
+            );
             validate(request);
             result.add(request);
         }
@@ -74,13 +80,14 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
+    public TransformState transform(ProjectId projectId, List<LifecyclePolicy> source, TransformState prevState) throws Exception {
         var requests = prepare(source);
 
         ClusterState state = prevState.state();
 
         for (var request : requests) {
             TransportPutLifecycleAction.UpdateLifecyclePolicyTask task = new TransportPutLifecycleAction.UpdateLifecyclePolicyTask(
+                state.metadata().getProject(projectId).id(),
                 request,
                 licenseState,
                 xContentRegistry,
@@ -97,8 +104,12 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
 
         for (var policyToDelete : toDelete) {
             TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask task = new TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask(
-                // timeouts don't matter here
-                new DeleteLifecycleAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policyToDelete),
+                state.metadata().getProject(projectId).id(),
+                new DeleteLifecycleAction.Request(
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    policyToDelete
+                ),
                 ActionListener.noop()
             );
             state = task.execute(state);

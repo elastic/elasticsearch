@@ -255,6 +255,17 @@ linearWeightedAvg:
   - skip:
       features: close_to
 
+  - requires:
+      test_runner_features: [capabilities]
+
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [moving_fn_right_math]
+      reason: "math not fixed yet"
+
   - do:
       search:
         index: no_gaps
@@ -275,11 +286,11 @@ linearWeightedAvg:
   - match: { hits.total.value: 6 }
   - length: { aggregations.@timestamp.buckets: 6 }
   - is_false: aggregations.@timestamp.buckets.0.d.value
-  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value: 0.500, error: 0.0005 } }
-  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: 1.250, error: 0.0005 } }
-  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value: 1.000, error: 0.0005 } }
-  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value: 2.250, error: 0.0005 } }
-  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value: 3.500, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value: 1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: 1.667, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value: 1.333, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value: 3.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value: 4.667, error: 0.0005 } }
 
   - do:
       search:
@@ -301,11 +312,11 @@ linearWeightedAvg:
   - match: { hits.total.value: 6 }
   - length: { aggregations.@timestamp.buckets: 6 }
   - is_false: aggregations.@timestamp.buckets.0.d.value
-  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value: 0.500, error: 0.0005 } }
-  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: 1.250, error: 0.0005 } }
-  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value: 1.143, error: 0.0005 } }
-  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value: 2.286, error: 0.0005 } }
-  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value: 3.429, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value: 1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: 1.667, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value: 1.333, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value: 2.667, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value: 4.000, error: 0.0005 } }
 
 ---
 ewma:

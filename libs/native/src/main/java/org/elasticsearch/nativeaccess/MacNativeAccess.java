@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess;
@@ -22,6 +23,11 @@ import java.util.Collections;
 
 class MacNativeAccess extends PosixNativeAccess {
 
+    private static final int F_PREALLOCATE = 42;
+    private static final int F_ALLOCATECONTIG = 0x2; // allocate contiguous space
+    private static final int F_ALLOCATEALL = 0x4; // allocate all the requested space or no space at all
+    private static final int F_PEOFPOSMODE = 3; // allocate from the physical end of the file
+
     /** The only supported flag... */
     static final int SANDBOX_NAMED = 1;
     /** Allow everything except process fork and execution */
@@ -30,7 +36,7 @@ class MacNativeAccess extends PosixNativeAccess {
     private final MacCLibrary macLibc;
 
     MacNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("MacOS", libraryProvider, new PosixConstants(9223372036854775807L, 5, 1, 6));
+        super("MacOS", libraryProvider, new PosixConstants(9223372036854775807L, 5, 1, 6, 512, 144, 96, 104));
         this.macLibc = libraryProvider.getLibrary(MacCLibrary.class);
     }
 
@@ -42,6 +48,31 @@ class MacNativeAccess extends PosixNativeAccess {
     @Override
     protected void logMemoryLimitInstructions() {
         // we don't have instructions for macos
+    }
+
+    @Override
+    protected boolean nativePreallocate(int fd, long currentSize, long newSize) {
+        var fst = libc.newFStore();
+        fst.set_flags(F_ALLOCATECONTIG);
+        fst.set_posmode(F_PEOFPOSMODE);
+        fst.set_offset(0);
+        fst.set_length(newSize);
+        // first, try allocating contiguously
+        if (libc.fcntl(fd, F_PREALLOCATE, fst) != 0) {
+            // TODO: log warning?
+            // that failed, so let us try allocating non-contiguously
+            fst.set_flags(F_ALLOCATEALL);
+            if (libc.fcntl(fd, F_PREALLOCATE, fst) != 0) {
+                // i'm afraid captain dale had to bail
+                logger.warn("Could not allocate non-contiguous size: " + libc.strerror(libc.errno()));
+                return false;
+            }
+        }
+        if (libc.ftruncate(fd, newSize) != 0) {
+            logger.warn("Could not truncate file: " + libc.strerror(libc.errno()));
+            return false;
+        }
+        return true;
     }
 
     /**

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
@@ -27,7 +28,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -648,13 +648,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 final IndexSettings indexSettings = createIndexSettings();
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-                    @Override
-                    public void onRemoval(ShardId shardId, Accountable accountable) {}
-
-                    @Override
-                    public void onCache(ShardId shardId, Accountable accountable) {}
-                });
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
                 DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
@@ -720,13 +714,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 final IndexSettings indexSettings = createIndexSettings();
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-                    @Override
-                    public void onRemoval(ShardId shardId, Accountable accountable) {}
-
-                    @Override
-                    public void onCache(ShardId shardId, Accountable accountable) {}
-                });
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
                 DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
@@ -789,13 +777,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 final IndexSettings indexSettings = createIndexSettings();
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-                    @Override
-                    public void onRemoval(ShardId shardId, Accountable accountable) {}
-
-                    @Override
-                    public void onCache(ShardId shardId, Accountable accountable) {}
-                });
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
                 DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
@@ -1512,7 +1494,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             null,
             false,
             null,
-            null
+            null,
+            false
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             final LuceneDocument document = new LuceneDocument();
@@ -1535,7 +1518,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             )
         );
     }

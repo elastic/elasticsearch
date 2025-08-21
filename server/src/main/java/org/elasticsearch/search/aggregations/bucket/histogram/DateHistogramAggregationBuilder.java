@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -66,10 +67,12 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         entry("1d", Rounding.DateTimeUnit.DAY_OF_MONTH),
         entry("hour", Rounding.DateTimeUnit.HOUR_OF_DAY),
         entry("1h", Rounding.DateTimeUnit.HOUR_OF_DAY),
-        entry("minute", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-        entry("1m", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+        entry("minute", Rounding.DateTimeUnit.MINUTE_OF_HOUR),
+        entry("1m", Rounding.DateTimeUnit.MINUTE_OF_HOUR),
         entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
-        entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE)
+        entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
+        entry("years", Rounding.DateTimeUnit.YEARS_OF_CENTURY),
+        entry("months", Rounding.DateTimeUnit.MONTHS_OF_YEAR)
     );
 
     public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(

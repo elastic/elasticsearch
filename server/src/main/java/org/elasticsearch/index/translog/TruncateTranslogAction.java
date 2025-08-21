@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
 import org.elasticsearch.index.shard.ShardPath;
@@ -153,7 +155,7 @@ public class TruncateTranslogAction {
         try {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(shardPath.getShardId().getIndex());
+            final IndexMetadata indexMetadata = clusterState.metadata().indexMetadata(shardPath.getShardId().getIndex());
             final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             final TranslogConfig translogConfig = new TranslogConfig(
                 shardPath.getShardId(),
@@ -170,7 +172,8 @@ public class TruncateTranslogAction {
                     translogDeletionPolicy,
                     () -> translogGlobalCheckpoint,
                     () -> primaryTerm,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationAsserter.DEFAULT
                 );
                 Translog.Snapshot snapshot = translog.newSnapshot(0, Long.MAX_VALUE)
             ) {

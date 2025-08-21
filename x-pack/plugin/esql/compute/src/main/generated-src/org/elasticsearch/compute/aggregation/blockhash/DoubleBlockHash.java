@@ -28,6 +28,7 @@ import java.util.BitSet;
 
 /**
  * Maps a {@link DoubleBlock} column to group ids.
+ * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
 final class DoubleBlockHash extends BlockHash {
     private final int channel;
@@ -50,6 +51,7 @@ final class DoubleBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+        // TODO track raw counts and which implementation we pick for the profiler - #114008
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
             seenNull = true;
@@ -71,6 +73,9 @@ final class DoubleBlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
+     */
     IntVector add(DoubleVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
@@ -82,6 +87,12 @@ final class DoubleBlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
+     * <p>
+     *     For nulls, a 0 group ID is used. For multivalues, a multivalue is used with all the group IDs.
+     * </p>
+     */
     IntBlock add(DoubleBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();

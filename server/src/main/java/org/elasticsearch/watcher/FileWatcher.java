@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.watcher;
 
@@ -19,7 +20,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.stream.StreamSupport;
 
@@ -55,6 +55,11 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         this.path = path;
         this.checkFileContents = checkFileContents;
         rootFileObserver = new FileObserver(path);
+    }
+
+    // For testing
+    public Path getPath() {
+        return path;
     }
 
     /**
@@ -255,7 +260,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 FileObserver child = new FileObserver(file);
                 child.init(initial);
                 return child;
-            } catch (AccessControlException e) {
+            } catch (SecurityException e) {
                 // don't have permissions, use a placeholder
                 logger.debug(() -> Strings.format("Don't have permissions to watch path [%s]", file), e);
                 return new DeniedObserver(file);

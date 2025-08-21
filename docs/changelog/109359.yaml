@@ -1,5 +1,0 @@
-pr: 109359
-summary: Adding hamming distance function to painless for `dense_vector` fields
-area: Vector Search
-type: enhancement
-issues: []

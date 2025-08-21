@@ -19,7 +19,7 @@ public record ThreadSettings(int numThreadsPerAllocation, int numAllocations) im
     private static final ParseField NUM_ALLOCATIONS = new ParseField("num_allocations");
     private static final ParseField NUM_THREADS_PER_ALLOCATION = new ParseField("num_threads_per_allocation");
 
-    public static ConstructingObjectParser<ThreadSettings, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ThreadSettings, Void> PARSER = new ConstructingObjectParser<>(
         "thread_settings",
         a -> new ThreadSettings((int) a[0], (int) a[1])
     );

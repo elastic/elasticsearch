@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.Locale;
 import java.util.StringJoiner;
@@ -21,6 +22,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 
 public final class TypeResolutions {
 
@@ -68,6 +70,23 @@ public final class TypeResolutions {
 
     public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, dt -> dt == DATETIME, operationName, paramOrd, "datetime");
+    }
+
+    /**
+     * @see DataType#isRepresentable(DataType)
+     */
+    public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isRepresentable, operationName, paramOrd, "any type except counter types");
+    }
+
+    public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(
+            e,
+            (t) -> isSpatial(t) == false && DataType.isRepresentable(t),
+            operationName,
+            paramOrd,
+            "any type except counter and spatial types"
+        );
     }
 
     public static TypeResolution isExact(Expression e, String message) {
@@ -132,15 +151,9 @@ public final class TypeResolutions {
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
-
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        if (e.dataType() == DataType.NULL || e.fold() == null) {
-            resolution = new TypeResolution(
+    public static TypeResolution isNotNull(Expression e, String operationName, ParamOrdinal paramOrd) {
+        if (e.dataType() == DataType.NULL) {
+            return new TypeResolution(
                 format(
                     null,
                     "{}argument of [{}] cannot be null, received [{}]",
@@ -151,21 +164,6 @@ public final class TypeResolutions {
             );
         }
 
-        return resolution;
-    }
-
-    public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e.foldable()) {
-            return new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] must be a table column, found constant [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    Expressions.name(e)
-                )
-            );
-        }
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -176,19 +174,60 @@ public final class TypeResolutions {
         ParamOrdinal paramOrd,
         String... acceptedTypes
     ) {
-        return predicate.test(e.dataType()) || e.dataType() == NULL
-            ? TypeResolution.TYPE_RESOLVED
-            : new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] must be [{}], found value [{}] type [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    acceptedTypesForErrorMsg(acceptedTypes),
-                    name(e),
-                    e.dataType().typeName()
-                )
-            );
+        return isType(e, predicate, operationName, paramOrd, false, acceptedTypes);
+    }
+
+    public static TypeResolution isTypeOrUnionType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String operationName,
+        ParamOrdinal paramOrd,
+        String... acceptedTypes
+    ) {
+        return isType(e, predicate, operationName, paramOrd, true, acceptedTypes);
+    }
+
+    public static TypeResolution isType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String operationName,
+        ParamOrdinal paramOrd,
+        boolean allowUnionTypes,
+        String... acceptedTypes
+    ) {
+        if (predicate.test(e.dataType()) || e.dataType() == NULL) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        // TODO: Shouldn't we perform widening of small numerical types here?
+        if (allowUnionTypes
+            && e instanceof FieldAttribute fa
+            && fa.field() instanceof InvalidMappedField imf
+            && imf.types().stream().allMatch(predicate)) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        return new TypeResolution(
+            errorStringIncompatibleTypes(operationName, paramOrd, name(e), e.dataType(), acceptedTypesForErrorMsg(acceptedTypes))
+        );
+    }
+
+    private static String errorStringIncompatibleTypes(
+        String operationName,
+        ParamOrdinal paramOrd,
+        String argumentName,
+        DataType foundType,
+        String... acceptedTypes
+    ) {
+        return format(
+            null,
+            "{}argument of [{}] must be [{}], found value [{}] type [{}]",
+            paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+            operationName,
+            acceptedTypesForErrorMsg(acceptedTypes),
+            argumentName,
+            foundType.typeName()
+        );
     }
 
     private static String acceptedTypesForErrorMsg(String... acceptedTypes) {
@@ -201,5 +240,20 @@ public final class TypeResolutions {
         } else {
             return acceptedTypes[0];
         }
+    }
+
+    public static TypeResolution isMapExpression(Expression e, String operationName, ParamOrdinal paramOrd) {
+        if (e instanceof MapExpression == false) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] must be a map expression, received [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    Expressions.name(e)
+                )
+            );
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 }

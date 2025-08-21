@@ -279,24 +279,24 @@ class LinearProgrammingPlanSolver {
 
         Map<Tuple<Deployment, Node>, Variable> allocationVars = new HashMap<>();
 
-        for (AssignmentPlan.Deployment m : deployments) {
+        for (AssignmentPlan.Deployment d : deployments) {
             for (Node n : nodes) {
-                Variable allocationVar = model.addVariable("allocations_of_model_" + m.id() + "_on_node_" + n.id())
+                Variable allocationVar = model.addVariable("allocations_of_model_" + d.deploymentId() + "_on_node_" + n.id())
                     .integer(false) // We relax the program to non-integer as the integer solver is much slower and can often lead to
                                     // infeasible solutions
                     .lower(0.0) // It is important not to set an upper bound here as it impacts memory negatively
-                    .weight(weightForAllocationVar(m, n, weights));
-                allocationVars.put(Tuple.tuple(m, n), allocationVar);
+                    .weight(weightForAllocationVar(d, n, weights));
+                allocationVars.put(Tuple.tuple(d, n), allocationVar);
             }
         }
 
-        for (Deployment m : deployments) {
+        for (Deployment d : deployments) {
             // Each model should not get more allocations than is required.
             // Also, if the model has previous assignments, it should get at least as many allocations as it did before.
-            model.addExpression("allocations_of_model_" + m.id() + "_not_more_than_required")
-                .lower(m.getCurrentAssignedAllocations())
-                .upper(m.allocations())
-                .setLinearFactorsSimple(varsForModel(m, allocationVars));
+            model.addExpression("allocations_of_model_" + d.deploymentId() + "_not_more_than_required")
+                .lower(d.getCurrentAssignedAllocations())
+                .upper(d.allocations())
+                .setLinearFactorsSimple(varsForModel(d, allocationVars));
         }
 
         double[] threadsPerAllocationPerModel = deployments.stream().mapToDouble(m -> m.threadsPerAllocation()).toArray();
@@ -374,18 +374,18 @@ class LinearProgrammingPlanSolver {
         for (int i = 0; i < nodes.size(); i++) {
             Node n = nodes.get(i);
             msg.append(n + " ->");
-            for (Deployment m : deployments) {
-                if (threadValues.get(Tuple.tuple(m, n)) > 0) {
+            for (Deployment d : deployments) {
+                if (threadValues.get(Tuple.tuple(d, n)) > 0) {
                     msg.append(" ");
-                    msg.append(m.id());
+                    msg.append(d.deploymentId());
                     msg.append(" (mem = ");
-                    msg.append(ByteSizeValue.ofBytes(m.memoryBytes()));
+                    msg.append(ByteSizeValue.ofBytes(d.memoryBytes()));
                     msg.append(") (allocations = ");
-                    msg.append(threadValues.get(Tuple.tuple(m, n)));
+                    msg.append(threadValues.get(Tuple.tuple(d, n)));
                     msg.append("/");
-                    msg.append(m.allocations());
+                    msg.append(d.allocations());
                     msg.append(") (y = ");
-                    msg.append(assignmentValues.get(Tuple.tuple(m, n)));
+                    msg.append(assignmentValues.get(Tuple.tuple(d, n)));
                     msg.append(")");
                 }
             }

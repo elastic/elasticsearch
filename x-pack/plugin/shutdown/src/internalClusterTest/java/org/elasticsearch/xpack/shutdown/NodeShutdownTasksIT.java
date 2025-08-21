@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -166,13 +167,14 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             TestTaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            ClusterState clusterState,
+            ProjectId projectId
         ) {
             candidates.set(candidateNodes);
-            return super.getAssignment(params, candidateNodes, clusterState);
+            return super.doGetAssignment(params, candidateNodes, clusterState, projectId);
         }
 
         @Override
@@ -183,12 +185,18 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         private void startTask() {
             logger.info("--> sending start request");
-            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), null, ActionListener.wrap(r -> {}, e -> {
-                if (e instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("failed to create task", e);
-                    fail("failed to create task");
-                }
-            }));
+            persistentTasksService.sendStartRequest(
+                "task_id",
+                "task_name",
+                new TestTaskParams(),
+                TEST_REQUEST_TIMEOUT,
+                ActionListener.wrap(r -> {}, e -> {
+                    if (e instanceof ResourceAlreadyExistsException == false) {
+                        logger.error("failed to create task", e);
+                        fail("failed to create task");
+                    }
+                })
+            );
         }
 
         @Override

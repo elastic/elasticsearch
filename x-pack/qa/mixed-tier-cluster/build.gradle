@@ -1,16 +1,22 @@
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.bwc-test'
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:qa')
 }
 
 // Only run tests for 7.9+, since the node.roles setting was introduced in 7.9.0
-BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
+buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
         v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
 
   def baseCluster = testClusters.register(baseName) {
@@ -34,14 +40,14 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
     useCluster baseCluster
     mustRunAfter("precommit")
+    def beforeEndpoints = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
     doFirst {
       // Getting the endpoints causes a wait for the cluster
-      println "Endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
-      baseCluster.get().nextNodeToNextVersion()
-
-      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.clustername', baseName)
+      println "Endpoints are: ${-> beforeEndpoints.get()}"
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
   }
 
@@ -54,5 +60,5 @@ tasks.withType(Test).configureEach {
   classpath = sourceSets.javaRestTest.runtimeClasspath
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   // Security is explicitly disabled, do not run tests in FIPS mode
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
 }

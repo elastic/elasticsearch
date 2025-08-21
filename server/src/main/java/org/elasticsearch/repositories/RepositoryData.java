@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -24,10 +25,13 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -47,8 +51,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * A class that represents the data in a repository, as captured in the
- * repository's index blob.
+ * Represents the data in a repository: the snapshots and the indices across all snapshots found in the repository.
  */
 public final class RepositoryData {
 
@@ -283,6 +286,13 @@ public final class RepositoryData {
     }
 
     /**
+     * @return the number of index snapshots (i.e. the sum of the index count of each snapshot)
+     */
+    public long getIndexSnapshotCount() {
+        return indexSnapshots.values().stream().mapToLong(List::size).sum();
+    }
+
+    /**
      * @return whether some of the {@link SnapshotDetails} of the given snapshot are missing, due to BwC, so that they must be loaded from
      * the {@link SnapshotInfo} blob instead.
      */
@@ -370,6 +380,7 @@ public final class RepositoryData {
      * @return map of index to index metadata blob id to delete
      */
     public Map<IndexId, Collection<String>> indexMetaDataToRemoveAfterRemovingSnapshots(Collection<SnapshotId> snapshotIds) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
         Iterator<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotIds);
         final Set<String> allRemainingIdentifiers = indexMetaDataGenerations.lookup.entrySet()
             .stream()
@@ -396,8 +407,8 @@ public final class RepositoryData {
      *
      * @param snapshotId       Id of the new snapshot
      * @param details          Details of the new snapshot
-     * @param shardGenerations Updated shard generations in the new snapshot. For each index contained in the snapshot an array of new
-     *                         generations indexed by the shard id they correspond to must be supplied.
+     * @param updatedShardGenerations Updated shard generations in the new snapshot, including both indices that are included
+     *                                in the given snapshot and those got deleted while finalizing.
      * @param indexMetaBlobs   Map of index metadata blob uuids
      * @param newIdentifiers   Map of new index metadata blob uuids keyed by the identifiers of the
      *                         {@link IndexMetadata} in them
@@ -405,7 +416,7 @@ public final class RepositoryData {
     public RepositoryData addSnapshot(
         final SnapshotId snapshotId,
         final SnapshotDetails details,
-        final ShardGenerations shardGenerations,
+        final UpdatedShardGenerations updatedShardGenerations,
         @Nullable final Map<IndexId, String> indexMetaBlobs,
         @Nullable final Map<String, String> newIdentifiers
     ) {
@@ -415,12 +426,13 @@ public final class RepositoryData {
             // the new master, so we make the operation idempotent
             return this;
         }
+        final var liveIndexIds = updatedShardGenerations.liveIndices().indices();
         Map<String, SnapshotId> snapshots = new HashMap<>(snapshotIds);
         snapshots.put(snapshotId.getUUID(), snapshotId);
         Map<String, SnapshotDetails> newSnapshotDetails = new HashMap<>(snapshotsDetails);
         newSnapshotDetails.put(snapshotId.getUUID(), details);
         Map<IndexId, List<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
-        for (final IndexId indexId : shardGenerations.indices()) {
+        for (final IndexId indexId : liveIndexIds) {
             final List<SnapshotId> snapshotIds = allIndexSnapshots.get(indexId);
             if (snapshotIds == null) {
                 allIndexSnapshots.put(indexId, List.of(snapshotId));
@@ -436,11 +448,8 @@ public final class RepositoryData {
                 : "Index meta generations should have been empty but was [" + indexMetaDataGenerations + "]";
             newIndexMetaGenerations = IndexMetaDataGenerations.EMPTY;
         } else {
-            assert indexMetaBlobs.isEmpty() || shardGenerations.indices().equals(indexMetaBlobs.keySet())
-                : "Shard generations contained indices "
-                    + shardGenerations.indices()
-                    + " but indexMetaData was given for "
-                    + indexMetaBlobs.keySet();
+            assert indexMetaBlobs.isEmpty() || liveIndexIds.equals(indexMetaBlobs.keySet())
+                : "Shard generations contained indices " + liveIndexIds + " but indexMetaData was given for " + indexMetaBlobs.keySet();
             newIndexMetaGenerations = indexMetaDataGenerations.withAddedSnapshot(snapshotId, indexMetaBlobs, newIdentifiers);
         }
 
@@ -450,7 +459,7 @@ public final class RepositoryData {
             snapshots,
             newSnapshotDetails,
             allIndexSnapshots,
-            ShardGenerations.builder().putAll(this.shardGenerations).putAll(shardGenerations).build(),
+            ShardGenerations.builder().putAll(this.shardGenerations).update(updatedShardGenerations).build(),
             newIndexMetaGenerations,
             clusterUUID
         );
@@ -598,6 +607,11 @@ public final class RepositoryData {
         return Objects.hash(snapshotIds, snapshotsDetails, indices, indexSnapshots, shardGenerations, indexMetaDataGenerations);
     }
 
+    @Override
+    public String toString() {
+        return Strings.format("RepositoryData[uuid=%s,gen=%s]", uuid, genId);
+    }
+
     /**
      * Resolve the index name to the index id specific to the repository,
      * throwing an exception if the index could not be resolved.
@@ -686,9 +700,9 @@ public final class RepositoryData {
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final IndexVersion repoMetaVersion, boolean permitMissingUuid)
         throws IOException {
 
-        final boolean shouldWriteUUIDS = SnapshotsService.includesUUIDs(repoMetaVersion);
-        final boolean shouldWriteIndexGens = SnapshotsService.useIndexGenerations(repoMetaVersion);
-        final boolean shouldWriteShardGens = SnapshotsService.useShardGenerations(repoMetaVersion);
+        final boolean shouldWriteUUIDS = SnapshotsServiceUtils.includesUUIDs(repoMetaVersion);
+        final boolean shouldWriteIndexGens = SnapshotsServiceUtils.useIndexGenerations(repoMetaVersion);
+        final boolean shouldWriteShardGens = SnapshotsServiceUtils.useShardGenerations(repoMetaVersion);
 
         assert Boolean.compare(shouldWriteUUIDS, shouldWriteIndexGens) <= 0;
         assert Boolean.compare(shouldWriteIndexGens, shouldWriteShardGens) <= 0;
@@ -895,7 +909,7 @@ public final class RepositoryData {
                                 this snapshot repository format requires Elasticsearch version [%s] or later""", versionString));
                     };
 
-                    assert SnapshotsService.useShardGenerations(version);
+                    assert SnapshotsServiceUtils.useShardGenerations(version);
                 }
                 case UUID -> {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
@@ -1146,7 +1160,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
+        public static final SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;

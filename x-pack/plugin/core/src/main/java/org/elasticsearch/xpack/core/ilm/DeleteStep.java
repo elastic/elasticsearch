@@ -11,15 +11,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-
-import java.util.Locale;
 
 /**
  * Deletes a single index.
@@ -33,15 +33,15 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Void> listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         String policyName = indexMetadata.getLifecyclePolicyName();
         String indexName = indexMetadata.getIndex().getName();
-        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
+        IndexAbstraction indexAbstraction = currentProject.getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
 
         if (dataStream != null) {
-            Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
+            Index failureStoreWriteIndex = dataStream.getWriteFailureIndex();
             boolean isFailureStoreWriteIndex = failureStoreWriteIndex != null && indexName.equals(failureStoreWriteIndex.getName());
 
             // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream
@@ -52,16 +52,18 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                 // This is the last backing index in the data stream, and it's being deleted because the policy doesn't have a rollover
                 // phase. The entire stream needs to be deleted, because we can't have an empty list of data stream backing indices.
                 // We do this even if there are multiple failure store indices because otherwise we would never delete the index.
-                DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[] { dataStream.getName() });
-                getClient().execute(
+                DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(
+                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                    dataStream.getName()
+                );
+                getClient(currentProject.id()).execute(
                     DeleteDataStreamAction.INSTANCE,
                     deleteReq,
                     listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
                 );
                 return;
             } else if (isFailureStoreWriteIndex || dataStream.getWriteIndex().getName().equals(indexName)) {
-                String errorMessage = String.format(
-                    Locale.ROOT,
+                String errorMessage = Strings.format(
                     "index [%s] is the%s write index for data stream [%s]. "
                         + "stopping execution of lifecycle [%s] as a data stream's write index cannot be deleted. manually rolling over the"
                         + " index will resume the execution of the policy as the index will not be the data stream's write index anymore",
@@ -76,7 +78,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
             }
         }
 
-        getClient().admin()
+        getClient(currentProject.id()).admin()
             .indices()
             .delete(
                 new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),

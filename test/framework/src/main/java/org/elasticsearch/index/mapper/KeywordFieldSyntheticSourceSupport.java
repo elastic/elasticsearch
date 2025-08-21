@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -17,11 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.SyntheticSourceSupport {
     private final Integer ignoreAbove;
@@ -36,6 +33,11 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         this.store = store;
         this.nullValue = nullValue;
         this.docValues = useFallbackSyntheticSource == false || ESTestCase.randomBoolean();
+    }
+
+    @Override
+    public boolean ignoreAbove() {
+        return ignoreAbove != null;
     }
 
     @Override
@@ -54,11 +56,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (ESTestCase.randomBoolean()) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
-            Object loadBlock = v.v2();
-            if (loadBlockFromSource == false && ignoreAbove != null && v.v2().length() > ignoreAbove) {
-                loadBlock = null;
-            }
-            return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, loadBlock, this::mapping);
+            return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, this::mapping);
         }
         List<Tuple<String, String>> values = ESTestCase.randomList(1, maxValues, this::generateValue);
         List<String> in = values.stream().map(Tuple::v1).toList();
@@ -72,7 +70,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 validValues.add(v);
             }
         });
-        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().collect(Collectors.toList());
+        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().toList();
 
         Object out;
         if (preservesExactSource()) {
@@ -83,19 +81,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
         }
 
-        List<String> loadBlock;
-        if (loadBlockFromSource) {
-            // The block loader infrastructure will never return nulls. Just zap them all.
-            loadBlock = in.stream().filter(Objects::nonNull).toList();
-        } else if (docValues) {
-            loadBlock = List.copyOf(outputFromDocValues);
-        } else {
-            // Meaning loading from terms.
-            loadBlock = List.copyOf(validValues);
-        }
-
-        Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
-        return new MapperTestCase.SyntheticSourceExample(in, out, loadBlockResult, this::mapping);
+        return new MapperTestCase.SyntheticSourceExample(in, out, this::mapping);
     }
 
     private Tuple<String, String> generateValue() {
@@ -128,11 +114,6 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public List<MapperTestCase.SyntheticSourceInvalidExample> invalidExample() throws IOException {
-        return List.of(
-            new MapperTestCase.SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),
-                b -> b.field("type", "keyword").field("normalizer", "lowercase")
-            )
-        );
+        return List.of();
     }
 }

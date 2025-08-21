@@ -7,16 +7,28 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockTestUtils;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.IntSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -26,21 +38,50 @@ public class ArrayStateTests extends ESTestCase {
         List<Object[]> params = new ArrayList<>();
 
         for (boolean inOrder : new boolean[] { true, false }) {
-            params.add(new Object[] { ElementType.INT, 1000, inOrder });
-            params.add(new Object[] { ElementType.LONG, 1000, inOrder });
-            params.add(new Object[] { ElementType.DOUBLE, 1000, inOrder });
+            for (IntSupplier count : new IntSupplier[] { new Fixed(100), new Fixed(1000), new Random(100, 5000) }) {
+                params.add(new Object[] { DataType.INTEGER, count, inOrder });
+                params.add(new Object[] { DataType.LONG, count, inOrder });
+                params.add(new Object[] { DataType.FLOAT, count, inOrder });
+                params.add(new Object[] { DataType.DOUBLE, count, inOrder });
+                params.add(new Object[] { DataType.IP, count, inOrder });
+            }
         }
         return params;
     }
 
+    private record Fixed(int i) implements IntSupplier {
+        @Override
+        public int getAsInt() {
+            return i;
+        }
+    }
+
+    private record Random(int min, int max) implements IntSupplier {
+        @Override
+        public int getAsInt() {
+            return randomIntBetween(min, max);
+        }
+    }
+
+    private final DataType type;
     private final ElementType elementType;
     private final int valueCount;
     private final boolean inOrder;
 
-    public ArrayStateTests(ElementType elementType, int valueCount, boolean inOrder) {
-        this.elementType = elementType;
-        this.valueCount = valueCount;
+    public ArrayStateTests(@Name("type") DataType type, @Name("valueCount") IntSupplier valueCount, @Name("inOrder") boolean inOrder) {
+        this.type = type;
+        this.elementType = switch (type) {
+            case INTEGER -> ElementType.INT;
+            case LONG -> ElementType.LONG;
+            case FLOAT -> ElementType.FLOAT;
+            case DOUBLE -> ElementType.DOUBLE;
+            case BOOLEAN -> ElementType.BOOLEAN;
+            case IP -> ElementType.BYTES_REF;
+            default -> throw new IllegalArgumentException();
+        };
+        this.valueCount = valueCount.getAsInt();
         this.inOrder = inOrder;
+        logger.info("value count is {}", this.valueCount);
     }
 
     public void testSetNoTracking() {
@@ -131,6 +172,68 @@ public class ArrayStateTests extends ESTestCase {
         }
     }
 
+    public void testToIntermediate() {
+        AbstractArrayState state = newState();
+        List<Object> values = randomList(valueCount, valueCount, this::randomValue);
+        setAll(state, values, 0);
+        Block[] intermediate = new Block[2];
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance());
+        state.toIntermediate(intermediate, 0, IntVector.range(0, valueCount, ctx.blockFactory()), ctx);
+        try {
+            assertThat(intermediate[0].elementType(), equalTo(elementType));
+            assertThat(intermediate[1].elementType(), equalTo(ElementType.BOOLEAN));
+            assertThat(intermediate[0].getPositionCount(), equalTo(values.size()));
+            assertThat(intermediate[1].getPositionCount(), equalTo(values.size()));
+            for (int i = 0; i < values.size(); i++) {
+                Object v = values.get(i);
+                assertThat(
+                    String.format(Locale.ROOT, "%05d: %s", i, v != null ? v : "init"),
+                    BlockUtils.toJavaObject(intermediate[0], i),
+                    equalTo(v != null ? v : initialValue())
+                );
+                assertThat(BlockUtils.toJavaObject(intermediate[1], i), equalTo(true));
+            }
+        } finally {
+            Releasables.close(intermediate);
+        }
+    }
+
+    /**
+     * Calls {@link GroupingAggregatorState#toIntermediate} with a range that's greater than
+     * any collected values. This is acceptable if {@link AbstractArrayState#enableGroupIdTracking}
+     * is called, so we do that.
+     */
+    public void testToIntermediatePastEnd() {
+        int end = valueCount + between(1, 10000);
+        AbstractArrayState state = newState();
+        state.enableGroupIdTracking(new SeenGroupIds.Empty());
+        List<Object> values = randomList(valueCount, valueCount, this::randomValue);
+        setAll(state, values, 0);
+        Block[] intermediate = new Block[2];
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance());
+        state.toIntermediate(intermediate, 0, IntVector.range(0, end, ctx.blockFactory()), ctx);
+        try {
+            assertThat(intermediate[0].elementType(), equalTo(elementType));
+            assertThat(intermediate[1].elementType(), equalTo(ElementType.BOOLEAN));
+            assertThat(intermediate[0].getPositionCount(), equalTo(end));
+            assertThat(intermediate[1].getPositionCount(), equalTo(end));
+            for (int i = 0; i < values.size(); i++) {
+                Object v = values.get(i);
+                assertThat(
+                    String.format(Locale.ROOT, "%05d: %s", i, v != null ? v : "init"),
+                    BlockUtils.toJavaObject(intermediate[0], i),
+                    equalTo(v != null ? v : initialValue())
+                );
+                assertThat(BlockUtils.toJavaObject(intermediate[1], i), equalTo(v != null));
+            }
+            for (int i = values.size(); i < end; i++) {
+                assertThat(BlockUtils.toJavaObject(intermediate[1], i), equalTo(false));
+            }
+        } finally {
+            Releasables.close(intermediate);
+        }
+    }
+
     private record ValueAndIndex(int index, Object value) {}
 
     private void setAll(AbstractArrayState state, List<Object> values, int offset) {
@@ -155,34 +258,59 @@ public class ArrayStateTests extends ESTestCase {
     }
 
     private AbstractArrayState newState() {
-        return switch (elementType) {
-            case INT -> new IntArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
+        return switch (type) {
+            case INTEGER -> new IntArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
             case LONG -> new LongArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
+            case FLOAT -> new FloatArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
             case DOUBLE -> new DoubleArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
+            case BOOLEAN -> new BooleanArrayState(BigArrays.NON_RECYCLING_INSTANCE, false);
+            case IP -> new IpArrayState(BigArrays.NON_RECYCLING_INSTANCE, new BytesRef(new byte[16]));
             default -> throw new IllegalArgumentException();
         };
     }
 
-    private void set(AbstractArrayState state, int groupdId, Object value) {
-        switch (elementType) {
-            case INT -> ((IntArrayState) state).set(groupdId, (Integer) value);
-            case LONG -> ((LongArrayState) state).set(groupdId, (Long) value);
-            case DOUBLE -> ((DoubleArrayState) state).set(groupdId, (Double) value);
+    private Object initialValue() {
+        return switch (type) {
+            case INTEGER -> 1;
+            case LONG -> 1L;
+            case FLOAT -> 1F;
+            case DOUBLE -> 1d;
+            case BOOLEAN -> false;
+            case IP -> new BytesRef(new byte[16]);
+            default -> throw new IllegalArgumentException();
+        };
+    }
+
+    private void set(AbstractArrayState state, int groupId, Object value) {
+        switch (type) {
+            case INTEGER -> ((IntArrayState) state).set(groupId, (Integer) value);
+            case LONG -> ((LongArrayState) state).set(groupId, (Long) value);
+            case FLOAT -> ((FloatArrayState) state).set(groupId, (Float) value);
+            case DOUBLE -> ((DoubleArrayState) state).set(groupId, (Double) value);
+            case BOOLEAN -> ((BooleanArrayState) state).set(groupId, (Boolean) value);
+            case IP -> ((IpArrayState) state).set(groupId, (BytesRef) value);
             default -> throw new IllegalArgumentException();
         }
     }
 
     private Object get(AbstractArrayState state, int index) {
-        return switch (elementType) {
-            case INT -> ((IntArrayState) state).get(index);
+        return switch (type) {
+            case INTEGER -> ((IntArrayState) state).get(index);
             case LONG -> ((LongArrayState) state).get(index);
+            case FLOAT -> ((FloatArrayState) state).get(index);
             case DOUBLE -> ((DoubleArrayState) state).get(index);
+            case BOOLEAN -> ((BooleanArrayState) state).get(index);
+            case IP -> ((IpArrayState) state).get(index, new BytesRef());
             default -> throw new IllegalArgumentException();
         };
     }
 
     private Object randomValue() {
-        return BlockTestUtils.randomValue(elementType);
+        return switch (type) {
+            case INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN -> BlockTestUtils.randomValue(elementType);
+            case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+            default -> throw new IllegalArgumentException();
+        };
     }
 
     private Object nullableRandomValue() {

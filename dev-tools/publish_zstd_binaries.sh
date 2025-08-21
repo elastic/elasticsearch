@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
 set -e
@@ -78,8 +79,8 @@ build_linux_jar() {
 }
 
 echo 'Building Linux jars...'
-LINUX_ARM_JAR=$(build_linux_jar "linux/amd64" "x86-64")
-LINUX_X86_JAR=$(build_linux_jar "linux/arm64" "aarch64")
+LINUX_ARM_JAR=$(build_linux_jar "linux/arm64" "aarch64")
+LINUX_X86_JAR=$(build_linux_jar "linux/amd64" "x86-64")
 
 build_windows_jar() {
   ARTIFACT="$TEMP/zstd-$VERSION-windows-x86-64.jar"

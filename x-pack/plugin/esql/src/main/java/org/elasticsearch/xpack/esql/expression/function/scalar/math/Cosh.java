@@ -29,15 +29,16 @@ public class Cosh extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of an angle.",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of a number.",
         examples = @Example(file = "floats", tag = "cosh")
     )
     public Cosh(
         Source source,
         @Param(
-            name = "angle",
+            name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "An angle, in radians. If `null`, the function returns `null`."
+            description = "Numeric expression. If `null`, the function returns `null`."
+
         ) Expression angle
     ) {
         super(source, angle);

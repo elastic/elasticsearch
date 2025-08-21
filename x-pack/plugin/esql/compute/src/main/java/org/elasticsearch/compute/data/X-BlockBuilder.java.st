@@ -7,24 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
-$if(BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.core.Releasables;
-
-$else$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Array$;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
-$endif$
+// end generated imports
 
 /**
  * Block build of $Type$Blocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Block.Builder {
 
@@ -123,7 +119,11 @@ $endif$
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom($Type$Block, int$if(BytesRef)$, BytesRef scratch$endif$)}.
+     * </p>
      */
+    @Override
     public $Type$BlockBuilder copyFrom($Type$Block block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -142,25 +142,7 @@ $if(BytesRef)$
         BytesRef scratch = new BytesRef();
 $endif$
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-$if(BytesRef)$
-                appendBytesRef(block.getBytesRef(i++, scratch));
-$else$
-                append$Type$(block.get$Type$(i++));
-$endif$
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p$if(BytesRef)$, scratch$endif$);
         }
     }
 
@@ -175,6 +157,41 @@ $else$
             append$Type$(vector.get$Type$(p));
 $endif$
         }
+    }
+
+    /**
+     * Copy the values in {@code block} at {@code position}. If this position
+     * has a single value, this'll copy a single value. If this positions has
+     * many values, it'll copy all of them. If this is {@code null}, then it'll
+     * copy the {@code null}.
+$if(BytesRef)$
+     * @param scratch Scratch string used to prevent allocation. Share this
+                      between many calls to this function.
+$endif$
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public $Type$BlockBuilder copyFrom($Type$Block block, int position$if(BytesRef)$, BytesRef scratch$endif$) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            append$Type$(block.get$Type$(i++$if(BytesRef)$, scratch$endif$));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            append$Type$(block.get$Type$(i++$if(BytesRef)$, scratch$endif$));
+        }
+        endPositionEntry();
+        return this;
     }
 
     @Override

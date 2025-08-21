@@ -36,6 +36,9 @@
         },
         "namespaces": {
           "type": "keyword"
+        },
+        "hidden": {
+          "type": "boolean"
         }
       }
     }

@@ -403,7 +403,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         );
         public static final Setting<Boolean> CLUSTER_STATE_ROLE_MAPPINGS_ENABLED = Setting.boolSetting(
             "xpack.security.authc.cluster_state_role_mappings.enabled",
-            false,
+            true,
             Setting.Property.NodeScope
         );
         public static final Setting<Boolean> NATIVE_ROLES_ENABLED = Setting.boolSetting(

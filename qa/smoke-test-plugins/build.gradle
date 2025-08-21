@@ -1,34 +1,40 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 ext.pluginPaths = []
+ext.pluginNames = []
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->
   pluginPaths << pluginProject.path
+  pluginNames << pluginName
 }
 
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
+dependencies {
+  clusterModules project(":modules:lang-painless")
   pluginPaths.each { pluginPath ->
-    plugin pluginPath
+    clusterPlugins(project(pluginPath))
   }
-  setting 'xpack.security.enabled', 'false'
 }
 
 ext.expansions = [
   'expected.plugins.count': pluginPaths.size()
 ]
 
-tasks.named("processYamlRestTestResources").configure {
+tasks.named("processYamlRestTestResources") {
   assert pluginPaths.size() > 0
   inputs.properties(expansions)
   filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
+}
+
+tasks.named("yamlRestTest") {
+  systemProperty('tests.plugin.names', pluginNames.join(','))
 }

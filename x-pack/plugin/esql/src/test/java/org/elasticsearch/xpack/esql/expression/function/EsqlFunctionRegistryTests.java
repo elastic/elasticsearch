@@ -10,28 +10,26 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.def;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
-import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -41,7 +39,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         UnresolvedFunction ur = uf(DEFAULT);
         EsqlFunctionRegistry r = new EsqlFunctionRegistry(def(DummyFunction.class, DummyFunction::new, "dummyFunction"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.source(), ur.buildResolved(TestUtils.randomConfiguration(), def).source());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
     }
 
     public void testBinaryFunction() {
@@ -52,28 +50,25 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
             return new DummyFunction(l);
         }, "dummyFunction"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.source(), ur.buildResolved(TestUtils.randomConfiguration(), def).source());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(TestUtils.randomConfiguration(), def));
-        assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // One child isn't supported
-        e = expectThrows(
-            ParsingException.class,
-            () -> uf(DEFAULT, mock(Expression.class)).buildResolved(TestUtils.randomConfiguration(), def)
-        );
-        assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
+        e = expectThrows(ParsingException.class, () -> uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // Many children aren't supported
         e = expectThrows(
             ParsingException.class,
             () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(
-                TestUtils.randomConfiguration(),
+                randomConfiguration(),
                 def
             )
         );
-        assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
+        assertThat(e.getMessage(), containsString("expects exactly two arguments"));
     }
 
     public void testAliasNameIsTheSameAsAFunctionName() {
@@ -143,14 +138,14 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
 
         // No children aren't supported
         ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
-        assertThat(e.getMessage(), endsWith("expects exactly one argument"));
+        assertThat(e.getMessage(), containsString("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(
             ParsingException.class,
             () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
-        assertThat(e.getMessage(), endsWith("expects exactly one argument"));
+        assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
     public void testConfigurationOptionalFunction() {
@@ -164,6 +159,9 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         );
         def = r.resolveFunction(r.resolveAlias("DUMMY"));
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
+
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
     private static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {
@@ -262,9 +260,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-        ) {
+        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
             return null;
         }
     }

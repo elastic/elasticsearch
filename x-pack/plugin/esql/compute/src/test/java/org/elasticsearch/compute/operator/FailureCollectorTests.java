@@ -7,12 +7,18 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportException;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -25,6 +31,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
 public class FailureCollectorTests extends ESTestCase {
@@ -80,11 +89,47 @@ public class FailureCollectorTests extends ESTestCase {
         assertNotNull(failure);
         assertThat(failure, Matchers.in(nonCancelledExceptions));
         assertThat(failure.getSuppressed().length, lessThan(maxExceptions));
+        assertTrue(
+            "cancellation exceptions must be ignored",
+            ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> t instanceof TaskCancelledException).isEmpty()
+        );
+        assertTrue(
+            "remote transport exception must be unwrapped",
+            ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> t instanceof TransportException).isEmpty()
+        );
     }
 
     public void testEmpty() {
         FailureCollector collector = new FailureCollector(5);
         assertFalse(collector.hasFailure());
         assertNull(collector.getFailure());
+    }
+
+    public void testTransportExceptions() {
+        FailureCollector collector = new FailureCollector(5);
+        collector.unwrapAndCollect(new NodeDisconnectedException(DiscoveryNodeUtils.builder("node-1").build(), "/field_caps"));
+        collector.unwrapAndCollect(new TransportException(new IOException("disk issue")));
+        Exception failure = collector.getFailure();
+        assertNotNull(failure);
+        assertThat(failure, instanceOf(NodeDisconnectedException.class));
+        assertThat(failure.getMessage(), equalTo("[][0.0.0.0:1][/field_caps] disconnected"));
+        Throwable[] suppressed = failure.getSuppressed();
+        assertThat(suppressed, arrayWithSize(1));
+        assertThat(suppressed[0], instanceOf(IOException.class));
+    }
+
+    public void testErrorCategory() {
+        FailureCollector collector = new FailureCollector(5);
+        collector.unwrapAndCollect(new NoShardAvailableActionException(new ShardId("test", "n/a", 1), "not ready"));
+        collector.unwrapAndCollect(
+            new TransportException(new CircuitBreakingException("request is too large", CircuitBreaker.Durability.TRANSIENT))
+        );
+        Exception failure = collector.getFailure();
+        assertNotNull(failure);
+        assertThat(failure, instanceOf(CircuitBreakingException.class));
+        assertThat(failure.getMessage(), equalTo("request is too large"));
+        assertThat(failure.getSuppressed(), arrayWithSize(1));
+        assertThat(failure.getSuppressed()[0], instanceOf(NoShardAvailableActionException.class));
+        assertThat(failure.getSuppressed()[0].getMessage(), equalTo("not ready"));
     }
 }

@@ -14,21 +14,25 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromBooleanEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator bool;
+
+  public ToStringFromBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator bool,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.bool = bool;
   }
 
   @Override
-  public String name() {
-    return "ToStringFromBoolean";
+  public EvalOperator.ExpressionEvaluator next() {
+    return bool;
   }
 
   @Override
@@ -46,7 +50,7 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static BytesRef evalValue(BooleanVector container, int index) {
+  private BytesRef evalValue(BooleanVector container, int index) {
     boolean value = container.getBoolean(index);
     return ToString.fromBoolean(value);
   }
@@ -81,29 +85,39 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static BytesRef evalValue(BooleanBlock container, int index) {
+  private BytesRef evalValue(BooleanBlock container, int index) {
     boolean value = container.getBoolean(index);
     return ToString.fromBoolean(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToStringFromBooleanEvaluator[" + "bool=" + bool + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(bool);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory bool;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory bool) {
       this.source = source;
+      this.bool = bool;
     }
 
     @Override
     public ToStringFromBooleanEvaluator get(DriverContext context) {
-      return new ToStringFromBooleanEvaluator(field.get(context), source, context);
+      return new ToStringFromBooleanEvaluator(source, bool.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromBooleanEvaluator[field=" + field + "]";
+      return "ToStringFromBooleanEvaluator[" + "bool=" + bool + "]";
     }
   }
 }

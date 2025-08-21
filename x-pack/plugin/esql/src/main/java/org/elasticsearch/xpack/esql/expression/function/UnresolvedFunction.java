@@ -7,16 +7,17 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
@@ -24,6 +25,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * An unresolved function call. We build these while walking the syntax
+ * tree and then resolve them into other {@link Function} subclasses during
+ * {@link Analyzer analysis}.
+ */
 public class UnresolvedFunction extends Function implements Unresolvable {
 
     private final String name;
@@ -130,6 +136,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     public boolean analyzed() {
         return analyzed;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return new TypeResolution("unresolved function [" + name + "]");
     }
 
     @Override

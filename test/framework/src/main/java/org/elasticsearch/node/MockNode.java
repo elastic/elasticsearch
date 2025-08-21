@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -22,14 +25,15 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.MockReadinessService;
 import org.elasticsearch.readiness.ReadinessService;
@@ -40,7 +44,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
@@ -52,10 +55,12 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -98,12 +103,11 @@ public class MockNode extends Node {
             ThreadPool threadPool,
             ScriptService scriptService,
             BigArrays bigArrays,
-            RankFeatureShardPhase rankFeatureShardPhase,
             FetchPhase fetchPhase,
-            ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer
+            Tracer tracer,
+            OnlinePrewarmingService onlinePrewarmingService
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -113,26 +117,25 @@ public class MockNode extends Node {
                     threadPool,
                     scriptService,
                     bigArrays,
-                    rankFeatureShardPhase,
                     fetchPhase,
-                    responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
-                    tracer
+                    tracer,
+                    onlinePrewarmingService
                 );
             }
+
             return new MockSearchService(
                 clusterService,
                 indicesService,
                 threadPool,
                 scriptService,
                 bigArrays,
-                rankFeatureShardPhase,
                 fetchPhase,
-                responseCollectorService,
                 circuitBreakerService,
                 executorSelector,
-                tracer
+                tracer,
+                onlinePrewarmingService
             );
         }
 
@@ -142,10 +145,11 @@ public class MockNode extends Node {
             Settings settings,
             Map<String, ScriptEngine> engines,
             Map<String, ScriptContext<?>> contexts,
-            LongSupplier timeProvider
+            LongSupplier timeProvider,
+            ProjectResolver projectResolver
         ) {
             if (pluginsService.filterPlugins(MockScriptService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider);
+                return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider, projectResolver);
             }
             return new MockScriptService(settings, engines, contexts);
         }
@@ -168,8 +172,10 @@ public class MockNode extends Node {
             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
             ClusterSettings clusterSettings,
             TaskManager taskManager,
-            Tracer tracer
+            Tracer tracer,
+            String nodeId
         ) {
+
             // we use the MockTransportService.TestPlugin class as a marker to create a network
             // module with this MockNetworkService. NetworkService is such an integral part of the systme
             // we don't allow to plug it in from plugins or anything. this is a test-only override and
@@ -184,7 +190,8 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager,
-                    tracer
+                    tracer,
+                    nodeId
                 );
             } else {
                 return new MockTransportService(
@@ -194,17 +201,8 @@ public class MockNode extends Node {
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    taskManager.getTaskHeaders()
-                );
-            }
-        }
-
-        @Override
-        void processRecoverySettings(PluginsService pluginsService, ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-            if (pluginsService.filterPlugins(RecoverySettingsChunkSizePlugin.class).findAny().isEmpty() == false) {
-                clusterSettings.addSettingsUpdateConsumer(
-                    RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING,
-                    recoverySettings::setChunkSize
+                    taskManager.getTaskHeaders(),
+                    nodeId
                 );
             }
         }
@@ -243,49 +241,66 @@ public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
 
+    // handle for temporarily entitled node paths for this node; these will be removed on close.
+    private final Closeable entitledNodePaths;
+
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
+        this(settings, classpathPlugins, true, () -> {});
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final Path configPath,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        this(
-            InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
-                Collections.emptyMap(),
-                configPath,
-                () -> "mock_ node"
-            ),
-            classpathPlugins,
-            forbidPrivateIndexSettings
-        );
+        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     private MockNode(
         final Environment environment,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        super(NodeConstruction.prepareConstruction(environment, new MockServiceProvider() {
+        super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
+
             @Override
-            PluginsService newPluginService(Environment environment, Settings settings) {
-                return new MockPluginsService(settings, environment, classpathPlugins);
+            PluginsService newPluginService(Environment environment, PluginsLoader pluginsLoader) {
+                return new MockPluginsService(environment.settings(), environment, classpathPlugins);
             }
         }, forbidPrivateIndexSettings));
 
         this.classpathPlugins = classpathPlugins;
+        this.entitledNodePaths = entitledNodePaths;
+    }
+
+    private static Environment prepareEnvironment(final Settings settings, final Path configPath) {
+        return InternalSettingsPreparer.prepareEnvironment(
+            Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
+            Collections.emptyMap(),
+            configPath,
+            () -> "mock_ node"
+        );
+    }
+
+    @Override
+    public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        try {
+            return super.awaitClose(timeout, timeUnit);
+        } finally {
+            IOUtils.closeWhileHandlingException(entitledNodePaths);
+        }
     }
 
     /**

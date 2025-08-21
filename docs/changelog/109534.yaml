@@ -1,6 +1,0 @@
-pr: 109534
-summary: Propagate accurate deployment timeout
-area: Machine Learning
-type: bug
-issues:
- - 109407

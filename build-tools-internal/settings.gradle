@@ -1,14 +1,15 @@
 pluginManagement {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
     gradlePluginPortal()
   }
 
   includeBuild "../build-conventions"
-    includeBuild "../build-tools"
+  includeBuild "../build-tools"
+}
+
+plugins {
+  id "com.gradle.develocity" version "4.0.1"
 }
 
 dependencyResolutionManagement {

@@ -1,5 +1,0 @@
-pr: 108746
-summary: Support synthetic source for `aggregate_metric_double` when ignore_malf…
-area: Mapping
-type: feature
-issues: []

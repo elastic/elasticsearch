@@ -49,6 +49,10 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         super(source, field, parameters);
     }
 
+    NumericAggregate(Source source, Expression field, Expression filter, List<Expression> parameters) {
+        super(source, field, filter, parameters);
+    }
+
     NumericAggregate(Source source, Expression field) {
         super(source, field);
     }
@@ -88,26 +92,26 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (supportsDates() && type == DataType.DATETIME) {
-            return longSupplier(inputChannels);
+            return longSupplier();
         }
         if (type == DataType.LONG) {
-            return longSupplier(inputChannels);
+            return longSupplier();
         }
         if (type == DataType.INTEGER) {
-            return intSupplier(inputChannels);
+            return intSupplier();
         }
         if (type == DataType.DOUBLE) {
-            return doubleSupplier(inputChannels);
+            return doubleSupplier();
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 
-    protected abstract AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier longSupplier();
 
-    protected abstract AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier intSupplier();
 
-    protected abstract AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier doubleSupplier();
 }

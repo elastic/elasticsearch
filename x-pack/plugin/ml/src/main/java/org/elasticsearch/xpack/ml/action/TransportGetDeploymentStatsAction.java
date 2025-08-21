@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -220,7 +220,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 // add nodes from the failures that were not in the task responses
                 for (var nodeRoutingState : nodeToRoutingStates.entrySet()) {
-                    if (visitedNodes.contains(nodeRoutingState.getKey()) == false) {
+                    if ((visitedNodes.contains(nodeRoutingState.getKey()) == false) && nodes.nodeExists(nodeRoutingState.getKey())) {
                         updatedNodeStats.add(
                             AssignmentStats.NodeStats.forNotStartedState(
                                 nodes.get(nodeRoutingState.getKey()),
@@ -261,13 +261,15 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 List<AssignmentStats.NodeStats> nodeStats = new ArrayList<>();
 
                 for (var routingEntry : nonStartedEntries.getValue().entrySet()) {
-                    nodeStats.add(
-                        AssignmentStats.NodeStats.forNotStartedState(
-                            nodes.get(routingEntry.getKey()),
-                            routingEntry.getValue().getState(),
-                            routingEntry.getValue().getReason()
-                        )
-                    );
+                    if (nodes.nodeExists(routingEntry.getKey())) {
+                        nodeStats.add(
+                            AssignmentStats.NodeStats.forNotStartedState(
+                                nodes.get(routingEntry.getKey()),
+                                routingEntry.getValue().getState(),
+                                routingEntry.getValue().getReason()
+                            )
+                        );
+                    }
                 }
 
                 nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));

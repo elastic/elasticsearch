@@ -8,14 +8,28 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,17 +37,21 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -47,16 +65,20 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAmount;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
@@ -65,10 +87,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
@@ -79,50 +105,118 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class EsqlDataTypeConverter {
 
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter DEFAULT_DATE_NANOS_FORMATTER = DateFormatter.forPattern("strict_date_optional_time_nanos");
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
     private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
+        entry(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new),
         entry(BOOLEAN, ToBoolean::new),
         entry(CARTESIAN_POINT, ToCartesianPoint::new),
         entry(CARTESIAN_SHAPE, ToCartesianShape::new),
         entry(DATETIME, ToDatetime::new),
+        entry(DATE_NANOS, ToDateNanos::new),
         // ToDegrees, typeless
         entry(DOUBLE, ToDouble::new),
         entry(GEO_POINT, ToGeoPoint::new),
         entry(GEO_SHAPE, ToGeoShape::new),
         entry(INTEGER, ToInteger::new),
-        entry(IP, ToIP::new),
+        entry(IP, ToIpLeadingZerosRejected::new),
         entry(LONG, ToLong::new),
         // ToRadians, typeless
         entry(KEYWORD, ToString::new),
-        entry(TEXT, ToString::new),
         entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        entry(VERSION, ToVersion::new)
+        entry(VERSION, ToVersion::new),
+        entry(DATE_PERIOD, ToDatePeriod::new),
+        entry(TIME_DURATION, ToTimeDuration::new)
     );
 
-    /**
-     * Returns true if the from type can be converted to the to type, false - otherwise
-     */
-    public static boolean canConvert(DataType from, DataType to) {
-        // Special handling for nulls and if conversion is not requires
-        if (from == to || from == NULL) {
-            return true;
-        }
-        // only primitives are supported so far
-        return isPrimitive(from) && isPrimitive(to) && converterFor(from, to) != null;
+    public enum INTERVALS {
+        // TIME_DURATION,
+        MILLISECOND,
+        MILLISECONDS,
+        MS,
+        SECOND,
+        SECONDS,
+        SEC,
+        S,
+        MINUTE,
+        MINUTES,
+        MIN,
+        HOUR,
+        HOURS,
+        H,
+        // DATE_PERIOD
+        DAY,
+        DAYS,
+        D,
+        WEEK,
+        WEEKS,
+        W,
+        MONTH,
+        MONTHS,
+        MO,
+        QUARTER,
+        QUARTERS,
+        Q,
+        YEAR,
+        YEARS,
+        YR,
+        Y;
     }
+
+    public static List<INTERVALS> TIME_DURATIONS = List.of(
+        INTERVALS.MILLISECOND,
+        INTERVALS.MILLISECONDS,
+        INTERVALS.MS,
+        INTERVALS.SECOND,
+        INTERVALS.SECONDS,
+        INTERVALS.SEC,
+        INTERVALS.S,
+        INTERVALS.MINUTE,
+        INTERVALS.MINUTES,
+        INTERVALS.MIN,
+        INTERVALS.HOUR,
+        INTERVALS.HOURS,
+        INTERVALS.H
+    );
+
+    public static List<INTERVALS> DATE_PERIODS = List.of(
+        INTERVALS.DAY,
+        INTERVALS.DAYS,
+        INTERVALS.D,
+        INTERVALS.WEEK,
+        INTERVALS.WEEKS,
+        INTERVALS.W,
+        INTERVALS.MONTH,
+        INTERVALS.MONTHS,
+        INTERVALS.MO,
+        INTERVALS.QUARTER,
+        INTERVALS.QUARTERS,
+        INTERVALS.Q,
+        INTERVALS.YEAR,
+        INTERVALS.YEARS,
+        INTERVALS.YR,
+        INTERVALS.Y
+    );
+
+    public static final String INVALID_INTERVAL_ERROR =
+        "Invalid interval value in [{}], expected integer followed by one of {} but got [{}]";
 
     public static Converter converterFor(DataType from, DataType to) {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
         if (isString(from)) {
             if (to == DataType.DATETIME) {
                 return EsqlConverter.STRING_TO_DATETIME;
+            }
+            if (to == DATE_NANOS) {
+                return EsqlConverter.STRING_TO_DATE_NANOS;
             }
             if (to == DataType.IP) {
                 return EsqlConverter.STRING_TO_IP;
@@ -142,7 +236,10 @@ public class EsqlDataTypeConverter {
             if (to == DataType.BOOLEAN) {
                 return EsqlConverter.STRING_TO_BOOLEAN;
             }
-            if (EsqlDataTypes.isSpatial(to)) {
+            if (DataType.isSpatialGeo(to)) {
+                return EsqlConverter.STRING_TO_GEO;
+            }
+            if (DataType.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
             }
             if (to == DataType.TIME_DURATION) {
@@ -159,6 +256,38 @@ public class EsqlDataTypeConverter {
         return null;
     }
 
+    public static TemporalAmount foldToTemporalAmount(FoldContext ctx, Expression field, String sourceText, DataType expectedType) {
+        if (field.foldable()) {
+            Object v = field.fold(ctx);
+            if (v instanceof BytesRef b) {
+                try {
+                    return EsqlDataTypeConverter.parseTemporalAmount(b.utf8ToString(), expectedType);
+                } catch (ParsingException e) {
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format(
+                            null,
+                            INVALID_INTERVAL_ERROR,
+                            sourceText,
+                            expectedType == DATE_PERIOD ? DATE_PERIODS : TIME_DURATIONS,
+                            b.utf8ToString()
+                        )
+                    );
+                }
+            } else if (v instanceof TemporalAmount t) {
+                return t;
+            }
+        }
+
+        throw new IllegalArgumentException(
+            LoggerMessageFormat.format(
+                null,
+                "argument of [{}] must be a constant, received [{}]",
+                field.sourceText(),
+                Expressions.name(field)
+            )
+        );
+    }
+
     public static TemporalAmount parseTemporalAmount(Object val, DataType expectedType) {
         String errorMessage = "Cannot parse [{}] to {}";
         String str = String.valueOf(val);
@@ -166,27 +295,11 @@ public class EsqlDataTypeConverter {
             return null;
         }
         StringBuilder value = new StringBuilder();
-        StringBuilder qualifier = new StringBuilder();
-        StringBuilder nextBuffer = value;
-        boolean lastWasSpace = false;
-        for (char c : str.trim().toCharArray()) {
-            if (c == ' ') {
-                if (lastWasSpace == false) {
-                    nextBuffer = nextBuffer == value ? qualifier : null;
-                }
-                lastWasSpace = true;
-                continue;
-            }
-            if (nextBuffer == null) {
-                throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
-            }
-            nextBuffer.append(c);
-            lastWasSpace = false;
-        }
-
-        if ((value.isEmpty() || qualifier.isEmpty()) == false) {
+        StringBuilder temporalUnit = new StringBuilder();
+        separateValueAndTemporalUnitForTemporalAmount(str.strip(), value, temporalUnit, errorMessage, expectedType.toString());
+        if ((value.isEmpty() || temporalUnit.isEmpty()) == false) {
             try {
-                TemporalAmount result = parseTemporalAmout(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
+                TemporalAmount result = parseTemporalAmount(Integer.parseInt(value.toString()), temporalUnit.toString(), Source.EMPTY);
                 if (DataType.DATE_PERIOD == expectedType && result instanceof Period
                     || DataType.TIME_DURATION == expectedType && result instanceof Duration) {
                     return result;
@@ -201,8 +314,49 @@ public class EsqlDataTypeConverter {
                 // wrong pattern
             }
         }
-
         throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
+    }
+
+    public static TemporalAmount maybeParseTemporalAmount(String str) {
+        // The string literal can be either Date_Period or Time_Duration, derive the data type from its temporal unit
+        String errorMessage = "Cannot parse [{}] to {}";
+        String expectedTypes = DATE_PERIOD + " or " + TIME_DURATION;
+        StringBuilder value = new StringBuilder();
+        StringBuilder temporalUnit = new StringBuilder();
+        separateValueAndTemporalUnitForTemporalAmount(str, value, temporalUnit, errorMessage, expectedTypes);
+        if ((value.isEmpty() || temporalUnit.isEmpty()) == false) {
+            try {
+                return parseTemporalAmount(Integer.parseInt(value.toString()), temporalUnit.toString(), Source.EMPTY);
+            } catch (NumberFormatException ex) {
+                throw new ParsingException(Source.EMPTY, errorMessage, str, expectedTypes);
+            }
+        }
+        return null;
+    }
+
+    private static void separateValueAndTemporalUnitForTemporalAmount(
+        String temporalAmount,
+        StringBuilder value,
+        StringBuilder temporalUnit,
+        String errorMessage,
+        String expectedType
+    ) {
+        StringBuilder nextBuffer = value;
+        boolean lastWasSpace = false;
+        for (char c : temporalAmount.toCharArray()) {
+            if (c == ' ') {
+                if (lastWasSpace == false) {
+                    nextBuffer = nextBuffer == value ? temporalUnit : null;
+                }
+                lastWasSpace = true;
+                continue;
+            }
+            if (nextBuffer == null) {
+                throw new ParsingException(Source.EMPTY, errorMessage, temporalAmount, expectedType);
+            }
+            nextBuffer.append(c);
+            lastWasSpace = false;
+        }
     }
 
     /**
@@ -229,27 +383,85 @@ public class EsqlDataTypeConverter {
         return converter.convert(value);
     }
 
+    /**
+     * Returns the type compatible with both left and right types
+     * <p>
+     * If one of the types is null - returns another type
+     * If both types are numeric - returns type with the highest precision int &lt; long &lt; float &lt; double
+     */
     public static DataType commonType(DataType left, DataType right) {
-        return DataTypeConverter.commonType(left, right);
+        if (left == right) {
+            return left;
+        }
+        if (left == NULL) {
+            return right;
+        }
+        if (right == NULL) {
+            return left;
+        }
+        if (isDateTimeOrNanosOrTemporal(left) || isDateTimeOrNanosOrTemporal(right)) {
+            if ((isDateTime(left) && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && isDateTime(right))) {
+                return DATETIME;
+            }
+            if ((left == DATE_NANOS && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && right == DATE_NANOS)) {
+                return DATE_NANOS;
+            }
+            if (isNullOrTimeDuration(left) && isNullOrTimeDuration(right)) {
+                return TIME_DURATION;
+            }
+            if (isNullOrDatePeriod(left) && isNullOrDatePeriod(right)) {
+                return DATE_PERIOD;
+            }
+        }
+        if (isString(left) && isString(right)) {
+            // Both TEXT and SEMANTIC_TEXT are processed as KEYWORD
+            return KEYWORD;
+        }
+        if (left.isNumeric() && right.isNumeric()) {
+            int lsize = left.estimatedSize().orElseThrow();
+            int rsize = right.estimatedSize().orElseThrow();
+            // if one is int
+            if (left.isWholeNumber()) {
+                // promote the highest int
+                if (right.isWholeNumber()) {
+                    if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
+                        return UNSIGNED_LONG;
+                    }
+                    return lsize > rsize ? left : right;
+                }
+                // promote the rational
+                return right;
+            }
+            // try the other side
+            if (right.isWholeNumber()) {
+                return left;
+            }
+            // promote the highest rational
+            return lsize > rsize ? left : right;
+        }
+        // none found
+        return null;
     }
 
     // generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
-    public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws InvalidArgumentException,
+    public static TemporalAmount parseTemporalAmount(Number value, String temporalUnit, Source source) throws InvalidArgumentException,
         ArithmeticException, ParsingException {
-        return switch (qualifier) {
-            case "millisecond", "milliseconds", "ms" -> Duration.ofMillis(safeToLong(value));
-            case "second", "seconds", "sec", "s" -> Duration.ofSeconds(safeToLong(value));
-            case "minute", "minutes", "min" -> Duration.ofMinutes(safeToLong(value));
-            case "hour", "hours", "h" -> Duration.ofHours(safeToLong(value));
+        try {
+            return switch (INTERVALS.valueOf(temporalUnit.toUpperCase(Locale.ROOT))) {
+                case MILLISECOND, MILLISECONDS, MS -> Duration.ofMillis(safeToLong(value));
+                case SECOND, SECONDS, SEC, S -> Duration.ofSeconds(safeToLong(value));
+                case MINUTE, MINUTES, MIN -> Duration.ofMinutes(safeToLong(value));
+                case HOUR, HOURS, H -> Duration.ofHours(safeToLong(value));
 
-            case "day", "days", "d" -> Period.ofDays(safeToInt(safeToLong(value)));
-            case "week", "weeks", "w" -> Period.ofWeeks(safeToInt(safeToLong(value)));
-            case "month", "months", "mo" -> Period.ofMonths(safeToInt(safeToLong(value)));
-            case "quarter", "quarters", "q" -> Period.ofMonths(safeToInt(Math.multiplyExact(3L, safeToLong(value))));
-            case "year", "years", "yr", "y" -> Period.ofYears(safeToInt(safeToLong(value)));
-
-            default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
-        };
+                case DAY, DAYS, D -> Period.ofDays(safeToInt(safeToLong(value)));
+                case WEEK, WEEKS, W -> Period.ofWeeks(safeToInt(safeToLong(value)));
+                case MONTH, MONTHS, MO -> Period.ofMonths(safeToInt(safeToLong(value)));
+                case QUARTER, QUARTERS, Q -> Period.ofMonths(safeToInt(Math.multiplyExact(3L, safeToLong(value))));
+                case YEAR, YEARS, YR, Y -> Period.ofYears(safeToInt(safeToLong(value)));
+            };
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(source, "Unexpected temporal unit: '{}'", temporalUnit);
+        }
     }
 
     /**
@@ -268,11 +480,34 @@ public class EsqlDataTypeConverter {
 
     public static long chronoToLong(long dateTime, BytesRef chronoField, ZoneId zone) {
         ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
-        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chrono);
+        return chronoToLong(dateTime, chrono, zone);
     }
 
     public static long chronoToLong(long dateTime, ChronoField chronoField, ZoneId zone) {
         return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chronoField);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, BytesRef chronoField, ZoneId zone) {
+        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
+        return chronoToLongNanos(dateNanos, chrono, zone);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, ChronoField chronoField, ZoneId zone) {
+        return DateUtils.toInstant(dateNanos).atZone(zone).getLong(chronoField);
     }
 
     /**
@@ -310,6 +545,10 @@ public class EsqlDataTypeConverter {
         return UNSPECIFIED.wkbToWkt(field);
     }
 
+    public static BytesRef stringToGeo(String field) {
+        return GEO.wktToWkb(field);
+    }
+
     public static BytesRef stringToSpatial(String field) {
         return UNSPECIFIED.wktToWkb(field);
     }
@@ -322,12 +561,39 @@ public class EsqlDataTypeConverter {
         return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
     }
 
+    public static long dateNanosToLong(String dateNano) {
+        return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
+    }
+
+    public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
+        Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
+        return DateUtils.toLong(parsed);
+    }
+
+    public static String dateWithTypeToString(long dateTime, DataType type) {
+        if (type == DATETIME) {
+            return dateTimeToString(dateTime);
+        }
+        if (type == DATE_NANOS) {
+            return nanoTimeToString(dateTime);
+        }
+        throw new IllegalArgumentException("Unsupported data type [" + type + "]");
+    }
+
     public static String dateTimeToString(long dateTime) {
         return DEFAULT_DATE_TIME_FORMATTER.formatMillis(dateTime);
     }
 
+    public static String nanoTimeToString(long dateTime) {
+        return DEFAULT_DATE_NANOS_FORMATTER.formatNanos(dateTime);
+    }
+
     public static String dateTimeToString(long dateTime, DateFormatter formatter) {
         return formatter == null ? dateTimeToString(dateTime) : formatter.formatMillis(dateTime);
+    }
+
+    public static String nanoTimeToString(long dateTime, DateFormatter formatter) {
+        return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
     }
 
     public static BytesRef numericBooleanToString(Object field) {
@@ -335,7 +601,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static boolean stringToBoolean(String field) {
-        return Boolean.parseBoolean(field);
+        return Booleans.parseBooleanLenient(field, false);
     }
 
     public static int stringToInt(String field) {
@@ -428,19 +694,95 @@ public class EsqlDataTypeConverter {
         return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
     }
 
+    public static String aggregateMetricDoubleBlockToString(AggregateMetricDoubleBlock aggBlock, int index) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            for (Metric metric : List.of(Metric.MIN, Metric.MAX, Metric.SUM)) {
+                var block = aggBlock.getMetricBlock(metric.getIndex());
+                if (block.isNull(index) == false) {
+                    builder.field(metric.getLabel(), ((DoubleBlock) block).getDouble(index));
+                }
+            }
+            var countBlock = aggBlock.getMetricBlock(Metric.COUNT.getIndex());
+            if (countBlock.isNull(index) == false) {
+                builder.field(Metric.COUNT.getLabel(), ((IntBlock) countBlock).getInt(index));
+            }
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering aggregate metric double", e);
+        }
+    }
+
+    public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            if (aggMetric.min() != null) {
+                builder.field(Metric.MIN.getLabel(), aggMetric.min());
+            }
+            if (aggMetric.max() != null) {
+                builder.field(Metric.MAX.getLabel(), aggMetric.max());
+            }
+            if (aggMetric.sum() != null) {
+                builder.field(Metric.SUM.getLabel(), aggMetric.sum());
+            }
+            if (aggMetric.count() != null) {
+                builder.field(Metric.COUNT.getLabel(), aggMetric.count());
+            }
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering aggregate metric double", e);
+        }
+    }
+
+    public static AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral stringToAggregateMetricDoubleLiteral(String s) {
+        Double min = null;
+        Double max = null;
+        Double sum = null;
+        Integer count = null;
+        String[] values = s.substring(1, s.length() - 1).split(",");
+        for (String v : values) {
+            var pair = v.split(":");
+            String type = pair[0];
+            String number = pair[1];
+            switch (type) {
+                case "min":
+                    min = Double.parseDouble(number);
+                    break;
+                case "max":
+                    max = Double.parseDouble(number);
+                    break;
+                case "sum":
+                    sum = Double.parseDouble(number);
+                    break;
+                case "value_count":
+                    count = Integer.parseInt(number);
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                        "Received a metric that wasn't min, max, sum, or value_count: " + type + " with value: " + number
+                    );
+            }
+        }
+        return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count);
+    }
+
     public enum EsqlConverter implements Converter {
 
         STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.DATE_PERIOD)),
         STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.TIME_DURATION)),
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
-        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
-        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),
-        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion((String) x)),
-        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble((String) x)),
-        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong((String) x)),
-        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt((String) x)),
-        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean((String) x)),
-        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial((String) x));
+        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong(BytesRefs.toString(x))),
+        STRING_TO_DATE_NANOS(x -> EsqlDataTypeConverter.dateNanosToLong(BytesRefs.toString(x))),
+        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP(BytesRefs.toString(x))),
+        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion(BytesRefs.toString(x))),
+        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble(BytesRefs.toString(x))),
+        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong(BytesRefs.toString(x))),
+        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt(BytesRefs.toString(x))),
+        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean(BytesRefs.toString(x))),
+        STRING_TO_GEO(x -> EsqlDataTypeConverter.stringToGeo(BytesRefs.toString(x))),
+        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(x)));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

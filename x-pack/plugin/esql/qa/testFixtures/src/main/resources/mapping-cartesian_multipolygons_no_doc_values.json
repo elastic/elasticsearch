@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "name": {
+      "type": "keyword"
+    },
+    "shape": {
+      "type": "shape",
+      "index": true,
+      "doc_values": false
+    }
+  }
+}

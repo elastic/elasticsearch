@@ -5,8 +5,6 @@
 changelog-file-missing-in-native-package
 
 # we intentionally copy our copyright file for all deb packages
-copyright-file-contains-full-apache-2-license
-copyright-not-using-common-license-for-apache2
 copyright-without-copyright-notice
 
 # we still put all our files under /usr/share/elasticsearch even after transition to platform dependent packages
@@ -16,36 +14,22 @@ arch-dependent-file-in-usr-share
 missing-dep-on-jarwrapper
 
 # we prefer to not make our config and log files world readable
-non-standard-file-perm etc/default/elasticsearch 0660 != 0644
-non-standard-dir-perm etc/elasticsearch/ 2750 != 0755
-non-standard-dir-perm etc/elasticsearch/jvm.options.d/ 2750 != 0755
-non-standard-file-perm etc/elasticsearch/*
-non-standard-dir-perm var/lib/elasticsearch/ 2750 != 0755
-non-standard-dir-perm var/log/elasticsearch/ 2750 != 0755
-
-# this lintian tag is simply wrong; contrary to the explanation, Debian systemd
-# does actually look at /usr/lib/systemd/system
-systemd-service-file-outside-lib usr/lib/systemd/system/elasticsearch.service
+non-standard-file-perm 0660 != 0644 [etc/default/elasticsearch]
+non-standard-dir-perm 2750 != 0755 [etc/elasticsearch/]
+non-standard-dir-perm 2750 != 0755 [etc/elasticsearch/jvm.options.d/]
+non-standard-file-perm 0660 != 0644 [etc/elasticsearch/*]
+non-standard-dir-perm 2750 != 0755 [var/lib/elasticsearch/]
+non-standard-dir-perm 2750 != 0755 [var/log/elasticsearch/]
 
 # the package scripts handle systemd directly and don't need to use deb helpers
 maintainer-script-calls-systemctl
 
 # bundled JDK
 embedded-library
-unstripped-binary-or-object usr/share/elasticsearch/jdk/*
-extra-license-file usr/share/elasticsearch/jdk/legal/*
-hardening-no-pie usr/share/elasticsearch/jdk/bin/*
-hardening-no-pie usr/share/elasticsearch/jdk/lib/*
+unstripped-binary-or-object [usr/share/elasticsearch/jdk/*]
 
 # the system java version that lintian assumes is far behind what elasticsearch uses
 unknown-java-class-version
-
-# elastic licensed modules contain elastic license
-extra-license-file usr/share/elasticsearch/modules/*
-
-# This dependency appears to have a packaging flaw, and includes a
-# generated source file alongside the compiled version
-jar-contains-source usr/share/elasticsearch/modules/repository-gcs/api-common*.jar *
 
 # There's no `License` field in Debian control files, but earlier versions
 # of `lintian` were more permissive. Override this warning so that we can
@@ -58,8 +42,27 @@ unknown-field License
 # indirectly to libc via libdl. This might not be best practice but we
 # don't build them ourselves and the license precludes us modifying them
 # to fix this.
-library-not-linked-against-libc usr/share/elasticsearch/modules/x-pack-ml/platform/linux-x86_64/lib/libmkl_*.so
+library-not-linked-against-libc [usr/share/elasticsearch/modules/x-pack-ml/platform/linux-x86_64/lib/libmkl_*.so*]
 
-# shared-lib-without-dependency-information (now shared-library-lacks-prerequisites) is falsely reported for libvec.so
-# which has no dependencies (not even libc) besides the symbols in the base executable.
-shared-lib-without-dependency-information usr/share/elasticsearch/lib/platform/linux-x64/libvec.so
+
+# Below is the copy of some of the above rules in format for Lintian versions <= 2.104 (Debian 11)
+# Override syntax changes between Lintian versions in a non-backwards compatible way, so we handle it with
+# duplication and ignoring some issues in the test code.
+
+
+# we prefer to not make our config and log files world readable
+non-standard-file-perm etc/default/elasticsearch 0660 != 0644
+non-standard-dir-perm etc/elasticsearch/ 2750 != 0755
+non-standard-dir-perm etc/elasticsearch/jvm.options.d/ 2750 != 0755
+non-standard-file-perm etc/elasticsearch/*
+non-standard-dir-perm var/lib/elasticsearch/ 2750 != 0755
+non-standard-dir-perm var/log/elasticsearch/ 2750 != 0755
+
+# bundled JDK
+unstripped-binary-or-object usr/share/elasticsearch/jdk/*
+
+# Intel MKL libraries are not linked directly to libc. They are linked
+# indirectly to libc via libdl. This might not be best practice but we
+# don't build them ourselves and the license precludes us modifying them
+# to fix this.
+library-not-linked-against-libc usr/share/elasticsearch/modules/x-pack-ml/platform/linux-x86_64/lib/libmkl_*.so*

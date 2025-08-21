@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.toolchain
+
+import spock.lang.Unroll
 
 import org.gradle.api.provider.Property
 import org.gradle.jvm.toolchain.JavaLanguageVersion
@@ -25,6 +28,7 @@ import static org.gradle.platform.OperatingSystem.MAC_OS
 
 abstract class AbstractToolchainResolverSpec extends Specification {
 
+    @Unroll
     def "resolves #os #arch #vendor jdk #langVersion"() {
         given:
         def resolver = resolverImplementation()
@@ -69,6 +73,7 @@ abstract class AbstractToolchainResolverSpec extends Specification {
         _ * languageVersionProperty.get() >> languageVersion
 
         Property<JvmVendorSpec> vendorSpecProperty = Mock()
+        _ * vendorSpecProperty.isPresent() >> true
         _ * vendorSpecProperty.get() >> vendorSpec
         _ * toolchainSpec.getVendor() >> vendorSpecProperty
 

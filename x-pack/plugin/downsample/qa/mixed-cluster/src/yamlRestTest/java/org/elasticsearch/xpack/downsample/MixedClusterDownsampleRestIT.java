@@ -19,13 +19,23 @@ import org.junit.ClassRule;
 public class MixedClusterDownsampleRestIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .withNode(node -> node.version(getOldVersion()))
-        .withNode(node -> node.version(Version.CURRENT))
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = getOldVersion();
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .withNode(node -> node.version(getOldVersion()))
+            .withNode(node -> node.version(Version.CURRENT))
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial");
+
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     static Version getOldVersion() {
         return Version.fromString(System.getProperty("tests.old_cluster_version"));

@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class AbstractPageMappingToIteratorOperatorStatusTests extends AbstractWireSerializingTestCase<
     AbstractPageMappingToIteratorOperator.Status> {
     public static AbstractPageMappingToIteratorOperator.Status simple() {
-        return new AbstractPageMappingToIteratorOperator.Status(200012, 123, 204);
+        return new AbstractPageMappingToIteratorOperator.Status(200012, 123, 204, 111, 222);
     }
 
     public static String simpleToJson() {
@@ -26,7 +26,9 @@ public class AbstractPageMappingToIteratorOperatorStatusTests extends AbstractWi
               "process_nanos" : 200012,
               "process_time" : "200micros",
               "pages_received" : 123,
-              "pages_emitted" : 204
+              "pages_emitted" : 204,
+              "rows_received" : 111,
+              "rows_emitted" : 222
             }""";
     }
 
@@ -41,7 +43,13 @@ public class AbstractPageMappingToIteratorOperatorStatusTests extends AbstractWi
 
     @Override
     public AbstractPageMappingToIteratorOperator.Status createTestInstance() {
-        return new AbstractPageMappingToIteratorOperator.Status(randomNonNegativeLong(), randomNonNegativeInt(), randomNonNegativeInt());
+        return new AbstractPageMappingToIteratorOperator.Status(
+            randomNonNegativeLong(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
     @Override
@@ -49,12 +57,16 @@ public class AbstractPageMappingToIteratorOperatorStatusTests extends AbstractWi
         long processNanos = instance.processNanos();
         int pagesReceived = instance.pagesReceived();
         int pagesEmitted = instance.pagesEmitted();
-        switch (between(0, 2)) {
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
+        switch (between(0, 4)) {
             case 0 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
             case 1 -> pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
             case 2 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new AbstractPageMappingToIteratorOperator.Status(processNanos, pagesReceived, pagesEmitted);
+        return new AbstractPageMappingToIteratorOperator.Status(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 }

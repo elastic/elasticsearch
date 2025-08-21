@@ -32,7 +32,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorSchedulingAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/update_scheduling";
+    public static final String NAME = "cluster:admin/xpack/connector/update_scheduling";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorSchedulingAction() {/* no instances */}

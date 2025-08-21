@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -23,9 +24,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomArray;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -52,6 +55,7 @@ public final class RoleDescriptorTestHelper {
             .allowRestriction(randomBoolean())
             .allowDescription(randomBoolean())
             .allowRemoteClusters(randomBoolean())
+            .allowConfigurableClusterPrivileges(randomBoolean())
             .build();
     }
 
@@ -69,7 +73,7 @@ public final class RoleDescriptorTestHelper {
     }
 
     public static ConfigurableClusterPrivilege[] randomClusterPrivileges() {
-        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = switch (randomIntBetween(0, 4)) {
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> new ConfigurableClusterPrivilege[0];
             case 1 -> new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
@@ -93,9 +97,9 @@ public final class RoleDescriptorTestHelper {
                 new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
                     Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
                 ) };
+            case 5 -> randomManageRolesPrivileges();
             default -> throw new IllegalStateException("Unexpected value");
         };
-        return configurableClusterPrivileges;
     }
 
     public static RoleDescriptor.ApplicationResourcePrivileges[] randomApplicationPrivileges() {
@@ -117,6 +121,31 @@ public final class RoleDescriptorTestHelper {
             applicationPrivileges[i] = builder.build();
         }
         return applicationPrivileges;
+    }
+
+    public static ConfigurableClusterPrivilege[] randomManageRolesPrivileges() {
+        List<ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup> indexPatternPrivileges = randomList(
+            1,
+            10,
+            () -> {
+                String[] indexPatterns = randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(5, 100));
+
+                Set<String> validNames = IndexPrivilege.names().stream().filter(p -> {
+                    IndexPrivilege named = IndexPrivilege.getNamedOrNull(p);
+                    return named != null && named.getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES;
+                }).collect(Collectors.toSet());
+                int startIndex = randomIntBetween(0, validNames.size() - 2);
+                int endIndex = randomIntBetween(startIndex + 1, validNames.size());
+
+                String[] indexPrivileges = validNames.stream().toList().subList(startIndex, endIndex).toArray(String[]::new);
+                return new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
+                    indexPatterns,
+                    indexPrivileges
+                );
+            }
+        );
+
+        return new ConfigurableClusterPrivilege[] { new ConfigurableClusterPrivileges.ManageRolesPrivilege(indexPatternPrivileges) };
     }
 
     public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max) {
@@ -251,11 +280,17 @@ public final class RoleDescriptorTestHelper {
         private boolean allowRestriction = false;
         private boolean allowDescription = false;
         private boolean allowRemoteClusters = false;
+        private boolean allowConfigurableClusterPrivileges = false;
 
         public Builder() {}
 
         public Builder allowReservedMetadata(boolean allowReservedMetadata) {
             this.allowReservedMetadata = allowReservedMetadata;
+            return this;
+        }
+
+        public Builder allowConfigurableClusterPrivileges(boolean allowConfigurableClusterPrivileges) {
+            this.allowConfigurableClusterPrivileges = allowConfigurableClusterPrivileges;
             return this;
         }
 
@@ -302,7 +337,7 @@ public final class RoleDescriptorTestHelper {
                 randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
                 randomIndicesPrivileges(0, 3),
                 randomApplicationPrivileges(),
-                randomClusterPrivileges(),
+                allowConfigurableClusterPrivileges ? randomClusterPrivileges() : null,
                 generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
                 randomRoleDescriptorMetadata(allowReservedMetadata),
                 Map.of(),

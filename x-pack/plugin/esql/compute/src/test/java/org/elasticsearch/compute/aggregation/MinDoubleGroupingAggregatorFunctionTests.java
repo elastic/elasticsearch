@@ -31,8 +31,8 @@ public class MinDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MinDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinDoubleAggregatorFunctionSupplier();
     }
 
     @Override

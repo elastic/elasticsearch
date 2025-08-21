@@ -17,12 +17,17 @@ public class MatchAll extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return matchAllQuery();
     }
 
     @Override
     protected String innerToString() {
         return "";
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

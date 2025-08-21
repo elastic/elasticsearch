@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.List;
 
@@ -50,12 +52,12 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        return VectorUtil.dotProduct(docVector, queryVector);
+        return VectorUtil.dotProduct(queryVector, docVector);
     }
 
     @Override
     public double dotProduct(float[] queryVector) {
-        throw new UnsupportedOperationException("use [int dotProduct(byte[] queryVector)] instead");
+        return ESVectorUtil.ipFloatByte(queryVector, docVector);
     }
 
     @Override
@@ -103,7 +105,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public int hamming(byte[] queryVector) {
-        return ESVectorUtil.xorBitCount(queryVector, docVector);
+        return VectorUtil.xorBitCount(queryVector, docVector);
     }
 
     @Override
@@ -144,7 +146,11 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
-        throw new UnsupportedOperationException("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
+        if (normalizeQueryVector) {
+            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
+        }
+
+        return dotProduct(queryVector) / getMagnitude();
     }
 
     @Override

@@ -8,51 +8,52 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
+import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalList;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfStringTuples;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalTimeValue;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.getEmbeddingSize;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValues;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ServiceUtilsTests extends ESTestCase {
-
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
-
     public void testRemoveAsTypeWithTheCorrectType() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
 
@@ -285,6 +286,46 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(map.entrySet(), hasSize(3));
     }
 
+    public void testRemoveAsAdaptiveAllocationsSettings() {
+        Map<String, Object> map = new HashMap<>(
+            Map.of("settings", new HashMap<>(Map.of("enabled", true, "min_number_of_allocations", 7, "max_number_of_allocations", 42)))
+        );
+        ValidationException validationException = new ValidationException();
+        assertThat(
+            ServiceUtils.removeAsAdaptiveAllocationsSettings(map, "settings", validationException),
+            equalTo(new AdaptiveAllocationsSettings(true, 7, 42))
+        );
+        assertThat(validationException.validationErrors(), empty());
+
+        assertThat(ServiceUtils.removeAsAdaptiveAllocationsSettings(map, "non-existent-key", validationException), nullValue());
+        assertThat(validationException.validationErrors(), empty());
+
+        map = new HashMap<>(Map.of("settings", new HashMap<>(Map.of("enabled", false))));
+        assertThat(
+            ServiceUtils.removeAsAdaptiveAllocationsSettings(map, "settings", validationException),
+            equalTo(new AdaptiveAllocationsSettings(false, null, null))
+        );
+        assertThat(validationException.validationErrors(), empty());
+    }
+
+    public void testRemoveAsAdaptiveAllocationsSettings_exceptions() {
+        Map<String, Object> map = new HashMap<>(
+            Map.of("settings", new HashMap<>(Map.of("enabled", "YES!", "blah", 42, "max_number_of_allocations", -7)))
+        );
+        ValidationException validationException = new ValidationException();
+        ServiceUtils.removeAsAdaptiveAllocationsSettings(map, "settings", validationException);
+        assertThat(validationException.validationErrors(), hasSize(3));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [enabled] is not of the expected type. The value [YES!] cannot be converted to a [Boolean]")
+        );
+        assertThat(validationException.validationErrors().get(1), containsString("[settings] does not allow the setting [blah]"));
+        assertThat(
+            validationException.validationErrors().get(2),
+            containsString("[max_number_of_allocations] must be a positive integer or null")
+        );
+    }
+
     public void testConvertToUri_CreatesUri() {
         var validation = new ValidationException();
         var uri = convertToUri("www.elastic.co", "name", "scope", validation);
@@ -443,6 +484,61 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
     }
 
+    public void testExtractOptionalList_CreatesList() {
+        var validation = new ValidationException();
+        var list = List.of(randomAlphaOfLength(10), randomAlphaOfLength(10));
+
+        Map<String, Object> map = modifiableMap(Map.of("key", list));
+        assertEquals(list, extractOptionalList(map, "key", String.class, validation));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(randomAlphaOfLength(10), randomAlphaOfLength(10))));
+        assertNull(extractOptionalList(map, "abc", String.class, validation));
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertThat(map.size(), is(1));
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsEmpty() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", ""));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsNotAList() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsNotAListOfTheCorrectType() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(1, 2)));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldContainsMixedTypeValues() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(1, "a")));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
     public void testExtractOptionalPositiveInt() {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
@@ -500,6 +596,118 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validation.validationErrors(), hasSize(2));
         assertNull(parsedInt);
         assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_ReturnsValueWhenValueIsLessThanMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(1));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_ReturnsValueWhenValueIsEqualToMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 5));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(5));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorForNegativeValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), is("[scope] Invalid value [-1]. [key] must be a positive integer"));
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorWhenKeyIsMissing() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "not_key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorWhenValueIsGreaterThanMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 6));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "not_key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsBetweenMinAndMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 2, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, randomIntBetween(minValue + 1, maxValue - 1));
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsEqualToMin() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 1, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, minValue);
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsEqualToMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 1, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, maxValue);
+    }
+
+    private void testExtractRequiredPositiveIntegerBetween_Successful(int minValue, int maxValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(actualValue));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredIntBetween_AddsErrorForValueBelowMin() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue, minValue + 10);
+        testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, minValue - 1);
+    }
+
+    public void testExtractRequiredIntBetween_AddsErrorForValueAboveMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue, minValue + 10);
+        testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, maxValue + 1);
+    }
+
+    private void testExtractRequiredIntBetween_Unsuccessful(int minValue, int maxValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), containsString("Invalid value"));
     }
 
     public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {
@@ -746,101 +954,404 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validationException.validationErrors().get(0), is("[testscope] does not contain the required setting [missing_key]"));
     }
 
-    public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingResults_IsEmpty() {
-        var service = mock(InferenceService.class);
+    public void testValidateInputType_NoValidationErrorsWhenInternalType() {
+        ValidationException validationException = new ValidationException();
 
-        var model = mock(Model.class);
-        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INTERNAL_SEARCH, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
 
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(new InferenceTextEmbeddingFloatResults(List.of()));
-
-            return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
-
-        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        getEmbeddingSize(model, service, listener);
-
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-
-        assertThat(thrownException.getMessage(), is("Could not determine embedding size"));
-        assertThat(thrownException.getCause().getMessage(), is("Embeddings list is empty"));
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INTERNAL_INGEST, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
     }
 
-    public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingByteResults_IsEmpty() {
-        var service = mock(InferenceService.class);
+    public void testValidateInputType_NoValidationErrorsWhenInputTypeIsNullOrUnspecified() {
+        ValidationException validationException = new ValidationException();
 
-        var model = mock(Model.class);
-        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.UNSPECIFIED, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
 
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(new InferenceTextEmbeddingByteResults(List.of()));
-
-            return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
-
-        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        getEmbeddingSize(model, service, listener);
-
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-
-        assertThat(thrownException.getMessage(), is("Could not determine embedding size"));
-        assertThat(thrownException.getCause().getMessage(), is("Embeddings list is empty"));
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(null, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
     }
 
-    public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingResults() {
-        var service = mock(InferenceService.class);
+    public void testValidateInputType_ValidationErrorsWhenInputTypeIsSpecified() {
+        ValidationException validationException = new ValidationException();
 
-        var model = mock(Model.class);
-        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.SEARCH, validationException);
+        assertThat(validationException.validationErrors().size(), is(1));
 
-        var textEmbedding = TextEmbeddingResultsTests.createRandomResults();
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INGEST, validationException);
+        assertThat(validationException.validationErrors().size(), is(2));
 
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(textEmbedding);
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLASSIFICATION, validationException);
+        assertThat(validationException.validationErrors().size(), is(3));
 
-            return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
-
-        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        getEmbeddingSize(model, service, listener);
-
-        var size = listener.actionGet(TIMEOUT);
-
-        assertThat(size, is(textEmbedding.embeddings().get(0).getSize()));
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLUSTERING, validationException);
+        assertThat(validationException.validationErrors().size(), is(4));
     }
 
-    public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingByteResults() {
-        var service = mock(InferenceService.class);
+    public void testExtractRequiredMap() {
+        var validation = new ValidationException();
+        var extractedMap = extractRequiredMap(modifiableMap(Map.of("setting", Map.of("key", "value"))), "setting", "scope", validation);
 
-        var model = mock(Model.class);
-        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
-
-        var textEmbedding = InferenceTextEmbeddingByteResultsTests.createRandomResults();
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(textEmbedding);
-
-            return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
-
-        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        getEmbeddingSize(model, service, listener);
-
-        var size = listener.actionGet(TIMEOUT);
-
-        assertThat(size, is(textEmbedding.embeddings().get(0).getSize()));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(extractedMap, is(Map.of("key", "value")));
     }
 
-    private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
-        return new HashMap<>(aMap);
+    public void testExtractRequiredMap_ReturnsNull_WhenTypeIsInvalid() {
+        var validation = new ValidationException();
+        var extractedMap = extractRequiredMap(modifiableMap(Map.of("setting", 123)), "setting", "scope", validation);
+
+        assertNull(extractedMap);
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: field [setting] is not of the expected type. The value [123] cannot be converted to a [Map];")
+        );
+    }
+
+    public void testExtractRequiredMap_ReturnsNull_WhenMissingSetting() {
+        var validation = new ValidationException();
+        var extractedMap = extractRequiredMap(modifiableMap(Map.of("not_setting", Map.of("key", "value"))), "setting", "scope", validation);
+
+        assertNull(extractedMap);
+        assertThat(validation.getMessage(), is("Validation Failed: 1: [scope] does not contain the required setting [setting];"));
+    }
+
+    public void testExtractRequiredMap_ReturnsNull_WhenMapIsEmpty() {
+        var validation = new ValidationException();
+        var extractedMap = extractRequiredMap(modifiableMap(Map.of("setting", Map.of())), "setting", "scope", validation);
+
+        assertNull(extractedMap);
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: [scope] Invalid value empty map. [setting] must be a non-empty map;")
+        );
+    }
+
+    public void testExtractOptionalMap() {
+        var validation = new ValidationException();
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of("key", "value"))), "setting", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(extractedMap, is(Map.of("key", "value")));
+    }
+
+    public void testExtractOptionalMap_ReturnsNull_WhenTypeIsInvalid() {
+        var validation = new ValidationException();
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", 123)), "setting", "scope", validation);
+
+        assertNull(extractedMap);
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: field [setting] is not of the expected type. The value [123] cannot be converted to a [Map];")
+        );
+    }
+
+    public void testExtractOptionalMap_ReturnsNull_WhenMissingSetting() {
+        var validation = new ValidationException();
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("not_setting", Map.of("key", "value"))), "setting", "scope", validation);
+
+        assertNull(extractedMap);
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testExtractOptionalMap_ReturnsEmptyMap_WhenEmpty() {
+        var validation = new ValidationException();
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of())), "setting", "scope", validation);
+
+        assertThat(extractedMap, is(Map.of()));
+    }
+
+    public void testValidateMapValues() {
+        var validation = new ValidationException();
+        validateMapValues(
+            Map.of("string_key", "abc", "num_key", Integer.valueOf(1)),
+            List.of(String.class, Integer.class),
+            "setting",
+            validation,
+            false
+        );
+    }
+
+    public void testValidateMapValues_IgnoresNullMap() {
+        var validation = new ValidationException();
+        validateMapValues(null, List.of(String.class, Integer.class), "setting", validation, false);
+    }
+
+    public void testValidateMapValues_ThrowsException_WhenMapContainsInvalidTypes() {
+        // Includes the invalid key and value in the exception message
+        {
+            var validation = new ValidationException();
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> validateMapValues(
+                    Map.of("string_key", "abc", "num_key", Integer.valueOf(1)),
+                    List.of(String.class),
+                    "setting",
+                    validation,
+                    false
+                )
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Validation Failed: 1: Map field [setting] has an entry that is not valid, "
+                        + "[num_key => 1]. Value type of [1] is not one of [String].;"
+                )
+            );
+        }
+
+        // Does not include the invalid key and value in the exception message
+        {
+            var validation = new ValidationException();
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> validateMapValues(
+                    Map.of("string_key", "abc", "num_key", Integer.valueOf(1)),
+                    List.of(String.class, List.class),
+                    "setting",
+                    validation,
+                    true
+                )
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Validation Failed: 1: Map field [setting] has an entry that is not valid. "
+                        + "Value type is not one of [List, String].;"
+                )
+            );
+        }
+    }
+
+    public void testValidateMapStringValues() {
+        var validation = new ValidationException();
+        assertThat(
+            validateMapStringValues(Map.of("string_key", "abc", "string_key2", new String("awesome")), "setting", validation, false),
+            is(Map.of("string_key", "abc", "string_key2", "awesome"))
+        );
+    }
+
+    public void testValidateMapStringValues_ReturnsEmptyMap_WhenMapIsNull() {
+        var validation = new ValidationException();
+        assertThat(validateMapStringValues(null, "setting", validation, false), is(Map.of()));
+    }
+
+    public void testValidateMapStringValues_ThrowsException_WhenMapContainsInvalidTypes() {
+        // Includes the invalid key and value in the exception message
+        {
+            var validation = new ValidationException();
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> validateMapStringValues(Map.of("string_key", "abc", "num_key", Integer.valueOf(1)), "setting", validation, false)
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Validation Failed: 1: Map field [setting] has an entry that is not valid, "
+                        + "[num_key => 1]. Value type of [1] is not one of [String].;"
+                )
+            );
+        }
+
+        // Does not include the invalid key and value in the exception message
+        {
+            var validation = new ValidationException();
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> validateMapStringValues(Map.of("string_key", "abc", "num_key", Integer.valueOf(1)), "setting", validation, true)
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is("Validation Failed: 1: Map field [setting] has an entry that is not valid. Value type is not one of [String].;")
+            );
+        }
+    }
+
+    public void testConvertMapStringsToSecureString() {
+        var validation = new ValidationException();
+        assertThat(
+            convertMapStringsToSecureString(Map.of("key", "value", "key2", "abc"), "setting", validation),
+            is(Map.of("key", new SecureString("value".toCharArray()), "key2", new SecureString("abc".toCharArray())))
+        );
+    }
+
+    public void testConvertMapStringsToSecureString_ReturnsAnEmptyMap_WhenMapIsNull() {
+        var validation = new ValidationException();
+        assertThat(convertMapStringsToSecureString(null, "setting", validation), is(Map.of()));
+    }
+
+    public void testConvertMapStringsToSecureString_ThrowsException_WhenMapContainsInvalidTypes() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> convertMapStringsToSecureString(Map.of("key", "value", "key2", 123), "setting", validation)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is("Validation Failed: 1: Map field [setting] has an entry that is not valid. Value type is not one of [String].;")
+        );
+    }
+
+    public void testRemoveNullValues() {
+        var map = new HashMap<String, Object>();
+        map.put("key1", null);
+        map.put("key2", "awesome");
+        map.put("key3", null);
+
+        assertThat(removeNullValues(map), is(Map.of("key2", "awesome")));
+    }
+
+    public void testRemoveNullValues_ReturnsNull_WhenMapIsNull() {
+        assertNull(removeNullValues(null));
+    }
+
+    public void testExtractOptionalListOfStringTuples() {
+        var validation = new ValidationException();
+        assertThat(
+            extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("key", "value"), List.of("key2", "value2")))),
+                "params",
+                "scope",
+                validation
+            ),
+            is(List.of(new Tuple<>("key", "value"), new Tuple<>("key2", "value2")))
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_ReturnsNull_WhenFieldIsNotAList() {
+        var validation = new ValidationException();
+        assertNull(extractOptionalListOfStringTuples(modifiableMap(Map.of("params", Map.of())), "params", "scope", validation));
+
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: field [params] is not of the expected type. The value [{}] cannot be converted to a [List];")
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleIsNotAList() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(modifiableMap(Map.of("params", List.of("string"))), "params", "scope", validation)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting "
+                    + "[params], expected a list but the entry is [String];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleIsListSize2() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("string")))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry "
+                    + "[0] for setting [params], the tuple list size must be two, but was [1];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleFirstElement_IsNotAString() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of(1, "value")))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting [params], "
+                    + "the first element must be a string but was [Integer];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleSecondElement_IsNotAString() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("key", 2)))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting [params], "
+                    + "the second element must be a string but was [Integer];"
+            )
+        );
+    }
+
+    public void testResolveInferenceTimeout_WithProvidedTimeout_ReturnsProvidedTimeout() {
+        var clusterService = mockClusterService(Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build());
+        var providedTimeout = TimeValue.timeValueSeconds(45);
+
+        for (InputType inputType : InputType.values()) {
+            var result = ServiceUtils.resolveInferenceTimeout(providedTimeout, inputType, clusterService);
+            assertEquals("Input type " + inputType + " should return provided timeout", providedTimeout, result);
+        }
+    }
+
+    public void testResolveInferenceTimeout_WithNullTimeout_ReturnsExpectedTimeoutByInputType() {
+        var configuredTimeout = TimeValue.timeValueSeconds(10);
+        var clusterService = mockClusterService(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
+        );
+
+        Map<InputType, TimeValue> expectedTimeouts = Map.of(
+            InputType.SEARCH,
+            configuredTimeout,
+            InputType.INTERNAL_SEARCH,
+            configuredTimeout,
+            InputType.INGEST,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.INTERNAL_INGEST,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.CLASSIFICATION,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.CLUSTERING,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.UNSPECIFIED,
+            InferenceAction.Request.DEFAULT_TIMEOUT
+        );
+
+        for (Map.Entry<InputType, TimeValue> entry : expectedTimeouts.entrySet()) {
+            InputType inputType = entry.getKey();
+            TimeValue expectedTimeout = entry.getValue();
+
+            var result = ServiceUtils.resolveInferenceTimeout(null, inputType, clusterService);
+            assertEquals("Input type " + inputType + " should return expected timeout", expectedTimeout, result);
+        }
     }
 }

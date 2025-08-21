@@ -11,10 +11,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -103,14 +107,20 @@ public class MlAssignmentNotifier implements ClusterStateListener {
 
     private void auditChangesToMlTasks(ClusterChangedEvent event) {
 
-        PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        for (ProjectMetadata project : event.state().getMetadata().projects().values()) {
+            final Metadata previousMetadata = event.previousState().getMetadata();
+            if (previousMetadata.hasProject(project.id()) == false) {
+                continue;
+            }
+            final ProjectMetadata previousProject = previousMetadata.getProject(project.id());
+            PersistentTasksCustomMetadata previousTasks = previousProject.custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata currentTasks = project.custom(PersistentTasksCustomMetadata.TYPE);
 
-        if (Objects.equals(previousTasks, currentTasks)) {
-            return;
+            if (Objects.equals(previousTasks, currentTasks)) {
+                continue;
+            }
+            auditMlTasks(project.id(), event.previousState().nodes(), event.state().nodes(), previousTasks, currentTasks, false);
         }
-
-        auditMlTasks(event.previousState().nodes(), event.state().nodes(), previousTasks, currentTasks, false);
     }
 
     /**
@@ -118,11 +128,12 @@ public class MlAssignmentNotifier implements ClusterStateListener {
      * tasks, even if a previous audit warning has been created.
      * Care must be taken not to call this method frequently.
      */
-    public void auditUnassignedMlTasks(DiscoveryNodes nodes, PersistentTasksCustomMetadata tasks) {
-        auditMlTasks(nodes, nodes, tasks, tasks, true);
+    public void auditUnassignedMlTasks(ProjectId projectId, DiscoveryNodes nodes, PersistentTasksCustomMetadata tasks) {
+        auditMlTasks(projectId, nodes, nodes, tasks, tasks, true);
     }
 
     private void auditMlTasks(
+        ProjectId projectId,
         DiscoveryNodes previousNodes,
         DiscoveryNodes currentNodes,
         PersistentTasksCustomMetadata previousTasks,
@@ -131,6 +142,14 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     ) {
         if (currentTasks == null) {
             return;
+        }
+
+        if (Metadata.DEFAULT_PROJECT_ID.equals(projectId) == false) {
+            @FixForMultiProject
+            final Metadata.MultiProjectPendingException exception = new Metadata.MultiProjectPendingException(
+                "Can only audit ML changes on the default project"
+            );
+            throw exception;
         }
 
         for (PersistentTask<?> currentTask : currentTasks.tasks()) {
@@ -262,15 +281,21 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     }
 
     private void logLongTimeUnassigned(Instant now, ClusterState state) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        if (tasks == null) {
-            return;
-        }
+        state.forEachProject(project -> {
+            PersistentTasksCustomMetadata tasks = project.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            if (tasks == null) {
+                return;
+            }
 
-        List<String> itemsToReport = findLongTimeUnassignedTasks(now, tasks);
-        if (itemsToReport.isEmpty() == false) {
-            logger.warn("ML persistent tasks unassigned for a long time [{}]", String.join("|", itemsToReport));
-        }
+            List<String> itemsToReport = findLongTimeUnassignedTasks(now, tasks);
+            if (itemsToReport.isEmpty() == false) {
+                logger.warn(
+                    "In project [{}] ML persistent tasks unassigned for a long time [{}]",
+                    project.projectId(),
+                    String.join("|", itemsToReport)
+                );
+            }
+        });
     }
 
     /**

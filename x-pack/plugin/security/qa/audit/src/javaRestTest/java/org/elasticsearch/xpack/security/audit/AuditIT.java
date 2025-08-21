@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.audit;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -39,6 +40,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -81,14 +83,14 @@ public class AuditIT extends ESRestTestCase {
     }
 
     public void testAuditAuthenticationSuccess() throws Exception {
-        final Request request = new Request("GET", randomFrom("/_security/_authenticate", "/_xpack/security/_authenticate"));
+        final Request request = new Request("GET", "/_security/_authenticate");
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
             assertThat(event, hasEntry(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, "REALM"));
         });
     }
 
     public void testAuditAuthenticationFailure() throws Exception {
-        final Request request = new Request("GET", randomFrom("/_security/_authenticate", "/_xpack/security/_authenticate"));
+        final Request request = new Request("GET", "/_security/_authenticate");
         String basicAuth = basicAuthHeaderValue(API_USER, new SecureString(new char[0]));
         request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", basicAuth).addParameter("ignore", "401"));
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_FAILED, event -> {});
@@ -96,13 +98,33 @@ public class AuditIT extends ESRestTestCase {
 
     public void testFilteringOfRequestBodies() throws Exception {
         final String username = randomAlphaOfLength(4) + randomIntBetween(100, 999);
-        final Request request = new Request(randomFrom("PUT", "POST"), randomFrom("/_security/user/", "/_xpack/security/user/") + username);
+        final Request request = new Request(randomFrom("PUT", "POST"), "/_security/user/" + username);
         final String password = randomAlphaOfLength(4) + randomIntBetween(10, 99) + randomAlphaOfLength(4);
         request.setJsonEntity("{ \"password\":\"" + password + "\", \"roles\":[\"superuser\"] }");
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
             assertThat(event, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, "{\"roles\":[\"superuser\"]}"));
             assertThat(toJson(event), not(containsString(password)));
         });
+    }
+
+    public void testAuditAuthenticationSuccessForStreamingRequest() throws Exception {
+        final Request request = new Request("POST", "/testindex/_bulk");
+        final String content = """
+            {"index":{}}
+            {}
+            """;
+        request.setEntity(new StringEntity(content, ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
+        executeAndVerifyAudit(
+            request,
+            AuditLevel.AUTHENTICATION_SUCCESS,
+            event -> assertThat(
+                event,
+                allOf(
+                    hasEntry(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, "REALM"),
+                    hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, content)
+                )
+            )
+        );
     }
 
     private void executeAndVerifyAudit(Request request, AuditLevel eventType, CheckedConsumer<Map<String, Object>, Exception> assertions)
@@ -141,15 +163,6 @@ public class AuditIT extends ESRestTestCase {
     }
 
     private static Response executeRequest(Request request) throws IOException {
-        if (request.getEndpoint().startsWith("/_xpack/security/")) {
-            final RequestOptions options = request.getOptions()
-                .toBuilder()
-                .addHeader("Content-Type", "application/json; compatible-with=7")
-                .addHeader("Accept", "application/json; compatible-with=7")
-                .setWarningsHandler(WarningsHandler.PERMISSIVE)
-                .build();
-            request.setOptions(options);
-        }
         return client().performRequest(request);
     }
 

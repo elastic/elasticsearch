@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -20,8 +21,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 
 /** Base class for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
@@ -40,27 +39,14 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     protected AbstractPointGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
+        BuilderParams builderParams,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
         T nullValue,
-        CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        super(simpleName, mappedFieldType, builderParams, ignoreMalformed, ignoreZValue, parser);
         this.nullValue = nullValue;
-    }
-
-    protected AbstractPointGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Parser<T> parser,
-        OnScriptError onScriptError
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
-        this.nullValue = null;
     }
 
     public T getNullValue() {
@@ -160,7 +146,6 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     }
 
     public abstract static class AbstractPointFieldType<T extends SpatialPoint> extends AbstractGeometryFieldType<T> {
-
         protected AbstractPointFieldType(
             String name,
             boolean indexed,
@@ -176,14 +161,6 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         @Override
         protected Object nullValueAsSource(T nullValue) {
             return nullValue == null ? null : nullValue.toWKT();
-        }
-
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
-            }
-            return blockLoaderFromSource(blContext);
         }
     }
 }

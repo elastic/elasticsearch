@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -11,6 +12,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,13 +27,14 @@ public class ExpectedShardSizeEstimator {
     }
 
     public static long getExpectedShardSize(ShardRouting shard, long defaultSize, RoutingAllocation allocation) {
+        ProjectMetadata project = allocation.metadata().projectFor(shard.index());
         return getExpectedShardSize(
             shard,
             defaultSize,
             allocation.clusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
+            project,
+            allocation.routingTable(project.id())
         );
     }
 
@@ -50,11 +53,12 @@ public class ExpectedShardSizeEstimator {
             // Snapshot restore (unless it is partial) require downloading all segments locally from the blobstore to start the shard.
             // See org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction.buildIndexSettings
             // and DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS
-            case SNAPSHOT -> metadata.getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false;
+            case SNAPSHOT -> metadata.indexMetadata(shard.index()).isPartialSearchableSnapshot() == false;
 
             // shrink/split/clone operation is going to clone existing locally placed shards using file system hard links
             // so no additional space is going to be used until future merges
             case LOCAL_SHARDS -> false;
+            case RESHARD_SPLIT -> false;
         };
     }
 
@@ -67,15 +71,15 @@ public class ExpectedShardSizeEstimator {
         long defaultValue,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo snapshotShardSizeInfo,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         RoutingTable routingTable
     ) {
-        final IndexMetadata indexMetadata = metadata.getIndexSafe(shard.index());
+        final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(shard.index());
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
-            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
+            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, projectMetadata, routingTable);
         } else if (shard.active() == false && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
@@ -94,13 +98,13 @@ public class ExpectedShardSizeEstimator {
         long defaultValue,
         IndexMetadata indexMetadata,
         ClusterInfo clusterInfo,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         RoutingTable routingTable
     ) {
         // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in the worst case
         long targetShardSize = 0;
         final Index mergeSourceIndex = indexMetadata.getResizeSourceIndex();
-        final IndexMetadata sourceIndexMetadata = metadata.index(mergeSourceIndex);
+        final IndexMetadata sourceIndexMetadata = projectMetadata.index(mergeSourceIndex);
         if (sourceIndexMetadata != null) {
             final Set<ShardId> shardIds = IndexMetadata.selectRecoverFromShards(
                 shard.id(),
@@ -108,6 +112,11 @@ public class ExpectedShardSizeEstimator {
                 indexMetadata.getNumberOfShards()
             );
             final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex.getName());
+            if (indexRoutingTable == null) {
+                final String error = "No routing table for index [" + mergeSourceIndex + "] in project [" + projectMetadata.id() + "]";
+                assert false : error;
+                throw new IllegalStateException(error);
+            }
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 if (shardIds.contains(shardRoutingTable.shardId())) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -725,10 +726,10 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                 LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
 
                 List<IndexableField> fields = doc.getFields("geopoint");
-                assertThat(fields.size(), equalTo(2));
+                assertThat(fields.size(), equalTo(1));
 
                 fields = doc.getFields("geopoint_copy");
-                assertThat(fields.size(), equalTo(2));
+                assertThat(fields.size(), equalTo(1));
             }
         }
         // check failure for object/array type representations

@@ -37,6 +37,11 @@
         "description":"Whether the index template should only be added if new or can also replace an existing one",
         "default":false
       },
+      "cause":{
+        "type":"string",
+        "description": "User defined reason for creating/updating the index template",
+        "default":""
+      },
       "master_timeout":{
         "type":"time",
         "description":"Specify timeout for connection to master"

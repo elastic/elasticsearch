@@ -14,8 +14,8 @@ public final class RequestDefaults {
     public static final String FIELD_TIMESTAMP = "@timestamp";
     public static final String FIELD_EVENT_CATEGORY = "event.category";
 
-    public static int SIZE = 10;
-    public static int FETCH_SIZE = 1000;
-    public static boolean CCS_MINIMIZE_ROUNDTRIPS = true;
-    public static int MAX_SAMPLES_PER_KEY = 1;
+    public static final int SIZE = 10;
+    public static final int FETCH_SIZE = 1000;
+    public static final boolean CCS_MINIMIZE_ROUNDTRIPS = true;
+    public static final int MAX_SAMPLES_PER_KEY = 1;
 }

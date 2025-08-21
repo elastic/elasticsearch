@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
@@ -107,10 +106,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private final int maxAssignedAllocations;
     private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
-    public static boolean useNewMemoryFields(TransportVersion minClusterVersion) {
-        return minClusterVersion.onOrAfter(TransportVersions.V_8_11_X);
-    }
-
     public static TrainedModelAssignment fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
@@ -136,6 +131,17 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         );
     }
 
+    /**
+     * A long-lived object which defines a trained model deployment/assignment.
+     *
+     * @param taskParams the parameters provided by the StartTrainedModelDeploymentAction during the creation of the deployment/assignment
+     * @param nodeRoutingTable shows where allocations for this assignment/deployment are located (on which nodes)
+     * @param assignmentState used to track the state of the assignment for rebalancing, autoscaling, and more
+     * @param reason may contain a human-readable explanation for the current state
+     * @param startTime the time when the assignment was created
+     * @param maxAssignedAllocations keeps track of the maximum number of allocations used for this assignment
+     * @param adaptiveAllocationsSettings how the assignment should scale based on usage
+     */
     TrainedModelAssignment(
         StartTrainedModelDeploymentAction.TaskParams taskParams,
         Map<String, RoutingInfo> nodeRoutingTable,
@@ -167,7 +173,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         } else {
             this.maxAssignedAllocations = totalCurrentAllocations();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         } else {
             this.adaptiveAllocationsSettings = null;
@@ -178,6 +184,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return nodeRoutingTable.containsKey(nodeId);
     }
 
+    /**
+     * @return shows where allocations for this assignment/deployment are located (on which nodes)
+     */
     public Map<String, RoutingInfo> getNodeRoutingTable() {
         return Collections.unmodifiableMap(nodeRoutingTable);
     }
@@ -210,15 +219,12 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return nodeRoutingTable.values().stream().anyMatch(routeInfo -> routeInfo.getState() == RoutingState.STARTED);
     }
 
-    public List<Tuple<String, Integer>> selectRandomStartedNodesWeighedOnAllocationsForNRequests(
-        int numberOfRequests,
-        RoutingState requiredState
-    ) {
+    public List<Tuple<String, Integer>> selectRandomNodesWeighedOnAllocations(int numberOfRequests, RoutingState... acceptableStates) {
         List<String> nodeIds = new ArrayList<>(nodeRoutingTable.size());
         List<Integer> cumulativeAllocations = new ArrayList<>(nodeRoutingTable.size());
         int allocationSum = 0;
         for (Map.Entry<String, RoutingInfo> routingEntry : nodeRoutingTable.entrySet()) {
-            if (routingEntry.getValue().getState() == requiredState) {
+            if (routingEntry.getValue().getState().isAnyOf(acceptableStates)) {
                 nodeIds.add(routingEntry.getKey());
                 allocationSum += routingEntry.getValue().getCurrentAllocations();
                 cumulativeAllocations.add(allocationSum);
@@ -310,6 +316,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum();
     }
 
+    public int totalTargetProcessors() {
+        return nodeRoutingTable.values().stream().mapToInt(r -> r.getTargetAllocations() * getTaskParams().getThreadsPerAllocation()).sum();
+    }
+
     public int totalFailedAllocations() {
         return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getFailedAllocations).sum();
     }
@@ -350,7 +360,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         if (reason != null) {
             builder.field(REASON.getPreferredName(), reason);
         }
-        builder.timeField(START_TIME.getPreferredName(), startTime);
+        builder.timestampField(START_TIME.getPreferredName(), startTime);
         builder.field(MAX_ASSIGNED_ALLOCATIONS.getPreferredName(), maxAssignedAllocations);
         builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
         builder.endObject();
@@ -367,7 +377,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeVInt(maxAssignedAllocations);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
     }
@@ -517,6 +527,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         public AssignmentState calculateAssignmentState() {
             if (assignmentState.equals(AssignmentState.STOPPING)) {
                 return assignmentState;
+            }
+            if (taskParams.getNumberOfAllocations() == 0) {
+                return AssignmentState.STARTED;
             }
             if (nodeRoutingTable.values().stream().anyMatch(r -> r.getState().equals(RoutingState.STARTED))) {
                 return AssignmentState.STARTED;

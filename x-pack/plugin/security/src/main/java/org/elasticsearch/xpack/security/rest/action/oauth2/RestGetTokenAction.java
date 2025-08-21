@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -85,9 +84,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/oauth2/token").replaces(POST, "/_xpack/security/oauth2/token", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_security/oauth2/token"));
     }
 
     @Override
@@ -147,10 +144,10 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
                 sendTokenErrorResponse(error, validationException.getMessage(), e);
             } else if (e instanceof ElasticsearchSecurityException
                 && "invalid_grant".equals(e.getMessage())
-                && ((ElasticsearchSecurityException) e).getHeader("error_description").size() == 1) {
+                && ((ElasticsearchSecurityException) e).getBodyHeader("error_description").size() == 1) {
                     sendTokenErrorResponse(
                         TokenRequestError.INVALID_GRANT,
-                        ((ElasticsearchSecurityException) e).getHeader("error_description").get(0),
+                        ((ElasticsearchSecurityException) e).getBodyHeader("error_description").get(0),
                         e
                     );
                 } else if (e instanceof ElasticsearchSecurityException
@@ -167,7 +164,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
 
         private static String extractBase64EncodedToken(ElasticsearchSecurityException e) {
             String base64EncodedToken = null;
-            List<String> values = e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
+            List<String> values = e.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
             if (values != null && values.size() == 1) {
                 final String wwwAuthenticateHeaderValue = values.get(0);
                 // it may contain base64 encoded token that needs to be sent to client if Spnego GSS context negotiation failed

@@ -21,12 +21,17 @@ public class ExistsQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return existsQuery(name);
     }
 
     @Override
     protected String innerToString() {
         return name;
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

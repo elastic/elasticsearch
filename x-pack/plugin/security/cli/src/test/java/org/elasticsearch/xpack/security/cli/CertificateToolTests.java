@@ -415,7 +415,13 @@ public class CertificateToolTests extends ESTestCase {
         int days = randomIntBetween(1, 1024);
 
         KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
-        X509Certificate caCert = CertGenUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
+        List<String> caKeyUsage = randomBoolean() ? null : CertificateTool.DEFAULT_CA_KEY_USAGE;
+        X509Certificate caCert = CertGenUtils.generateCACertificate(
+            new X500Principal("CN=test ca"),
+            keyPair,
+            days,
+            CertGenUtils.buildKeyUsage(caKeyUsage)
+        );
 
         final boolean selfSigned = randomBoolean();
         final String keyPassword = randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD : null;
@@ -1191,6 +1197,7 @@ public class CertificateToolTests extends ESTestCase {
         final int caKeySize = randomIntBetween(4, 8) * 512;
         final int days = randomIntBetween(7, 1500);
         final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 80));
+        final String caKeyUsage = randomFrom("", Strings.collectionToCommaDelimitedString(CertificateTool.DEFAULT_CA_KEY_USAGE));
 
         final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
         String[] args = {
@@ -1203,7 +1210,9 @@ public class CertificateToolTests extends ESTestCase {
             "-keysize",
             String.valueOf(caKeySize),
             "-days",
-            String.valueOf(days) };
+            String.valueOf(days),
+            "-keyusage",
+            caKeyUsage };
         if (pem) {
             args = ArrayUtils.append(args, "--pem");
         }

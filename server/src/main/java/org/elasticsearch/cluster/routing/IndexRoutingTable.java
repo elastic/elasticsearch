@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
@@ -93,7 +93,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         return index;
     }
 
-    boolean validate(Metadata metadata) {
+    boolean validate(ProjectMetadata metadata) {
         // check index exists
         if (metadata.hasIndex(index.getName()) == false) {
             throw new IllegalStateException(index + " exists in routing does not exists in metadata");
@@ -235,12 +235,12 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     /**
      * @return <code>true</code> if an index is available to service search queries.
      */
-    public boolean readyForSearch(ClusterState clusterState) {
+    public boolean readyForSearch() {
         for (IndexShardRoutingTable shardRoutingTable : this.shards) {
             boolean found = false;
             for (int idx = 0; idx < shardRoutingTable.size(); idx++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(idx);
-                if (shardRouting.active() && OperationRouting.canSearchShard(shardRouting, clusterState)) {
+                if (shardRouting.active() && shardRouting.isSearchable()) {
                     found = true;
                     break;
                 }
@@ -662,7 +662,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             return this;
         }
 
-        void ensureShardArray(int shardCount) {
+        public void ensureShardArray(int shardCount) {
             if (shards == null) {
                 shards = new IndexShardRoutingTable.Builder[shardCount];
             } else if (shards.length < shardCount) {

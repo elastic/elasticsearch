@@ -266,11 +266,23 @@ public class TransportStopTransformActionTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         doAnswer(randomBoolean() ? withResponse() : withException(new ResourceNotFoundException("task not found"))).when(client)
-            .execute(same(RemovePersistentTaskAction.INSTANCE), eq(new RemovePersistentTaskAction.Request("task-A")), any());
+            .execute(
+                same(RemovePersistentTaskAction.INSTANCE),
+                eq(new RemovePersistentTaskAction.Request(TEST_REQUEST_TIMEOUT, "task-A")),
+                any()
+            );
         doAnswer(randomBoolean() ? withResponse() : withException(new ResourceNotFoundException("task not found"))).when(client)
-            .execute(same(RemovePersistentTaskAction.INSTANCE), eq(new RemovePersistentTaskAction.Request("task-B")), any());
+            .execute(
+                same(RemovePersistentTaskAction.INSTANCE),
+                eq(new RemovePersistentTaskAction.Request(TEST_REQUEST_TIMEOUT, "task-B")),
+                any()
+            );
         doAnswer(withException(new IllegalStateException("real issue while removing task"))).when(client)
-            .execute(same(RemovePersistentTaskAction.INSTANCE), eq(new RemovePersistentTaskAction.Request("task-C")), any());
+            .execute(
+                same(RemovePersistentTaskAction.INSTANCE),
+                eq(new RemovePersistentTaskAction.Request(TEST_REQUEST_TIMEOUT, "task-C")),
+                any()
+            );
 
         PersistentTasksService persistentTasksService = new PersistentTasksService(mock(ClusterService.class), threadPool, client);
         Set<String> transformTasks = Set.of("task-A", "task-B", "task-C");

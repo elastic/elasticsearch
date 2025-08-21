@@ -9,54 +9,66 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.RateDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.RateIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Rate extends AggregateFunction implements OptionalArgument, ToAggregator {
+public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
-    private static final TimeValue DEFAULT_UNIT = TimeValue.timeValueSeconds(1);
 
     private final Expression timestamp;
-    private final Expression unit;
 
     @FunctionInfo(
+        type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "compute the rate of a counter field. Available in METRICS command only",
-        isAggregation = true
+        description = "The rate of a counter field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
+    public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
+        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
+    }
+
     public Rate(
         Source source,
-        @Param(name = "field", type = { "counter_long|counter_integer|counter_double" }, description = "counter field") Expression field,
-        Expression timestamp,
-        @Param(optional = true, name = "unit", type = { "time_duration" }, description = "the unit") Expression unit
+        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
+        Expression timestamp
     ) {
-        super(source, field, unit != null ? List.of(timestamp, unit) : List.of(timestamp));
+        this(source, field, Literal.TRUE, timestamp);
+    }
+
+    // compatibility constructor used when reading from the stream
+    private Rate(Source source, Expression field, Expression filter, List<Expression> children) {
+        this(source, field, filter, children.getFirst());
+    }
+
+    private Rate(Source source, Expression field, Expression filter, Expression timestamp) {
+        super(source, field, filter, List.of(timestamp));
         this.timestamp = timestamp;
-        this.unit = unit;
     }
 
     public Rate(StreamInput in) throws IOException {
@@ -64,16 +76,8 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field());
-        out.writeNamedWriteable(timestamp);
-        out.writeOptionalNamedWriteable(unit);
     }
 
     @Override
@@ -81,30 +85,23 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         return ENTRY.name;
     }
 
-    public static Rate withUnresolvedTimestamp(Source source, Expression field, Expression unit) {
-        return new Rate(source, field, new UnresolvedAttribute(source, "@timestamp"), unit);
-    }
-
     @Override
     protected NodeInfo<Rate> info() {
-        return NodeInfo.create(this, Rate::new, field(), timestamp, unit);
+        return NodeInfo.create(this, Rate::new, field(), timestamp);
     }
 
     @Override
     public Rate replaceChildren(List<Expression> newChildren) {
-        if (unit != null) {
-            if (newChildren.size() == 3) {
-                return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
-            }
-            assert false : "expected 3 children for field, @timestamp, and unit; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, @timestamp, and unit; got " + newChildren);
-        } else {
-            if (newChildren.size() == 2) {
-                return new Rate(source(), newChildren.get(0), newChildren.get(1), null);
-            }
-            assert false : "expected 2 children for field and @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 2 children for field and @timestamp; got " + newChildren);
+        if (newChildren.size() != 3) {
+            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
+            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
         }
+        return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+    }
+
+    @Override
+    public Rate withFilter(Expression filter) {
+        return new Rate(source(), field(), filter, timestamp);
     }
 
     @Override
@@ -114,76 +111,31 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = isType(
-            field(),
-            dt -> dt == DataType.COUNTER_LONG || dt == DataType.COUNTER_INTEGER || dt == DataType.COUNTER_DOUBLE,
-            sourceText(),
-            FIRST,
-            "counter_long",
-            "counter_integer",
-            "counter_double"
-        );
-        if (unit != null) {
-            resolution = resolution.and(
-                isType(unit, dt -> dt.isWholeNumber() || EsqlDataTypes.isTemporalAmount(dt), sourceText(), SECOND, "time_duration")
-            );
-        }
-        return resolution;
-    }
-
-    long unitInMillis() {
-        if (unit == null) {
-            return DEFAULT_UNIT.millis();
-        }
-        if (unit.foldable() == false) {
-            throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
-        }
-        final Object foldValue;
-        try {
-            foldValue = unit.fold();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
-        }
-        if (foldValue instanceof Duration duration) {
-            return duration.toMillis();
-        }
-        throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
+        return isType(field(), dt -> DataType.isCounter(dt), sourceText(), FIRST, "counter_long", "counter_integer", "counter_double");
     }
 
     @Override
-    public List<Expression> inputExpressions() {
-        return List.of(field(), timestamp);
-    }
-
-    @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        if (inputChannels.size() != 2 && inputChannels.size() != 3) {
-            throw new IllegalArgumentException("rate requires two for raw input or three channels for partial input; got " + inputChannels);
-        }
-        final long unitInMillis = unitInMillis();
+    public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongAggregatorFunctionSupplier(inputChannels, unitInMillis);
-            case COUNTER_INTEGER -> new RateIntAggregatorFunctionSupplier(inputChannels, unitInMillis);
-            case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier(inputChannels, unitInMillis);
+            case COUNTER_LONG -> new RateLongAggregatorFunctionSupplier();
+            case COUNTER_INTEGER -> new RateIntAggregatorFunctionSupplier();
+            case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
 
     @Override
+    public Rate perTimeSeriesAggregation() {
+        return this;
+    }
+
+    @Override
     public String toString() {
-        if (unit != null) {
-            return "rate(" + field() + "," + unit + ")";
-        } else {
-            return "rate(" + field() + ")";
-        }
+        return "rate(" + field() + ")";
     }
 
     Expression timestamp() {
         return timestamp;
-    }
-
-    Expression unit() {
-        return unit;
     }
 }

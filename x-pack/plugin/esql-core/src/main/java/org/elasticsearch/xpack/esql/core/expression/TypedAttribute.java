@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -19,12 +20,11 @@ public abstract class TypedAttribute extends Attribute {
         Source source,
         String name,
         DataType dataType,
-        String qualifier,
         Nullability nullability,
-        NameId id,
+        @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, qualifier, nullability, id, synthetic);
+        super(source, name, nullability, id, synthetic);
         this.dataType = dataType;
     }
 
@@ -34,12 +34,14 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), dataType);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(dataType, ((TypedAttribute) obj).dataType);
+    protected boolean innerEquals(Object o) {
+        var other = (TypedAttribute) o;
+        return super.innerEquals(other) && dataType == other.dataType;
     }
 }

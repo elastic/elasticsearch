@@ -87,7 +87,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         assertConnectionRejected("client", "127.0.0.8");
 
         // check that all is in cluster state
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.metadata().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metadata().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
         assertEquals(Arrays.asList("127.0.0.1"), clusterState.metadata().settings().getAsList("xpack.security.http.filter.allow"));
@@ -105,7 +105,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         assertConnectionAccepted("client", "127.0.0.8");
 
         // disabling should not have any effect on the cluster state settings
-        clusterState = clusterAdmin().prepareState().get().getState();
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.metadata().settings().get("xpack.security.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metadata().settings().get("xpack.security.transport.filter.deny"), is("127.0.0.8"));
         assertEquals(Arrays.asList("127.0.0.1"), clusterState.metadata().settings().getAsList("xpack.security.http.filter.allow"));
@@ -148,7 +148,9 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
                     expectThrows(
                         IllegalArgumentException.class,
                         settingName,
-                        () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings).get()
+                        () -> clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                            .setPersistentSettings(settings)
+                            .get()
                     ).getMessage(),
                     allOf(containsString("invalid IP filter"), containsString(invalidValue))
                 );

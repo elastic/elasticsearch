@@ -463,8 +463,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     public synchronized void triggered(SchedulerEngine.Event event) {
         // Verify this is actually the event that we care about, then trigger the indexer.
         // Note that the status of the indexer is checked in the indexer itself
-        if (event.getJobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
-            logger.debug("Rollup indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
+        if (event.jobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
+            logger.debug("Rollup indexer [" + event.jobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
         }
     }

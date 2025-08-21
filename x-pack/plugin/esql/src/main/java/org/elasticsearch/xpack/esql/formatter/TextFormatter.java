@@ -30,13 +30,17 @@ public class TextFormatter {
     private final EsqlQueryResponse response;
     private final int[] width;
     private final Function<Object, String> FORMATTER = Objects::toString;
+    private final boolean includeHeader;
+    private final boolean[] dropColumns;
 
     /**
-     * Create a new {@linkplain TextFormatter} for formatting responses.
+     * Create a new {@linkplain TextFormatter} for formatting responses
      */
-    public TextFormatter(EsqlQueryResponse response) {
+    public TextFormatter(EsqlQueryResponse response, boolean includeHeader, boolean dropNullColumns) {
         this.response = response;
         var columns = response.columns();
+        this.includeHeader = includeHeader;
+        this.dropColumns = dropNullColumns ? response.nullColumns() : new boolean[columns.size()];
         // Figure out the column widths:
         // 1. Start with the widths of the column names
         width = new int[columns.size()];
@@ -58,12 +62,12 @@ public class TextFormatter {
     }
 
     /**
-     * Format the provided {@linkplain EsqlQueryResponse} optionally including the header lines.
+     * Format the provided {@linkplain EsqlQueryResponse}
      */
-    public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader) {
+    public Iterator<CheckedConsumer<Writer, IOException>> format() {
         return Iterators.concat(
             // The header lines
-            includeHeader && response.columns().size() > 0 ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
+            includeHeader && response.columns().isEmpty() == false ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
             // Now format the results.
             formatResults()
         );
@@ -71,6 +75,9 @@ public class TextFormatter {
 
     private void formatHeader(Writer writer) throws IOException {
         for (int i = 0; i < width.length; i++) {
+            if (dropColumns[i]) {
+                continue;
+            }
             if (i > 0) {
                 writer.append('|');
             }
@@ -86,6 +93,9 @@ public class TextFormatter {
         writer.append('\n');
 
         for (int i = 0; i < width.length; i++) {
+            if (dropColumns[i]) {
+                continue;
+            }
             if (i > 0) {
                 writer.append('+');
             }
@@ -98,6 +108,10 @@ public class TextFormatter {
         return Iterators.map(response.values(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();
+                if (dropColumns[i]) {
+                    row.next();
+                    continue;
+                }
                 if (i > 0) {
                     writer.append('|');
                 }

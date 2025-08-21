@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-cross-cluster-api-key.html",
       "description": "Creates a cross-cluster API key for API key based remote cluster access."
     },
-    "stability": "beta",
+    "stability": "stable",
     "visibility": "public",
     "headers": {
       "accept": [

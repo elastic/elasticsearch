@@ -27,8 +27,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 
 /**
  * Reduce a multivalued field to a single valued field containing the average value.

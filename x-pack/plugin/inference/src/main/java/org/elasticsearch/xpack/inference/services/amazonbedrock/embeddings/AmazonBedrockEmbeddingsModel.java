@@ -7,19 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
-import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.action.AmazonBedrockActionVisitor;
 
 import java.util.Map;
 
@@ -27,10 +25,8 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
 
     public static AmazonBedrockEmbeddingsModel of(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
         if (taskSettings != null && taskSettings.isEmpty() == false) {
-            // no task settings allowed
-            var validationException = new ValidationException();
-            validationException.addValidationError("Amazon Bedrock embeddings model cannot have task settings");
-            throw validationException;
+            var updatedTaskSettings = embeddingsModel.getTaskSettings().updatedTaskSettings(taskSettings);
+            return new AmazonBedrockEmbeddingsModel(embeddingsModel, updatedTaskSettings);
         }
 
         return embeddingsModel;
@@ -42,6 +38,7 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
@@ -50,8 +47,9 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
             taskType,
             service,
             AmazonBedrockEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            new EmptyTaskSettings(),
-            AmazonBedrockSecretSettings.fromMap(secretSettings)
+            AmazonBedrockEmbeddingsTaskSettings.fromMap(taskSettings),
+            chunkingSettings,
+            AwsSecretSettings.fromMap(secretSettings)
         );
     }
 
@@ -60,17 +58,22 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         TaskType taskType,
         String service,
         AmazonBedrockEmbeddingsServiceSettings serviceSettings,
-        TaskSettings taskSettings,
-        AmazonBedrockSecretSettings secrets
+        AmazonBedrockEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
+        AwsSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets)
         );
     }
 
     public AmazonBedrockEmbeddingsModel(Model model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+    }
+
+    public AmazonBedrockEmbeddingsModel(Model model, AmazonBedrockEmbeddingsTaskSettings taskSettings) {
+        super(model, taskSettings);
     }
 
     @Override
@@ -81,5 +84,10 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
     @Override
     public AmazonBedrockEmbeddingsServiceSettings getServiceSettings() {
         return (AmazonBedrockEmbeddingsServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public AmazonBedrockEmbeddingsTaskSettings getTaskSettings() {
+        return (AmazonBedrockEmbeddingsTaskSettings) super.getTaskSettings();
     }
 }

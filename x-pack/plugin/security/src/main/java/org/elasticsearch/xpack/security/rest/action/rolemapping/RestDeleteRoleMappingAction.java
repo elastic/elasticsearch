@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -37,11 +36,7 @@ public class RestDeleteRoleMappingAction extends NativeRoleMappingBaseRestHandle
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(DELETE, "/_security/role_mapping/{name}")
-                .replaces(DELETE, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(DELETE, "/_security/role_mapping/{name}"));
     }
 
     @Override

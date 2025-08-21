@@ -23,7 +23,7 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 public class MlStandardTokenizerFactory extends AbstractTokenizerFactory {
 
     public MlStandardTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
     }
 
     @Override

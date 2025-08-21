@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
+import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
@@ -32,6 +34,8 @@ public class ClusterInfoSimulator {
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<NodeAndShard, String> dataPath;
+    private final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
+    private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
@@ -40,6 +44,8 @@ public class ClusterInfoSimulator {
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.shardDataSetSizes = Map.copyOf(allocation.clusterInfo().shardDataSetSizes);
         this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
+        this.estimatedHeapUsages = allocation.clusterInfo().getEstimatedHeapUsages();
+        this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
     }
 
     /**
@@ -88,13 +94,14 @@ public class ClusterInfoSimulator {
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
+        var project = allocation.metadata().projectFor(shard.index());
         var size = getExpectedShardSize(
             shard,
-            UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            shard.getExpectedShardSize(),
             getClusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
+            project,
+            allocation.routingTable(project.id())
         );
         if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {
@@ -106,12 +113,10 @@ public class ClusterInfoSimulator {
                 if (shouldReserveSpaceForInitializingShard(shard, allocation.metadata())) {
                     modifyDiskUsage(shard.currentNodeId(), -size);
                 }
-                shardSizes.put(
-                    shardIdentifierFromRouting(shard),
-                    allocation.metadata().getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
-                );
+                shardSizes.put(shardIdentifierFromRouting(shard), project.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size);
             }
         }
+        shardMovementWriteLoadSimulator.simulateShardStarted(shard);
     }
 
     private void modifyDiskUsage(String nodeId, long freeDelta) {
@@ -154,7 +159,10 @@ public class ClusterInfoSimulator {
             shardSizes.toImmutableMap(),
             shardDataSetSizes,
             dataPath,
-            Map.of()
+            Map.of(),
+            estimatedHeapUsages,
+            shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools(),
+            allocation.clusterInfo().getShardWriteLoads()
         );
     }
 }

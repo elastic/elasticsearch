@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
- * Function that emits constants, like Euler's number.
+ * Function that emits constants, like Euler’s number.
  */
 public abstract class DoubleConstantFunction extends ScalarFunction {
     protected DoubleConstantFunction(Source source) {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,9 +23,7 @@ public class RestStopRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_rollup/job/{id}/_stop").replaces(POST, "/_xpack/rollup/job/{id}/_stop", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_rollup/job/{id}/_stop"));
     }
 
     @Override

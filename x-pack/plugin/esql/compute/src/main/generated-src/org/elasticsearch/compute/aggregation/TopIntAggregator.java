@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -15,14 +18,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.sort.IntBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
+// end generated imports
 
 /**
  * Aggregates the top N field values for int.
+ * <p>
+ *     This class is generated. Edit `X-TopAggregator.java.st` to edit this file.
+ * </p>
  */
 @Aggregator({ @IntermediateState(name = "top", type = "INT_BLOCK") })
 @GroupingAggregator
@@ -63,15 +70,11 @@ class TopIntAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int groupId, GroupingState state, int statePosition) {
-        current.merge(groupId, state, statePosition);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(ctx.blockFactory(), selected);
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
-    }
-
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
         private final IntBucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
@@ -82,11 +85,8 @@ class TopIntAggregator {
             sort.collect(value, groupId);
         }
 
-        public void merge(int groupId, GroupingState other, int otherGroupId) {
-            sort.merge(groupId, other.sort, otherGroupId);
-        }
-
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
@@ -94,7 +94,8 @@ class TopIntAggregator {
             return sort.toBlock(blockFactory, selected);
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             // we figure out seen values from nulls on the values block
         }
 
@@ -104,7 +105,7 @@ class TopIntAggregator {
         }
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
         private final GroupingState internalState;
 
         private SingleState(BigArrays bigArrays, int limit, boolean ascending) {
@@ -115,11 +116,8 @@ class TopIntAggregator {
             internalState.add(0, value);
         }
 
-        public void merge(GroupingState other) {
-            internalState.merge(0, other, 0);
-        }
-
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory());
         }
 

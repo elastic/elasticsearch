@@ -1,5 +1,0 @@
-pr: 107937
-summary: Optimise multiterms aggregation for single value fields
-area: Aggregations
-type: enhancement
-issues: []

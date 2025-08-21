@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -42,7 +43,7 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
      */
     public void testUpdateOpenIndexSettings() {
         // original settings: {"index.number_of_replicas": 5, "index.refresh_interval": "5s"}
-        Metadata metadata = mockMetadata(
+        ProjectMetadata metadata = mockMetadata(
             index,
             Settings.builder()
                 .put(metaSettings)
@@ -50,7 +51,7 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "5s")
                 .build()
         );
-        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(metadata);
         // settings to apply: {"index.refresh_interval": "2s", "index.translog.durability": "ASYNC"}
         Settings settingToApply = Settings.builder()
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "2s")
@@ -87,7 +88,7 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
     public void testUpdateClosedIndexSettings() {
         // original dynamic settings: {"index.number_of_replicas": 5, "index.refresh_interval": "5s"}
         // original static settings: {"index.codec": "best_compression", "index.store.type": "niofs"}
-        Metadata metadata = mockMetadata(
+        ProjectMetadata metadata = mockMetadata(
             index,
             Settings.builder()
                 .put(metaSettings)
@@ -97,7 +98,7 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), NIOFS.getSettingsKey())
                 .build()
         );
-        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(metadata);
         // dynamic settings to apply: {"index.refresh_interval": "2s", "index.translog.durability": "ASYNC"}
         // static settings to apply : {"index.store.type": "mmapfs", "index.store.preload": ["dvd", "tmp"]}
         Settings settingToApply = Settings.builder()
@@ -136,8 +137,8 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
         );
     }
 
-    private Metadata mockMetadata(Index index, Settings indexSettings) {
-        return Metadata.builder()
+    private ProjectMetadata mockMetadata(Index index, Settings indexSettings) {
+        return ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder(index.getName()).settings(Settings.builder().put(indexSettings)).build(), true)
             .build();
     }

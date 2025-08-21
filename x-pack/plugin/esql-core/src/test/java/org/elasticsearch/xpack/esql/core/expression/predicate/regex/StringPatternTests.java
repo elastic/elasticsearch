@@ -12,78 +12,98 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 public class StringPatternTests extends ESTestCase {
 
-    private LikePattern like(String pattern, char escape) {
-        return new LikePattern(pattern, escape);
+    private WildcardPattern like(String pattern) {
+        return new WildcardPattern(pattern);
     }
 
     private RLikePattern rlike(String pattern) {
         return new RLikePattern(pattern);
     }
 
-    private boolean matchesAll(String pattern, char escape) {
-        return like(pattern, escape).matchesAll();
+    private boolean likeMatchesAll(String pattern) {
+        return like(pattern).matchesAll();
     }
 
-    private boolean exactMatch(String pattern, char escape) {
-        String escaped = pattern.replace(Character.toString(escape), StringUtils.EMPTY);
-        return escaped.equals(like(pattern, escape).exactMatch());
+    private boolean likeExactMatch(String pattern) {
+        String escaped = pattern.replace("\\", StringUtils.EMPTY);
+        return escaped.equals(like(pattern).exactMatch());
     }
 
-    private boolean matchesAll(String pattern) {
+    private boolean rlikeMatchesAll(String pattern) {
         return rlike(pattern).matchesAll();
     }
 
-    private boolean exactMatch(String pattern) {
-        return pattern.equals(rlike(pattern).exactMatch());
+    private String exactMatchRLike(String pattern) {
+        return rlike(pattern).exactMatch();
     }
 
-    public void testWildcardMatchAll() throws Exception {
-        assertTrue(matchesAll("%", '0'));
-        assertTrue(matchesAll("%%", '0'));
-
-        assertFalse(matchesAll("a%", '0'));
-        assertFalse(matchesAll("%_", '0'));
-        assertFalse(matchesAll("%_%_%", '0'));
-        assertFalse(matchesAll("_%", '0'));
-        assertFalse(matchesAll("0%", '0'));
+    private boolean rlikeExactMatch(String pattern) {
+        return pattern.equals(exactMatchRLike(pattern));
     }
 
-    public void testRegexMatchAll() throws Exception {
-        assertTrue(matchesAll(".*"));
-        assertTrue(matchesAll(".*.*"));
-        assertTrue(matchesAll(".*.?"));
-        assertTrue(matchesAll(".?.*"));
-        assertTrue(matchesAll(".*.?.*"));
+    public void testWildcardMatchAll() {
+        assertTrue(likeMatchesAll("*"));
+        assertTrue(likeMatchesAll("**"));
 
-        assertFalse(matchesAll("..*"));
-        assertFalse(matchesAll("ab."));
-        assertFalse(matchesAll("..?"));
+        assertFalse(likeMatchesAll("a*"));
+        assertFalse(likeMatchesAll("*?"));
+        assertFalse(likeMatchesAll("*?*?*"));
+        assertFalse(likeMatchesAll("?*"));
+        assertFalse(likeMatchesAll("\\*"));
     }
 
-    public void testWildcardExactMatch() throws Exception {
-        assertTrue(exactMatch("0%", '0'));
-        assertTrue(exactMatch("0_", '0'));
-        assertTrue(exactMatch("123", '0'));
-        assertTrue(exactMatch("1230_", '0'));
-        assertTrue(exactMatch("1230_321", '0'));
+    public void testRegexMatchAll() {
+        assertTrue(rlikeMatchesAll(".*"));
+        assertTrue(rlikeMatchesAll(".*.*"));
+        assertTrue(rlikeMatchesAll(".*.?"));
+        assertTrue(rlikeMatchesAll(".?.*"));
+        assertTrue(rlikeMatchesAll(".*.?.*"));
 
-        assertFalse(exactMatch("%", '0'));
-        assertFalse(exactMatch("%%", '0'));
-        assertFalse(exactMatch("a%", '0'));
-        assertFalse(exactMatch("a_", '0'));
+        assertFalse(rlikeMatchesAll("..*"));
+        assertFalse(rlikeMatchesAll("ab."));
+        assertFalse(rlikeMatchesAll("..?"));
     }
 
-    public void testRegexExactMatch() throws Exception {
-        assertFalse(exactMatch(".*"));
-        assertFalse(exactMatch(".*.*"));
-        assertFalse(exactMatch(".*.?"));
-        assertFalse(exactMatch(".?.*"));
-        assertFalse(exactMatch(".*.?.*"));
-        assertFalse(exactMatch("..*"));
-        assertFalse(exactMatch("ab."));
-        assertFalse(exactMatch("..?"));
+    public void testWildcardExactMatch() {
+        assertTrue(likeExactMatch("\\*"));
+        assertTrue(likeExactMatch("\\?"));
+        assertTrue(likeExactMatch("123"));
+        assertTrue(likeExactMatch("123\\?"));
+        assertTrue(likeExactMatch("123\\?321"));
 
-        assertTrue(exactMatch("abc"));
-        assertTrue(exactMatch("12345"));
+        assertFalse(likeExactMatch("*"));
+        assertFalse(likeExactMatch("**"));
+        assertFalse(likeExactMatch("a*"));
+        assertFalse(likeExactMatch("a?"));
+    }
+
+    public void testRegexExactMatch() {
+        assertFalse(rlikeExactMatch(".*"));
+        assertFalse(rlikeExactMatch(".*.*"));
+        assertFalse(rlikeExactMatch(".*.?"));
+        assertFalse(rlikeExactMatch(".?.*"));
+        assertFalse(rlikeExactMatch(".*.?.*"));
+        assertFalse(rlikeExactMatch("..*"));
+        assertFalse(rlikeExactMatch("ab."));
+        assertFalse(rlikeExactMatch("..?"));
+
+        assertTrue(rlikeExactMatch("abc"));
+        assertTrue(rlikeExactMatch("12345"));
+    }
+
+    public void testRegexExactMatchWithEmptyMatch() {
+        // As soon as there's one no conditional `#` in the pattern, it'll match nothing
+        assertNull(exactMatchRLike("#"));
+        assertNull(exactMatchRLike("##"));
+        assertNull(exactMatchRLike("#foo"));
+        assertNull(exactMatchRLike("#foo#"));
+        assertNull(exactMatchRLike("f#oo"));
+        assertNull(exactMatchRLike("foo#"));
+        assertNull(exactMatchRLike("#[A-Z]*"));
+        assertNull(exactMatchRLike("foo(#)"));
+
+        assertNotNull(exactMatchRLike("foo#?"));
+        assertNotNull(exactMatchRLike("#|foo"));
+        assertNotNull(exactMatchRLike("foo|#"));
     }
 }

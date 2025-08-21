@@ -396,7 +396,7 @@ public class RollupJobTaskTests extends ESTestCase {
             });
             assertUnblockIn10s(latch2);
 
-            // the the client answer
+            // the client answer
             unblock.countDown();
         }
     }

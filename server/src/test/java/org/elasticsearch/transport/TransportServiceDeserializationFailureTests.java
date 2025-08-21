@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -70,7 +72,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
             testActionName,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             EmptyRequest::new,
-            (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE)
+            (request, channel, task) -> channel.sendResponse(ActionResponse.Empty.INSTANCE)
         );
 
         transportService.start();
@@ -88,14 +90,14 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 testActionName,
                 new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
-                new TransportResponseHandler<TransportResponse.Empty>() {
+                new TransportResponseHandler<ActionResponse.Empty>() {
                     @Override
                     public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse(ActionResponse.Empty response) {
                         fail("should not be called");
                     }
 
@@ -105,7 +107,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                     }
 
                     @Override
-                    public TransportResponse.Empty read(StreamInput in) {
+                    public ActionResponse.Empty read(StreamInput in) {
                         throw new AssertionError("should not be called");
                     }
 
@@ -154,14 +156,14 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 new EmptyRequest(),
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new TransportResponseHandler<TransportResponse.Empty>() {
+                new TransportResponseHandler<ActionResponse.Empty>() {
                     @Override
                     public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse(ActionResponse.Empty response) {
                         fail("should not be called");
                     }
 
@@ -171,7 +173,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                     }
 
                     @Override
-                    public TransportResponse.Empty read(StreamInput in) {
+                    public ActionResponse.Empty read(StreamInput in) {
                         throw new AssertionError("should not be called");
                     }
 

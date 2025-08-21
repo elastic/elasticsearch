@@ -191,7 +191,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
-        assertSecurityIndexActive();
+        createSecurityIndexWithWaitForActiveShards();
     }
 
     @After
@@ -305,7 +305,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             () -> client().filterWithHeader(authorizationHeaders)
                 .admin()
                 .cluster()
-                .prepareUpdateSettings()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), true))
                 .get()
         );

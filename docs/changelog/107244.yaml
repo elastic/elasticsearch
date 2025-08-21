@@ -1,5 +1,0 @@
-pr: 107244
-summary: Support effective watermark thresholds in node stats API
-area: Allocation
-type: enhancement
-issues: [106676]

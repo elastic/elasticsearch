@@ -143,7 +143,7 @@ public class XPackPluginTests extends ESTestCase {
 
         Environment mockEnvironment = mock(Environment.class);
         when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
-        when(mockEnvironment.configFile()).thenReturn(PathUtils.get(""));
+        when(mockEnvironment.configDir()).thenReturn(PathUtils.get(""));
         // ensure createComponents does not influence the results
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.clusterService()).thenReturn(mock(ClusterService.class));
@@ -187,7 +187,7 @@ public class XPackPluginTests extends ESTestCase {
         });
         Environment mockEnvironment = mock(Environment.class);
         when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
-        when(mockEnvironment.configFile()).thenReturn(PathUtils.get(""));
+        when(mockEnvironment.configDir()).thenReturn(PathUtils.get(""));
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.clusterService()).thenReturn(mock(ClusterService.class));
         when(services.threadPool()).thenReturn(mock(ThreadPool.class));

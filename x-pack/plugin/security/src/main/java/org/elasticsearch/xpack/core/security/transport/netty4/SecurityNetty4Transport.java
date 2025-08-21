@@ -41,6 +41,7 @@ import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
@@ -165,7 +166,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         } else {
             return new InboundPipeline(
                 getStatsTracker(),
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), SERVER),
                 new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
                 this::inboundMessage
@@ -239,6 +240,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             SSLEngine serverEngine = sslService.createSSLEngine(configuration, null, -1);
             serverEngine.setUseClientMode(false);
             final SslHandler sslHandler = new SslHandler(serverEngine);
+            sslHandler.setHandshakeTimeoutMillis(configuration.handshakeTimeoutMillis());
             ch.pipeline().addFirst("sslhandler", sslHandler);
             super.initChannel(ch);
             assert ch.pipeline().first() == sslHandler : "SSL handler must be first handler in pipeline";
@@ -339,9 +341,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
             }
             final ChannelPromise connectPromise = ctx.newPromise();
             final SslHandler sslHandler = new SslHandler(sslEngine);
+            sslHandler.setHandshakeTimeoutMillis(sslConfiguration.handshakeTimeoutMillis());
             ctx.pipeline().replace(this, "ssl", sslHandler);
             final Future<?> handshakePromise = sslHandler.handshakeFuture();
-            connectPromise.addListener(result -> {
+            Netty4Utils.addListener(connectPromise, result -> {
                 if (result.isSuccess() == false) {
                     promise.tryFailure(result.cause());
                 } else {

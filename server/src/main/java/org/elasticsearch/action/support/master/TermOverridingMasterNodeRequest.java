@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -25,13 +27,13 @@ import java.util.Map;
  * MasterNodeRequest#masterTerm()} sent out over the wire.
  * <p>
  * Note that in production this is <i>only</i> used for sending the request out, so there's no need to preserve other marker interfaces such
- * as {@link org.elasticsearch.action.IndicesRequest} or {@link org.elasticsearch.action.IndicesRequest.Replaceable} on the wrapped request.
+ * as {@link IndicesRequest} or {@link IndicesRequest.Replaceable} on the wrapped request.
  * The receiving node will deserialize a request without a wrapper, with the correct interfaces and the appropriate master term stored
  * directly in {@link MasterNodeRequest#masterTerm()}. However in tests sometimes we want to intercept the request as it's being sent, for
  * which it may be necessary to use the test utility {@code MasterNodeRequestHelper#unwrapTermOverride} to remove the wrapper and access the
  * inner request.
  */
-class TermOverridingMasterNodeRequest extends TransportRequest {
+class TermOverridingMasterNodeRequest extends AbstractTransportRequest {
 
     private static final Logger logger = LogManager.getLogger(TermOverridingMasterNodeRequest.class);
 

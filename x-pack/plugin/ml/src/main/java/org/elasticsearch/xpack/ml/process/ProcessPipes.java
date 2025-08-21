@@ -94,7 +94,7 @@ public class ProcessPipes {
     ) {
         this.namedPipeHelper = namedPipeHelper;
         this.jobId = jobId;
-        this.tempDir = env.tmpFile();
+        this.tempDir = env.tmpDir();
         this.timeout = timeout;
 
         // The way the pipe names are formed MUST match what is done in the controller main()

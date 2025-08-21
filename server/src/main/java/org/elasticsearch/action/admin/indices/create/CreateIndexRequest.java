@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -67,8 +68,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private boolean initializeFailureStore;
 
     private Settings settings = Settings.EMPTY;
+    public static final String EMPTY_MAPPINGS = "{}";
 
-    private String mappings = "{}";
+    private String mappings = EMPTY_MAPPINGS;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -103,15 +105,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            origin = in.readString();
-        }
+        origin = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             requireDataStream = in.readBoolean();
         } else {
             requireDataStream = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             initializeFailureStore = in.readBoolean();
         } else {
             initializeFailureStore = true;
@@ -284,8 +284,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        // wrap it in a type map if its not
-        if (source.size() != 1 || source.containsKey(type) == false) {
+        if (source.isEmpty()) {
+            // If no source is provided we return empty mappings
+            return mapping(EMPTY_MAPPINGS);
+        } else if (source.size() != 1 || source.containsKey(type) == false) {
+            // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
         } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
             // if it has a different type name, then unwrap and rewrap with _doc
@@ -405,22 +408,29 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
-                if (entry.getValue() instanceof Map == false) {
-                    throw new ElasticsearchParseException("key [settings] must be an object");
-                }
+                validateIsMap(SETTINGS.getPreferredName(), entry.getValue());
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
+                validateIsMap(MAPPINGS.getPreferredName(), entry.getValue());
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                    validateIsMap(entry1.getKey(), entry1.getValue());
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
             } else if (ALIASES.match(name, deprecationHandler)) {
+                validateIsMap(ALIASES.getPreferredName(), entry.getValue());
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 throw new ElasticsearchParseException("unknown key [{}] for create index", name);
             }
         }
         return this;
+    }
+
+    static void validateIsMap(String key, Object value) {
+        if (value instanceof Map == false) {
+            throw new ElasticsearchParseException("key [{}] must be an object", key);
+        }
     }
 
     public String mappings() {
@@ -475,13 +485,19 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
+    /**
+     * Returns whether the failure store should be initialized. N.B. If true, failure store index creation will be performed regardless of
+     * whether the template indicates that the failure store is enabled.
+     */
     public boolean isInitializeFailureStore() {
         return initializeFailureStore;
     }
 
     /**
      * Set whether this CreateIndexRequest should initialize the failure store on data stream creation. This can be necessary when, for
-     * example, a failure occurs while trying to ingest a document into a data stream that has to be auto-created.
+     * example, a failure occurs while trying to ingest a document into a data stream that has to be auto-created. N.B. If true, failure
+     * store index creation will be performed regardless of whether the template indicates that the failure store is enabled. It is the
+     * caller's responsibility to ensure that this is correct.
      */
     public CreateIndexRequest initializeFailureStore(boolean initializeFailureStore) {
         this.initializeFailureStore = initializeFailureStore;
@@ -507,13 +523,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            out.writeString(origin);
-        }
+        out.writeString(origin);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(this.requireDataStream);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBoolean(this.initializeFailureStore);
         }
     }

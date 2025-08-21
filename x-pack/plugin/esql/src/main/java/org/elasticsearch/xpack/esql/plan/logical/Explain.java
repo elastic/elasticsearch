@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -16,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.List;
 import java.util.Objects;
 
-public class Explain extends LeafPlan {
+public class Explain extends LeafPlan implements TelemetryAware {
 
     public enum Type {
         PARSED,
@@ -25,37 +27,34 @@ public class Explain extends LeafPlan {
 
     private final LogicalPlan query;
 
+    private final List<Attribute> output = List.of(
+        new ReferenceAttribute(Source.EMPTY, "role", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD)
+    );
+
     public Explain(Source source, LogicalPlan query) {
         super(source);
         this.query = query;
     }
 
-    // TODO: implement again
-    // @Override
-    // public void execute(EsqlSession session, ActionListener<Result> listener) {
-    // ActionListener<String> analyzedStringListener = listener.map(
-    // analyzed -> new Result(
-    // output(),
-    // List.of(List.of(query.toString(), Type.PARSED.toString()), List.of(analyzed, Type.ANALYZED.toString()))
-    // )
-    // );
-    //
-    // session.analyzedPlan(
-    // query,
-    // ActionListener.wrap(
-    // analyzed -> analyzedStringListener.onResponse(analyzed.toString()),
-    // e -> analyzedStringListener.onResponse(e.toString())
-    // )
-    // );
-    //
-    // }
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    public LogicalPlan query() {
+        return query;
+    }
 
     @Override
     public List<Attribute> output() {
-        return List.of(
-            new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD)
-        );
+        return output;
     }
 
     @Override

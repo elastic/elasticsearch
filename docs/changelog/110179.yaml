@@ -1,6 +1,0 @@
-pr: 110179
-summary: Make repository analysis API available to non-operators
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 100318

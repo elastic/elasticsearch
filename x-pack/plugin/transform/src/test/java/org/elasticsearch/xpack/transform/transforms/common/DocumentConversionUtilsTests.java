@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms.common;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
@@ -104,16 +105,9 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     }
 
     private static FieldCapabilities createFieldCapabilities(String name, String type) {
-        return new FieldCapabilities(
-            name,
-            type,
-            false,
-            true,
-            true,
-            Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY,
-            Collections.emptyMap()
-        );
+        return new FieldCapabilitiesBuilder(name, type).indices(Strings.EMPTY_ARRAY)
+            .nonSearchableIndices(Strings.EMPTY_ARRAY)
+            .nonAggregatableIndices(Strings.EMPTY_ARRAY)
+            .build();
     }
 }

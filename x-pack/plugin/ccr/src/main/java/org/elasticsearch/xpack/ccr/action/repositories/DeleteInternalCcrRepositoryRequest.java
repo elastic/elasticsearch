@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteInternalCcrRepositoryRequest extends ActionRequest {
+public class DeleteInternalCcrRepositoryRequest extends LegacyActionRequest {
 
     private final String name;
 

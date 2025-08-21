@@ -54,15 +54,12 @@
       },
       "master_timeout":{
         "type":"time",
-        "description":"Specify timeout for connection to master"
+        "description":"Timeout for waiting for new cluster state in case it is blocked"
       },
       "local":{
         "type":"boolean",
         "description":"Return local information, do not retrieve the state from master node (default: false)",
-        "deprecated":{
-          "version":"7.8.0",
-          "description":"This parameter is a no-op and field mappings are always retrieved locally."
-        }
+        "deprecated":true
       }
     }
   }

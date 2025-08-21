@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -110,7 +111,6 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -129,7 +129,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -267,18 +266,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         RUN_AS_GRANTED.toString(),
         SECURITY_CONFIG_CHANGE.toString()
     );
-    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(
+    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.stringListSetting(
         setting("audit.logfile.events.include"),
         DEFAULT_EVENT_INCLUDES,
-        Function.identity(),
         value -> AuditLevel.parse(value, List.of()),
         Property.NodeScope,
         Property.Dynamic
     );
-    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.listSetting(
+    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.stringListSetting(
         setting("audit.logfile.events.exclude"),
-        Collections.emptyList(),
-        Function.identity(),
         value -> AuditLevel.parse(List.of(), value),
         Property.NodeScope,
         Property.Dynamic
@@ -323,62 +319,27 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRINCIPALS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "users",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_REALMS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "realms",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ROLES = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "roles",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDICES = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "indices",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ACTIONS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "actions",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
 
     private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");
@@ -389,7 +350,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
-    boolean includeRequestBody;
+    volatile boolean includeRequestBody;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -1111,6 +1072,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         // not implemented yet
     }
 
+    public boolean includeRequestBody() {
+        return includeRequestBody;
+    }
+
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
@@ -1672,6 +1637,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
+            assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {

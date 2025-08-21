@@ -16,8 +16,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,15 +51,23 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
-    public void testSimpleQueryAllRoles() throws IOException {
-        assertQuery("", 0, roles -> assertThat(roles, emptyIterable()));
-        RoleDescriptor createdRole = createRandomRole();
-        assertQuery("", 1, roles -> {
-            assertThat(roles, iterableWithSize(1));
-            assertRoleMap(roles.get(0), createdRole);
+    @Before
+    public void initialize() {
+        new ReservedRolesStore();
+    }
+
+    public void testSimpleQueryAllRoles() throws Exception {
+        createRandomRole();
+        assertQuery("", 1 + ReservedRolesStore.names().size(), roles -> {
+            // default size is 10
+            assertThat(roles, iterableWithSize(10));
         });
-        assertQuery("""
-            {"query":{"match_all":{}},"from":1}""", 1, roles -> assertThat(roles, emptyIterable()));
+        assertQuery(
+            Strings.format("""
+                {"query":{"match_all":{}},"from":%d}""", 1 + ReservedRolesStore.names().size()),
+            1 + ReservedRolesStore.names().size(),
+            roles -> assertThat(roles, emptyIterable())
+        );
     }
 
     public void testDisallowedFields() throws Exception {
@@ -496,7 +506,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
         );
     }
 
-    private void assertQuery(String body, int total, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
+    static void assertQuery(String body, int total, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
         assertQuery(client(), body, total, roleVerifier);
     }
 

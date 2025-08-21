@@ -36,7 +36,7 @@ public final class AggregationTestUtils {
     private AggregationTestUtils() {}
 
     static InternalHistogram.Bucket createHistogramBucket(long timestamp, long docCount, List<InternalAggregation> subAggregations) {
-        return new InternalHistogram.Bucket(timestamp, docCount, false, DocValueFormat.RAW, createAggs(subAggregations));
+        return new InternalHistogram.Bucket(timestamp, docCount, DocValueFormat.RAW, createAggs(subAggregations));
     }
 
     static InternalComposite.InternalBucket createCompositeBucket(

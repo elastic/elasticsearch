@@ -176,7 +176,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
 
     public void testValidateAnalysisLimitsAndSetDefaults_whenMaxIsLessThanTheDefault() {
         Job.Builder builder = buildJobBuilder("foo");
-        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(512L, ByteSizeUnit.MB));
+        builder.validateAnalysisLimitsAndSetDefaults(ByteSizeValue.of(512L, ByteSizeUnit.MB));
 
         Job job = builder.build();
         assertNotNull(job.getAnalysisLimits());
@@ -189,7 +189,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
         builder.setAnalysisLimits(new AnalysisLimits(4096L, null));
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(1000L, ByteSizeUnit.MB))
+            () -> builder.validateAnalysisLimitsAndSetDefaults(ByteSizeValue.of(1000L, ByteSizeUnit.MB))
         );
         assertEquals(
             "model_memory_limit [4gb] must be less than the value of the "
@@ -198,7 +198,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
             e.getMessage()
         );
 
-        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(8192L, ByteSizeUnit.MB));
+        builder.validateAnalysisLimitsAndSetDefaults(ByteSizeValue.of(8192L, ByteSizeUnit.MB));
     }
 
     public void testEquals_GivenDifferentClass() {

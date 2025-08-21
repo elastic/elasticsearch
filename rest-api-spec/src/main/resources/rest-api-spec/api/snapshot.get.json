@@ -85,6 +85,10 @@
       "verbose":{
         "type":"boolean",
         "description":"Whether to show verbose snapshot info or only show the basic info found in the repository index blob"
+      },
+      "state": {
+        "type": "list",
+        "description": "Filter snapshots by a comma-separated list of states. Valid state values are 'SUCCESS', 'IN_PROGRESS', 'FAILED', 'PARTIAL', or 'INCOMPATIBLE'."
       }
     }
   }

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -106,16 +107,43 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
             )
         );
         // Datetime
-        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
+        suppliers.addAll(TestCaseSupplier.forBinaryNotCasting("LessThanOrEqualLongsEvaluator", "lhs", "rhs", (lhs, rhs) -> {
+            if (lhs instanceof Instant l && rhs instanceof Instant r) {
+                return l.isBefore(r) || l.equals(r);
+            }
+            throw new UnsupportedOperationException("Got some weird types");
+        }, DataType.BOOLEAN, TestCaseSupplier.dateCases(), TestCaseSupplier.dateCases(), List.of(), false));
+
+        suppliers.addAll(TestCaseSupplier.forBinaryNotCasting("LessThanOrEqualLongsEvaluator", "lhs", "rhs", (lhs, rhs) -> {
+            if (lhs instanceof Instant l && rhs instanceof Instant r) {
+                return l.isBefore(r) || l.equals(r);
+            }
+            throw new UnsupportedOperationException("Got some weird types");
+        }, DataType.BOOLEAN, TestCaseSupplier.dateNanosCases(), TestCaseSupplier.dateNanosCases(), List.of(), false));
+
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "LessThanOrEqualLongsEvaluator",
+                "LessThanOrEqualNanosMillisEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() <= ((Number) r).longValue(),
+                (l, r) -> (((Instant) l).isBefore((Instant) r) || l.equals(r)),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanOrEqualMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> (((Instant) l).isBefore((Instant) r) || l.equals(r)),
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
-                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
                 List.of(),
                 false
             )
@@ -130,12 +158,7 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(true, suppliers),
-                AbstractScalarFunctionTestCase::errorMessageStringForBinaryOperators
-            )
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

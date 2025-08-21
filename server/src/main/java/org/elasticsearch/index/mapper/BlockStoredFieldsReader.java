@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -34,10 +35,10 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         return true;
     }
 
-    private abstract static class StoredFieldsBlockLoader implements BlockLoader {
+    public abstract static class StoredFieldsBlockLoader implements BlockLoader {
         protected final String field;
 
-        StoredFieldsBlockLoader(String field) {
+        public StoredFieldsBlockLoader(String field) {
             this.field = field;
         }
 
@@ -111,10 +112,10 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
     }
 
-    private abstract static class Bytes extends BlockStoredFieldsReader {
+    public abstract static class Bytes extends BlockStoredFieldsReader {
         private final String field;
 
-        Bytes(String field) {
+        public Bytes(String field) {
             this.field = field;
         }
 

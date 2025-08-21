@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.core.ilm.action;
 import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Response;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -34,9 +32,8 @@ import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests.randomTestLi
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class GetLifecycleResponseTests extends AbstractWireSerializingTestCase<Response> {
+public class GetLifecycleResponseTests extends ESTestCase {
 
-    @Override
     protected Response createTestInstance() {
         String randomPrefix = randomAlphaOfLength(5);
         List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>();
@@ -83,47 +80,13 @@ public class GetLifecycleResponseTests extends AbstractWireSerializingTestCase<R
         AbstractChunkedSerializingTestCase.assertChunkCount(response, ignored -> 2 + response.getPolicies().size());
     }
 
-    @Override
-    protected Writeable.Reader<Response> instanceReader() {
-        return Response::new;
-    }
-
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(
+            List.of(
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, in -> TestLifecycleType.INSTANCE)
             )
         );
-    }
-
-    @Override
-    protected Response mutateInstance(Response response) {
-        List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>(response.getPolicies());
-        if (responseItems.size() > 0) {
-            if (randomBoolean()) {
-                responseItems.add(
-                    new LifecyclePolicyResponseItem(
-                        randomTestLifecyclePolicy(randomAlphaOfLength(5)),
-                        randomNonNegativeLong(),
-                        randomAlphaOfLength(4),
-                        randomUsage()
-                    )
-                );
-            } else {
-                responseItems.remove(0);
-            }
-        } else {
-            responseItems.add(
-                new LifecyclePolicyResponseItem(
-                    randomTestLifecyclePolicy(randomAlphaOfLength(2)),
-                    randomNonNegativeLong(),
-                    randomAlphaOfLength(4),
-                    randomUsage()
-                )
-            );
-        }
-        return new Response(responseItems);
     }
 
     public static ItemUsage randomUsage() {

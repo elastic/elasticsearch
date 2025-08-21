@@ -13,10 +13,9 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,7 +31,6 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         LicenseService licenseService
     ) {
         super(
@@ -42,7 +40,6 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
             threadPool,
             actionFilters,
             GetLicenseRequest::new,
-            indexNameExpressionResolver,
             GetLicenseResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

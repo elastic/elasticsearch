@@ -27,7 +27,7 @@ public class GeoShapeFieldTests extends ESTestCase {
 
         ExtractedField geo = new GeoShapeField("geo");
 
-        assertThat(geo.value(hit), equalTo(expected));
+        assertThat(geo.value(hit, new SourceSupplier(hit)), equalTo(expected));
         assertThat(geo.getName(), equalTo("geo"));
         assertThat(geo.getSearchField(), equalTo("geo"));
         assertThat(geo.getTypes(), contains("geo_shape"));
@@ -48,7 +48,7 @@ public class GeoShapeFieldTests extends ESTestCase {
 
         ExtractedField geo = new GeoShapeField("geo");
 
-        assertThat(geo.value(hit), equalTo(expected));
+        assertThat(geo.value(hit, new SourceSupplier(hit)), equalTo(expected));
         assertThat(geo.getName(), equalTo("geo"));
         assertThat(geo.getSearchField(), equalTo("geo"));
         assertThat(geo.getTypes(), contains("geo_shape"));
@@ -65,7 +65,7 @@ public class GeoShapeFieldTests extends ESTestCase {
 
         ExtractedField geo = new GeoShapeField("missing");
 
-        assertThat(geo.value(hit), equalTo(new Object[0]));
+        assertThat(geo.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
     }
 
     public void testArray() {
@@ -73,7 +73,7 @@ public class GeoShapeFieldTests extends ESTestCase {
 
         ExtractedField geo = new GeoShapeField("geo");
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> geo.value(hit));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> geo.value(hit, new SourceSupplier(hit)));
         assertThat(e.getMessage(), equalTo("Unexpected values for a geo_shape field: [1, 2]"));
     }
 }

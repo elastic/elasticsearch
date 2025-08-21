@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
 public class JdbcConfiguration extends ConnectionConfiguration {
     static final String URL_PREFIX = "jdbc:es://";
     static final String URL_FULL_PREFIX = "jdbc:elasticsearch://";
-    public static URI DEFAULT_URI = URI.create("http://localhost:9200/");
+    public static final URI DEFAULT_URI = URI.create("http://localhost:9200/");
 
     static final String DEBUG = "debug";
     static final String DEBUG_DEFAULT = "false";

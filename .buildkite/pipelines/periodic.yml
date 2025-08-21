@@ -2,376 +2,15 @@
 steps:
   - group: bwc
     steps:
-      - label: 7.0.1 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.1#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.0.1
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.1.1 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.1.1#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.1.1
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.2.1 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.2.1#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.2.1
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.3.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.3.2#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.3.2
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.4.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.4.2#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.4.2
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.5.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.5.2#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.5.2
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.6.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.6.2#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.6.2
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.7.1 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.7.1#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.7.1
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.8.1 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.8.1#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.8.1
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.9.3 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.9.3#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.9.3
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.10.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.10.2#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.10.2
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.11.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.11.2#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.11.2
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.12.1 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.12.1#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.12.1
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.13.4 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.13.4#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.13.4
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.14.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.14.2#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.14.2
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.15.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.15.2#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.15.2
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.16.3 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.16.3#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.16.3
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
-      - label: 7.17.23 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.23#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-          diskSizeGb: 250
-        env:
-          BWC_VERSION: 7.17.23
-        retry:
-          automatic:
-            - exit_status: "-1"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-
       - label: 8.0.1 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.0.1#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.0.1
         retry:
@@ -387,11 +26,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.1.3
         retry:
@@ -407,11 +45,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.2.3
         retry:
@@ -427,11 +64,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.3.3
         retry:
@@ -447,11 +83,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.4.3
         retry:
@@ -467,11 +102,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.5.3
         retry:
@@ -487,11 +121,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.6.2
         retry:
@@ -507,11 +140,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.7.1
         retry:
@@ -527,11 +159,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.8.2
         retry:
@@ -547,11 +178,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.9.2
         retry:
@@ -567,11 +197,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.10.4
         retry:
@@ -587,11 +216,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.11.4
         retry:
@@ -607,11 +235,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.12.2
         retry:
@@ -627,11 +254,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.13.4
         retry:
@@ -647,11 +273,10 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.14.3
         retry:
@@ -662,18 +287,17 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.15.0 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.0#bwcTest
+      - label: 8.15.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
-          BWC_VERSION: 8.15.0
+          BWC_VERSION: 8.15.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -682,18 +306,131 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.16.0 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.16.0#bwcTest
+      - label: 8.16.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.16.6#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
-          BWC_VERSION: 8.16.0
+          BWC_VERSION: 8.16.6
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 8.17.11 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.17.11#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 8.17.11
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 8.18.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.18.6#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 8.18.6
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 8.19.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.19.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 8.19.3
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 9.0.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.0.6#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 9.0.6
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 9.1.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.1.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 9.1.3
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 9.2.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.2.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 9.2.0
         retry:
           automatic:
             - exit_status: "-1"
@@ -707,7 +444,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: encryption-at-rest
@@ -715,7 +452,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: eql-correctness
@@ -723,10 +460,9 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - label: example-plugins
     command: |-
       cd $$WORKSPACE/plugins/examples
@@ -735,10 +471,9 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - group: java-fips-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
@@ -747,20 +482,20 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
+              - openjdk21
             GRADLE_TASK:
               - checkPart1
               - checkPart2
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
@@ -770,14 +505,13 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
-            BWC_VERSION: ["7.17.23", "8.14.3", "8.15.0", "8.16.0"]
+              - openjdk21
+            BWC_VERSION: ["8.17.11", "8.18.6", "8.19.3", "9.0.6", "9.1.3", "9.2.0"]
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -789,24 +523,22 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - graalvm-ce17
-              - openjdk17
               - openjdk21
-              - openjdk22
               - openjdk23
+              - openjdk24
             GRADLE_TASK:
               - checkPart1
               - checkPart2
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
@@ -816,18 +548,14 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - graalvm-ce17
-              - openjdk17
               - openjdk21
-              - openjdk22
               - openjdk23
-            BWC_VERSION: ["7.17.23", "8.14.3", "8.15.0", "8.16.0"]
+            BWC_VERSION: ["8.17.11", "8.18.6", "8.19.3", "9.0.6", "9.1.3", "9.2.0"]
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -836,7 +564,7 @@ steps:
     timeout_in_minutes: 360
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: single-processor-node-tests
@@ -844,7 +572,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - group: third-party tests
@@ -860,10 +588,9 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / azure
         command: |
           export azure_storage_container=elasticsearch-ci-thirdparty
@@ -875,10 +602,9 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / gcs
         command: |
           export google_storage_bucket=elasticsearch-ci-thirdparty
@@ -890,20 +616,18 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / geoip
         command: |
           .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / s3
         command: |
           export amazon_s3_bucket=elasticsearch-ci.us-west-2
@@ -915,10 +639,41 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
+      - label: third-party / ms-graph
+        command: |
+          .ci/scripts/run-gradle.sh msGraphThirdPartyTest
+        env:
+          USE_3RD_PARTY_MS_GRAPH_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+  - group: lucene-compat
+    steps:
+      - label: "{{matrix.LUCENE_VERSION}} / lucene-compat"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=$$ES_VERSION -Dtests.bwc.refspec.main=$$ES_COMMIT luceneBwcTest
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            LUCENE_VERSION:
+              - "10.0.0"
+            ES_VERSION:
+              - "9.0.0"
+            ES_COMMIT:
+              - "10352e57d85505984582616e1e38530d3ec6ca59" # update to match last commit before lucene bump maintained from combat-lucene-10-0-0 branch
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_VERSION: "{{matrix.ES_VERSION}}"
+          ES_COMMIT: "{{matrix.ES_COMMIT}}"
   - label: Upload Snyk Dependency Graph
     command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
     env:
@@ -926,19 +681,17 @@ steps:
     timeout_in_minutes: 20
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
-    if: build.branch == "main" || build.branch == "7.17"
+    if: build.branch == "main" || build.branch == "9.1" || build.branch == "9.0" || build.branch == "8.19" || build.branch == "8.18" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-2
-      diskSizeGb: 250
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh
     timeout_in_minutes: 5

@@ -362,7 +362,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
             assertOK(response);
             final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
             try {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numberOfDocs));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numberOfDocs));
                 assertThat(
                     Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
                     equalTo(Set.of(indices))

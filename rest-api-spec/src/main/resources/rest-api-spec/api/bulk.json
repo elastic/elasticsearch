@@ -56,10 +56,6 @@
         "type":"time",
         "description":"Explicit operation timeout"
       },
-      "type":{
-        "type":"string",
-        "description":"Default document type for items which don't provide one"
-      },
       "_source":{
         "type":"list",
         "description":"True or false to return the _source field or not, or default list of fields to return, can be overridden on each sub-request"
@@ -78,15 +74,19 @@
       },
       "require_alias": {
         "type": "boolean",
-        "description": "Sets require_alias for all incoming documents. Defaults to unset (false)"
+        "description": "If true, the request’s actions must target an index alias. Defaults to false."
       },
       "require_data_stream": {
         "type": "boolean",
-        "description": "When true, requires the destination to be a data stream (existing or to-be-created). Default is false"
+        "description": "If true, the request's actions must target a data stream (existing or to-be-created). Default to false"
       },
       "list_executed_pipelines": {
         "type": "boolean",
         "description": "Sets list_executed_pipelines for all incoming documents. Defaults to unset (false)"
+      },
+      "include_source_on_error": {
+        "type": "boolean",
+        "description": "True or false if to include the document source in the error message in case of parsing errors. Defaults to true."
       }
     },
     "body":{

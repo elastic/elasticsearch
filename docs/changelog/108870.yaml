@@ -1,5 +1,0 @@
-pr: 108870
-summary: Adding score from `RankDoc` to `SearchHit`
-area: Search
-type: bug
-issues: []

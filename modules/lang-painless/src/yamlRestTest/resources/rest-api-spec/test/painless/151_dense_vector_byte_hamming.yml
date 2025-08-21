@@ -1,7 +1,5 @@
 setup:
   - requires:
-      cluster_features: ["script.hamming"]
-      reason: "support for hamming distance added in 8.15"
       test_runner_features: headers
 
   - do:

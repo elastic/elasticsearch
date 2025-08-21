@@ -13,11 +13,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.internal.ProjectClient;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -28,8 +28,8 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,7 +50,9 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
+        ProjectClient projectClient = Mockito.mock(ProjectClient.class);
+        Mockito.when(client.projectClient(Mockito.any())).thenReturn(projectClient);
+        Mockito.when(projectClient.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
     }
 
@@ -203,40 +205,35 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
         LifecyclePolicy policy = new LifecyclePolicy(
             lifecycleName,
-            Collections.singletonMap("warm", new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action)))
+            Map.of("warm", new Phase("warm", TimeValue.ZERO, Map.of(action.getWriteableName(), action)))
         );
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
             policy,
-            Collections.emptyMap(),
+            Map.of(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
-                            OperationMode.RUNNING
-                        )
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .putCustom(
+                    IndexLifecycleMetadata.TYPE,
+                    new IndexLifecycleMetadata(Map.of(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING)
+                )
+                .put(
+                    indexMetadataBuilder.putCustom(
+                        LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                        LifecycleExecutionState.builder()
+                            .setPhase(branchStep.getKey().phase())
+                            .setPhaseTime(0L)
+                            .setAction(branchStep.getKey().action())
+                            .setActionTime(0L)
+                            .setStep(branchStep.getKey().name())
+                            .setStepTime(0L)
+                            .build()
+                            .asMap()
                     )
-                    .put(
-                        indexMetadataBuilder.putCustom(
-                            LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
-                            LifecycleExecutionState.builder()
-                                .setPhase(branchStep.getKey().phase())
-                                .setPhaseTime(0L)
-                                .setAction(branchStep.getKey().action())
-                                .setActionTime(0L)
-                                .setStep(branchStep.getKey().name())
-                                .setStepTime(0L)
-                                .build()
-                                .asMap()
-                        )
-                    )
-            )
-            .build();
+                )
+        );
         setUpIndicesStatsRequestMock(indexName, withError);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         AtomicBoolean failurePropagated = new AtomicBoolean(false);

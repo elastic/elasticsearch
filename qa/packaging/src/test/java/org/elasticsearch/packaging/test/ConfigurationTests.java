@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -20,7 +21,6 @@ import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 
 public class ConfigurationTests extends PackagingTestCase {
@@ -50,13 +50,15 @@ public class ConfigurationTests extends PackagingTestCase {
             // security auto-config requires that the archive owner and the node process user be the same
             Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
-                final String nameResponse = ServerUtils.makeRequest(
-                    Request.Get("https://localhost:9200/_cat/nodes?h=name"),
-                    "test_superuser",
-                    "test_superuser_password",
-                    ServerUtils.getCaCert(confPath)
-                ).strip();
-                assertThat(nameResponse, equalTo("mytesthost"));
+                assertBusy(() -> {
+                    final String nameResponse = ServerUtils.makeRequest(
+                        Request.Get("https://localhost:9200/_cat/nodes?h=name"),
+                        "test_superuser",
+                        "test_superuser_password",
+                        ServerUtils.getCaCert(confPath)
+                    ).strip();
+                    assertEquals("mytesthost", nameResponse);
+                });
             });
             Platforms.onWindows(() -> sh.chown(confPath));
         });

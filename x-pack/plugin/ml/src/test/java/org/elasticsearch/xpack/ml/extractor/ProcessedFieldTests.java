@@ -44,13 +44,13 @@ public class ProcessedFieldTests extends ESTestCase {
 
     public void testMissingExtractor() {
         ProcessedField processedField = new ProcessedField(makeOneHotPreProcessor(randomAlphaOfLength(10), "bar", "baz"));
-        assertThat(processedField.value(makeHit(), (s) -> null), emptyArray());
+        assertThat(processedField.value(makeHit(), null, (s) -> null), emptyArray());
     }
 
     public void testMissingInputValues() {
         ExtractedField extractedField = makeExtractedField(new Object[0]);
         ProcessedField processedField = new ProcessedField(makeOneHotPreProcessor(randomAlphaOfLength(10), "bar", "baz"));
-        assertThat(processedField.value(makeHit(), (s) -> extractedField), arrayContaining(is(nullValue()), is(nullValue())));
+        assertThat(processedField.value(makeHit(), null, (s) -> extractedField), arrayContaining(is(nullValue()), is(nullValue())));
     }
 
     public void testProcessedFieldFrequencyEncoding() {
@@ -101,7 +101,7 @@ public class ProcessedFieldTests extends ESTestCase {
         assert inputs.length == expectedOutputs.length;
         for (int i = 0; i < inputs.length; i++) {
             Object input = inputs[i];
-            Object[] result = processedField.value(makeHit(input), (s) -> makeExtractedField(new Object[] { input }));
+            Object[] result = processedField.value(makeHit(input), null, (s) -> makeExtractedField(new Object[] { input }));
             assertThat(
                 "Input [" + input + "] Expected " + Arrays.toString(expectedOutputs[i]) + " but received " + Arrays.toString(result),
                 result,
@@ -120,7 +120,7 @@ public class ProcessedFieldTests extends ESTestCase {
 
     private static ExtractedField makeExtractedField(Object[] value) {
         ExtractedField extractedField = mock(ExtractedField.class);
-        when(extractedField.value(any())).thenReturn(value);
+        when(extractedField.value(any(), any())).thenReturn(value);
         return extractedField;
     }
 

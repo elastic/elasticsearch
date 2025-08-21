@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -67,6 +68,7 @@ public class ClusterFormationFailureHelper {
     private final Runnable logLastFailedJoinAttempt;
     @Nullable // if no warning is scheduled
     private volatile WarningScheduler warningScheduler;
+    private volatile boolean loggingEnabled;
 
     /**
      * Works with the {@link JoinHelper} to log the latest node-join attempt failure and cluster state debug information. Must call
@@ -89,6 +91,11 @@ public class ClusterFormationFailureHelper {
         this.clusterCoordinationExecutor = threadPool.executor(Names.CLUSTER_COORDINATION);
         this.clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
         this.logLastFailedJoinAttempt = logLastFailedJoinAttempt;
+        this.loggingEnabled = true;
+    }
+
+    public void setLoggingEnabled(boolean enabled) {
+        this.loggingEnabled = enabled;
     }
 
     public boolean isRunning() {
@@ -97,7 +104,7 @@ public class ClusterFormationFailureHelper {
 
     /**
      * Schedules a warning debug message to be logged in 'clusterFormationWarningTimeout' time, and periodically thereafter, until
-     * {@link ClusterFormationState#stop()} has been called.
+     * {@link ClusterFormationFailureHelper#stop()} has been called.
      */
     public void start() {
         assert warningScheduler == null;
@@ -124,7 +131,7 @@ public class ClusterFormationFailureHelper {
 
                 @Override
                 protected void doRun() {
-                    if (isActive()) {
+                    if (isActive() && loggingEnabled) {
                         logLastFailedJoinAttempt.run();
                         logger.warn(
                             "{}; for troubleshooting guidance, see {}",

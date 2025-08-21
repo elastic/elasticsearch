@@ -22,51 +22,67 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class LimitOperator implements Operator {
-    /**
-     * Total number of position that are emitted by this operator.
-     */
-    private final int limit;
-
-    /**
-     * Remaining number of positions that will be emitted by this operator.
-     */
-    private int limitRemaining;
 
     /**
      * Count of pages that have been processed by this operator.
      */
     private int pagesProcessed;
 
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
+
     private Page lastInput;
 
+    private final Limiter limiter;
     private boolean finished;
 
-    public LimitOperator(int limit) {
-        this.limit = this.limitRemaining = limit;
+    public LimitOperator(Limiter limiter) {
+        this.limiter = limiter;
     }
 
-    public record Factory(int limit) implements OperatorFactory {
+    public static final class Factory implements OperatorFactory {
+        private final Limiter limiter;
+
+        public Factory(int limit) {
+            this.limiter = new Limiter(limit);
+        }
 
         @Override
         public LimitOperator get(DriverContext driverContext) {
-            return new LimitOperator(limit);
+            return new LimitOperator(limiter);
         }
 
         @Override
         public String describe() {
-            return "LimitOperator[limit = " + limit + "]";
+            return "LimitOperator[limit = " + limiter.limit() + "]";
         }
     }
 
     @Override
     public boolean needsInput() {
-        return finished == false && lastInput == null;
+        return finished == false && lastInput == null && limiter.remaining() > 0;
     }
 
     @Override
     public void addInput(Page page) {
         assert lastInput == null : "has pending input page";
-        lastInput = page;
+        final int acceptedRows = limiter.tryAccumulateHits(page.getPositionCount());
+        if (acceptedRows == 0) {
+            page.releaseBlocks();
+            assert isFinished();
+        } else if (acceptedRows < page.getPositionCount()) {
+            lastInput = truncatePage(page, acceptedRows);
+        } else {
+            lastInput = page;
+        }
+        rowsReceived += acceptedRows;
     }
 
     @Override
@@ -76,7 +92,7 @@ public class LimitOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && lastInput == null;
+        return lastInput == null && (finished || limiter.remaining() == 0);
     }
 
     @Override
@@ -84,46 +100,38 @@ public class LimitOperator implements Operator {
         if (lastInput == null) {
             return null;
         }
-
-        Page result;
-        if (lastInput.getPositionCount() <= limitRemaining) {
-            result = lastInput;
-            limitRemaining -= lastInput.getPositionCount();
-        } else {
-            int[] filter = new int[limitRemaining];
-            for (int i = 0; i < limitRemaining; i++) {
-                filter[i] = i;
-            }
-            Block[] blocks = new Block[lastInput.getBlockCount()];
-            boolean success = false;
-            try {
-                for (int b = 0; b < blocks.length; b++) {
-                    blocks[b] = lastInput.getBlock(b).filter(filter);
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.closeExpectNoException(lastInput::releaseBlocks, Releasables.wrap(blocks));
-                } else {
-                    lastInput.releaseBlocks();
-                }
-                lastInput = null;
-            }
-            result = new Page(blocks);
-            limitRemaining = 0;
-        }
-        if (limitRemaining == 0) {
-            finished = true;
-        }
+        final Page result = lastInput;
         lastInput = null;
         pagesProcessed++;
+        rowsEmitted += result.getPositionCount();
+        return result;
+    }
 
+    private static Page truncatePage(Page page, int upTo) {
+        int[] filter = new int[upTo];
+        for (int i = 0; i < upTo; i++) {
+            filter[i] = i;
+        }
+        final Block[] blocks = new Block[page.getBlockCount()];
+        Page result = null;
+        try {
+            for (int b = 0; b < blocks.length; b++) {
+                blocks[b] = page.getBlock(b).filter(filter);
+            }
+            result = new Page(blocks);
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(page::releaseBlocks, Releasables.wrap(blocks));
+            } else {
+                page.releaseBlocks();
+            }
+        }
         return result;
     }
 
     @Override
     public Status status() {
-        return new Status(limit, limitRemaining, pagesProcessed);
+        return new Status(limiter.limit(), limiter.remaining(), pagesProcessed, rowsReceived, rowsEmitted);
     }
 
     @Override
@@ -135,6 +143,8 @@ public class LimitOperator implements Operator {
 
     @Override
     public String toString() {
+        final int limitRemaining = limiter.remaining();
+        final int limit = limiter.limit();
         return "LimitOperator[limit = " + limitRemaining + "/" + limit + "]";
     }
 
@@ -160,16 +170,35 @@ public class LimitOperator implements Operator {
          */
         private final int pagesProcessed;
 
-        protected Status(int limit, int limitRemaining, int pagesProcessed) {
+        /**
+         * Count of rows this operator has received.
+         */
+        private final long rowsReceived;
+
+        /**
+         * Count of rows this operator has emitted.
+         */
+        private final long rowsEmitted;
+
+        protected Status(int limit, int limitRemaining, int pagesProcessed, long rowsReceived, long rowsEmitted) {
             this.limit = limit;
             this.limitRemaining = limitRemaining;
             this.pagesProcessed = pagesProcessed;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
         }
 
         protected Status(StreamInput in) throws IOException {
             limit = in.readVInt();
             limitRemaining = in.readVInt();
             pagesProcessed = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsReceived = 0;
+                rowsEmitted = 0;
+            }
         }
 
         @Override
@@ -177,6 +206,10 @@ public class LimitOperator implements Operator {
             out.writeVInt(limit);
             out.writeVInt(limitRemaining);
             out.writeVInt(pagesProcessed);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
+            }
         }
 
         @Override
@@ -205,12 +238,28 @@ public class LimitOperator implements Operator {
             return pagesProcessed;
         }
 
+        /**
+         * Count of rows this operator has received.
+         */
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        /**
+         * Count of rows this operator has emitted.
+         */
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("limit", limit);
             builder.field("limit_remaining", limitRemaining);
             builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
         }
 
@@ -219,12 +268,16 @@ public class LimitOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return limit == status.limit && limitRemaining == status.limitRemaining && pagesProcessed == status.pagesProcessed;
+            return limit == status.limit
+                && limitRemaining == status.limitRemaining
+                && pagesProcessed == status.pagesProcessed
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(limit, limitRemaining, pagesProcessed);
+            return Objects.hash(limit, limitRemaining, pagesProcessed, rowsReceived, rowsEmitted);
         }
 
         @Override

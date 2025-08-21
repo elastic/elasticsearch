@@ -23,7 +23,7 @@ public class DeprecationTestUtils {
     /**
      * Same as <code>DeprecationIndexingAppender#DEPRECATION_MESSAGES_DATA_STREAM</code>, but that class isn't visible from here.
      */
-    public static final String DATA_STREAM_NAME = ".logs-deprecation.elasticsearch-default";
+    public static final String DATA_STREAM_NAME = ".logs-elasticsearch.deprecation-default";
 
     static List<Map<String, Object>> getIndexedDeprecations(RestClient client) throws IOException {
         return getIndexedDeprecations(client, null);

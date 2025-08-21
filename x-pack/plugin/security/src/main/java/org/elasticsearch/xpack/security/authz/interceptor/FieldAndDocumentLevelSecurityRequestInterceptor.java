@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -42,11 +43,10 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
     }
 
     @Override
-    public void intercept(
+    public SubscribableListener<Void> intercept(
         RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener
+        AuthorizationInfo authorizationInfo
     ) {
         final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
@@ -72,11 +72,12 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                 }
             }
             if (false == accessControlByIndex.isEmpty()) {
+                final SubscribableListener<Void> listener = new SubscribableListener<>();
                 disableFeatures(indicesRequest, accessControlByIndex, listener);
-                return;
+                return listener;
             }
         }
-        listener.onResponse(null);
+        return SubscribableListener.nullSuccess();
     }
 
     abstract void disableFeatures(

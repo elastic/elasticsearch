@@ -39,31 +39,31 @@ public class AsyncOperatorStatusTests extends AbstractWireSerializingTestCase<As
             case 0 -> new AsyncOperator.Status(
                 randomValueOtherThan(in.receivedPages(), ESTestCase::randomNonNegativeLong),
                 in.completedPages(),
-                in.totalTimeInMillis()
+                in.procesNanos()
             );
             case 1 -> new AsyncOperator.Status(
                 in.receivedPages(),
                 randomValueOtherThan(in.completedPages(), ESTestCase::randomNonNegativeLong),
-                in.totalTimeInMillis()
+                in.procesNanos()
             );
             case 2 -> new AsyncOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
-                randomValueOtherThan(in.totalTimeInMillis(), ESTestCase::randomNonNegativeLong)
+                randomValueOtherThan(in.procesNanos(), ESTestCase::randomNonNegativeLong)
             );
             default -> throw new AssertionError("unknown ");
         };
     }
 
     public void testToXContent() {
-        var status = new AsyncOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis());
+        var status = new AsyncOperator.Status(100, 50, TimeValue.timeValueNanos(10).nanos());
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
+              "process_nanos" : 10,
+              "process_time" : "10nanos",
               "received_pages" : 100,
-              "completed_pages" : 50,
-              "total_time_in_millis" : 10000,
-              "total_time" : "10s"
+              "completed_pages" : 50
             }"""));
     }
 }

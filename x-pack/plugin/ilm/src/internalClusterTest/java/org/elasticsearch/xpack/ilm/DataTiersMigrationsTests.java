@@ -30,9 +30,8 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -57,7 +56,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
     }
 
     @Override
@@ -100,9 +99,9 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         logger.info("starting a cold data node");
         internalCluster().startNode(coldNode(Settings.EMPTY));
 
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.emptyMap());
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
-        Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of());
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of());
+        Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
         PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
@@ -117,7 +116,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         assertTrue(res.isAcknowledged());
 
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -128,7 +127,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         logger.info("starting a warm data node");
         internalCluster().startNode(warmNode(Settings.EMPTY));
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -141,7 +140,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
 
         // wait for lifecycle to complete in the cold phase after the index has been migrated to the cold node
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -161,9 +160,9 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         logger.info("starting a cold data node");
         internalCluster().startNode(coldNode(Settings.EMPTY));
 
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.emptyMap());
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
-        Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of());
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of());
+        Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
         PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
@@ -178,7 +177,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         assertTrue(res.isAcknowledged());
 
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -198,7 +197,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         // 1. start another cold node so both the primary and replica can relocate to the cold nodes
         // 2. remove the tier routing setting from the index again (we're doing this below)
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -211,7 +210,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
 
         // wait for lifecycle to complete in the cold phase
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);

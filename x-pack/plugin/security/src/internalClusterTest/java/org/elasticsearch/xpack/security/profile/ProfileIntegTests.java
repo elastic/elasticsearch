@@ -99,13 +99,28 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
+    protected static final String ANONYMOUS_ROLE = "anonymous_role";
+
+    @Override
+    protected String configRoles() {
+        return super.configRoles()
+            + "\n"
+            + ANONYMOUS_ROLE
+            + ":\n"
+            + "  cluster:\n"
+            + "    - 'manage_own_api_key'\n"
+            + "    - 'manage_token'\n"
+            + "    - 'manage_service_account'\n"
+            + "    - 'monitor'\n";
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // This setting tests that the setting is registered
         builder.put("xpack.security.authc.domains.my_domain.realms", "file");
         // enable anonymous
-        builder.putList(AnonymousUser.ROLES_SETTING.getKey(), RAC_ROLE);
+        builder.putList(AnonymousUser.ROLES_SETTING.getKey(), ANONYMOUS_ROLE);
         return builder.build();
     }
 
@@ -133,7 +148,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final Settings settings = getIndexResponse.getSettings().get(INTERNAL_SECURITY_PROFILE_INDEX_8);
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
         assertThat(settings.get("index.auto_expand_replicas"), equalTo("0-1"));
-        assertThat(settings.get("index.routing.allocation.include._tier_preference"), equalTo("data_content"));
+        assertThat(settings.get("index.routing.allocation.include._tier_preference"), equalTo("data_hot,data_content"));
 
         final Map<String, Object> mappings = getIndexResponse.getMappings().get(INTERNAL_SECURITY_PROFILE_INDEX_8).getSourceAsMap();
 
@@ -451,7 +466,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final List<String> spaces = List.of("space1", "space2", "space3", "space4", "*");
         final List<Profile> profiles = spaces.stream().map(space -> {
             final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
-            final String lastName = randomAlphaOfLengthBetween(3, 8);
+            final String lastName = randomAlphaOfLengthBetween(3, 8) + space;
             final Authentication.RealmRef realmRef = randomBoolean()
                 ? AuthenticationTestHelper.randomRealmRef(false)
                 : new Authentication.RealmRef(
@@ -557,8 +572,11 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             equalTo(profileHits4.subList(2, profileHits4.size()))
         );
 
+        // Exclude profile for "*" space since that can match _all_ profiles, if the full name is a substring of "user" or the name of
+        // another profile
+        final List<Profile> nonWildcardProfiles = profiles.stream().filter(p -> false == p.user().fullName().endsWith("*")).toList();
         // A record will not be included if name does not match even when it has matching hint
-        final Profile hintedProfile5 = randomFrom(profiles);
+        final Profile hintedProfile5 = randomFrom(nonWildcardProfiles);
         final List<Profile> profileHits5 = Arrays.stream(
             doSuggest(
                 Set.of(),
@@ -856,7 +874,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(dataKeys, name, 10, hint);
         final SuggestProfilesResponse suggestProfilesResponse = client().execute(SuggestProfilesAction.INSTANCE, suggestProfilesRequest)
             .actionGet();
-        assertThat(suggestProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));
+        assertThat(suggestProfilesResponse.getTotalHits().relation(), is(TotalHits.Relation.EQUAL_TO));
         return suggestProfilesResponse.getProfileHits();
     }
 
@@ -869,7 +887,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
     }
 
     private GetIndexResponse getProfileIndexResponse() {
-        final GetIndexRequest getIndexRequest = new GetIndexRequest();
+        final GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(".*");
         return client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
     }

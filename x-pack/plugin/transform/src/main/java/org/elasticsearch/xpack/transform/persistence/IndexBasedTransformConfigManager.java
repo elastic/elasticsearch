@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
@@ -129,6 +130,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void putTransformCheckpoint(TransformCheckpoint checkpoint, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot store Transform while the Transform feature is upgrading."));
+            return;
+        }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = checkpoint.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
@@ -148,6 +153,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void putTransformConfiguration(TransformConfig transformConfig, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot store Transform while the Transform feature is upgrading."));
+            return;
+        }
         putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener);
     }
 
@@ -157,7 +166,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
         ActionListener<Boolean> listener
     ) {
-        if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot update Transform while the Transform feature is upgrading."));
+            return;
+        }
+        if (isLatestTransformIndex(seqNoPrimaryTermAndIndex.getIndex())) {
             // update the config in the same, current index using optimistic concurrency control
             putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, seqNoPrimaryTermAndIndex, listener);
         } else {
@@ -168,7 +181,26 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
+    public boolean isLatestTransformIndex(String indexName) {
+        if (TransformInternalIndexConstants.LATEST_INDEX_NAME.equals(indexName)) {
+            return true;
+        }
+
+        // in some cases, the System Index gets reindexed and LATEST_INDEX_NAME is now an alias pointing to that reindexed index
+        // this mostly likely happens after the SystemIndexMigrator ran
+        // we need to check if the LATEST_INDEX_NAME is now an alias and points to the indexName
+        var metadata = clusterService.state().projectState().metadata();
+        var indicesForAlias = metadata.aliasedIndices(TransformInternalIndexConstants.LATEST_INDEX_NAME);
+        var index = metadata.index(indexName);
+        return index != null && indicesForAlias.contains(index.getIndex());
+    }
+
+    @Override
     public void deleteOldTransformConfigurations(String transformId, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot delete Transform while the Transform feature is upgrading."));
+            return;
+        }
         DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
         deleteByQueryRequest.indices(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
@@ -196,6 +228,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Long> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot delete Transform while the Transform feature is upgrading."));
+            return;
+        }
         DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
         deleteByQueryRequest.indices(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
@@ -213,6 +249,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot delete checkpoints while the Transform feature is upgrading."));
+            return;
+        }
         DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
         deleteByQueryRequest.indices(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
@@ -246,6 +286,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void deleteOldIndices(ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot delete internal indices while the Transform feature is upgrading."));
+            return;
+        }
         ClusterState state = clusterService.state();
         Set<String> indicesToDelete = new HashSet<>();
 
@@ -509,7 +553,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         final ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, allowNoMatch);
 
         executeAsyncWithOrigin(request, foundConfigsListener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
-            long totalHits = searchResponse.getHits().getTotalHits().value;
+            long totalHits = searchResponse.getHits().getTotalHits().value();
             // important: preserve order
             Set<String> ids = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
             Set<TransformConfig> configs = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
@@ -568,6 +612,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void resetTransform(String transformId, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot reset Transform while the Transform feature is upgrading."));
+            return;
+        }
         ActionListener<BulkByScrollResponse> deleteListener = ActionListener.wrap(dbqResponse -> listener.onResponse(true), e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(
@@ -589,7 +637,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     .trackTotalHitsUpTo(1)
             );
         executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, deleteListener.delegateFailureAndWrap((l, searchResponse) -> {
-            if (searchResponse.getHits().getTotalHits().value == 0) {
+            if (searchResponse.getHits().getTotalHits().value() == 0) {
                 listener.onFailure(
                     new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
                 );
@@ -613,6 +661,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void deleteTransform(String transformId, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot delete Transform while the Transform feature is upgrading."));
+            return;
+        }
         DeleteByQueryRequest request = createDeleteByQueryRequest();
 
         request.indices(TransformInternalIndexConstants.INDEX_NAME_PATTERN, TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED);
@@ -645,6 +697,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
         ActionListener<SeqNoPrimaryTermAndIndex> listener
     ) {
+        if (isUpgrading()) {
+            listener.onFailure(conflictStatusException("Cannot store Transform while the Transform feature is upgrading."));
+            return;
+        }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = storedDoc.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
@@ -656,7 +712,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 // could have been called, see gh#80073
                 indexRequest.opType(DocWriteRequest.OpType.INDEX);
                 // if on the latest index use optimistic concurrency control in addition
-                if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+                if (isLatestTransformIndex(seqNoPrimaryTermAndIndex.getIndex())) {
                     indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
                         .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
                 }
@@ -938,6 +994,14 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
             l.onResponse(new Tuple<>(totalHits, collectedIds));
         }), client::search);
+    }
+
+    private boolean isUpgrading() {
+        return TransformMetadata.upgradeMode(clusterService.state());
+    }
+
+    private Exception conflictStatusException(String message) {
+        return new ElasticsearchStatusException(message, RestStatus.CONFLICT);
     }
 
     private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByScrollResponse response) {

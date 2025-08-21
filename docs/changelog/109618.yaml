@@ -1,6 +1,0 @@
-pr: 109618
-summary: Fail cluster state API if blocked
-area: Cluster Coordination
-type: bug
-issues:
- - 107503

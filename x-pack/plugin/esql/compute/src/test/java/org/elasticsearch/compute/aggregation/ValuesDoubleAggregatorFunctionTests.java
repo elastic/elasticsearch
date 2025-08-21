@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -28,8 +29,8 @@ public class ValuesDoubleAggregatorFunctionTests extends AggregatorFunctionTestC
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesDoubleAggregatorFunctionSupplier();
     }
 
     @Override
@@ -38,10 +39,10 @@ public class ValuesDoubleAggregatorFunctionTests extends AggregatorFunctionTestC
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
+    public void assertSimpleOutput(List<Page> input, Block result) {
         TreeSet<?> set = new TreeSet<>((List<?>) BlockUtils.toJavaObject(result, 0));
         Object[] values = input.stream()
-            .flatMapToDouble(AggregatorFunctionTestCase::allDoubles)
+            .flatMapToDouble(p -> allDoubles(p.getBlock(0)))
             .boxed()
             .collect(Collectors.toSet())
             .toArray(Object[]::new);

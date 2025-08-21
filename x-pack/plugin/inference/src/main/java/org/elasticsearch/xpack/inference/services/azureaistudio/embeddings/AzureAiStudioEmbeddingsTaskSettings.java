@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -70,13 +71,18 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return user == null || user.isEmpty();
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override
@@ -105,5 +111,13 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hashCode(user);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AzureAiStudioEmbeddingsRequestTaskSettings requestSettings = AzureAiStudioEmbeddingsRequestTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return AzureAiStudioEmbeddingsTaskSettings.of(this, requestSettings);
     }
 }

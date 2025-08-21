@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -49,7 +50,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .setWaitForActiveShards(0)
             .get()
             .getIndex();
-        var idxSettings = indicesAdmin().prepareGetIndex().addIndices(index).get().getSettings().get(dsIndexName);
+        var idxSettings = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(index).get().getSettings().get(dsIndexName);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         logger.info("--> waiting for {} to be yellow", index);
@@ -61,7 +62,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
         // new index name should have the rolled over name
         assertNotEquals(dsIndexName, rolledOverIndexName);
 
-        idxSettings = indicesAdmin().prepareGetIndex().addIndices(index).get().getSettings().get(rolledOverIndexName);
+        idxSettings = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(index).get().getSettings().get(rolledOverIndexName);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
     }
 

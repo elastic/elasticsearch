@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
@@ -32,13 +33,12 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -143,11 +143,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         assert this.enabled;
         assert this.services == null;
 
-        return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
-            var openTelemetry = GlobalOpenTelemetry.get();
-            var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
-            return new APMServices(tracer, openTelemetry);
-        });
+        var openTelemetry = GlobalOpenTelemetry.get();
+        var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
+        return new APMServices(tracer, openTelemetry);
     }
 
     private void destroyApmServices() {
@@ -173,7 +171,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
 
-        spans.computeIfAbsent(spanId, _spanId -> AccessController.doPrivileged((PrivilegedAction<Context>) () -> {
+        spans.computeIfAbsent(spanId, _spanId -> {
             logger.trace("Tracing [{}] [{}]", spanId, spanName);
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
 
@@ -196,7 +194,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             updateThreadContext(traceContext, services, contextForNewSpan);
 
             return contextForNewSpan;
-        }));
+        });
     }
 
     /**
@@ -237,10 +235,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
 
         // Attempt to fetch a local parent context first, otherwise look for a remote parent
-        Context parentContext = traceContext.getTransient("parent_" + Task.APM_TRACE_CONTEXT);
+        Context parentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
         if (parentContext == null) {
-            final String traceParentHeader = traceContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
-            final String traceStateHeader = traceContext.getTransient("parent_" + Task.TRACE_STATE);
+            final String traceParentHeader = traceContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER);
+            final String traceStateHeader = traceContext.getTransient(Task.PARENT_TRACE_STATE);
 
             if (traceParentHeader != null) {
                 final Map<String, String> traceContextMap = Maps.newMapWithExpectedSize(2);
@@ -280,8 +278,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public Releasable withScope(Traceable traceable) {
         final Context context = spans.get(traceable.getSpanId());
         if (context != null) {
-            var scope = AccessController.doPrivileged((PrivilegedAction<Scope>) context::makeCurrent);
-            return scope::close;
+            return context.makeCurrent()::close;
         }
         return () -> {};
     }
@@ -307,6 +304,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                     spanBuilder.setAttribute(key, (Double) value);
                 } else if (value instanceof Boolean) {
                     spanBuilder.setAttribute(key, (Boolean) value);
+                } else if (value == null) {
+                    throw new IllegalArgumentException("span attributes cannot have a null value");
                 } else {
                     throw new IllegalArgumentException(
                         "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
@@ -378,10 +377,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
         if (span != null) {
             logger.trace("Finishing trace [{}]", traceable);
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                span.end();
-                return null;
-            });
+            span.end();
         }
     }
 
@@ -390,10 +386,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     @Override
     public void stopTrace() {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            Span.current().end();
-            return null;
-        });
+        Span.current().end();
     }
 
     @Override
@@ -438,13 +431,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             ? includeAutomaton
             : Operations.minus(includeAutomaton, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-        return new CharacterRunAutomaton(finalAutomaton);
+        return new CharacterRunAutomaton(MinimizationOperations.minimize(finalAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static Automaton patternsToAutomaton(List<String> patterns) {
         final List<Automaton> automata = patterns.stream().map(s -> {
             final String regex = s.replace(".", "\\.").replace("*", ".*");
-            return new RegExp(regex).toAutomaton();
+            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
         }).toList();
         if (automata.isEmpty()) {
             return null;

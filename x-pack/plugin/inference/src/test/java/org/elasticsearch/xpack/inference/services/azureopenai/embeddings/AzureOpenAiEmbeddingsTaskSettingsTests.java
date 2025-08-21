@@ -12,19 +12,25 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.USER;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiEmbeddingsTaskSettings> {
 
     public static AzureOpenAiEmbeddingsTaskSettings createRandomWithUser() {
         return new AzureOpenAiEmbeddingsTaskSettings(randomAlphaOfLength(15));
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }
 
     /**
@@ -35,17 +41,31 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
         return new AzureOpenAiEmbeddingsTaskSettings(user);
     }
 
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        AzureOpenAiEmbeddingsTaskSettings updatedSettings = (AzureOpenAiEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            newSettings.user() == null ? Map.of() : Map.of(USER, newSettings.user())
+        );
+
+        if (newSettings.user() == null) {
+            assertEquals(initialSettings.user(), updatedSettings.user());
+        } else {
+            assertEquals(newSettings.user(), updatedSettings.user());
+        }
+    }
+
     public void testFromMap_WithUser() {
         assertEquals(
             new AzureOpenAiEmbeddingsTaskSettings("user"),
-            AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")))
+            AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(USER, "user")))
         );
     }
 
     public void testFromMap_UserIsEmptyString() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "")))
+            () -> AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(USER, "")))
         );
 
         MatcherAssert.assertThat(
@@ -60,7 +80,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
-        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")));
+        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(USER, "user")));
 
         var overriddenTaskSettings = AzureOpenAiEmbeddingsTaskSettings.of(
             taskSettings,
@@ -70,11 +90,9 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testOverrideWith_UsesOverriddenSettings() {
-        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")));
+        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(USER, "user")));
 
-        var requestTaskSettings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user2"))
-        );
+        var requestTaskSettings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(USER, "user2")));
 
         var overriddenTaskSettings = AzureOpenAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureOpenAiEmbeddingsTaskSettings("user2")));
@@ -99,7 +117,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
         var map = new HashMap<String, Object>();
 
         if (user != null) {
-            map.put(AzureOpenAiServiceFields.USER, user);
+            map.put(USER, user);
         }
 
         return map;

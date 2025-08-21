@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -357,8 +358,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null && excludeValues != null) {
             throw new IllegalArgumentException();
         }
-        this.include = include == null ? null : new RegExp(include);
-        this.exclude = exclude == null ? null : new RegExp(exclude);
+        this.include = include == null ? null : new RegExp(include, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
+        this.exclude = exclude == null ? null : new RegExp(exclude, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
         this.incZeroBasedPartition = 0;
@@ -528,7 +529,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null) {
             a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
-        return a;
+        return Operations.determinize(a, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     public StringFilter convertToStringFilter(DocValueFormat format) {

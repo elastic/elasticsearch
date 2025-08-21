@@ -11,11 +11,11 @@ import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.util.Base64URL;
-import com.nimbusds.jose.util.JSONObjectUtils;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
@@ -28,11 +28,13 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+import org.apache.http.nio.conn.NoopIOSessionStrategy;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
@@ -45,11 +47,14 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -64,11 +69,16 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
+
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_HOST;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_PORT;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_SCHEME;
 
 /**
  * Utilities for JWT realm.
@@ -224,7 +234,8 @@ public class JwtUtil {
         throws SettingsException {
         try {
             final Path path = JwtUtil.resolvePath(environment, jwkSetPathPkc);
-            return Files.readAllBytes(path);
+            byte[] bytes = AccessController.doPrivileged((PrivilegedExceptionAction<byte[]>) () -> Files.readAllBytes(path));
+            return bytes;
         } catch (Exception e) {
             throw new SettingsException(
                 "Failed to read contents for setting [" + jwkSetConfigKeyPkc + "] value [" + jwkSetPathPkc + "].",
@@ -237,7 +248,13 @@ public class JwtUtil {
         if (jwkSet == null) {
             return null;
         }
-        return JSONObjectUtils.toJSONString(jwkSet.toJSONObject(publicKeysOnly));
+        Map<String, Object> jwkJson = jwkSet.toJSONObject(publicKeysOnly);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.map(jwkJson);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 
     public static String serializeJwkHmacOidc(final JWK key) {
@@ -260,6 +277,7 @@ public class JwtUtil {
                 final SSLContext clientContext = sslService.sslContext(sslConfiguration);
                 final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
                 final Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
+                    .register("http", NoopIOSessionStrategy.INSTANCE)
                     .register("https", new SSLIOSessionStrategy(clientContext, verifier))
                     .build();
                 final PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
@@ -275,6 +293,15 @@ public class JwtUtil {
                 final HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
                     .setDefaultRequestConfig(requestConfig);
+                if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
+                    httpAsyncClientBuilder.setProxy(
+                        new HttpHost(
+                            realmConfig.getSetting(HTTP_PROXY_HOST),
+                            realmConfig.getSetting(HTTP_PROXY_PORT),
+                            realmConfig.getSetting(HTTP_PROXY_SCHEME)
+                        )
+                    );
+                }
                 final CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
                 httpAsyncClient.start();
                 return httpAsyncClient;
@@ -327,7 +354,7 @@ public class JwtUtil {
     }
 
     public static Path resolvePath(final Environment environment, final String jwkSetPath) {
-        final Path directoryPath = environment.configFile();
+        final Path directoryPath = environment.configDir();
         return directoryPath.resolve(jwkSetPath);
     }
 

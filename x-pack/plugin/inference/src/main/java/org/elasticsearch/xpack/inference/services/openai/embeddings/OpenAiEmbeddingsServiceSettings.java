@@ -96,7 +96,6 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -150,7 +149,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.uri = uri;
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.organizationId = organizationId;
         this.similarity = similarity;
         this.dimensions = dimensions;
@@ -202,7 +201,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
             modelId = "unset";
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings = new RateLimitSettings(in);
         } else {
             rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
@@ -247,6 +246,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         return dimensions;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }
@@ -329,7 +329,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
             out.writeString(modelId);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
     }

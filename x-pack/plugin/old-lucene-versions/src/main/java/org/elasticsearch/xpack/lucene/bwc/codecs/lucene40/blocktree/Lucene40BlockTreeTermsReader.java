@@ -252,6 +252,10 @@ public final class Lucene40BlockTreeTermsReader extends FieldsProducer {
                         final long indexStartFP = indexMetaIn.readVLong();
                         FieldReader previous = fieldMap.put(
                             fieldInfo.name,
+                            /*
+                            The FieldReader used differs from the original Lucene variant, in that it is more flexible
+                            around the versions it can read from.
+                             */
                             new FieldReader(
                                 this,
                                 fieldInfo,

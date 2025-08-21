@@ -1,0 +1,74 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [enable_lookup_join_on_aliases]
+      reason: "uses LOOKUP JOIN"
+
+  - do:
+      cluster.put_component_template:
+        name: my_settings
+        body:
+          template:
+            settings:
+              index:
+                mode: lookup
+
+
+  - do:
+      cluster.put_component_template:
+        name: my_mappings
+        body:
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                   type: date
+                x:
+                  type: keyword
+                y:
+                  type: keyword
+
+  - do:
+      indices.put_index_template:
+        name: my_index_template
+        body:
+          index_patterns: my_data_stream*
+          data_stream: {}
+          composed_of: [ "my_mappings", "my_settings" ]
+          priority: 500
+
+  - do:
+      indices.create_data_stream:
+        name: my_data_stream
+
+  - do:
+      index:
+        index:  my_data_stream
+        body:
+          '@timestamp': '2020-12-12'
+          'x': 'foo'
+          'y': 'y1'
+
+  - do:
+      indices.refresh:
+        index: my_data_stream
+---
+"data streams supported in LOOKUP JOIN":
+  - do:
+      esql.query:
+        body:
+          query: 'ROW x = "foo" | LOOKUP JOIN my_data_stream ON x | KEEP x, y | LIMIT 1'
+
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: ["foo", "y1"]}
+
+
+

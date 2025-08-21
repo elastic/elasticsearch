@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -256,9 +257,14 @@ public class AnalyticsProcessManager {
         long rowsProcessed = 0;
 
         while (dataExtractor.hasNext()) {
-            Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+            Optional<SearchHit[]> rows = dataExtractor.next();
             if (rows.isPresent()) {
-                for (DataFrameDataExtractor.Row row : rows.get()) {
+                for (SearchHit searchHit : rows.get()) {
+                    if (dataExtractor.isCancelled()) {
+                        break;
+                    }
+                    rowsProcessed++;
+                    DataFrameDataExtractor.Row row = dataExtractor.createRow(searchHit);
                     if (row.shouldSkip()) {
                         dataCountsTracker.incrementSkippedDocsCount();
                     } else {
@@ -271,7 +277,6 @@ public class AnalyticsProcessManager {
                         }
                     }
                 }
-                rowsProcessed += rows.get().size();
                 progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }

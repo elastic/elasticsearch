@@ -1,5 +1,11 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -7,6 +13,7 @@ apply plugin: 'elasticsearch.rest-resources'
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   javaRestTestImplementation project(":test:framework")
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
 }
 
@@ -34,13 +41,13 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   systemProperty("tests.use.fixture", Boolean.toString(useFixture))
   systemProperty 'test.s3.bucket', s3Bucket
   systemProperty("s3AccessKey", s3AccessKey)
   systemProperty("s3SecretKey", s3SecretKey)
 
-  nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + BuildParams.testSeed : 'base_path_integration_tests'
+  nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + buildParams.testSeed : 'base_path_integration_tests'
 }
 
 tasks.register("s3ThirdPartyTest") {

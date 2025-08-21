@@ -38,6 +38,56 @@ emp_no:integer | l:integer
 10003 | 5
 ;
 
+bitLength
+required_capability: fn_bit_length
+row a = "hello", b = "" | eval y = bit_length(a) + bit_length(b);
+
+a:keyword | b:keyword | y:integer
+hello | | 40
+;
+
+bitLengthWithNonAsciiChars
+required_capability: fn_bit_length
+row a = "¡", b = "❗️" | eval y = bit_length(a) | eval z = bit_length(b);
+
+a:keyword | b:keyword | y:integer | z:integer
+¡ | ❗️ | 16 | 48
+;
+
+foldBitLength
+required_capability: fn_bit_length
+row a = 1 | eval b = bit_length("hello");
+
+a:integer | b:integer
+1 | 40
+;
+
+bitLengthAndSourceQuoting
+required_capability: fn_bit_length
+from "employees" | sort emp_no | limit 3 | eval l = bit_length(first_name) | keep emp_no, l;
+
+emp_no:integer | l:integer
+10001 | 48
+10002 | 56
+10003 | 40
+;
+
+bitLengthInsideOtherFunction
+required_capability: fn_bit_length
+row a = "abc", b = "de" | eval g = greatest(bit_length(a), bit_length(b), bit_length("fghi"));
+
+a:keyword | b:keyword | g:integer
+abc | de | 32
+;
+
+bitLengthNull
+required_capability: fn_bit_length
+row a = "abc" | eval l = bit_length(null);
+
+a:string | l:integer
+abc | null
+;
+
 startsWithConstant
 from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | keep emp_no, first_name, f_S;
 
@@ -340,7 +390,6 @@ emp_no:integer | name:keyword
 
 // Note: no matches in MV returned
 in
-required_capability: mv_warn
 
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
@@ -532,7 +581,6 @@ emp_no:integer |positions:keyword                                               
 ;
 
 lessThanMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions < \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -545,7 +593,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 greaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[job_positions > \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -562,7 +609,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions == \\\"Accountant\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -574,7 +620,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToOrEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions\] failed, treating result as null. Only first 20 failures recorded.
@@ -587,7 +632,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 inMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions in \(\\\"Accountant\\\", \\"Tech Lead\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -600,7 +644,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 notLessThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions < \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -617,7 +660,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 notGreaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions > \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -630,7 +672,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 notEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions == \\\"Accountant\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -693,10 +734,11 @@ null                                                                            
 ;
 
 convertFromFloats
+required_capability: fix_precision_of_scaled_float_fields
 from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | keep emp_no, double, float, scaled_float, half_float, height  | limit 2;
 
 emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_float:keyword   |height:double
-10001          |2.03           |2.0299999713897705|2.0300000000000002     |2.029296875          |2.03
+10001          |2.03           |2.0299999713897705|2.03                   |2.029296875          |2.03
 10002          |2.08           |2.0799999237060547|2.08                   |2.080078125          |2.08
 ;
 
@@ -887,7 +929,6 @@ beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2
 ;
 
 lengthOfText
-required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
 ignoreOrder:true
@@ -901,7 +942,6 @@ null                   | 19
 ;
 
 startsWithText
-required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
 ignoreOrder:true
@@ -914,8 +954,48 @@ false                  | null
 false                  | null
 ;
 
+startsWithLucenePushdown
+
+from hosts
+| where starts_with(host, "bet") and starts_with(host_group, "Kuber")
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+startsWithLuceneDisabledPushdown
+
+from hosts
+| where host == "unknown host" or (starts_with(host, "bet") and starts_with(host_group, "Kuber"))
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+startsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
+
+from hosts
+| where starts_with(description, "epsilon")
+| keep description
+| sort description;
+
+warningRegex: evaluation of \[starts_with\(description, \\\"epsilon\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+description:text
+epsilon gw instance
+;
+
 substringOfText
-required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
 ignoreOrder:true
@@ -929,7 +1009,6 @@ Gatew                  | null
 ;
 
 concatOfText
-required_capability: mv_warn
 
 from hosts | where host == "epsilon" | eval l1 = concat(host, "/", host_group), l2 = concat(host_group, "/", description) | sort l1 |  keep l1, l2;
 warning:Line 1:86: evaluation of [concat(host_group, \"/\", description)] failed, treating result as null. Only first 20 failures recorded.
@@ -1030,14 +1109,33 @@ Gatewayinstances|Gateway instances
 null            |null             
 ;
 
+replaceWarnings
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| SORT first_name ASC
+| EVAL
+    regex = CASE(first_name == "Alejandro", "(", ""),
+    result = replace(first_name, regex, "")
+| KEEP first_name, result
+| LIMIT 1
+;
+
+warningRegex:Line 5:10: evaluation of \[replace\(first_name, regex, \\"\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 5:10: java.util.regex.PatternSyntaxException: Unclosed group near index 1(%0D)?%0A\(
+
+first_name:keyword | result:keyword
+Alejandro          | null
+;
+
 left
 // tag::left[]
 FROM employees
 | KEEP last_name
 | EVAL left = LEFT(last_name, 3)
+// end::left[]
 | SORT last_name ASC
 | LIMIT 5
-// end::left[]
 ;
 
 // tag::left-result[]
@@ -1055,9 +1153,9 @@ right
 FROM employees
 | KEEP last_name
 | EVAL right = RIGHT(last_name, 3)
+// end::right[]
 | SORT last_name ASC
 | LIMIT 5
-// end::right[]
 ;
 
 // tag::right-result[]
@@ -1142,6 +1240,148 @@ Bernatsky      |false
 ;
 
 
+endsWithLucenePushdown
+
+from hosts
+| where ends_with(host, "ta") and ends_with(host_group, "cluster")
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+endsWithLuceneDisabledPushdown
+
+from hosts
+| where host == "unknown host" or (ends_with(host, "ta") and ends_with(host_group, "cluster"))
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+endsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
+
+from hosts
+| where ends_with(description, "host")
+| keep description
+| sort description;
+
+warningRegex: evaluation of \[ends_with\(description, \\\"host\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+description:text
+;
+
+
+lucenePushdownMultipleWhere
+
+from hosts
+| where starts_with(host, "bet")
+| keep host, host_group
+| sort host, host_group
+| where ends_with(host_group, "cluster");
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+lucenePushdownMultipleIndices
+required_capability: index_metadata_field
+required_capability: casting_operator
+
+from airports* metadata _index
+| where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
+| keep abbrev, name, _index
+| sort abbrev, name, _index;
+
+abbrev:keyword | name:text | _index:keyword
+LUH            | Sahnewal  | airports
+LUH            | Sahnewal  | airports_mp
+LUH            | Sahnewal  | airports_no_doc_values
+LUH            | Sahnewal  | airports_not_indexed
+LUH            | Sahnewal  | airports_not_indexed_nor_doc_values
+LUH            | Sahnewal  | airports_web
+;
+
+lucenePushdownOr
+required_capability: casting_operator
+
+from airports
+| where starts_with(name::keyword, "Sahn") or ends_with(abbrev, "UH")
+| keep abbrev, name
+| sort abbrev, name;
+
+abbrev:keyword | name:text
+AUH            | Abu Dhabi Int'l  
+LUH            | Sahnewal         
+RUH            | King Khalid Int'l
+;
+
+lucenePushdownMultipleOr
+required_capability: casting_operator
+
+from airports
+| where starts_with(name::keyword, "Sahn") or ends_with(abbrev, "UH") or starts_with(abbrev, "OOL")
+| keep abbrev, name
+| sort abbrev, name;
+
+abbrev:keyword | name:text
+AUH            | Abu Dhabi Int'l
+LUH            | Sahnewal
+OOL            | Gold Coast
+RUH            | King Khalid Int'l
+;
+
+lucenePushdownMultipleAnd
+required_capability: index_metadata_field
+required_capability: casting_operator
+
+from airports metadata _index
+| where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
+| where ends_with(name::keyword, "al")
+| keep abbrev, name, _index
+| sort abbrev, name, _index;
+
+abbrev:keyword | name:text | _index:keyword
+LUH            | Sahnewal  | airports
+;
+
+lucenePushdownMixAndOr
+required_capability: casting_operator
+
+from airports
+| where starts_with(name::keyword, "Sahn") and (starts_with(name::keyword, "Abc") or ends_with(abbrev, "UH"))
+| keep abbrev, name, scalerank
+| sort abbrev, name;
+
+abbrev:keyword | name:text | scalerank:integer
+LUH            | Sahnewal  | 9
+;
+
+lucenePushdownMixOrAnd
+required_capability: index_metadata_field
+required_capability: casting_operator
+
+from airports* metadata _index
+| where starts_with(name::keyword, "Sahn") or (starts_with(abbrev, "G") and ends_with(name::keyword, "Falls Int'l"))
+| where ends_with(_index, "airports")
+| keep abbrev, name, scalerank, _index
+| sort abbrev;
+
+abbrev:keyword | name:text         | scalerank:integer | _index:keyword
+GTF            | Great Falls Int'l | 8                 | airports      
+LUH            | Sahnewal          | 9                 | airports
+;
 
 toLowerRow#[skip:-8.12.99]
 // tag::to_lower[]
@@ -1162,6 +1402,20 @@ from employees | sort emp_no | eval name_lower = TO_LOWER(first_name) | keep emp
 
 emp_no:integer  | first_name:keyword    | name_lower:keyword
 10001           | Georgi                | georgi
+;
+
+
+toLowerMv
+required_capability: to_lower_mv
+// tag::to_lower_mv[]
+ROW v = TO_LOWER(["Some", "Text"])
+// end::to_lower_mv[]
+;
+
+// tag::to_lower_mv-result[]
+   v:keyword
+["some", "text"]
+// end::to_lower_mv-result[]
 ;
 
 
@@ -1187,12 +1441,318 @@ emp_no:integer  | first_name:keyword    | name_upper:keyword
 ;
 
 
+toUpperMv
+required_capability: to_lower_mv
+// tag::to_upper_mv[]
+ROW v = TO_UPPER(["Some", "Text"])
+// end::to_upper_mv[]
+;
+
+// tag::to_upper_mv-result[]
+   v:keyword
+["SOME", "TEXT"]
+// end::to_upper_mv-result[]
+;
+
+
 toUpperLowerUnicode#[skip:-8.12.99]
 row a = "π/2 + a + B + Λ ºC" | eval lower = to_lower(a), upper = to_upper(a) | keep a, upper, lower;
 
 a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
+
+equalsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_upper(first_name) == "GEORGI"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+10001           | Georgi
+;
+
+equalsToUpperNestedPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_upper(to_upper(to_lower(first_name))) == "GEORGI"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+10001           | Georgi
+;
+
+negatedEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| sort emp_no
+| where not(to_upper(first_name) == "GEORGI")
+| keep emp_no, first_name
+| limit 1
+;
+
+emp_no:integer  | first_name:keyword
+10002           | Bezalel
+;
+
+notEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| sort emp_no
+| where to_upper(first_name) != "GEORGI"
+| keep emp_no, first_name
+| limit 1
+;
+
+emp_no:integer  | first_name:keyword
+10002           | Bezalel
+;
+
+negatedNotEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| sort emp_no
+| where not(to_upper(first_name) != "GEORGI")
+| keep emp_no, first_name
+| limit 1
+;
+
+emp_no:integer  | first_name:keyword
+10001           | Georgi
+;
+
+equalsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_upper(first_name) == "Georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+negatedEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where not(to_upper(first_name) == "Georgi")
+| stats c = count()
+;
+
+c:long
+90
+;
+
+equalsToUpperNullFolded#[skip:-8.16.99, reason:function's type corrected in #114334]
+from employees
+| where to_upper(null) == "Georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+equalsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_upper(first_name) == to_string(null)
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToUpperNullFolded#[skip:-8.16.99, reason:function's type corrected in #114334]
+from employees
+| where to_upper(null) != "Georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_upper(first_name) != to_string(null)
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_upper(first_name) != "Georgi"
+| stats c = count()
+;
+
+c:long
+90
+;
+
+negatedNotEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where not(to_upper(first_name) != "Georgi")
+| stats c = count()
+;
+
+c:long
+0
+;
+
+equalsToLowerPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_lower(first_name) == "georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+10001           | Georgi
+;
+
+notEqualsToLowerPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| sort emp_no
+| where to_lower(first_name) != "georgi"
+| keep emp_no, first_name
+| limit 1
+;
+
+emp_no:integer  | first_name:keyword
+10002           | Bezalel
+;
+
+equalsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_lower(first_name) == "Georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_lower(first_name) != "Georgi"
+| stats c = count()
+;
+
+c:long
+90
+;
+
+equalsToLowerWithUnico(rn|d)s#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_lower(concat(first_name, "🦄🦄")) != "georgi🦄🦄"
+| stats c = count()
+;
+
+// 10 null first names
+c:long
+89
+;
+
+reverse
+required_capability: fn_reverse
+from employees | sort emp_no | eval name_reversed = REVERSE(first_name) | keep emp_no, first_name, name_reversed | limit 1;
+
+emp_no:integer  | first_name:keyword    | name_reversed:keyword
+10001           | Georgi                | igroeG
+;
+
+reverseRow
+required_capability: fn_reverse
+// tag::reverse[]
+ROW message = "Some Text" | EVAL message_reversed = REVERSE(message);
+// end::reverse[]
+
+// tag::reverse-result[]
+message:keyword | message_reversed:keyword
+Some Text       | txeT emoS
+// end::reverse-result[]
+;
+
+reverseEmoji
+required_capability: fn_reverse
+// tag::reverseEmoji[]
+ROW bending_arts = "💧🪨🔥💨" | EVAL bending_arts_reversed = REVERSE(bending_arts);
+// end::reverseEmoji[]
+
+// tag::reverseEmoji-result[]
+bending_arts:keyword | bending_arts_reversed:keyword
+💧🪨🔥💨             | 💨🔥🪨💧
+// end::reverseEmoji-result[]
+;
+
+reverseEmoji2
+required_capability: fn_reverse
+ROW off_on_holiday = "🏠➡️🚌➡️✈️➡️🏝️" | EVAL back_home_again = REVERSE(off_on_holiday);
+
+off_on_holiday:keyword | back_home_again:keyword
+🏠➡️🚌➡️✈️➡️🏝️        | 🏝️➡️✈️➡️🚌➡️🏠
+;
+
+reverseGraphemeClusters
+required_capability: fn_reverse
+required_capability: fn_reverse_grapheme_clusters
+ROW message = "áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी" | EVAL message_reversed = REVERSE(message);
+
+message:keyword                | message_reversed:keyword
+áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी    | ठाीकं💖🎉👍🏽😊ûôîêâùòìèàúóíéá
+;
+
+reverseMultiValue
+required_capability: fn_reverse
+FROM employees | SORT emp_no | EVAL jobs_reversed = REVERSE(job_positions) | KEEP job*, emp_no | LIMIT 5;
+
+warning:Line 1:53: evaluation of [REVERSE(job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:53: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+job_positions:keyword                                                   | jobs_reversed:keyword | emp_no:integer
+["Accountant",  "Senior Python Developer"]                              | null                  | 10001
+Senior Team Lead                                                        | daeL maeT roineS      | 10002
+null                                                                    | null                  | 10003
+[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]  | null                  | 10004
+null                                                                    | null                  | 10005
+;
+
+reverseNested
+required_capability: fn_reverse
+FROM employees | SORT emp_no | EVAL name_reversed = REVERSE(REVERSE(first_name)), eq = name_reversed == first_name | KEEP first_name, name_reversed, eq, emp_no | LIMIT 5;
+
+first_name:keyword  | name_reversed:keyword | eq:boolean    | emp_no:integer
+Georgi              | Georgi                | true          | 10001
+Bezalel             | Bezalel               | true          | 10002
+Parto               | Parto                 | true          | 10003
+Chirstian           | Chirstian             | true          | 10004
+Kyoichi             | Kyoichi               | true          | 10005
+;
+
+reverseRowNull
+required_capability: fn_reverse
+ROW x = null | EVAL y = REVERSE(x);
+
+x:null      | y:null
+null        | null
+;
+
+
+reverseRowInlineCastWithNull
+required_capability: fn_reverse
+ROW x = 1 | EVAL y = REVERSE((null + 1)::string);
+
+x:integer   | y:string
+1           | null
+;
+
+reverseWithTextFields
+required_capability: fn_reverse
+required_capability: functions_never_emit_text
+FROM books 
+| EVAL title_reversed = REVERSE(title), author_reversed_twice = REVERSE(REVERSE(author)), eq = author_reversed_twice == author 
+| KEEP title, title_reversed, author, author_reversed_twice, eq, book_no
+| SORT book_no
+| WHERE book_no IN ("1211", "1463")
+| LIMIT 2;
+
+title:text                                      | title_reversed:keyword                        | author:text               | author_reversed_twice:keyword | eq:boolean    | book_no:keyword
+The brothers Karamazov                          | vozamaraK srehtorb ehT                        | Fyodor Dostoevsky         | Fyodor Dostoevsky             | true          | 1211
+Realms of Tolkien: Images of Middle-earth       | htrae-elddiM fo segamI :neikloT fo smlaeR     | J. R. R. Tolkien          | J. R. R. Tolkien              | true          | 1463
+;
+
 
 values
 required_capability: agg_values
@@ -1210,9 +1770,9 @@ valuesGrouped
 required_capability: agg_values
 
 // tag::values-grouped[]
-  FROM employees
+FROM employees
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS first_name=MV_SORT(VALUES(first_name)) BY first_letter
+| STATS first_name = MV_SORT(VALUES(first_name)) BY first_letter
 | SORT first_letter
 // end::values-grouped[]
 ;
@@ -1256,8 +1816,8 @@ M              | [foo, bar]
 
 locate#[skip:-8.13.99,reason:new string function added in 8.14]
 // tag::locate[]
-row a = "hello"
-| eval a_ll = locate(a, "ll")
+ROW a = "hello"
+| EVAL a_ll = LOCATE(a, "ll")
 // end::locate[]
 ;
 
@@ -1359,7 +1919,6 @@ min(f_l):integer | max(f_l):integer | job_positions:keyword
 ;
 
 locateWarnings#[skip:-8.13.99,reason:new string function added in 8.14]
-required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = locate(host_group, "ate"), l2 = locate(description, "ate") | keep l1, l2;
 ignoreOrder:true
@@ -1449,8 +2008,8 @@ base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
 // tag::to_base64[]
-row a = "elastic" 
-| eval e = to_base64(a)
+ROW a = "elastic" 
+| EVAL e = TO_BASE64(a)
 // end::to_base64[]
 ;
 
@@ -1464,8 +2023,8 @@ base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
 // tag::from_base64[]
-row a = "ZWxhc3RpYw==" 
-| eval d = from_base64(a)
+ROW a = "ZWxhc3RpYw=="
+| EVAL d = FROM_BASE64(a)
 // end::from_base64[]
 ;
 
@@ -1496,8 +2055,9 @@ repeat
 required_capability: repeat 
 // tag::repeat[]
 ROW a = "Hello!"
-| EVAL triple_a = REPEAT(a, 3);
+| EVAL triple_a = REPEAT(a, 3)
 // end::repeat[]
+;
 
 // tag::repeat-result[]
 a:keyword | triple_a:keyword
@@ -1595,4 +2155,218 @@ emp_no:integer | languages:integer | first_name:keyword
 10004 | 5 | ChirstianChirstianChirstianChirstianChirstian
 ;
 
+space
+required_capability: space
+// tag::space[]
+ROW message = CONCAT("Hello", SPACE(1), "World!");
+// end::space[]
 
+// tag::space-result[]
+message:keyword
+Hello World!
+// end::space-result[]
+;
+
+spaceLength
+required_capability: space
+ROW len = LENGTH(SPACE(12));
+
+len:integer
+12
+;
+
+spaceCalculated
+required_capability: space
+ROW inner_width = 20, title = "Title"
+| EVAL lspace = SPACE((inner_width-LENGTH(title))/2),
+       rspace = SPACE(inner_width-LENGTH(lspace)-LENGTH(title)),
+       centered_title = CONCAT("<",lspace,title,rspace,">")
+| KEEP inner_width, centered_title;
+
+inner_width:integer | centered_title:keyword
+20 | <       Title        >
+;
+
+spaceNumberFromIndex
+required_capability: space
+FROM employees
+| EVAL s = CONCAT("<",SPACE(languages),">")
+| WHERE emp_no < 10005
+| SORT emp_no
+| KEEP emp_no, languages, s;
+
+emp_no:integer | languages:integer | s:keyword
+10001 | 2 | <  >
+10002 | 5 | <     >
+10003 | 4 | <    >
+10004 | 5 | <     >
+;
+
+spaceZero
+required_capability: space
+ROW s = SPACE(0);
+
+s:keyword
+""
+;
+
+spaceNull
+required_capability: space
+ROW s = SPACE(null);
+
+s:keyword
+null
+;
+
+spaceNegative
+required_capability: space
+FROM employees | SORT emp_no | LIMIT 1 | EVAL s = SPACE(-LENGTH(first_name)) | KEEP s;
+
+warning:Line 1:51: evaluation of [SPACE(-LENGTH(first_name))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:51: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [-6]
+
+s:keyword
+null
+;
+
+spaceComplex
+required_capability: space
+ROW x = 1+2+3, y = null | EVAL z = x + 5 | LIMIT 1
+| EVAL xs = SPACE(x), xsc = CONCAT("<",xs,">"),
+       xn = SPACE(null),
+       xz = SPACE(z), xzc = CONCAT("<",xz,">"),
+       lxz = LENGTH(xz), lxs = LENGTH(xs), ltr = LENGTH(TRIM(xz))
+| DROP xs, xz;
+
+x:integer | y:null | z:integer | xsc:keyword | xn:keyword | xzc:keyword | lxz:integer | lxs:integer | ltr:integer
+6 | null |  11 | <      > | null | <           > | 11 | 6 | 0
+;
+
+spaceMV
+required_capability: space
+ROW mv = [1,2,3] | EVAL x = space(mv) | KEEP x;
+
+warning:Line 1:29: evaluation of [space(mv)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+x:keyword
+null
+;
+
+
+likeEscapingSingleQuotes
+// tag::likeEscapingSingleQuotes[]
+ROW message = "foo * bar"
+| WHERE message LIKE "foo \\* bar"
+// end::likeEscapingSingleQuotes[]
+;
+
+// tag::likeEscapingSingleQuotes-result[]
+message:keyword
+foo * bar
+// end::likeEscapingSingleQuotes-result[]
+;
+
+
+likeEscapingTripleQuotes
+// tag::likeEscapingTripleQuotes[]
+ROW message = "foo * bar"
+| WHERE message LIKE """foo \* bar"""
+// end::likeEscapingTripleQuotes[]
+;
+
+// tag::likeEscapingTripleQuotes-result[]
+message:keyword
+foo * bar
+// end::likeEscapingTripleQuotes-result[]
+;
+
+
+rlikeEscapingSingleQuotes
+// tag::rlikeEscapingSingleQuotes[]
+ROW message = "foo ( bar"
+| WHERE message RLIKE "foo \\( bar"
+// end::rlikeEscapingSingleQuotes[]
+;
+
+// tag::rlikeEscapingSingleQuotes-result[]
+message:keyword
+foo ( bar
+// end::rlikeEscapingSingleQuotes-result[]
+;
+
+
+rlikeEscapingTripleQuotes
+// tag::rlikeEscapingTripleQuotes[]
+ROW message = "foo ( bar"
+| WHERE message RLIKE """foo \( bar"""
+// end::rlikeEscapingTripleQuotes[]
+;
+
+// tag::rlikeEscapingTripleQuotes-result[]
+message:keyword
+foo ( bar
+// end::rlikeEscapingTripleQuotes-result[]
+;
+
+mvStringEquals
+FROM mv_text
+| WHERE message == "Connected to 10.1.0.1"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == \"Connected to 10.1.0.1\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+;
+
+mvStringEqualsLongString
+FROM mv_text
+| WHERE message == "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == \"More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEquals
+FROM mv_text
+| WHERE message != "Connected to 10.1.0.2"
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+warning:Line 2:9: evaluation of [message != \"Connected to 10.1.0.2\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEqualsFound
+FROM mv_text
+| WHERE message != "Connected to 10.1.0.1"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != \"Connected to 10.1.0.1\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEqualsLong
+FROM mv_text
+| WHERE message != "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != \"More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+;

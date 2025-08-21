@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -569,5 +570,17 @@ public enum RestStatus {
      */
     public static RestStatus fromCode(int code) {
         return CODE_TO_STATUS.get(code);
+    }
+
+    /**
+     * Utility method to determine if an HTTP status code is "Successful"
+     *
+     * as defined by <a href="https://datatracker.ietf.org/doc/html/rfc9110#section-15.3">RFC 9110</a>
+     *
+     * @param code An HTTP status code
+     * @return true if it is a 2xx code, false otherwise
+     */
+    public static boolean isSuccessful(int code) {
+        return code >= 200 && code < 300;
     }
 }

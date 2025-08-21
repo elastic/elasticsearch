@@ -264,7 +264,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         } else {
             assignmentMemoryBasis = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_AD_OUTPUT_MEMORY_ALLOCATOR_FIELD)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             outputMemoryAllocatorBytes = in.readOptionalVLong();
         } else {
             outputMemoryAllocatorBytes = null;
@@ -306,7 +306,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_AD_OUTPUT_MEMORY_ALLOCATOR_FIELD)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalVLong(outputMemoryAllocatorBytes);
         }
         out.writeVLong(categorizedDocCount);
@@ -363,9 +363,17 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         builder.field(DEAD_CATEGORY_COUNT_FIELD.getPreferredName(), deadCategoryCount);
         builder.field(FAILED_CATEGORY_COUNT_FIELD.getPreferredName(), failedCategoryCount);
         builder.field(CATEGORIZATION_STATUS_FIELD.getPreferredName(), categorizationStatus);
-        builder.timeField(LOG_TIME_FIELD.getPreferredName(), LOG_TIME_FIELD.getPreferredName() + "_string", logTime.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            LOG_TIME_FIELD.getPreferredName(),
+            LOG_TIME_FIELD.getPreferredName() + "_string",
+            logTime.getTime()
+        );
         if (timestamp != null) {
-            builder.timeField(TIMESTAMP_FIELD.getPreferredName(), TIMESTAMP_FIELD.getPreferredName() + "_string", timestamp.getTime());
+            builder.timestampFieldsFromUnixEpochMillis(
+                TIMESTAMP_FIELD.getPreferredName(),
+                TIMESTAMP_FIELD.getPreferredName() + "_string",
+                timestamp.getTime()
+            );
         }
 
         return builder;

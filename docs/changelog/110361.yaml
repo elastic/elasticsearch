@@ -1,7 +1,0 @@
-pr: 110361
-summary: Don't detect `PlainActionFuture` deadlock on concurrent complete
-area: Distributed
-type: bug
-issues:
- - 110181
- - 110360

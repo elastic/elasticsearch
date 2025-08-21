@@ -1,17 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess.lib;
+
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
 /**
  * Provides access to methods in libc.so available on POSIX systems.
  */
 public non-sealed interface PosixCLibrary extends NativeLibrary {
+
+    /** socket domain indicating unix file socket */
+    short AF_UNIX = 1;
+
+    /** socket type indicating a datagram-oriented socket */
+    int SOCK_DGRAM = 2;
 
     /**
      * Gets the effective userid of the current process.
@@ -55,6 +64,23 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      */
     int mlockall(int flags);
 
+    /** corresponds to struct stat64 */
+    interface Stat64 {
+        long st_size();
+
+        long st_blocks();
+    }
+
+    Stat64 newStat64(int sizeof, int stSizeOffset, int stBlocksOffset);
+
+    int open(String pathname, int flags, int mode);
+
+    int open(String pathname, int flags);
+
+    int fstat64(int fd, Stat64 stats);
+
+    int ftruncate(int fd, long length);
+
     interface FStore {
         void set_flags(int flags); /* IN: flags word */
 
@@ -70,6 +96,55 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
     FStore newFStore();
 
     int fcntl(int fd, int cmd, FStore fst);
+
+    /**
+     * Open a file descriptor to connect to a socket.
+     *
+     * @param domain The socket protocol family, eg AF_UNIX
+     * @param type The socket type, eg SOCK_DGRAM
+     * @param protocol The protocol for the given protocl family, normally 0
+     * @return an open file descriptor, or -1 on failure with errno set
+     * @see <a href="https://man7.org/linux/man-pages/man2/socket.2.html">socket manpage</a>
+     */
+    int socket(int domain, int type, int protocol);
+
+    /**
+     * Marker interface for sockaddr struct implementations.
+     */
+    interface SockAddr {}
+
+    /**
+     * Create a sockaddr for the AF_UNIX family.
+     */
+    SockAddr newUnixSockAddr(String path);
+
+    /**
+     * Connect a socket to an address.
+     *
+     * @param sockfd An open socket file descriptor
+     * @param addr The address to connect to
+     * @return 0 on success, -1 on failure with errno set
+     */
+    int connect(int sockfd, SockAddr addr);
+
+    /**
+     * Send a message to a socket.
+     *
+     * @param sockfd The open socket file descriptor
+     * @param buffer The message bytes to send
+     * @param flags Flags that may adjust how the message is sent
+     * @return The number of bytes sent, or -1 on failure with errno set
+     * @see <a href="https://man7.org/linux/man-pages/man2/sendto.2.html">send manpage</a>
+     */
+    long send(int sockfd, CloseableByteBuffer buffer, int flags);
+
+    /**
+     * Close a file descriptor
+     * @param fd The file descriptor to close
+     * @return 0 on success, -1 on failure with errno set
+     * @see <a href="https://man7.org/linux/man-pages/man2/close.2.html">close manpage</a>
+     */
+    int close(int fd);
 
     /**
      * Return a string description for an error.

@@ -1,5 +1,0 @@
-pr: 108759
-summary: Expose `?master_timeout` in autoscaling APIs
-area: Autoscaling
-type: bug
-issues: []

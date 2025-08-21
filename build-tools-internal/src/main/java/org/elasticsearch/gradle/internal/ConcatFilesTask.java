@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal;
+
+import com.google.common.collect.Iterables;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
@@ -84,7 +87,7 @@ public class ConcatFilesTask extends DefaultTask {
     public void concatFiles() throws IOException {
         if (getHeaderLine() != null) {
             getTarget().getParentFile().mkdirs();
-            Files.write(getTarget().toPath(), (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8));
+            Files.writeString(getTarget().toPath(), getHeaderLine() + '\n');
         }
 
         // To remove duplicate lines
@@ -94,11 +97,12 @@ public class ConcatFilesTask extends DefaultTask {
                 uniqueLines.addAll(Files.readAllLines(f.toPath(), StandardCharsets.UTF_8));
             }
         }
-        Files.write(getTarget().toPath(), uniqueLines, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
-
-        for (String additionalLine : additionalLines) {
-            Files.write(getTarget().toPath(), (additionalLine + '\n').getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
-        }
+        Files.write(
+            getTarget().toPath(),
+            Iterables.concat(uniqueLines, additionalLines),
+            StandardCharsets.UTF_8,
+            StandardOpenOption.APPEND
+        );
     }
 
 }

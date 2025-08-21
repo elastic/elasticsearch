@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -76,11 +77,6 @@ public record UnassignedInfo(
     @Nullable String lastAllocatedNodeId
 ) implements ToXContentFragment, Writeable {
 
-    /**
-     * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
-     * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
-     */
-    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersions.V_7_15_0;
     private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersions.V_8_7_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
@@ -174,7 +170,11 @@ public record UnassignedInfo(
         /**
          * Replica is unpromotable and the primary failed.
          */
-        UNPROMOTABLE_REPLICA
+        UNPROMOTABLE_REPLICA,
+        /**
+         * New shard added as part of index re-sharding operation
+         */
+        RESHARD_ADDED
     }
 
     /**
@@ -310,11 +310,7 @@ public record UnassignedInfo(
         var lastAllocationStatus = AllocationStatus.readFrom(in);
         var failedNodeIds = in.readCollectionAsImmutableSet(StreamInput::readString);
         String lastAllocatedNodeId;
-        if (in.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
-            lastAllocatedNodeId = in.readOptionalString();
-        } else {
-            lastAllocatedNodeId = null;
-        }
+        lastAllocatedNodeId = in.readOptionalString();
         return new UnassignedInfo(
             reason,
             message,
@@ -330,13 +326,16 @@ public record UnassignedInfo(
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (reason.equals(Reason.NODE_RESTARTING) && out.getTransportVersion().before(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
-            out.writeByte((byte) Reason.NODE_LEFT.ordinal());
-        } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
+        if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
             out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
-        } else {
-            out.writeByte((byte) reason.ordinal());
-        }
+        } else if (reason.equals(Reason.RESHARD_ADDED)
+            && out.getTransportVersion().before(TransportVersions.UNASSIGENEDINFO_RESHARD_ADDED)) {
+                // We should have protection to ensure we do not reshard in mixed clusters
+                assert false;
+                out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
+            } else {
+                out.writeByte((byte) reason.ordinal());
+            }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);
@@ -345,9 +344,7 @@ public record UnassignedInfo(
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
         out.writeStringCollection(failedNodeIds);
-        if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
-            out.writeOptionalString(lastAllocatedNodeId);
-        }
+        out.writeOptionalString(lastAllocatedNodeId);
     }
 
     /**
@@ -406,7 +403,7 @@ public record UnassignedInfo(
         for (ShardRouting shard : state.getRoutingNodes().unassigned()) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.delayed()) {
-                Settings indexSettings = metadata.index(shard.index()).getSettings();
+                Settings indexSettings = metadata.indexMetadata(shard.index()).getSettings();
                 // calculate next time to schedule
                 final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                     currentNanoTime,

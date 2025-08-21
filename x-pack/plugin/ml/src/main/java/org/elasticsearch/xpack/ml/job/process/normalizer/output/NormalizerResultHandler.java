@@ -57,7 +57,7 @@ public class NormalizerResultHandler {
     }
 
     private BytesReference parseResults(XContent xContent, BytesReference bytesRef) throws IOException {
-        byte marker = xContent.streamSeparator();
+        byte marker = xContent.bulkSeparator();
         int from = 0;
         while (true) {
             int nextMarker = findNextMarker(marker, bytesRef, from);

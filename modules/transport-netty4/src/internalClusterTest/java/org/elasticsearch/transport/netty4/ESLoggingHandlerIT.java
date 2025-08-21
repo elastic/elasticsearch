@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
@@ -95,12 +96,32 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                 "close connection log",
                 TcpTransport.class.getCanonicalName(),
                 Level.DEBUG,
-                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\].*"
+                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\]$"
             )
         );
 
         final String nodeName = internalCluster().startNode();
         internalCluster().stopNode(nodeName);
+
+        mockLog.assertAllExpectationsMatched();
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.transport.TcpTransport:DEBUG",
+        reason = "to ensure we log exception disconnect events on DEBUG level"
+    )
+    public void testExceptionalDisconnectLogging() throws Exception {
+        mockLog.addExpectation(
+            new MockLog.PatternSeenEventExpectation(
+                "exceptional close connection log",
+                TcpTransport.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\], exception:.*"
+            )
+        );
+
+        final String nodeName = internalCluster().startNode();
+        internalCluster().restartNode(nodeName);
 
         mockLog.assertAllExpectationsMatched();
     }

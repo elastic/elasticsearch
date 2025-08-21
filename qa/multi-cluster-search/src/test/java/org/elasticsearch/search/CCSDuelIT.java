@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -42,6 +43,7 @@ import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -579,13 +581,14 @@ public class CCSDuelIT extends ESRestTestCase {
 
     public void testSortByFieldOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
-        // set to a value greater than the number of shards to avoid differences due to the skipping of shards
+        // setting aggs to avoid differences due to the skipping of shards when matching none
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
         sourceBuilder.sort("type.keyword", SortOrder.ASC);
         sourceBuilder.sort("creationDate", SortOrder.DESC);
         sourceBuilder.sort("user.keyword", SortOrder.ASC);
+        sourceBuilder.aggregation(AggregationBuilders.max("max").field("creationDate"));
         CheckedConsumer<ObjectPath, IOException> responseChecker = response -> {
             assertHits(response);
             int size = response.evaluateArraySize("hits.hits");
@@ -667,7 +670,6 @@ public class CCSDuelIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40005")
     public void testTermsAggs() throws Exception {
         assumeMultiClusterSetup();
         {
@@ -682,7 +684,6 @@ public class CCSDuelIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40005")
     public void testTermsAggsWithProfile() throws Exception {
         assumeMultiClusterSetup();
         {
@@ -1330,6 +1331,7 @@ public class CCSDuelIT extends ESRestTestCase {
         Map<String, Object> responseMap = XContentHelper.convertToMap(bytesReference, false, XContentType.JSON).v2();
         assertNotNull(responseMap.put("took", -1));
         responseMap.remove("num_reduce_phases");
+        responseMap.remove("terminated_early");
         Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
         if (profile != null) {
             List<Map<String, Object>> shards = (List<Map<String, Object>>) profile.get("shards");

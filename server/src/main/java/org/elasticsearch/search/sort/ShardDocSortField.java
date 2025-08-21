@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -63,7 +64,7 @@ public class ShardDocSortField extends SortField {
 
             @Override
             public Long value(int slot) {
-                return (((long) shardRequestIndex) << 32) | (delegate.value(slot) & 0xFFFFFFFFL);
+                return encodeShardAndDoc(shardRequestIndex, delegate.value(slot));
             }
 
             @Override
@@ -71,5 +72,23 @@ public class ShardDocSortField extends SortField {
                 return delegate.getLeafComparator(context);
             }
         };
+    }
+
+    /**
+     * Get the doc id encoded in the sort value.
+     */
+    public static int decodeDoc(long value) {
+        return (int) value;
+    }
+
+    /**
+     * Get the shard request index encoded in the sort value.
+     */
+    public static int decodeShardRequestIndex(long value) {
+        return (int) (value >> 32);
+    }
+
+    public static long encodeShardAndDoc(int shardIndex, int doc) {
+        return (((long) shardIndex) << 32) | (doc & 0xFFFFFFFFL);
     }
 }

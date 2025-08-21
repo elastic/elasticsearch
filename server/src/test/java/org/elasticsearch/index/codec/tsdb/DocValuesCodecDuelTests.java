@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -23,6 +26,9 @@ import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -38,6 +44,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
     private static final String FIELD_4 = "number_field_4";
     private static final String FIELD_5 = "binary_field_5";
 
+    @SuppressWarnings("checkstyle:LineLength")
     public void testDuel() throws IOException {
         try (var baselineDirectory = newDirectory(); var contenderDirectory = newDirectory()) {
             int numDocs = randomIntBetween(256, 32768);
@@ -47,7 +54,23 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
-            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
+            contenderConf.setMergePolicy(mergePolicy);
+            Codec codec = new Elasticsearch900Lucene101Codec() {
+
+                final DocValuesFormat docValuesFormat = randomBoolean()
+                    ? new ES819TSDBDocValuesFormat(
+                        ESTestCase.randomIntBetween(1, 4096),
+                        ESTestCase.randomIntBetween(1, 512),
+                        random().nextBoolean()
+                    )
+                    : new TestES87TSDBDocValuesFormat();
+
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String field) {
+                    return docValuesFormat;
+                }
+            };
+            contenderConf.setCodec(codec);
             contenderConf.setMergePolicy(mergePolicy);
 
             try (
@@ -141,6 +164,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
                 int docId = docIdsToAdvanceTo[i];
                 int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
+                if (baselineTarget == NO_MORE_DOCS) {
+                    break;
+                }
                 assertEquals(baseline.ordValue(), contender.ordValue());
                 assertEquals(baseline.lookupOrd(baseline.ordValue()), contender.lookupOrd(contender.ordValue()));
                 i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);
@@ -232,6 +258,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
                 int docId = docIdsToAdvanceTo[i];
                 int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
+                if (baselineTarget == NO_MORE_DOCS) {
+                    break;
+                }
                 assertEquals(baseline.docValueCount(), contender.docValueCount());
                 for (int j = 0; j < baseline.docValueCount(); j++) {
                     long baselineOrd = baseline.nextOrd();
@@ -255,12 +284,14 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                 boolean contenderFound = contender.advanceExact(docId);
                 assertEquals(baselineFound, contenderFound);
                 assertEquals(baseline.docID(), contender.docID());
-                assertEquals(baseline.docValueCount(), contender.docValueCount());
-                for (int i = 0; i < baseline.docValueCount(); i++) {
-                    long baselineOrd = baseline.nextOrd();
-                    long contenderOrd = contender.nextOrd();
-                    assertEquals(baselineOrd, contenderOrd);
-                    assertEquals(baseline.lookupOrd(baselineOrd), contender.lookupOrd(contenderOrd));
+                if (baselineFound) {
+                    assertEquals(baseline.docValueCount(), contender.docValueCount());
+                    for (int i = 0; i < baseline.docValueCount(); i++) {
+                        long baselineOrd = baseline.nextOrd();
+                        long contenderOrd = contender.nextOrd();
+                        assertEquals(baselineOrd, contenderOrd);
+                        assertEquals(baseline.lookupOrd(baselineOrd), contender.lookupOrd(contenderOrd));
+                    }
                 }
             }
         }
@@ -328,6 +359,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
                 int docId = docIdsToAdvanceTo[i];
                 int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
+                if (baselineTarget == NO_MORE_DOCS) {
+                    break;
+                }
                 assertEquals(baseline.docValueCount(), contender.docValueCount());
                 for (int j = 0; j < baseline.docValueCount(); j++) {
                     long baselineValue = baseline.nextValue();
@@ -349,11 +383,13 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                 boolean contenderResult = contender.advanceExact(docId);
                 assertEquals(baselineResult, contenderResult);
                 assertEquals(baseline.docID(), contender.docID());
-                assertEquals(baseline.docValueCount(), contender.docValueCount());
-                for (int i = 0; i < baseline.docValueCount(); i++) {
-                    long baselineValue = baseline.nextValue();
-                    long contenderValue = contender.nextValue();
-                    assertEquals(baselineValue, contenderValue);
+                if (baselineResult) {
+                    assertEquals(baseline.docValueCount(), contender.docValueCount());
+                    for (int i = 0; i < baseline.docValueCount(); i++) {
+                        long baselineValue = baseline.nextValue();
+                        long contenderValue = contender.nextValue();
+                        assertEquals(baselineValue, contenderValue);
+                    }
                 }
             }
         }

@@ -34,9 +34,4 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         }
         return new Percentile(source, field, percentile);
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

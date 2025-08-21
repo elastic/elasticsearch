@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -23,17 +24,17 @@ import org.elasticsearch.xcontent.ParseField;
  */
 public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
-    public static ParseField SEPARATOR = new ParseField("separator");
-    public static ParseField MAX_OUTPUT_SIZE = new ParseField("max_output_size");
+    public static final ParseField SEPARATOR = new ParseField("separator");
+    public static final ParseField MAX_OUTPUT_SIZE = new ParseField("max_output_size");
 
-    public static int DEFAULT_MAX_OUTPUT_SIZE = 255;
-    public static CharArraySet DEFAULT_STOP_WORDS = CharArraySet.EMPTY_SET;
+    public static final int DEFAULT_MAX_OUTPUT_SIZE = 255;
+    public static final CharArraySet DEFAULT_STOP_WORDS = CharArraySet.EMPTY_SET;
     public static final char DEFAULT_SEPARATOR = ' ';
 
     private final FingerprintAnalyzer analyzer;
 
     FingerprintAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
 
         char separator = parseSeparator(settings);
         int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(), DEFAULT_MAX_OUTPUT_SIZE);

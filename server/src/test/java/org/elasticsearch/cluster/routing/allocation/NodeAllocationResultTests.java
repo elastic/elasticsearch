@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -47,7 +48,6 @@ public class NodeAllocationResultTests extends ESTestCase {
         assertEquals(matchingBytes, explanation.getShardStoreInfo().getMatchingBytes());
         assertNull(explanation.getShardStoreInfo().getAllocationId());
         assertFalse(explanation.getShardStoreInfo().isInSync());
-        assertFalse(explanation.getShardStoreInfo().hasMatchingSyncId());
 
         String allocId = randomAlphaOfLength(5);
         boolean inSync = randomBoolean();
@@ -59,7 +59,6 @@ public class NodeAllocationResultTests extends ESTestCase {
         assertNodeExplanationEquals(explanation, readExplanation);
         assertEquals(inSync, explanation.getShardStoreInfo().isInSync());
         assertEquals(-1, explanation.getShardStoreInfo().getMatchingBytes());
-        assertFalse(explanation.getShardStoreInfo().hasMatchingSyncId());
         assertEquals(allocId, explanation.getShardStoreInfo().getAllocationId());
     }
 
@@ -71,7 +70,6 @@ public class NodeAllocationResultTests extends ESTestCase {
             assertEquals(expl1.getShardStoreInfo().isInSync(), expl2.getShardStoreInfo().isInSync());
             assertEquals(expl1.getShardStoreInfo().getAllocationId(), expl2.getShardStoreInfo().getAllocationId());
             assertEquals(expl1.getShardStoreInfo().getMatchingBytes(), expl2.getShardStoreInfo().getMatchingBytes());
-            assertEquals(expl1.getShardStoreInfo().hasMatchingSyncId(), expl2.getShardStoreInfo().hasMatchingSyncId());
         } else {
             assertNull(expl2.getShardStoreInfo());
         }

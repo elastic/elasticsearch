@@ -1,6 +1,0 @@
-pr: 110201
-summary: "ES|QL: Fix DISSECT that overwrites input"
-area: ES|QL
-type: bug
-issues:
- - 110184

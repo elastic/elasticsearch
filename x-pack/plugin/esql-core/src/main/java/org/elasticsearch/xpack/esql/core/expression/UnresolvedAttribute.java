@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -18,36 +19,34 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-// unfortunately we can't use UnresolvedNamedExpression
+/**
+ * An unresolved attribute. We build these while walking the syntax
+ * tree and then resolve them into other {@link Attribute} subclasses during
+ * analysis.
+ * <p>
+ *     For example, if they reference the data directly from lucene they'll be
+ *     {@link FieldAttribute}s. If they reference the results of another calculation
+ *     they will be {@link ReferenceAttribute}s.
+ * </p>
+ */
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
-    private final String unresolvedMsg;
     private final boolean customMessage;
+    private final String unresolvedMsg;
     private final Object resolutionMetadata;
 
     public UnresolvedAttribute(Source source, String name) {
         this(source, name, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String qualifier) {
-        this(source, name, qualifier, null);
-    }
-
-    public UnresolvedAttribute(Source source, String name, String qualifier, String unresolvedMessage) {
-        this(source, name, qualifier, null, unresolvedMessage, null);
+    public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
+        this(source, name, null, unresolvedMessage, null);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(
-        Source source,
-        String name,
-        String qualifier,
-        NameId id,
-        String unresolvedMessage,
-        Object resolutionMetadata
-    ) {
-        super(source, name, qualifier, id);
+    public UnresolvedAttribute(Source source, String name, @Nullable NameId id, String unresolvedMessage, Object resolutionMetadata) {
+        super(source, name, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
 
@@ -63,7 +62,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), qualifier(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -80,20 +79,17 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType dataType,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
+    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
         return this;
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), qualifier(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage, resolutionMetadata());
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return new TypeResolution("unresolved attribute [" + name() + "]");
     }
 
     @Override
@@ -103,12 +99,17 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + qualifiedName();
+        return UNRESOLVED_PREFIX + name();
     }
 
     @Override
     protected String label() {
         return UNRESOLVED_PREFIX;
+    }
+
+    @Override
+    public boolean isDimension() {
+        return false;
     }
 
     @Override
@@ -132,16 +133,16 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            UnresolvedAttribute ua = (UnresolvedAttribute) obj;
-            return Objects.equals(resolutionMetadata, ua.resolutionMetadata) && Objects.equals(unresolvedMsg, ua.unresolvedMsg);
-        }
-        return false;
+    protected boolean innerEquals(Object o) {
+        var other = (UnresolvedAttribute) o;
+        return super.innerEquals(other)
+            && Objects.equals(resolutionMetadata, other.resolutionMetadata)
+            && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 }

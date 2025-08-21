@@ -55,6 +55,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
         final TimeValue gracefulShutdown = type == SIGTERM ? randomPositiveTimeValue() : null;
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
+            .setNodeEphemeralId(randomAlphaOfLength(5))
             .setType(type)
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong())

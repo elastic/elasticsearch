@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
@@ -219,6 +220,14 @@ gradlePlugin {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
+    transportVersionReferencesPlugin {
+      id = 'elasticsearch.transport-version-references'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin'
+    }
+    transportVersionResourcesPlugin {
+      id = 'elasticsearch.transport-version-resources'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin'
+    }
   }
 }
 
@@ -257,9 +266,6 @@ tasks.named('licenseHeaders').configure {
  *****************************************************************************/
 
 repositories {
-  maven {
-    url 'https://jitpack.io'
-  }
   mavenCentral()
   gradlePluginPortal()
 }
@@ -284,8 +290,6 @@ dependencies {
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 
-  // same version as http client transitive dep
-  api buildLibs.commons.codec
   api buildLibs.apache.compress
   api buildLibs.nebula.info
   api buildLibs.apache.rat
@@ -305,8 +309,8 @@ dependencies {
   api buildLibs.antlrst4
   api buildLibs.asm
   api buildLibs.asm.tree
-  api buildLibs.httpclient
-  api buildLibs.httpcore
+  api buildLibs.httpclient5
+  api buildLibs.httpcore5
 
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
@@ -381,6 +385,18 @@ tasks.register("bootstrapPerformanceTests", Copy) {
 
 tasks.named("jar") {
   exclude("classpath.index")
+}
+
+spotless {
+  java {
+
+    // workaround for https://github.com/diffplug/spotless/issues/2317
+    //toggleOffOn()
+    target project.fileTree("src/main/java") {
+      include '**/*.java'
+      exclude '**/DockerBase.java'
+    }
+  }
 }
 
 def resolveMainWrapperVersion() {

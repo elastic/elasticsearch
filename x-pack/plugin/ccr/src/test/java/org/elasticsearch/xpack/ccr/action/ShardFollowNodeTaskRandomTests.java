@@ -105,7 +105,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             10240,
-            new ByteSizeValue(512, ByteSizeUnit.MB),
+            ByteSizeValue.of(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()

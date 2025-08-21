@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.test;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -33,7 +32,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -126,10 +124,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(ALL_MONITORING_INDICES));
     }
 
-    protected void ensureMonitoringIndicesYellow() {
-        ensureYellowAndNoInitializingShards(".monitoring-es-*");
-    }
-
     protected List<Tuple<String, String>> monitoringWatches() {
         final ClusterService clusterService = clusterService();
 
@@ -140,28 +134,16 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void assertTemplateInstalled(String name) {
         boolean found = false;
-        for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
+        for (IndexTemplateMetadata template : client().admin()
+            .indices()
+            .prepareGetTemplates(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getIndexTemplates()) {
             if (Regex.simpleMatch(name, template.getName())) {
                 found = true;
             }
         }
         assertTrue("failed to find a template matching [" + name + "]", found);
-    }
-
-    protected void waitForMonitoringIndices() throws Exception {
-        awaitIndexExists(ALL_MONITORING_INDICES);
-        assertBusy(this::ensureMonitoringIndicesYellow);
-    }
-
-    protected void awaitIndexExists(final String index) throws Exception {
-        assertBusy(() -> assertIndicesExists(index), 30, TimeUnit.SECONDS);
-    }
-
-    private void assertIndicesExists(String... indices) {
-        logger.trace("checking if index exists [{}]", Strings.arrayToCommaDelimitedString(indices));
-        for (String index : indices) {
-            assertThat(indexExists(index), is(true));
-        }
     }
 
     protected void enableMonitoringCollection() {

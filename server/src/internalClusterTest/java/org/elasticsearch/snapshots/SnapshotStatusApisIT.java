@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -12,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -45,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_NAME_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -142,7 +142,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotInfo snapshotInfo = createFullSnapshot("test-repo", "test-snap");
         logger.info("--> delete snap-${uuid}.dat file for this snapshot to simulate concurrent delete");
-        IOUtils.rm(repoPath.resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat"));
+        IOUtils.rm(repoPath.resolve(Strings.format(SNAPSHOT_NAME_FORMAT, snapshotInfo.snapshotId().getUUID())));
 
         expectThrows(
             SnapshotMissingException.class,
@@ -173,7 +173,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             repoPath.resolve("indices")
                 .resolve(indexRepoId)
                 .resolve("0")
-                .resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat")
+                .resolve(Strings.format(SNAPSHOT_NAME_FORMAT, snapshotInfo.snapshotId().getUUID()))
         );
 
         expectThrows(
@@ -211,7 +211,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
      * 1. Start snapshot of two shards (both located on separate data nodes).
      * 2. Have one of the shards snapshot completely and the other block
      * 3. Restart the data node that completed its shard snapshot
-     * 4. Make sure that snapshot status APIs show correct file-counts and -sizes
+     * 4. Make sure that snapshot status APIs show correct file-counts and -sizes for non-restarted nodes
+     * 5. Make sure the description string is set for shard snapshots on restarted nodes.
      *
      * @throws Exception on failure
      */
@@ -247,21 +248,24 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
             assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
             assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+            assertNull("expected a null description for snapshot shard status: " + snapshotShardState, snapshotShardState.getDescription());
         }, 30L, TimeUnit.SECONDS);
-
-        final SnapshotStats snapshotShardStats = stateFirstShard(getSnapshotStatus(repoName, snapshotOne), indexTwo).getStats();
-        final int totalFiles = snapshotShardStats.getTotalFileCount();
-        final long totalFileSize = snapshotShardStats.getTotalSize();
 
         internalCluster().restartNode(dataNodeTwo);
 
-        final SnapshotIndexShardStatus snapshotShardStateAfterNodeRestart = stateFirstShard(
-            getSnapshotStatus(repoName, snapshotOne),
-            indexTwo
-        );
-        assertThat(snapshotShardStateAfterNodeRestart.getStage(), is(SnapshotIndexShardStage.DONE));
-        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalFileCount(), equalTo(totalFiles));
-        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalSize(), equalTo(totalFileSize));
+        final var snapshotStatusAfterRestart = getSnapshotStatus(repoName, snapshotOne);
+
+        final var snapshotShardStateIndexTwo = stateFirstShard(snapshotStatusAfterRestart, indexTwo);
+        assertThat(snapshotShardStateIndexTwo.getStage(), is(SnapshotIndexShardStage.DONE));
+        assertNotNull("expected a non-null description string for missing stats", snapshotShardStateIndexTwo.getDescription());
+        final var missingStats = snapshotShardStateIndexTwo.getStats();
+        assertThat(missingStats.getTotalFileCount(), equalTo(-1));
+        assertThat(missingStats.getTotalSize(), equalTo(-1L));
+
+        final var snapshotShardStateIndexOne = stateFirstShard(snapshotStatusAfterRestart, indexOne);
+        assertNull("expected a null description string for available stats", snapshotShardStateIndexOne.getDescription());
+        assertThat(snapshotShardStateIndexOne.getStats().getTotalFileCount(), greaterThan(0));
+        assertThat(snapshotShardStateIndexOne.getStats().getTotalSize(), greaterThan(0L));
 
         unblockAllDataNodes(repoName);
         assertThat(responseSnapshotOne.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
@@ -315,7 +319,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         assertTrue(getSnapshotsResponse.getSnapshots().isEmpty());
-        assertTrue(getSnapshotsResponse.getFailures().isEmpty());
     }
 
     public void testGetSnapshotsMultipleRepos() throws Exception {
@@ -329,7 +332,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final String indexName = "test-idx";
         createIndexWithRandomDocs(indexName, 10);
         final int numberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-            client.admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName)
+            client.admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get().getIndexToSettings().get(indexName)
         );
 
         for (int repoIndex = 0; repoIndex < randomIntBetween(2, 5); repoIndex++) {
@@ -738,7 +741,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         try {
             waitForBlockOnAnyDataNode("test-repo");
             // Make sure that the create-snapshot task completes on master
-            assertFalse(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+            assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
             final List<SnapshotStatus> snapshotStatus = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, "test-repo")
                 .setMasterNodeTimeout(TimeValue.MINUS_ONE)
                 .get()

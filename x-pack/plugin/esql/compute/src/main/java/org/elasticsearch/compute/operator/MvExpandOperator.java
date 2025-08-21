@@ -69,10 +69,21 @@ public class MvExpandOperator implements Operator {
     private int nextItemOnExpanded = 0;
 
     /**
-     * Count of pages that have been processed by this operator.
+     * Count of pages that this operator has received.
      */
-    private int pagesIn;
-    private int pagesOut;
+    private int pagesReceived;
+    /**
+     * Count of pages this operator has emitted.
+     */
+    private int pagesEmitted;
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
 
     public MvExpandOperator(int channel, int pageSize) {
         this.channel = channel;
@@ -82,10 +93,18 @@ public class MvExpandOperator implements Operator {
 
     @Override
     public final Page getOutput() {
+        Page result = getOutputInternal();
+        if (result != null) {
+            pagesEmitted++;
+            rowsEmitted += result.getPositionCount();
+        }
+        return result;
+    }
+
+    private Page getOutputInternal() {
         if (prev == null) {
             return null;
         }
-        pagesOut++;
 
         if (expandedBlock == null) {
             /*
@@ -214,7 +233,8 @@ public class MvExpandOperator implements Operator {
         assert prev == null : "has pending input page";
         prev = page;
         this.expandingBlock = prev.getBlock(channel);
-        pagesIn++;
+        pagesReceived++;
+        rowsReceived += page.getPositionCount();
     }
 
     @Override
@@ -229,7 +249,7 @@ public class MvExpandOperator implements Operator {
 
     @Override
     public final Status status() {
-        return new Status(pagesIn, pagesOut, noops);
+        return new Status(pagesReceived, pagesEmitted, noops, rowsReceived, rowsEmitted);
     }
 
     @Override
@@ -248,9 +268,11 @@ public class MvExpandOperator implements Operator {
 
     public static final class Status implements Operator.Status {
 
-        private final int pagesIn;
-        private final int pagesOut;
+        private final int pagesReceived;
+        private final int pagesEmitted;
         private final int noops;
+        private final long rowsReceived;
+        private final long rowsEmitted;
 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
@@ -258,31 +280,46 @@ public class MvExpandOperator implements Operator {
             Status::new
         );
 
-        Status(int pagesIn, int pagesOut, int noops) {
-            this.pagesIn = pagesIn;
-            this.pagesOut = pagesOut;
+        Status(int pagesReceived, int pagesEmitted, int noops, long rowsReceived, long rowsEmitted) {
+            this.pagesReceived = pagesReceived;
+            this.pagesEmitted = pagesEmitted;
             this.noops = noops;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
         }
 
         Status(StreamInput in) throws IOException {
-            pagesIn = in.readVInt();
-            pagesOut = in.readVInt();
+            pagesReceived = in.readVInt();
+            pagesEmitted = in.readVInt();
             noops = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsReceived = 0;
+                rowsEmitted = 0;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(pagesIn);
-            out.writeVInt(pagesOut);
+            out.writeVInt(pagesReceived);
+            out.writeVInt(pagesEmitted);
             out.writeVInt(noops);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("pages_in", pagesIn);
-            builder.field("pages_out", pagesOut);
+            builder.field("pages_received", pagesReceived);
+            builder.field("pages_emitted", pagesEmitted);
             builder.field("noops", noops);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
         }
 
@@ -304,20 +341,32 @@ public class MvExpandOperator implements Operator {
                 return false;
             }
             Status status = (Status) o;
-            return noops == status.noops && pagesIn == status.pagesIn && pagesOut == status.pagesOut;
+            return noops == status.noops
+                && pagesReceived == status.pagesReceived
+                && pagesEmitted == status.pagesEmitted
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
         }
 
-        public int pagesIn() {
-            return pagesIn;
+        public int pagesReceived() {
+            return pagesReceived;
         }
 
-        public int pagesOut() {
-            return pagesOut;
+        public int pagesEmitted() {
+            return pagesEmitted;
+        }
+
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        public long rowsEmitted() {
+            return rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(noops, pagesIn, pagesOut);
+            return Objects.hash(noops, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         }
 
         @Override

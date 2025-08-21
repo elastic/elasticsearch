@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
@@ -44,6 +45,13 @@ public class NlpTokenizerTests extends ESTestCase {
         RobertaTokenizer.CLASS_TOKEN,
         RobertaTokenizer.MASK_TOKEN
     );
+    public static final List<String> DEBERTA_REQUIRED_VOCAB = List.of(
+        DebertaV2Tokenizer.UNKNOWN_TOKEN,
+        DebertaV2Tokenizer.SEPARATOR_TOKEN,
+        DebertaV2Tokenizer.PAD_TOKEN,
+        DebertaV2Tokenizer.CLASS_TOKEN,
+        DebertaV2Tokenizer.MASK_TOKEN
+    );
 
     void validateBuilder(List<String> vocab, Tokenization tokenization, Class<?> expectedClass) throws IOException {
         Vocabulary vocabulary = new Vocabulary(vocab, "model-name", null, null);
@@ -66,5 +74,8 @@ public class NlpTokenizerTests extends ESTestCase {
 
         Tokenization xlmRoberta = new XLMRobertaTokenization(null, null, Tokenization.Truncate.NONE, -1);
         validateBuilder(ROBERTA_REQUIRED_VOCAB, xlmRoberta, XLMRobertaTokenizer.class);
+
+        Tokenization debertaV2 = new DebertaV2Tokenization(false, null, null, Tokenization.Truncate.NONE, -1);
+        validateBuilder(DEBERTA_REQUIRED_VOCAB, debertaV2, DebertaV2Tokenizer.class);
     }
 }

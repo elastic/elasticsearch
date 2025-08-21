@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices;
 
@@ -16,11 +17,15 @@ import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -28,6 +33,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -42,6 +48,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -59,6 +66,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -76,6 +84,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -206,17 +215,25 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void init(IndexSettings indexSettings) {}
+        public SlowLogFields create() {
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return fields;
+                }
 
-        @Override
-        public Map<String, String> indexSlowLogFields() {
-            return fields;
+                @Override
+                public Map<String, String> searchFields() {
+                    return fields;
+                }
+            };
         }
 
         @Override
-        public Map<String, String> searchSlowLogFields() {
-            return fields;
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
         }
+
     }
 
     public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
@@ -228,16 +245,23 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void init(IndexSettings indexSettings) {}
+        public SlowLogFields create() {
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return fields;
+                }
 
-        @Override
-        public Map<String, String> indexSlowLogFields() {
-            return fields;
+                @Override
+                public Map<String, String> searchFields() {
+                    return fields;
+                }
+            };
         }
 
         @Override
-        public Map<String, String> searchSlowLogFields() {
-            return fields;
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
         }
     }
 
@@ -292,7 +316,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        IndexMetadata firstMetadata = clusterService.state().metadata().index("test");
+        IndexMetadata firstMetadata = clusterService.state().metadata().getProject().index("test");
         assertTrue(test.hasShard(0));
         ShardPath firstPath = ShardPath.loadShardPath(
             logger,
@@ -301,13 +325,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             test.getIndexSettings().customDataPath()
         );
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata, randomReason()));
         assertTrue(firstPath.exists());
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
         Metadata meta = gwMetaState.getMetadata();
         assertNotNull(meta);
-        assertNotNull(meta.index("test"));
+        assertNotNull(meta.getProject().index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
         awaitIndexShardCloseAsyncTasks();
 
@@ -315,13 +339,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         meta = gwMetaState.getMetadata();
         assertNotNull(meta);
-        assertNull(meta.index("test"));
+        assertNull(meta.getProject().index("test"));
 
         test = createIndex("test");
         prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test"), 1);
-        IndexMetadata secondMetadata = clusterService.state().metadata().index("test");
+        IndexMetadata secondMetadata = clusterService.state().metadata().getProject().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
         ShardPath secondPath = ShardPath.loadShardPath(
             logger,
@@ -331,7 +355,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         assertTrue(secondPath.exists());
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata, randomReason()));
         assertTrue(secondPath.exists());
 
         assertAcked(client().admin().indices().prepareOpen("test"));
@@ -362,13 +386,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+            indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReason());
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+                indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReason());
             }
-            indicesService.addPendingDelete(index, indexSettings);
+            indicesService.addPendingDelete(index, indexSettings, randomReason());
         }
 
         assertAcked(client().admin().indices().prepareClose("test"));
@@ -388,9 +412,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final boolean hasBogus = randomBoolean();
         if (hasBogus) {
-            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings);
-            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings);
-            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings, randomReason());
+            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings, randomReason());
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings, randomReason());
             assertEquals(indicesService.numPendingDeletes(index), numPending + 2);
             assertTrue(indicesService.hasUncompletedPendingDeletes());
         }
@@ -449,7 +473,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         createIndex(indexName);
 
         // create the alias for the index
-        client().admin().indices().prepareAliases().addAlias(indexName, alias).get();
+        client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indexName, alias).get();
         final ClusterState originalState = clusterService.state();
 
         // try to import a dangling index with the same name as the alias, it should fail
@@ -468,14 +492,14 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(clusterService.state(), equalTo(originalState));
 
         // remove the alias
-        client().admin().indices().prepareAliases().removeAlias(indexName, alias).get();
+        client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias(indexName, alias).get();
 
         // now try importing a dangling index with the same name as the alias, it should succeed.
         latch = new CountDownLatch(1);
         dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.running(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), not(originalState));
-        assertNotNull(clusterService.state().getMetadata().index(alias));
+        assertNotNull(clusterService.state().getMetadata().getProject().index(alias));
     }
 
     public void testDanglingIndicesWithLaterVersion() throws Exception {
@@ -523,8 +547,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
         final Index tombstonedIndex = new Index(indexName, UUIDs.randomBase64UUID());
         final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(tombstonedIndex).build();
-        final Metadata metadata = Metadata.builder().put(indexMetadata, true).indexGraveyard(graveyard).build();
-        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metadata(metadata).build();
+        @FixForMultiProject // Use random project-id
+        final var project = ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, true).indexGraveyard(graveyard).build();
+        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).putProjectMetadata(project).build();
         // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
         indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
     }
@@ -661,7 +686,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testBuildAliasFilter() {
         var indicesService = getIndicesService();
-        Metadata.Builder mdBuilder = Metadata.builder()
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(projectId)
             .put(
                 indexBuilder("test-0").state(IndexMetadata.State.OPEN)
                     .putAlias(AliasMetadata.builder("test-alias-0").filter(Strings.toString(QueryBuilders.termQuery("foo", "bar"))))
@@ -674,29 +700,34 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                     .putAlias(AliasMetadata.builder("test-alias-1").filter(Strings.toString(QueryBuilders.termQuery("foo", "bax"))))
                     .putAlias(AliasMetadata.builder("test-alias-non-filtering"))
             );
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(projBuilder).build();
+        final ProjectState projectState = clusterState.projectState(projectId);
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, "test-0", resolvedExpressions("test-alias-0"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-0"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, "test-1", resolvedExpressions("test-alias-0"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, "test-0", resolvedExpressions("test-alias-1"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-1"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "baz")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, "test-1", resolvedExpressions("test-alias-1"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-1"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bax")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(
+                projectState,
+                "test-0",
+                resolvedExpressions("test-alias-0", "test-alias-1")
+            );
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0", "test-alias-1"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -705,7 +736,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-0", "test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(
+                projectState,
+                "test-1",
+                resolvedExpressions("test-alias-0", "test-alias-1")
+            );
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0", "test-alias-1"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -715,18 +750,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
         {
             AliasFilter result = indicesService.buildAliasFilter(
-                state,
+                projectState,
                 "test-0",
-                Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering")
+                resolvedExpressions("test-alias-0", "test-alias-1", "test-alias-non-filtering")
             );
             assertThat(result.getAliases(), emptyArray());
             assertThat(result.getQueryBuilder(), nullValue());
         }
         {
             AliasFilter result = indicesService.buildAliasFilter(
-                state,
+                projectState,
                 "test-1",
-                Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering")
+                resolvedExpressions("test-alias-0", "test-alias-1", "test-alias-non-filtering")
             );
             assertThat(result.getAliases(), emptyArray());
             assertThat(result.getQueryBuilder(), nullValue());
@@ -740,32 +775,34 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final String dataStreamName2 = "logs-foobaz";
         IndexMetadata backingIndex1 = createBackingIndex(dataStreamName1, 1).build();
         IndexMetadata backingIndex2 = createBackingIndex(dataStreamName2, 1).build();
-        Metadata.Builder mdBuilder = Metadata.builder()
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(projectId)
             .put(backingIndex1, false)
             .put(backingIndex2, false)
             .put(DataStreamTestHelper.newInstance(dataStreamName1, List.of(backingIndex1.getIndex())))
             .put(DataStreamTestHelper.newInstance(dataStreamName2, List.of(backingIndex2.getIndex())));
-        mdBuilder.put("logs_foo", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "bar")));
-        mdBuilder.put("logs_foo", dataStreamName2, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
-        mdBuilder.put("logs", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
-        mdBuilder.put("logs", dataStreamName2, null, Strings.toString(QueryBuilders.termQuery("foo", "bax")));
-        mdBuilder.put("logs_bar", dataStreamName1, null, null);
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        projBuilder.put("logs_foo", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "bar")));
+        projBuilder.put("logs_foo", dataStreamName2, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
+        projBuilder.put("logs", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
+        projBuilder.put("logs", dataStreamName2, null, Strings.toString(QueryBuilders.termQuery("foo", "bax")));
+        projBuilder.put("logs_bar", dataStreamName1, null, null);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(projBuilder).build();
+        ProjectState projectState = clusterState.projectState(projectId);
         {
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, index, resolvedExpressions("logs_foo"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
             String index = backingIndex2.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, index, resolvedExpressions("logs_foo"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "baz")));
         }
         {
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, index, resolvedExpressions("logs_foo", "logs"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -775,7 +812,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
         {
             String index = backingIndex2.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, index, resolvedExpressions("logs_foo", "logs"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -786,13 +823,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         {
             // querying an unfiltered and a filtered alias for the same data stream should drop the filters
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, index, resolvedExpressions("logs_foo", "logs", "logs_bar"));
             assertThat(result, is(AliasFilter.EMPTY));
         }
         {
             // similarly, querying the data stream name and a filtered alias should drop the filter
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs", dataStreamName1));
+            AliasFilter result = indicesService.buildAliasFilter(projectState, index, resolvedExpressions("logs", dataStreamName1));
             assertThat(result, is(AliasFilter.EMPTY));
         }
     }
@@ -802,33 +839,34 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
 
         var indicesService = getIndicesService();
-        SlowLogFieldProvider fieldProvider = indicesService.loadSlowLogFieldProvider();
+        SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
+        SlowLogFields fields = fieldProvider.create(null);
 
         // The map of fields from the two providers are merged to a single map of fields
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.searchFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.indexFields());
 
         TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
         TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
 
         // There is an overlap of field names, since this isn't deterministic and probably a
         // programming error (two providers provide the same field) throw an exception
-        assertThrows(IllegalStateException.class, fieldProvider::searchSlowLogFields);
-        assertThrows(IllegalStateException.class, fieldProvider::indexSlowLogFields);
+        assertThrows(IllegalStateException.class, fields::searchFields);
+        assertThrows(IllegalStateException.class, fields::indexFields);
 
         TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
         TestAnotherSlowLogFieldProvider.setFields(Map.of());
 
         // One provider has no fields
-        assertEquals(Map.of("key1", "value1"), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of("key1", "value1"), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of("key1", "value1"), fields.searchFields());
+        assertEquals(Map.of("key1", "value1"), fields.indexFields());
 
         TestSlowLogFieldProvider.setFields(Map.of());
         TestAnotherSlowLogFieldProvider.setFields(Map.of());
 
         // Both providers have no fields
-        assertEquals(Map.of(), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of(), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of(), fields.searchFields());
+        assertEquals(Map.of(), fields.indexFields());
     }
 
     public void testWithTempIndexServiceHandlesExistingIndex() throws Exception {
@@ -844,5 +882,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertEquals(createdIndexService.index(), indexService.index());
             return null;
         });
+    }
+
+    private Set<ResolvedExpression> resolvedExpressions(String... expressions) {
+        return Arrays.stream(expressions).map(ResolvedExpression::new).collect(Collectors.toSet());
+    }
+
+    private IndexRemovalReason randomReason() {
+        return randomFrom(IndexRemovalReason.values());
     }
 }

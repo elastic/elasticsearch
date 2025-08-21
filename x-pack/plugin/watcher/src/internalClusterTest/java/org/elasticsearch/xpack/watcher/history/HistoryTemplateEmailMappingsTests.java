@@ -105,7 +105,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
             ),
             response -> {
                 assertThat(response, notNullValue());
-                assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
                 InternalAggregations aggs = response.getAggregations();
                 assertThat(aggs, notNullValue());
 

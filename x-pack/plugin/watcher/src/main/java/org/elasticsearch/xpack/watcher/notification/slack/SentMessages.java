@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification.slack;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -110,7 +111,7 @@ public class SentMessages implements ToXContentObject, Iterable<SentMessages.Sen
         }
 
         public boolean isSuccess() {
-            return response != null && response.status() >= 200 && response.status() < 300;
+            return response != null && RestStatus.isSuccessful(response.status());
         }
 
         @Override

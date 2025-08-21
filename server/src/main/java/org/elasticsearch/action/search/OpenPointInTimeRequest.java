@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class OpenPointInTimeRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class OpenPointInTimeRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -40,6 +41,8 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     private String preference;
 
     private QueryBuilder indexFilter;
+
+    private boolean allowPartialSearchResults = false;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
@@ -60,6 +63,9 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            this.allowPartialSearchResults = in.readBoolean();
+        }
     }
 
     @Override
@@ -75,6 +81,11 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(indexFilter);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            out.writeBoolean(allowPartialSearchResults);
+        } else if (allowPartialSearchResults) {
+            throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());
         }
     }
 
@@ -180,6 +191,15 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         return true;
     }
 
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public OpenPointInTimeRequest allowPartialSearchResults(boolean allowPartialSearchResults) {
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        return this;
+    }
+
     @Override
     public String getDescription() {
         return "open search context: indices [" + String.join(",", indices) + "] keep_alive [" + keepAlive + "]";
@@ -200,6 +220,8 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
             + ", preference='"
             + preference
             + '\''
+            + ", allowPartialSearchResults="
+            + allowPartialSearchResults
             + '}';
     }
 
@@ -218,12 +240,13 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
             && indicesOptions.equals(that.indicesOptions)
             && keepAlive.equals(that.keepAlive)
             && Objects.equals(routing, that.routing)
-            && Objects.equals(preference, that.preference);
+            && Objects.equals(preference, that.preference)
+            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, keepAlive, maxConcurrentShardRequests, routing, preference);
+        int result = Objects.hash(indicesOptions, keepAlive, maxConcurrentShardRequests, routing, preference, allowPartialSearchResults);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

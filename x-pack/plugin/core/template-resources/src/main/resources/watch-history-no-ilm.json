@@ -54,6 +54,15 @@
               "enabled": false
             }
           }
+        },
+        {
+          "disabled_result_input_chain_fields": {
+            "path_match": "result.input.chain",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
         }
       ],
       "dynamic": false,

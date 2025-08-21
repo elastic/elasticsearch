@@ -185,7 +185,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         maxInputTokens = in.readOptionalVInt();
         similarity = in.readOptionalEnum(SimilarityMeasure.class);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings = new RateLimitSettings(in);
         } else {
             rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
@@ -248,6 +248,11 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -285,7 +290,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override
@@ -298,7 +303,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
     }

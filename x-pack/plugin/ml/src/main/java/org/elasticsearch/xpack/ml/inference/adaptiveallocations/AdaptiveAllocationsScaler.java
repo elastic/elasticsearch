@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 
+import java.util.function.Supplier;
+
 /**
  * Processes measured requests counts and inference times and decides whether
  * the number of allocations should be scaled up or down.
@@ -21,19 +23,35 @@ public class AdaptiveAllocationsScaler {
     static final double SCALE_UP_THRESHOLD = 0.9;
     private static final double SCALE_DOWN_THRESHOLD = 0.85;
 
+    /**
+     * If the max_number_of_allocations is not set, use this value for now to prevent scaling up
+     * to high numbers due to possible bugs or unexpected behaviour in the scaler.
+     * TODO(jan): remove this safeguard when the scaler behaves as expected in production.
+     */
+    private static final int MAX_NUMBER_OF_ALLOCATIONS_SAFEGUARD = 32;
+
     private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScaler.class);
 
     private final String deploymentId;
     private final KalmanFilter1d requestRateEstimator;
     private final KalmanFilter1d inferenceTimeEstimator;
+    private final Supplier<Long> scaleToZeroAfterNoRequestsSeconds;
+    private double timeWithoutRequestsSeconds;
 
     private int numberOfAllocations;
+    private int neededNumberOfAllocations;
     private Integer minNumberOfAllocations;
     private Integer maxNumberOfAllocations;
     private boolean dynamicsChanged;
 
-    AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations) {
+    private Double lastMeasuredRequestRate;
+    private Double lastMeasuredInferenceTime;
+    private Long lastMeasuredQueueSize;
+
+    AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations, Supplier<Long> scaleToZeroAfterNoRequestsSeconds) {
         this.deploymentId = deploymentId;
+        this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
+
         // A smoothing factor of 100 roughly means the last 100 measurements have an effect
         // on the estimated values. The sampling time is 10 seconds, so approximately the
         // last 15 minutes are taken into account.
@@ -43,10 +61,16 @@ public class AdaptiveAllocationsScaler {
         // the number of allocations changes, which is passed explicitly to the estimator.
         requestRateEstimator = new KalmanFilter1d(deploymentId + ":rate", 100, true);
         inferenceTimeEstimator = new KalmanFilter1d(deploymentId + ":time", 100, false);
+        timeWithoutRequestsSeconds = 0.0;
         this.numberOfAllocations = numberOfAllocations;
-        this.minNumberOfAllocations = null;
-        this.maxNumberOfAllocations = null;
-        this.dynamicsChanged = false;
+        neededNumberOfAllocations = numberOfAllocations;
+        minNumberOfAllocations = null;
+        maxNumberOfAllocations = null;
+        dynamicsChanged = false;
+
+        lastMeasuredRequestRate = null;
+        lastMeasuredInferenceTime = null;
+        lastMeasuredQueueSize = null;
     }
 
     void setMinMaxNumberOfAllocations(Integer minNumberOfAllocations, Integer maxNumberOfAllocations) {
@@ -55,6 +79,13 @@ public class AdaptiveAllocationsScaler {
     }
 
     void process(AdaptiveAllocationsScalerService.Stats stats, double timeIntervalSeconds, int numberOfAllocations) {
+        lastMeasuredQueueSize = stats.pendingCount();
+        if (stats.requestCount() > 0) {
+            timeWithoutRequestsSeconds = 0.0;
+        } else {
+            timeWithoutRequestsSeconds += timeIntervalSeconds;
+        }
+
         // The request rate (per second) is the request count divided by the time.
         // Assuming a Poisson process for the requests, the variance in the request
         // count equals the mean request count, and the variance in the request rate
@@ -67,6 +98,7 @@ public class AdaptiveAllocationsScaler {
         double requestRateEstimate = requestRateEstimator.hasValue() ? requestRateEstimator.estimate() : requestRate;
         double requestRateVariance = Math.max(1.0, requestRateEstimate * timeIntervalSeconds) / Math.pow(timeIntervalSeconds, 2);
         requestRateEstimator.add(requestRate, requestRateVariance, false);
+        lastMeasuredRequestRate = requestRate;
 
         if (stats.requestCount() > 0 && Double.isNaN(stats.inferenceTime()) == false) {
             // The inference time distribution is unknown. For simplicity, we assume
@@ -79,10 +111,17 @@ public class AdaptiveAllocationsScaler {
             double inferenceTimeEstimate = inferenceTimeEstimator.hasValue() ? inferenceTimeEstimator.estimate() : inferenceTime;
             double inferenceTimeVariance = Math.pow(inferenceTimeEstimate, 2) / stats.requestCount();
             inferenceTimeEstimator.add(inferenceTime, inferenceTimeVariance, dynamicsChanged);
+            lastMeasuredInferenceTime = inferenceTime;
+        } else {
+            lastMeasuredInferenceTime = null;
         }
 
         this.numberOfAllocations = numberOfAllocations;
         dynamicsChanged = false;
+    }
+
+    void resetTimeWithoutRequests() {
+        timeWithoutRequestsSeconds = 0;
     }
 
     double getLoadLower() {
@@ -97,7 +136,16 @@ public class AdaptiveAllocationsScaler {
         return requestRateUpper * inferenceTimeUpper;
     }
 
+    Double getRequestRateEstimate() {
+        return requestRateEstimator.hasValue() ? requestRateEstimator.estimate() : null;
+    }
+
+    Double getInferenceTimeEstimate() {
+        return inferenceTimeEstimator.hasValue() ? inferenceTimeEstimator.estimate() : null;
+    }
+
     Integer scale() {
+
         if (requestRateEstimator.hasValue() == false) {
             return null;
         }
@@ -114,11 +162,27 @@ public class AdaptiveAllocationsScaler {
             numberOfAllocations--;
         }
 
+        neededNumberOfAllocations = numberOfAllocations;
+
+        if (maxNumberOfAllocations == null) {
+            numberOfAllocations = Math.min(numberOfAllocations, MAX_NUMBER_OF_ALLOCATIONS_SAFEGUARD);
+        }
         if (minNumberOfAllocations != null) {
             numberOfAllocations = Math.max(numberOfAllocations, minNumberOfAllocations);
         }
         if (maxNumberOfAllocations != null) {
             numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
+        }
+
+        if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
+            && timeWithoutRequestsSeconds > scaleToZeroAfterNoRequestsSeconds.get()) {
+
+            if (oldNumberOfAllocations != 0) {
+                // avoid logging this message if there is no change
+                logger.debug("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
+            }
+            numberOfAllocations = 0;
+            neededNumberOfAllocations = 0;
         }
 
         if (numberOfAllocations != oldNumberOfAllocations) {
@@ -150,5 +214,37 @@ public class AdaptiveAllocationsScaler {
         } else {
             return null;
         }
+    }
+
+    public String getDeploymentId() {
+        return deploymentId;
+    }
+
+    public long getNumberOfAllocations() {
+        return numberOfAllocations;
+    }
+
+    public long getNeededNumberOfAllocations() {
+        return neededNumberOfAllocations;
+    }
+
+    public Double getLastMeasuredRequestRate() {
+        return lastMeasuredRequestRate;
+    }
+
+    public Double getLastMeasuredInferenceTime() {
+        return lastMeasuredInferenceTime;
+    }
+
+    public Long getLastMeasuredQueueSize() {
+        return lastMeasuredQueueSize;
+    }
+
+    public Integer getMinNumberOfAllocations() {
+        return minNumberOfAllocations;
+    }
+
+    public Integer getMaxNumberOfAllocations() {
+        return maxNumberOfAllocations;
     }
 }

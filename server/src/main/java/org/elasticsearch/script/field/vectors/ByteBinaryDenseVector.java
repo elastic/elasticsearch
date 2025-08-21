@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
@@ -11,6 +12,7 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -20,7 +22,7 @@ public class ByteBinaryDenseVector implements DenseVector {
     public static final int MAGNITUDE_BYTES = 4;
 
     private final BytesRef docVector;
-    private final byte[] vectorValue;
+    protected final byte[] vectorValue;
     protected final int dims;
 
     private float[] floatDocVector;
@@ -60,7 +62,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public double dotProduct(float[] queryVector) {
-        throw new UnsupportedOperationException("use [int dotProduct(byte[] queryVector)] instead");
+        return ESVectorUtil.ipFloatByte(queryVector, vectorValue);
     }
 
     @Override
@@ -102,7 +104,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public int hamming(byte[] queryVector) {
-        return ESVectorUtil.xorBitCount(queryVector, vectorValue);
+        return VectorUtil.xorBitCount(queryVector, vectorValue);
     }
 
     @Override
@@ -141,7 +143,11 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
-        throw new UnsupportedOperationException("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
+        if (normalizeQueryVector) {
+            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
+        }
+
+        return dotProduct(queryVector) / getMagnitude();
     }
 
     @Override

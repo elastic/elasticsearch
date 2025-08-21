@@ -40,6 +40,9 @@
             "id": {
               "type": "keyword"
             },
+            "name": {
+              "type": "keyword"
+            },
             "type": {
               "type": "keyword"
             }
@@ -51,6 +54,13 @@
               "type": "keyword"
             },
             "region": {
+              "type": "keyword"
+            }
+          }
+        },
+        "os": {
+          "properties": {
+            "type": {
               "type": "keyword"
             }
           }
@@ -135,6 +145,9 @@
                 },
                 "config.present_cpu_cores": {
                   "type": "integer"
+                },
+                "config.sampling_frequency": {
+                  "type": "integer"
                 }
               }
             },
@@ -165,9 +178,6 @@
                   "ignore_malformed": true
                 },
                 "tags": {
-                  "type": "keyword"
-                },
-                "name": {
                   "type": "keyword"
                 },
                 "machine": {

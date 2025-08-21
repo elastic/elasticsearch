@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -58,7 +59,12 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             xContentRegistry(),
             // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
             // DataFrameAnalyticsAuditor constructor. Instead we generate a random boolean value for that purpose.
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean()),
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                randomBoolean()
+            ),
             getInstanceFromNode(ClusterService.class)
         );
         dummyAuthenticationHeader = Authentication.newRealmAuthentication(

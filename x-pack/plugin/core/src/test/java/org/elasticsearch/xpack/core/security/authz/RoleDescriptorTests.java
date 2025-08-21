@@ -31,9 +31,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -45,10 +48,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivilegesBuilder;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteClusterPermissions;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -540,13 +544,41 @@ public class RoleDescriptorTests extends ESTestCase {
             () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q4), XContentType.JSON)
         );
         assertThat(illegalArgumentException.getMessage(), containsString("remote cluster groups must not be null or empty"));
+
+        // one invalid privilege
+        String q5 = """
+            {
+              "remote_cluster": [
+                {
+                  "privileges": [
+                      "monitor_stats", "read_pipeline"
+                  ],
+                  "clusters": [
+                      "*"
+                  ]
+                }
+              ]
+            }""";
+
+        ElasticsearchParseException parseException = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q5), XContentType.JSON)
+        );
+        assertThat(
+            parseException.getMessage(),
+            containsString(
+                "failed to parse remote_cluster for role [test]. "
+                    + "[monitor_enrich, monitor_stats] are the only values allowed for [privileges] within [remote_cluster]. "
+                    + "Found [monitor_stats, read_pipeline]"
+            )
+        );
     }
 
     public void testParsingFieldPermissionsUsesCache() throws IOException {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
-        final Cache.CacheStats beforeStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats beforeStats = fieldPermissionsCache.getCacheStats();
 
         final String json = """
             {
@@ -572,7 +604,7 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
 
         final int numberOfFieldSecurityBlocks = 2;
-        final Cache.CacheStats betweenStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats betweenStats = fieldPermissionsCache.getCacheStats();
         assertThat(betweenStats.getMisses(), equalTo(beforeStats.getMisses() + numberOfFieldSecurityBlocks));
         assertThat(betweenStats.getHits(), equalTo(beforeStats.getHits()));
 
@@ -581,7 +613,7 @@ public class RoleDescriptorTests extends ESTestCase {
             RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
         }
 
-        final Cache.CacheStats afterStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats afterStats = fieldPermissionsCache.getCacheStats();
         assertThat(afterStats.getMisses(), equalTo(betweenStats.getMisses()));
         assertThat(afterStats.getHits(), equalTo(beforeStats.getHits() + numberOfFieldSecurityBlocks * iterations));
     }
@@ -589,9 +621,9 @@ public class RoleDescriptorTests extends ESTestCase {
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
-        final boolean canIncludeRemoteClusters = version.onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS);
+        final boolean canIncludeRemoteClusters = version.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS);
         final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
-        final boolean canIncludeDescription = version.onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION);
+        final boolean canIncludeDescription = version.onOrAfter(SECURITY_ROLE_DESCRIPTION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
@@ -619,7 +651,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeRemoteIndices
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -667,12 +699,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithRemoteClusterWithElderVersion() throws IOException {
-        final TransportVersion versionBeforeRemoteCluster = TransportVersionUtils.getPreviousVersion(
-            TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
-        );
+        final TransportVersion versionBeforeRemoteCluster = TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeRemoteCluster
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -723,7 +753,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeWorkflowsRestriction = TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeWorkflowsRestriction
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -815,12 +845,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithDescriptionAndUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeRoleDescription = TransportVersionUtils.getPreviousVersion(
-            TransportVersions.SECURITY_ROLE_DESCRIPTION
-        );
+        final TransportVersion versionBeforeRoleDescription = TransportVersionUtils.getPreviousVersion(SECURITY_ROLE_DESCRIPTION);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeRoleDescription
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -1312,12 +1340,14 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
-    public void testHasPrivilegesOtherThanIndex() {
+    public void testHasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster() {
+        // any index and some cluster privileges are allowed
         assertThat(
             new RoleDescriptor(
                 "name",
-                null,
-                randomBoolean() ? null : randomIndicesPrivileges(1, 5),
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]), // all of these are allowed
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 null,
                 null,
@@ -1330,19 +1360,171 @@ public class RoleDescriptorTests extends ESTestCase {
             ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
             is(false)
         );
-        final RoleDescriptor roleDescriptor = RoleDescriptorTestHelper.builder()
-            .allowReservedMetadata(true)
-            .allowRemoteIndices(true)
-            .allowRestriction(true)
-            .allowDescription(true)
-            .allowRemoteClusters(true)
-            .build();
-        final boolean expected = roleDescriptor.hasClusterPrivileges()
-            || roleDescriptor.hasConfigurableClusterPrivileges()
-            || roleDescriptor.hasApplicationPrivileges()
-            || roleDescriptor.hasRunAs()
-            || roleDescriptor.hasRemoteIndicesPrivileges();
-        assertThat(roleDescriptor.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(), equalTo(expected));
+        // any index and some cluster privileges are allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                new String[] { "manage_security" }, // unlikely we will ever support allowing manage security across clusters
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // application privileges are not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+                new ApplicationResourcePrivileges[] {
+                    ApplicationResourcePrivileges.builder().application("app").privileges("foo").resources("res").build() },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // configurable cluster privileges are not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+                null,
+                new ConfigurableClusterPrivilege[] {
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo")) },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // run as is not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+                null,
+                null,
+                new String[] { "foo" },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // workflows restriction is not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RoleDescriptor.Restriction(WorkflowResolver.allWorkflows().stream().map(Workflow::name).toArray(String[]::new)),
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+        // remote indices privileges are not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() },
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+        // remote cluster privileges are not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RemoteClusterPermissions().addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] { "rmt" }
+                    )
+                ),
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // metadata, transient metadata and description are allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+                null,
+                null,
+                null,
+                Collections.singletonMap("foo", "bar"),
+                Collections.singletonMap("foo", "bar"),
+                null,
+                null,
+                null,
+                "description"
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(false)
+        );
     }
 
     private static void resetFieldPermssionsCache() {

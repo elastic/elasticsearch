@@ -13,22 +13,26 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToInteger}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToIntegerFromLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToIntegerFromLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator lng;
+
+  public ToIntegerFromLongEvaluator(Source source, EvalOperator.ExpressionEvaluator lng,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.lng = lng;
   }
 
   @Override
-  public String name() {
-    return "ToIntegerFromLong";
+  public EvalOperator.ExpressionEvaluator next() {
+    return lng;
   }
 
   @Override
@@ -56,7 +60,7 @@ public final class ToIntegerFromLongEvaluator extends AbstractConvertFunction.Ab
     }
   }
 
-  private static int evalValue(LongVector container, int index) {
+  private int evalValue(LongVector container, int index) {
     long value = container.getLong(index);
     return ToInteger.fromLong(value);
   }
@@ -95,29 +99,39 @@ public final class ToIntegerFromLongEvaluator extends AbstractConvertFunction.Ab
     }
   }
 
-  private static int evalValue(LongBlock container, int index) {
+  private int evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
     return ToInteger.fromLong(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToIntegerFromLongEvaluator[" + "lng=" + lng + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(lng);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory lng;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lng) {
       this.source = source;
+      this.lng = lng;
     }
 
     @Override
     public ToIntegerFromLongEvaluator get(DriverContext context) {
-      return new ToIntegerFromLongEvaluator(field.get(context), source, context);
+      return new ToIntegerFromLongEvaluator(source, lng.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToIntegerFromLongEvaluator[field=" + field + "]";
+      return "ToIntegerFromLongEvaluator[" + "lng=" + lng + "]";
     }
   }
 }

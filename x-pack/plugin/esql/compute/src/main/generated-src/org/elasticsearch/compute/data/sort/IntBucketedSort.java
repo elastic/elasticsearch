@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data.sort;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
@@ -101,7 +102,7 @@ public class IntBucketedSort implements Releasable {
         // Gathering mode
         long requiredSize = rootIndex + bucketSize;
         if (values.size() < requiredSize) {
-            grow(requiredSize);
+            grow(bucket);
         }
         int next = getNextGatherOffset(rootIndex);
         assert 0 <= next && next < bucketSize
@@ -257,19 +258,25 @@ public class IntBucketedSort implements Releasable {
 
     /**
      * Allocate storage for more buckets and store the "next gather offset"
-     * for those new buckets.
+     * for those new buckets. We always grow the storage by whole bucket's
+     * worth of slots at a time. We never allocate space for partial buckets.
      */
-    private void grow(long minSize) {
+    private void grow(int bucket) {
         long oldMax = values.size();
-        values = bigArrays.grow(values, minSize);
+        assert oldMax % bucketSize == 0;
+
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.INT_PAGE_SIZE, Integer.BYTES);
+        // Round up to the next full bucket.
+        newSize = (newSize + bucketSize - 1) / bucketSize;
+        values = bigArrays.resize(values, newSize * bucketSize);
         // Set the next gather offsets for all newly allocated buckets.
-        setNextGatherOffsets(oldMax - (oldMax % getBucketSize()));
+        fillGatherOffsets(oldMax);
     }
 
     /**
      * Maintain the "next gather offsets" for newly allocated buckets.
      */
-    private void setNextGatherOffsets(long startingAt) {
+    private void fillGatherOffsets(long startingAt) {
         int nextOffset = getBucketSize() - 1;
         for (long bucketRoot = startingAt; bucketRoot < values.size(); bucketRoot += getBucketSize()) {
             setNextGatherOffset(bucketRoot, nextOffset);

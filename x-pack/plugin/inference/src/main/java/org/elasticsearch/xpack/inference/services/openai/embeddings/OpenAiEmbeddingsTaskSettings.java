@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -65,6 +66,11 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     public OpenAiEmbeddingsTaskSettings(@Nullable String user) {
         this.user = user;
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return user == null;
     }
 
     public OpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
@@ -121,5 +127,11 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(user);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        OpenAiEmbeddingsRequestTaskSettings requestSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(newSettings));
+        return of(this, requestSettings);
     }
 }

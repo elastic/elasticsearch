@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -100,9 +101,6 @@ public class DocumentParserContextTests extends ESTestCase {
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("_doc")
-            .startObject("_source")
-            .field("mode", "synthetic")
-            .endObject()
             .startObject(DataStreamTimestampFieldMapper.NAME)
             .field("enabled", "true")
             .endObject()
@@ -119,6 +117,11 @@ public class DocumentParserContextTests extends ESTestCase {
             .endObject()
             .endObject();
         var documentMapper = new MapperServiceTestCase() {
+
+            @Override
+            protected Settings getIndexSettings() {
+                return Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+            }
         }.createDocumentMapper(mapping);
         var parserContext = new TestDocumentParserContext(documentMapper.mappers(), null);
         parserContext.path().add("foo");
@@ -126,7 +129,6 @@ public class DocumentParserContextTests extends ESTestCase {
         var resultFromParserContext = parserContext.createDynamicMapperBuilderContext();
 
         assertEquals("foo.hey", resultFromParserContext.buildFullName("hey"));
-        assertTrue(resultFromParserContext.isSourceSynthetic());
         assertTrue(resultFromParserContext.isDataStream());
         assertTrue(resultFromParserContext.parentObjectContainsDimensions());
         assertEquals(ObjectMapper.Defaults.DYNAMIC, resultFromParserContext.getDynamic());

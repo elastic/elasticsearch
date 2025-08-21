@@ -52,6 +52,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
             // only data nodes should be eligible to run the maintenance service.
             AsyncTaskMaintenanceService maintenanceService = new AsyncTaskMaintenanceService(
                 services.clusterService(),
+                services.projectResolver(),
                 services.nodeEnvironment().nodeId(),
                 settings,
                 services.threadPool(),

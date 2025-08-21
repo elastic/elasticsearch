@@ -1,0 +1,35 @@
+org.elasticsearch.xcore:
+  - files:
+    - relative_path: ""
+      relative_to: config
+      mode: read
+org.elasticsearch.sslconfig:
+  - files:
+    - relative_path: ""
+      relative_to: config
+      mode: read
+org.apache.httpcomponents.httpclient:
+  - outbound_network # For SamlRealm
+  - manage_threads
+org.apache.httpcomponents.httpcore.nio:
+  - outbound_network
+  - manage_threads
+org.apache.httpcomponents.httpasyncclient:
+  - manage_threads
+unboundid.ldapsdk:
+  - set_https_connection_properties # TODO: review if we need this once we have proper test coverage
+  - outbound_network
+  - manage_threads
+  - write_system_properties:
+      properties:
+        - java.security.auth.login.config
+        - javax.security.auth.useSubjectCredsOnly
+        - java.security.krb5.kdc
+        - java.security.krb5.realm
+        - networkaddress.cache.ttl
+        - networkaddress.cache.negative.ttl
+        - javax.net.debug
+        - com.unboundid.util.PassphraseEncryptedOutputStream.defaultAES128CipherTypeIterationCount
+        - org.bouncycastle.fips.approved_only
+        - org.bouncycastle.rsa.allow_multi_use
+        - org.bouncycastle.jsse.enable_md5

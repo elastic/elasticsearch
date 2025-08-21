@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,7 +49,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         private static final ParseField INDEX = new ParseField("index");
         private static final ParseField QUERY = new ParseField("query");
@@ -192,7 +192,6 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         private final List<EvaluationMetricResult> metrics;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.evaluationName = in.readString();
             this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetricResult.class);
         }

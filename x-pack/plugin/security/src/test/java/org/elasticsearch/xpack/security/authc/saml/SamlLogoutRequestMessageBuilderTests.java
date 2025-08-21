@@ -40,7 +40,7 @@ public class SamlLogoutRequestMessageBuilderTests extends SamlTestCase {
     @Before
     public void init() throws Exception {
         SamlUtils.initialize(logger);
-        sp = new SpConfiguration(SP_ENTITY_ID, "http://sp.example.com/saml/acs", null, null, null, Collections.emptyList());
+        sp = new SingleSamlSpConfiguration(SP_ENTITY_ID, "http://sp.example.com/saml/acs", null, null, null, Collections.emptyList());
         idpRole = SamlUtils.buildObject(IDPSSODescriptor.class, IDPSSODescriptor.DEFAULT_ELEMENT_NAME);
         idp = SamlUtils.buildObject(EntityDescriptor.class, EntityDescriptor.DEFAULT_ELEMENT_NAME);
         idp.setEntityID(IDP_ENTITY_ID);

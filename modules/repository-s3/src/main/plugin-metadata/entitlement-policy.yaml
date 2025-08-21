@@ -1,0 +1,12 @@
+ALL-UNNAMED:
+  - manage_threads
+  - outbound_network
+  - files:
+    - relative_path: "repository-s3/aws-web-identity-token-file"
+      relative_to: "config"
+      mode: "read"
+  # The security policy permission states this is "only for tests": org.elasticsearch.repositories.s3.S3RepositoryPlugin
+  # TODO: check this is actually needed, and if we can isolate it to a test-only policy
+  - write_system_properties:
+      properties:
+        - es.allow_insecure_settings

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action;
@@ -63,9 +64,9 @@ public class RestActions {
         return (version == Versions.MATCH_ANY) ? defaultVersion : version;
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
+    public static XContentBuilder buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
         throws IOException {
-        buildBroadcastShardsHeader(
+        return buildBroadcastShardsHeader(
             builder,
             params,
             response.getTotalShards(),
@@ -76,7 +77,7 @@ public class RestActions {
         );
     }
 
-    public static void buildBroadcastShardsHeader(
+    public static XContentBuilder buildBroadcastShardsHeader(
         XContentBuilder builder,
         Params params,
         int total,
@@ -99,7 +100,7 @@ public class RestActions {
             }
             builder.endArray();
         }
-        builder.endObject();
+        return builder.endObject();
     }
 
     /**
@@ -110,7 +111,7 @@ public class RestActions {
      * @param response The response containing individual, node-level responses.
      * @see #buildNodesHeader(XContentBuilder, Params, int, int, int, List)
      */
-    public static <NodeResponse extends BaseNodeResponse> void buildNodesHeader(
+    public static <NodeResponse extends BaseNodeResponse> XContentBuilder buildNodesHeader(
         final XContentBuilder builder,
         final Params params,
         final BaseNodesResponse<NodeResponse> response
@@ -119,6 +120,7 @@ public class RestActions {
         final int failed = response.failures().size();
 
         buildNodesHeader(builder, params, successful + failed, successful, failed, response.failures());
+        return builder;
     }
 
     /**

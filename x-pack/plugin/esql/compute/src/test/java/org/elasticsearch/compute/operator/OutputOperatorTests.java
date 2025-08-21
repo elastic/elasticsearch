@@ -7,16 +7,19 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OutputOperatorTests extends AnyOperatorTestCase {
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, p -> {});
     }
 
@@ -46,5 +49,10 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
 
     public void testBigDescription() {
         assertThat(big().describe(), equalTo(expectedDescriptionOfBig()));
+    }
+
+    @Override
+    protected void assertEmptyStatus(Map<String, Object> map) {
+        assertThat(map, nullValue());
     }
 }

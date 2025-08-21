@@ -13,6 +13,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
 import java.util.Map;
@@ -51,9 +52,12 @@ public class ModelDownloadTask extends CancellableTask {
     }
 
     private final AtomicReference<DownLoadProgress> downloadProgress = new AtomicReference<>(new DownLoadProgress(0, 0));
+    private final String modelId;
+    private volatile Exception taskException;
 
-    public ModelDownloadTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, description, parentTaskId, headers);
+    public ModelDownloadTask(long id, String type, String action, String modelId, TaskId parentTaskId, Map<String, String> headers) {
+        super(id, type, action, taskDescription(modelId), parentTaskId, headers);
+        this.modelId = modelId;
     }
 
     void setProgress(int totalParts, int downloadedParts) {
@@ -65,4 +69,19 @@ public class ModelDownloadTask extends CancellableTask {
         return new DownloadStatus(downloadProgress.get());
     }
 
+    public String getModelId() {
+        return modelId;
+    }
+
+    public void setTaskException(Exception exception) {
+        this.taskException = exception;
+    }
+
+    public Exception getTaskException() {
+        return taskException;
+    }
+
+    public static String taskDescription(String modelId) {
+        return MlTasks.downloadModelTaskDescription(modelId);
+    }
 }

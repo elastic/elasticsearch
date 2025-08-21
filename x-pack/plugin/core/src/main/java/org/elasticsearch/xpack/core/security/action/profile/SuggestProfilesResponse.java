@@ -55,8 +55,8 @@ public class SuggestProfilesResponse extends ActionResponse implements ToXConten
             builder.field("took", tookInMillis);
             builder.startObject("total");
             {
-                builder.field("value", totalHits.value);
-                builder.field("relation", totalHits.relation == TotalHits.Relation.EQUAL_TO ? "eq" : "gte");
+                builder.field("value", totalHits.value());
+                builder.field("relation", totalHits.relation() == TotalHits.Relation.EQUAL_TO ? "eq" : "gte");
             }
             builder.endObject();
             builder.startArray("profiles");

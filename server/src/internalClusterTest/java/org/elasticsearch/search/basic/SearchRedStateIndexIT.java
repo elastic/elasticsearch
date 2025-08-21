@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.basic;
@@ -12,7 +13,6 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -99,7 +99,9 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         Settings persistentSettings = Settings.builder().put(key, allowPartialResults).build();
 
-        ClusterUpdateSettingsResponse response1 = clusterAdmin().prepareUpdateSettings().setPersistentSettings(persistentSettings).get();
+        ClusterUpdateSettingsResponse response1 = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(persistentSettings)
+            .get();
 
         assertAcked(response1);
         assertEquals(response1.getPersistentSettings().getAsBoolean(key, null), allowPartialResults);
@@ -115,12 +117,11 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         internalCluster().stopRandomDataNode();
 
-        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
 
-        assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+        awaitClusterState(state -> {
             List<ShardRouting> unassigneds = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED);
-            assertThat(unassigneds.size(), greaterThan(0));
+            return unassigneds.isEmpty() == false;
         });
 
     }

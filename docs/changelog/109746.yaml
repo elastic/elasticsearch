@@ -1,6 +1,0 @@
-pr: 109746
-summary: ES|QL Add primitive float support to the Compute Engine
-area: ES|QL
-type: enhancement
-issues:
- - 109178

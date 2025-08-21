@@ -39,7 +39,7 @@ public class ToDouble extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToDouble", ToDouble::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DOUBLE, (fieldEval, source) -> fieldEval),
+        Map.entry(DOUBLE, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToDoubleFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
         Map.entry(KEYWORD, ToDoubleFromStringEvaluator.Factory::new),
@@ -47,7 +47,7 @@ public class ToDouble extends AbstractConvertFunction {
         Map.entry(UNSIGNED_LONG, ToDoubleFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
         Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new), // CastIntToDoubleEvaluator would be a candidate, but not MV'd
-        Map.entry(DataType.COUNTER_DOUBLE, (field, source) -> field),
+        Map.entry(DataType.COUNTER_DOUBLE, (source, field) -> field),
         Map.entry(DataType.COUNTER_INTEGER, ToDoubleFromIntEvaluator.Factory::new),
         Map.entry(DataType.COUNTER_LONG, ToDoubleFromLongEvaluator.Factory::new)
     );
@@ -57,10 +57,10 @@ public class ToDouble extends AbstractConvertFunction {
         description = """
             Converts an input value to a double value. If the input parameter is of a date type,
             its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch],
-            converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.""",
+            converted to double. Boolean `true` will be converted to double `1.0`, `false` to `0.0`.""",
         examples = @Example(file = "floats", tag = "to_double-str", explanation = """
-            Note that in this example, the last conversion of the string isn't possible.
-            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            Note that in this example, the last conversion of the string isn’t possible.
+            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
             The header will provide information on the source of the failure:
 
             `"Line 1:115: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded."`

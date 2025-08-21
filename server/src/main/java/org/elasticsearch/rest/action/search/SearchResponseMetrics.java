@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.search;
@@ -14,10 +15,13 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
 
+/**
+ * Container class for aggregated metrics about search responses.
+ */
 public class SearchResponseMetrics {
 
     public enum ResponseCountTotalStatus {
-        SUCCESS("succes"),
+        SUCCESS("success"),
         PARTIAL_FAILURE("partial_failure"),
         FAILURE("failure");
 
@@ -32,7 +36,7 @@ public class SearchResponseMetrics {
         }
     }
 
-    public static final String RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME = "status";
+    public static final String RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME = "response_status";
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";

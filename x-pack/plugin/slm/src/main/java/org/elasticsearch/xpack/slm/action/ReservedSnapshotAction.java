@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,8 +40,6 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
 
     public static final String NAME = "slm";
 
-    public ReservedSnapshotAction() {}
-
     @Override
     public String name() {
         return NAME;
@@ -54,10 +51,9 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         List<Exception> exceptions = new ArrayList<>();
 
         for (var policy : policies) {
-            // timeouts don't matter here
             PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS,
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
                 policy.getId(),
                 policy
             );
@@ -81,9 +77,8 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        var requests = prepare((List<SnapshotLifecyclePolicy>) source, prevState.state());
+    public TransformState transform(List<SnapshotLifecyclePolicy> source, TransformState prevState) throws Exception {
+        var requests = prepare(source, prevState.state());
 
         ClusterState state = prevState.state();
 
@@ -100,9 +95,12 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         toDelete.removeAll(entities);
 
         for (var policyToDelete : toDelete) {
-            // timeouts don't matter here
             var task = new TransportDeleteSnapshotLifecycleAction.DeleteSnapshotPolicyTask(
-                new DeleteSnapshotLifecycleAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policyToDelete),
+                new DeleteSnapshotLifecycleAction.Request(
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    policyToDelete
+                ),
                 ActionListener.noop()
             );
             state = task.execute(state);

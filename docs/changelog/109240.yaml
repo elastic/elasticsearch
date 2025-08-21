@@ -1,5 +1,0 @@
-pr: 109240
-summary: Fix trappy timeout in allocation explain API
-area: Allocation
-type: bug
-issues: []

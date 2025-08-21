@@ -11,6 +11,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -29,8 +30,8 @@ public class MedianAbsoluteDeviationDoubleAggregatorFunctionTests extends Aggreg
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier();
     }
 
     @Override
@@ -39,7 +40,7 @@ public class MedianAbsoluteDeviationDoubleAggregatorFunctionTests extends Aggreg
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
+    protected void assertSimpleOutput(List<Page> input, Block result) {
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(0.8));
     }
 }

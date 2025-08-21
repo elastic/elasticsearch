@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object for adding a role to the security index
  */
-public class PutRoleRequest extends ActionRequest {
+public class PutRoleRequest extends LegacyActionRequest {
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
@@ -45,7 +45,6 @@ public class PutRoleRequest extends ActionRequest {
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
     private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
-    private boolean restrictRequest = false;
     private String description;
 
     public PutRoleRequest() {}
@@ -82,14 +81,6 @@ public class PutRoleRequest extends ActionRequest {
 
     public void addRemoteIndex(RoleDescriptor.RemoteIndicesPrivileges... privileges) {
         remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
-    }
-
-    public void restrictRequest(boolean restrictRequest) {
-        this.restrictRequest = restrictRequest;
-    }
-
-    public boolean restrictRequest() {
-        return restrictRequest;
     }
 
     public void putRemoteCluster(RemoteClusterPermissions remoteClusterPermissions) {

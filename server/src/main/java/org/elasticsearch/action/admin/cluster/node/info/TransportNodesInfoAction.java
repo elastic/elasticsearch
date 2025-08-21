@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.info;
@@ -14,26 +15,25 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
-
 public class TransportNodesInfoAction extends TransportNodesAction<
     NodesInfoRequest,
     NodesInfoResponse,
     TransportNodesInfoAction.NodeInfoRequest,
-    NodeInfo> {
+    NodeInfo,
+    Void> {
 
     public static final ActionType<NodesInfoResponse> TYPE = new ActionType<>("cluster:monitor/nodes/info");
     private final NodeService nodeService;
@@ -95,13 +95,12 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         );
     }
 
-    public static class NodeInfoRequest extends TransportRequest {
+    public static class NodeInfoRequest extends AbstractTransportRequest {
 
         private final NodesInfoMetrics nodesInfoMetrics;
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(V_8_11_X, in);
             this.nodesInfoMetrics = new NodesInfoMetrics(in);
         }
 
@@ -112,7 +111,6 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(V_8_11_X, out);
             nodesInfoMetrics.writeTo(out);
         }
 

@@ -1,27 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
+import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.ListMultipartUploadsRequest;
+import software.amazon.awssdk.services.s3.model.MultipartUpload;
 
-import com.amazonaws.http.AmazonHttpClient;
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,6 +52,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -56,7 +65,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -64,6 +73,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -72,17 +82,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static fixture.aws.AwsCredentialsUtils.isValidAwsV4SignedAuthorizationHeader;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -90,7 +105,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
@@ -100,18 +114,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
 
     private String region;
-    private String signerOverride;
     private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
 
     @Override
     public void setUp() throws Exception {
         if (randomBoolean()) {
             region = "test-region";
-        }
-        if (region != null && randomBoolean()) {
-            signerOverride = randomFrom("AWS3SignerType", "AWS4SignerType");
-        } else if (randomBoolean()) {
-            signerOverride = "AWS3SignerType";
         }
         shouldFailCompleteMultipartUploadRequest.set(false);
         super.setUp();
@@ -160,27 +168,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
             .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
-            // Disable request throttling because some random values in tests might generate too many failures for the S3 client
-            .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
+            .put(S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER.getConcreteSettingForNamespace("test").getKey(), "true")
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .setSecureSettings(secureSettings);
 
         if (randomBoolean()) {
             builder.put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
         }
-        if (signerOverride != null) {
-            builder.put(S3ClientSettings.SIGNER_OVERRIDE.getConcreteSettingForNamespace("test").getKey(), signerOverride);
-        }
         if (region != null) {
             builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         }
         return builder.build();
-    }
-
-    @Override
-    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/88841", value = "com.amazonaws.request:DEBUG")
-    public void testRequestStats() throws Exception {
-        super.testRequestStats();
     }
 
     public void testAbortRequestStats() throws Exception {
@@ -214,7 +212,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             }
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
+        Map<String, Long> sdkRequestCounts = repositoryStats.actionStats.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().requests()));
         assertThat(sdkRequestCounts.get("AbortMultipartObject"), greaterThan(0L));
         assertThat(sdkRequestCounts.get("DeleteObjects"), greaterThan(0L));
 
@@ -224,8 +224,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/101608", value = "com.amazonaws.request:DEBUG")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101608")
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName(), false);
@@ -267,7 +265,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             final BlobStore blobStore = blobStoreRepository.blobStore();
             final BlobStore delegateBlobStore = ((BlobStoreWrapper) blobStore).delegate();
             final S3BlobStore s3BlobStore = (S3BlobStore) delegateBlobStore;
-            final Map<S3BlobStore.StatsKey, S3BlobStore.IgnoreNoResponseMetricsCollector> statsCollectors = s3BlobStore
+            final Map<S3BlobStore.StatsKey, S3BlobStore.ElasticsearchS3MetricsCollector> statsCollectors = s3BlobStore
                 .getStatsCollectors().collectors;
 
             final var plugins = internalCluster().getInstance(PluginsService.class, nodeName)
@@ -298,7 +296,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 assertThat(
                     nodeName + "/" + statsKey + " has correct sum",
                     metric.getLong(),
-                    equalTo(statsCollectors.get(statsKey).counter.sum())
+                    equalTo(statsCollectors.get(statsKey).requests.sum())
                 );
                 aggregatedMetrics.compute(statsKey, (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });
@@ -325,7 +323,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::purpose).collect(Collectors.toUnmodifiableSet()),
             equalTo(Set.of(OperationPurpose.SNAPSHOT_METADATA))
         );
-        final Map<String, Long> initialStats = blobStore.stats();
+        final Map<String, BlobStoreActionStats> initialStats = blobStore.stats();
         assertThat(initialStats.keySet(), equalTo(allOperations));
 
         // Collect more stats with an operation purpose other than the default
@@ -345,12 +343,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             equalTo(Set.of(OperationPurpose.SNAPSHOT_METADATA, purpose))
         );
         // The stats report aggregates over different purposes
-        final Map<String, Long> newStats = blobStore.stats();
+        final Map<String, BlobStoreActionStats> newStats = blobStore.stats();
         assertThat(newStats.keySet(), equalTo(allOperations));
         assertThat(newStats, not(equalTo(initialStats)));
 
         // Exercise stats report that keep find grained information
-        final Map<String, Long> fineStats = statsCollectors.statsMap(true);
+        final Map<String, BlobStoreActionStats> fineStats = statsCollectors.statsMap(true);
         assertThat(
             fineStats.keySet(),
             equalTo(
@@ -361,11 +359,16 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertThat(
             fineStats.entrySet()
                 .stream()
-                .collect(Collectors.groupingBy(entry -> entry.getKey().split("_", 2)[1], Collectors.summingLong(Map.Entry::getValue))),
+                .collect(
+                    Collectors.groupingBy(
+                        entry -> entry.getKey().split("_", 2)[1],
+                        Collectors.reducing(BlobStoreActionStats.ZERO, Map.Entry::getValue, BlobStoreActionStats::add)
+                    )
+                ),
             equalTo(
                 newStats.entrySet()
                     .stream()
-                    .filter(entry -> entry.getValue() != 0L)
+                    .filter(entry -> entry.getValue().isZero() == false)
                     .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
             )
         );
@@ -378,7 +381,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         newStats.forEach((k, v) -> {
             if (operationsSeenForTheNewPurpose.contains(k)) {
-                assertThat(newStats.get(k), greaterThan(initialStats.get(k)));
+                assertThat(newStats.get(k).requests(), greaterThan(initialStats.get(k).requests()));
+                assertThat(newStats.get(k).operations(), greaterThan(initialStats.get(k).operations()));
             } else {
                 assertThat(newStats.get(k), equalTo(initialStats.get(k)));
             }
@@ -418,23 +422,21 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final BytesReference serialized = BytesReference.bytes(
             modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT)
         );
-        PlainActionFuture.get(
-            f -> repository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.run(
-                        f,
-                        () -> repository.blobStore()
-                            .blobContainer(repository.basePath())
-                            .writeBlobAtomic(
-                                randomNonDataPurpose(),
-                                BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
-                                serialized,
-                                true
-                            )
-                    )
-                )
-        );
+        if (randomBoolean()) {
+            repository.blobStore()
+                .blobContainer(repository.basePath())
+                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+        } else {
+            repository.blobStore()
+                .blobContainer(repository.basePath())
+                .writeBlobAtomic(
+                    randomNonDataPurpose(),
+                    getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
+                    serialized.streamInput(),
+                    serialized.length(),
+                    true
+                );
+        }
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
@@ -462,6 +464,110 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         return Collections.emptyMap();
     }
 
+    public void testMultipartUploadCleanup() {
+        final String repoName = randomRepositoryName();
+        createRepository(repoName, repositorySettings(repoName), true);
+
+        createIndex("test-idx-1");
+        for (int i = 0; i < 100; i++) {
+            prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+        }
+        client().admin().indices().prepareRefresh().get();
+
+        final String snapshotName = randomIdentifier();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+
+        final var repository = asInstanceOf(
+            S3Repository.class,
+            internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName)
+        );
+        final var blobStore = asInstanceOf(S3BlobStore.class, asInstanceOf(BlobStoreWrapper.class, repository.blobStore()).delegate());
+
+        try (var clientRef = blobStore.clientReference()) {
+            final var danglingBlobName = randomIdentifier();
+            final var initiateMultipartUploadRequest = CreateMultipartUploadRequest.builder()
+                .bucket(blobStore.bucket())
+                .key(blobStore.blobContainer(repository.basePath().add("test-multipart-upload")).path().buildAsString() + danglingBlobName)
+                .overrideConfiguration(
+                    AwsRequestOverrideConfiguration.builder()
+                        .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, randomPurpose().getKey())
+                        .build()
+                )
+                .build();
+
+            final var multipartUploadResult = clientRef.client().createMultipartUpload(initiateMultipartUploadRequest);
+
+            final var listMultipartUploadsRequest = ListMultipartUploadsRequest.builder()
+                .bucket(blobStore.bucket())
+                .prefix(repository.basePath().buildAsString())
+                .overrideConfiguration(
+                    AwsRequestOverrideConfiguration.builder()
+                        .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, randomPurpose().getKey())
+                        .build()
+                )
+                .build();
+            assertEquals(
+                List.of(multipartUploadResult.uploadId()),
+                clientRef.client()
+                    .listMultipartUploads(listMultipartUploadsRequest)
+                    .uploads()
+                    .stream()
+                    .map(MultipartUpload::uploadId)
+                    .toList()
+            );
+
+            final var seenCleanupLogLatch = new CountDownLatch(1);
+            MockLog.assertThatLogger(() -> {
+                assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName));
+                safeAwait(seenCleanupLogLatch);
+            },
+                S3BlobContainer.class,
+                new MockLog.SeenEventExpectation(
+                    "found-dangling",
+                    S3BlobContainer.class.getCanonicalName(),
+                    Level.INFO,
+                    "found [1] possibly-dangling multipart uploads; will clean them up after finalizing the current snapshot deletions"
+                ),
+                new MockLog.SeenEventExpectation(
+                    "cleaned-dangling",
+                    S3BlobContainer.class.getCanonicalName(),
+                    Level.INFO,
+                    Strings.format(
+                        "cleaned up dangling multipart upload [%s] of blob [%s]*test-multipart-upload/%s]",
+                        multipartUploadResult.uploadId(),
+                        repoName,
+                        danglingBlobName
+                    )
+                ) {
+                    @Override
+                    public void match(LogEvent event) {
+                        super.match(event);
+                        if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {
+                            seenCleanupLogLatch.countDown();
+                        }
+                    }
+                }
+            );
+
+            assertThat(
+                clientRef.client()
+                    .listMultipartUploads(listMultipartUploadsRequest)
+                    .uploads()
+                    .stream()
+                    .map(MultipartUpload::uploadId)
+                    .toList(),
+                empty()
+            );
+        }
+    }
+
     /**
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
@@ -480,14 +586,26 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         protected S3Repository createRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             NamedXContentRegistry registry,
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            S3RepositoriesMetrics s3RepositoriesMetrics
+            S3RepositoriesMetrics s3RepositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics) {
+            return new S3Repository(
+                projectId,
+                metadata,
+                registry,
+                getService(),
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                s3RepositoriesMetrics,
+                snapshotMetrics
+            ) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -497,6 +615,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                             return new S3BlobContainer(path, (S3BlobStore) delegate()) {
                                 @Override
                                 long getLargeBlobThresholdInBytes() {
+                                    return ByteSizeUnit.MB.toBytes(1L);
+                                }
+
+                                @Override
+                                long getMaxCopySizeBeforeMultipart() {
+                                    // on my laptop 10K exercises this better but larger values should be fine for nightlies
                                     return ByteSizeUnit.MB.toBytes(1L);
                                 }
 
@@ -519,22 +643,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         public void handle(final HttpExchange exchange) throws IOException {
-            validateAuthHeader(exchange);
+            assertTrue(
+                isValidAwsV4SignedAuthorizationHeader(
+                    "test_access_key",
+                    // If unset, the region used by the SDK is usually going to be `us-east-1` but sometimes these tests run on bare EC2
+                    // machines and the SDK picks up the region from the IMDS there, so for now we use '*' to skip validation.
+                    Objects.requireNonNullElse(region, "*"),
+                    "s3",
+                    exchange.getRequestHeaders().getFirst("Authorization")
+                )
+            );
             super.handle(exchange);
-        }
-
-        private void validateAuthHeader(HttpExchange exchange) {
-            final String authorizationHeaderV4 = exchange.getRequestHeaders().getFirst("Authorization");
-            final String authorizationHeaderV3 = exchange.getRequestHeaders().getFirst("X-amzn-authorization");
-
-            if ("AWS3SignerType".equals(signerOverride)) {
-                assertThat(authorizationHeaderV3, startsWith("AWS3"));
-            } else if ("AWS4SignerType".equals(signerOverride)) {
-                assertThat(authorizationHeaderV4, containsString("aws4_request"));
-            }
-            if (region != null && authorizationHeaderV4 != null) {
-                assertThat(authorizationHeaderV4, containsString("/" + region + "/s3/"));
-            }
         }
     }
 
@@ -547,14 +666,31 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     protected static class S3ErroneousHttpHandler extends ErroneousHttpHandler {
 
+        // S3 SDK stops retrying after TOKEN_BUCKET_SIZE/DEFAULT_EXCEPTION_TOKEN_COST == 500/5 == 100 failures in quick succession
+        // see software.amazon.awssdk.retries.DefaultRetryStrategy.Legacy.TOKEN_BUCKET_SIZE
+        // see software.amazon.awssdk.retries.DefaultRetryStrategy.Legacy.DEFAULT_EXCEPTION_TOKEN_COST
+        private final Semaphore failurePermits = new Semaphore(99);
+
         S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
+        }
+
+        /**
+         * Bypasses {@link ErroneousHttpHandler#handle} once we exhaust {@link #failurePermits} because S3 will start rate limiting.
+         */
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (failurePermits.tryAcquire()) {
+                super.handle(exchange);
+            } else {
+                delegate.handle(exchange);
+            }
         }
 
         @Override
         protected String requestUniqueId(final HttpExchange exchange) {
             // Amazon SDK client provides a unique ID per request
-            return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
+            return exchange.getRequestHeaders().getFirst(ApplyTransactionIdStage.HEADER_SDK_TRANSACTION_ID);
         }
     }
 
@@ -567,19 +703,21 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         private final Map<S3BlobStore.StatsKey, AtomicLong> metricsCount = ConcurrentCollections.newConcurrentMap();
 
         S3StatsCollectorHttpHandler(final HttpHandler delegate) {
-            super(delegate);
+            super(delegate, Arrays.stream(S3BlobStore.Operation.values()).map(S3BlobStore.Operation::getKey).toArray(String[]::new));
+        }
+
+        private S3HttpHandler.S3Request parseRequest(HttpExchange exchange) {
+            return new S3HttpHandler("bucket").parseRequest(exchange);
         }
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(
-                S3HttpHandler.getRawRequestString(exchange)
-            );
-            if (false == requestComponents.request().startsWith("HEAD ")) {
-                assertThat(requestComponents.customQueryParameters(), hasKey(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE));
+            final S3HttpHandler.S3Request s3Request = parseRequest(exchange);
+            if ("HEAD".equals(s3Request.method())) {
+                assertTrue(s3Request.hasQueryParamOnce(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE));
             }
-            final String request = requestComponents.request();
-            if (shouldFailCompleteMultipartUploadRequest.get() && Regex.simpleMatch("POST /*/*?uploadId=*", request)) {
+            if (shouldFailCompleteMultipartUploadRequest.get() && s3Request.isCompleteMultipartUploadRequest()) {
+                trackRequest("PutMultipartObject");
                 try (exchange) {
                     drainInputStream(exchange.getRequestBody());
                     exchange.sendResponseHeaders(
@@ -593,17 +731,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        public void maybeTrack(final String rawRequest, Headers requestHeaders) {
-            final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(rawRequest);
-            final String request = requestComponents.request();
-            final OperationPurpose purpose = OperationPurpose.parse(
-                requestComponents.customQueryParameters().get(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE).get(0)
-            );
-            if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
+        public void maybeTrack(HttpExchange exchange) {
+            final S3HttpHandler.S3Request request = parseRequest(exchange);
+            final OperationPurpose purpose = OperationPurpose.parse(request.getQueryParamOnce(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE));
+            if (request.isListObjectsRequest()) {
                 trackRequest("ListObjects");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.LIST_OBJECTS, purpose), k -> new AtomicLong())
                     .incrementAndGet();
-            } else if (Regex.simpleMatch("GET /*/*", request)) {
+            } else if (request.isListMultipartUploadsRequest()) {
+                // TODO track ListMultipartUploads requests
+                logger.info("--> ListMultipartUploads not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
+            } else if (request.isGetObjectRequest()) {
                 trackRequest("GetObject");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.GET_OBJECT, purpose), k -> new AtomicLong())
                     .incrementAndGet();
@@ -613,21 +751,29 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_MULTIPART_OBJECT, purpose),
                     k -> new AtomicLong()
                 ).incrementAndGet();
-            } else if (Regex.simpleMatch("PUT /*/*", request)) {
-                trackRequest("PutObject");
-                metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_OBJECT, purpose), k -> new AtomicLong())
-                    .incrementAndGet();
-            } else if (Regex.simpleMatch("POST /*/?delete", request)) {
+            } else if (request.isPutObjectRequest()) {
+                if (exchange.getRequestHeaders().containsKey(S3BlobStore.CUSTOM_QUERY_PARAMETER_COPY_SOURCE)) {
+                    trackRequest("CopyObject");
+                    metricsCount.computeIfAbsent(
+                        new S3BlobStore.StatsKey(S3BlobStore.Operation.COPY_OBJECT, purpose),
+                        k -> new AtomicLong()
+                    ).incrementAndGet();
+                } else {
+                    trackRequest("PutObject");
+                    metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_OBJECT, purpose), k -> new AtomicLong())
+                        .incrementAndGet();
+                }
+            } else if (request.isMultiObjectDeleteRequest()) {
                 trackRequest("DeleteObjects");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.DELETE_OBJECTS, purpose), k -> new AtomicLong())
                     .incrementAndGet();
-            } else if (Regex.simpleMatch("DELETE /*/*?uploadId=*", request)) {
+            } else if (request.isAbortMultipartUploadRequest()) {
                 trackRequest("AbortMultipartObject");
                 metricsCount.computeIfAbsent(
                     new S3BlobStore.StatsKey(S3BlobStore.Operation.ABORT_MULTIPART_OBJECT, purpose),
                     k -> new AtomicLong()
                 ).incrementAndGet();
-            } else if (Regex.simpleMatch("HEAD /*/*", request)) {
+            } else if (request.isHeadObjectRequest()) {
                 trackRequest("HeadObject");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose), k -> new AtomicLong())
                     .incrementAndGet();
@@ -640,10 +786,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             return metricsCount;
         }
 
-        private boolean isMultiPartUpload(String request) {
-            return Regex.simpleMatch("POST /*/*?uploads", request)
-                || Regex.simpleMatch("POST /*/*?*uploadId=*", request)
-                || Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
+        private boolean isMultiPartUpload(S3HttpHandler.S3Request s3Request) {
+            return s3Request.isInitiateMultipartUploadRequest()
+                || s3Request.isUploadPartRequest()
+                || s3Request.isCompleteMultipartUploadRequest();
         }
     }
 }

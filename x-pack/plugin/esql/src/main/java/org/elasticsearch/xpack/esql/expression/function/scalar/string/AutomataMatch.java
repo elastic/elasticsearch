@@ -34,10 +34,10 @@ public class AutomataMatch {
     ) {
         /*
          * ByteRunAutomaton has a way to convert utf32 to utf8, but if we used it
-         * we couldn't get a nice toDot - so we call UTF32ToUTF8 ourselves.
+         * we couldn’t get a nice toDot - so we call UTF32ToUTF8 ourselves.
          */
         Automaton automaton = Operations.determinize(new UTF32ToUTF8().convert(utf32Automaton), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        ByteRunAutomaton run = new ByteRunAutomaton(automaton, true, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        ByteRunAutomaton run = new ByteRunAutomaton(automaton, true);
         return new AutomataMatchEvaluator.Factory(source, field, run, toDot(automaton));
     }
 

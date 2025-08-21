@@ -7,15 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
+// end generated imports
 
 /**
  * Block build of DoubleBlocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlock.Builder {
 
@@ -85,7 +90,11 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom(DoubleBlock, int)}.
+     * </p>
      */
+    @Override
     public DoubleBlockBuilder copyFrom(DoubleBlock block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -101,21 +110,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
 
     private void copyFromBlock(DoubleBlock block, int beginInclusive, int endExclusive) {
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendDouble(block.getDouble(i++));
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p);
         }
     }
 
@@ -123,6 +118,37 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         for (int p = beginInclusive; p < endExclusive; p++) {
             appendDouble(vector.getDouble(p));
         }
+    }
+
+    /**
+     * Copy the values in {@code block} at {@code position}. If this position
+     * has a single value, this'll copy a single value. If this positions has
+     * many values, it'll copy all of them. If this is {@code null}, then it'll
+     * copy the {@code null}.
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public DoubleBlockBuilder copyFrom(DoubleBlock block, int position) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            appendDouble(block.getDouble(i++));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            appendDouble(block.getDouble(i++));
+        }
+        endPositionEntry();
+        return this;
     }
 
     @Override

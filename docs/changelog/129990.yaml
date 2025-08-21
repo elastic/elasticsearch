@@ -1,0 +1,5 @@
+pr: 129990
+summary: Make forecast write load accurate when shard numbers change
+area: Allocation
+type: bug
+issues: []

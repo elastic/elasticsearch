@@ -1,0 +1,196 @@
+---
+teardown:
+  - do:
+      indices.delete:
+        index: .*,-.security-*
+
+---
+"Index creation with a dot-prefix is deprecated unless x-elastic-product-origin set":
+  - requires:
+      test_runner_features: ["warnings", "warnings_regex", "headers"]
+
+  - do:
+      warnings:
+        - "Index [.myindex] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+      indices.create:
+        index: .myindex
+        body:
+          settings:
+            index.hidden: true
+
+  - do:
+      headers: { X-elastic-product-origin: kibana }
+      indices.create:
+        index: .myindex2
+        body:
+          settings:
+            index.hidden: true
+
+  - do:
+      warnings_regex:
+        - "Index \\[.*\\] name begins with a dot \\(\\.\\), which is deprecated, and will not be allowed in a future Elasticsearch version\\."
+      indices.create:
+        index: <.myindex-{now/d}>
+        body:
+          settings:
+            index.hidden: true
+
+  - do:
+      headers: { X-elastic-product-origin: kibana }
+      indices.create:
+        index: <.myindex2-{now/d}>
+        body:
+          settings:
+            index.hidden: true
+
+---
+"Deprecated auto-creation of dot-prefixed indices":
+  - requires:
+      test_runner_features: ["warnings", "headers"]
+
+  - do:
+      warnings:
+        - "Index [.myindex] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+        - "index name [.myindex] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      index:
+        index: .myindex
+        id: "1"
+        body: {foo: bar}
+
+  - do:
+      headers: { X-elastic-product-origin: kibana }
+      warnings:
+        - "index name [.myindex2] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      index:
+        index: .myindex2
+        id: "1"
+        body: {foo: bar}
+
+  - do:
+      warnings:
+        - "Index [.myindex3] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+        - "index name [.myindex3] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      bulk:
+        body:
+          - index:
+              _index: .myindex3
+          - message: foo
+
+---
+"Deprecated auto-creation of dot-prefixed indices through pipelines":
+  - requires:
+      test_runner_features: ["warnings", "headers"]
+
+  - do:
+      ingest.put_pipeline:
+        id: mypipeline
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_index",
+                  "value": "{{redirect_to}}"
+                }
+              }
+            ]
+          }
+  - do:
+      warnings:
+        - "Index [.other] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+        - "index name [.other] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      index:
+        index: myindex
+        id: "1"
+        body: {redirect_to: ".other"}
+        pipeline: mypipeline
+
+  - do:
+      warnings:
+        - "Index [.other2] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+        - "index name [.other2] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      bulk:
+        body:
+          - index:
+              _index: myindex
+              pipeline: mypipeline
+          - redirect_to: .other2
+
+  - do:
+      index:
+        index: original
+        id: "1"
+        body: { "redirect_to": ".other3" }
+  - do:
+      indices.refresh: {}
+  - do:
+      warnings:
+        - "Index [.other3] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+        - "index name [.other3] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      reindex:
+        body:
+          source:
+            index: original
+          dest:
+            index: newindex
+            pipeline: mypipeline
+
+  - do:
+      warnings:
+        - "Index [.reindex] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+        - "index name [.reindex] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      reindex:
+        body:
+          source:
+            index: original
+          dest:
+            index: .reindex
+
+  - do:
+      headers: { X-elastic-product-origin: kibana }
+      warnings:
+        - "index name [.reindex2] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      reindex:
+        body:
+          source:
+            index: original
+          dest:
+            index: .reindex2
+
+  - do:
+      ingest.delete_pipeline:
+        id: mypipeline
+
+---
+"Deprecated index template with a dot prefix index pattern":
+  - requires:
+      test_runner_features: ["warnings", "headers", "allowed_warnings"]
+
+  - do:
+      warnings:
+        - "Index [.data-*] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+      allowed_warnings:
+        - "index template [my-template] has index patterns [regular, .data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [regular, .data-*]
+          data_stream: {}
+
+  - do:
+      headers: { X-elastic-product-origin: kibana }
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [other, .data2-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [other, .data2-*]
+          data_stream: {}
+
+  - do:
+      indices.delete_index_template:
+        name: my-template
+
+  - do:
+      indices.delete_index_template:
+        name: my-template2

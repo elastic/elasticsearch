@@ -17,15 +17,18 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.MockBlockFactory;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeTests;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -38,12 +41,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,26 +64,40 @@ import static org.mockito.Mockito.when;
 public class BlockHashRandomizedTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
-        List<Object[]> params = new ArrayList<>();
+        List<List<? extends Type>> allowedTypesChoices = List.of(
+            /*
+             * Run with only `LONG` elements because we have some
+             * optimizations that hit if you only have those.
+             */
+            List.of(new Basic(ElementType.LONG)),
+            /*
+             * Run with only `BYTES_REF` elements because we have some
+             * optimizations that hit if you only have those.
+             */
+            List.of(new Basic(ElementType.BYTES_REF)),
+            /*
+             * Run with only `BYTES_REF` elements in an OrdinalBytesRefBlock
+             * because we have a few optimizations that use it.
+             */
+            List.of(new Ordinals(10)),
+            /*
+             * Run with only `LONG` and `BYTES_REF` elements because
+             * we have some optimizations that hit if you only have
+             * those.
+             */
+            List.of(new Basic(ElementType.LONG), new Basic(ElementType.BYTES_REF)),
+            /*
+             * Any random source.
+             */
+            Stream.concat(Stream.of(new Ordinals(10)), MultivalueDedupeTests.supportedTypes().stream().map(Basic::new)).toList()
+        );
 
+        List<Object[]> params = new ArrayList<>();
         for (boolean forcePackedHash : new boolean[] { false, true }) {
             for (int groups : new int[] { 1, 2, 3, 4, 5, 10 }) {
                 for (int maxValuesPerPosition : new int[] { 1, 3 }) {
                     for (int dups : new int[] { 0, 2 }) {
-                        for (List<ElementType> allowedTypes : List.of(
-                            /*
-                             * Run with only `LONG` elements because we have some
-                             * optimizations that hit if you only have those.
-                             */
-                            List.of(ElementType.LONG),
-                            /*
-                             * Run with only `LONG` and `BYTES_REF` elements because
-                             * we have some optimizations that hit if you only have
-                             * those.
-                             */
-                            List.of(ElementType.LONG, ElementType.BYTES_REF),
-                            MultivalueDedupeTests.supportedTypes()
-                        )) {
+                        for (List<? extends Type> allowedTypes : allowedTypesChoices) {
                             params.add(new Object[] { forcePackedHash, groups, maxValuesPerPosition, dups, allowedTypes });
                         }
                     }
@@ -87,18 +107,33 @@ public class BlockHashRandomizedTests extends ESTestCase {
         return params;
     }
 
+    /**
+     * The type of {@link Block} being tested.
+     */
+    interface Type {
+        /**
+         * The type of the {@link ElementType elements} in the {@link Block}.
+         */
+        ElementType elementType();
+
+        /**
+         * Build a random {@link Block}.
+         */
+        RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups);
+    }
+
     private final boolean forcePackedHash;
     private final int groups;
     private final int maxValuesPerPosition;
     private final int dups;
-    private final List<ElementType> allowedTypes;
+    private final List<? extends Type> allowedTypes;
 
     public BlockHashRandomizedTests(
         @Name("forcePackedHash") boolean forcePackedHash,
         @Name("groups") int groups,
         @Name("maxValuesPerPosition") int maxValuesPerPosition,
         @Name("dups") int dups,
-        @Name("allowedTypes") List<ElementType> allowedTypes
+        @Name("allowedTypes") List<Type> allowedTypes
     ) {
         this.forcePackedHash = forcePackedHash;
         this.groups = groups;
@@ -127,21 +162,22 @@ public class BlockHashRandomizedTests extends ESTestCase {
     }
 
     private void test(MockBlockFactory blockFactory) {
-        List<ElementType> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
-        BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.size()];
+        List<Type> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
+        List<ElementType> elementTypes = types.stream().map(Type::elementType).toList();
+        RandomBlock[] randomBlocks = new RandomBlock[types.size()];
         Block[] blocks = new Block[types.size()];
-        int pageCount = between(1, 10);
+        int pageCount = between(1, groups < 10 ? 10 : 5);
         int positionCount = 100;
         int emitBatchSize = 100;
-        try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, types)) {
+        try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, elementTypes)) {
             /*
              * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
              */
             Oracle oracle = new Oracle(
                 forcePackedHash
-                    || false == (types.equals(List.of(ElementType.LONG, ElementType.LONG))
-                        || types.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
-                        || types.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
+                    || false == (elementTypes.equals(List.of(ElementType.LONG, ElementType.LONG))
+                        || elementTypes.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
+                        || elementTypes.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
             );
             /*
              * Expected ordinals for checking lookup. Skipped if we have more than 5 groups because
@@ -151,15 +187,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
 
             for (int p = 0; p < pageCount; p++) {
                 for (int g = 0; g < blocks.length; g++) {
-                    randomBlocks[g] = BasicBlockTests.randomBlock(
-                        types.get(g),
-                        positionCount,
-                        types.get(g) == ElementType.NULL ? true : randomBoolean(),
-                        1,
-                        maxValuesPerPosition,
-                        0,
-                        dups
-                    );
+                    randomBlocks[g] = types.get(g).randomBlock(positionCount, maxValuesPerPosition, dups);
                     blocks[g] = randomBlocks[g].block();
                 }
                 oracle.add(randomBlocks);
@@ -189,7 +217,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         if (keyBlock.isNull(p)) {
                             key.add(null);
                         } else {
-                            key.add(BasicBlockTests.valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
+                            key.add(valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
                             assertThat(keyBlock.getValueCount(p), equalTo(1));
                         }
                     }
@@ -209,6 +237,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
 
                 if (blockHash instanceof LongLongBlockHash == false
                     && blockHash instanceof BytesRefLongBlockHash == false
+                    && blockHash instanceof BytesRef2BlockHash == false
                     && blockHash instanceof BytesRef3BlockHash == false) {
                     assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);
                 }
@@ -235,14 +264,14 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private void assertLookup(
         BlockFactory blockFactory,
         Map<List<Object>, Set<Integer>> expectedOrds,
-        List<ElementType> types,
+        List<Type> types,
         BlockHash blockHash,
         Oracle oracle
     ) {
         Block.Builder[] builders = new Block.Builder[types.size()];
         try {
             for (int b = 0; b < builders.length; b++) {
-                builders[b] = types.get(b).newBlockBuilder(LOOKUP_POSITIONS, blockFactory);
+                builders[b] = types.get(b).elementType().newBlockBuilder(LOOKUP_POSITIONS, blockFactory);
             }
             for (int p = 0; p < LOOKUP_POSITIONS; p++) {
                 /*
@@ -294,7 +323,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         List<Object> key = new ArrayList<>(keyBlocks.length);
         for (Block block : keyBlocks) {
             assertThat(block.getValueCount(position), lessThan(2));
-            List<Object> v = BasicBlockTests.valuesAtPositions(block, position, position + 1).get(0);
+            List<Object> v = valuesAtPositions(block, position, position + 1).get(0);
             key.add(v == null ? null : v.get(0));
         }
         return key;
@@ -323,7 +352,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         List<List<Object>> keys = new ArrayList<>();
         keys.add(List.of());
         for (Block block : keyBlocks) {
-            List<Object> values = BasicBlockTests.valuesAtPositions(block, position, position + 1).get(0);
+            List<Object> values = valuesAtPositions(block, position, position + 1).get(0);
             List<List<Object>> newKeys = new ArrayList<>();
             for (Object v : values == null ? Collections.singletonList(null) : values) {
                 for (List<Object> k : keys) {
@@ -372,18 +401,18 @@ public class BlockHashRandomizedTests extends ESTestCase {
             this.collectsNullLongs = collectsNullLongs;
         }
 
-        void add(BasicBlockTests.RandomBlock[] randomBlocks) {
+        void add(RandomBlock[] randomBlocks) {
             for (int p = 0; p < randomBlocks[0].block().getPositionCount(); p++) {
                 add(randomBlocks, p, List.of());
             }
         }
 
-        void add(BasicBlockTests.RandomBlock[] randomBlocks, int p, List<Object> key) {
+        void add(RandomBlock[] randomBlocks, int p, List<Object> key) {
             if (key.size() == randomBlocks.length) {
                 keys.add(key);
                 return;
             }
-            BasicBlockTests.RandomBlock block = randomBlocks[key.size()];
+            RandomBlock block = randomBlocks[key.size()];
             List<Object> values = block.values().get(p);
             if (values == null) {
                 if (block.block().elementType() != ElementType.LONG || collectsNullLongs) {
@@ -408,8 +437,8 @@ public class BlockHashRandomizedTests extends ESTestCase {
         return breakerService;
     }
 
-    private static List<Object> randomKey(List<ElementType> types) {
-        return types.stream().map(BlockHashRandomizedTests::randomKeyElement).toList();
+    private static List<Object> randomKey(List<Type> types) {
+        return types.stream().map(t -> randomKeyElement(t.elementType())).toList();
     }
 
     public static Object randomKeyElement(ElementType type) {
@@ -422,5 +451,77 @@ public class BlockHashRandomizedTests extends ESTestCase {
             case NULL -> null;
             default -> throw new IllegalArgumentException("unsupported element type [" + type + "]");
         };
+    }
+
+    private record Basic(ElementType elementType) implements Type {
+        @Override
+        public RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups) {
+            return RandomBlock.randomBlock(
+                elementType,
+                positionCount,
+                elementType == ElementType.NULL | randomBoolean(),
+                1,
+                maxValuesPerPosition,
+                0,
+                dups
+            );
+        }
+    }
+
+    private record Ordinals(int dictionarySize) implements Type {
+        @Override
+        public ElementType elementType() {
+            return ElementType.BYTES_REF;
+        }
+
+        @Override
+        public RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups) {
+            Map<String, Integer> dictionary = new HashMap<>();
+            Set<String> keys = dictionary(maxValuesPerPosition);
+            List<List<Object>> values = new ArrayList<>(positionCount);
+            try (
+                IntBlock.Builder ordinals = TestBlockFactory.getNonBreakingInstance()
+                    .newIntBlockBuilder(positionCount * maxValuesPerPosition);
+                BytesRefVector.Builder bytes = TestBlockFactory.getNonBreakingInstance().newBytesRefVectorBuilder(maxValuesPerPosition);
+            ) {
+                for (int p = 0; p < positionCount; p++) {
+                    int valueCount = between(1, maxValuesPerPosition);
+                    int dupCount = between(0, dups);
+
+                    List<Integer> ordsAtPosition = new ArrayList<>();
+                    List<Object> valuesAtPosition = new ArrayList<>();
+                    values.add(valuesAtPosition);
+                    if (valueCount != 1 || dupCount != 0) {
+                        ordinals.beginPositionEntry();
+                    }
+                    for (int v = 0; v < valueCount; v++) {
+                        String key = randomFrom(keys);
+                        int ordinal = dictionary.computeIfAbsent(key, k -> {
+                            bytes.appendBytesRef(new BytesRef(k));
+                            return dictionary.size();
+                        });
+                        valuesAtPosition.add(new BytesRef(key));
+                        ordinals.appendInt(ordinal);
+                        ordsAtPosition.add(ordinal);
+                    }
+                    for (int v = 0; v < dupCount; v++) {
+                        ordinals.appendInt(randomFrom(ordsAtPosition));
+                    }
+                    if (valueCount != 1 || dupCount != 0) {
+                        ordinals.endPositionEntry();
+                    }
+                }
+                return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()));
+            }
+        }
+
+        private Set<String> dictionary(int maxValuesPerPosition) {
+            int count = Math.max(dictionarySize, maxValuesPerPosition);
+            Set<String> values = new HashSet<>();
+            while (values.size() < count) {
+                values.add(randomAlphaOfLength(5));
+            }
+            return values;
+        }
     }
 }

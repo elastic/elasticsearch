@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,22 +16,26 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.SourceFieldMetrics.NOOP;
 
@@ -47,11 +52,18 @@ public class NestedObjectMapper extends ObjectMapper {
         private Explicit<Boolean> includeInParent = Explicit.IMPLICIT_FALSE;
         private final IndexVersion indexCreatedVersion;
         private final Function<Query, BitSetProducer> bitSetProducer;
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, Function<Query, BitSetProducer> bitSetProducer) {
-            super(name, Explicit.IMPLICIT_TRUE);
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            Function<Query, BitSetProducer> bitSetProducer,
+            IndexSettings indexSettings
+        ) {
+            super(name, Optional.empty());
             this.indexCreatedVersion = indexCreatedVersion;
             this.bitSetProducer = bitSetProducer;
+            this.indexSettings = indexSettings;
         }
 
         Builder includeInRoot(boolean includeInRoot) {
@@ -89,6 +101,17 @@ public class NestedObjectMapper extends ObjectMapper {
             } else {
                 nestedTypePath = fullPath;
             }
+            if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ARRAYS) {
+                throw new MapperException(
+                    "parameter [ "
+                        + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                        + " ] can't be set to ["
+                        + SourceKeepMode.ARRAYS
+                        + "] for nested object ["
+                        + fullPath
+                        + "]"
+                );
+            }
             final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
@@ -106,13 +129,14 @@ public class NestedObjectMapper extends ObjectMapper {
                 buildMappers(nestedContext),
                 enabled,
                 dynamic,
-                storeArraySource,
+                sourceKeepMode,
                 includeInParent,
                 includeInRoot,
                 parentTypeFilter,
                 nestedTypePath,
                 nestedTypeFilter,
-                bitSetProducer
+                bitSetProducer,
+                indexSettings
             );
         }
     }
@@ -121,13 +145,14 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            if (parseSubobjects(node).explicit()) {
+            if (parseSubobjects(node).isPresent()) {
                 throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
             }
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
-                parserContext::bitSetProducer
+                parserContext::bitSetProducer,
+                parserContext.getIndexSettings()
             );
             parseNested(name, node, builder);
             parseObjectFields(node, parserContext, builder);
@@ -194,6 +219,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final Query nestedTypeFilter;
     // Function to create a bitset for identifying parent documents
     private final Function<Query, BitSetProducer> bitsetProducer;
+    private final IndexSettings indexSettings;
 
     NestedObjectMapper(
         String name,
@@ -201,21 +227,27 @@ public class NestedObjectMapper extends ObjectMapper {
         Map<String, Mapper> mappers,
         Explicit<Boolean> enabled,
         ObjectMapper.Dynamic dynamic,
-        Explicit<Boolean> storeArraySource,
+        Optional<SourceKeepMode> sourceKeepMode,
         Explicit<Boolean> includeInParent,
         Explicit<Boolean> includeInRoot,
         Query parentTypeFilter,
         String nestedTypePath,
         Query nestedTypeFilter,
-        Function<Query, BitSetProducer> bitsetProducer
+        Function<Query, BitSetProducer> bitsetProducer,
+        IndexSettings indexSettings
     ) {
-        super(name, fullPath, enabled, Explicit.IMPLICIT_TRUE, storeArraySource, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.empty(), sourceKeepMode, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
         this.includeInParent = includeInParent;
         this.includeInRoot = includeInRoot;
         this.bitsetProducer = bitsetProducer;
+        this.indexSettings = indexSettings;
+    }
+
+    public IndexSettings indexSettings() {
+        return indexSettings;
     }
 
     public Query parentTypeFilter() {
@@ -253,7 +285,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public ObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer);
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer, indexSettings);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         builder.includeInRoot = includeInRoot;
@@ -269,13 +301,14 @@ public class NestedObjectMapper extends ObjectMapper {
             Map.of(),
             enabled,
             dynamic,
-            storeArraySource,
+            sourceKeepMode,
             includeInParent,
             includeInRoot,
             parentTypeFilter,
             nestedTypePath,
             nestedTypeFilter,
-            bitsetProducer
+            bitsetProducer,
+            indexSettings
         );
     }
 
@@ -295,8 +328,8 @@ public class NestedObjectMapper extends ObjectMapper {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
-            builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());
+        if (sourceKeepMode.isPresent()) {
+            builder.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, sourceKeepMode.get());
         }
         serializeMappers(builder, params);
         return builder.endObject();
@@ -344,13 +377,14 @@ public class NestedObjectMapper extends ObjectMapper {
             mergeResult.mappers(),
             mergeResult.enabled(),
             mergeResult.dynamic(),
-            mergeResult.trackArraySource(),
+            mergeResult.sourceKeepMode(),
             incInParent,
             incInRoot,
             parentTypeFilter,
             nestedTypePath,
             nestedTypeFilter,
-            bitsetProducer
+            bitsetProducer,
+            indexSettings
         );
     }
 
@@ -376,14 +410,54 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (storeArraySource()) {
-            // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
+    protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
+        var patchLoader = super.syntheticVectorsLoader(sourceFilter);
+        if (patchLoader == null) {
+            return null;
+        }
+        return context -> {
+            var leaf = patchLoader.leaf(context);
+            if (leaf == null) {
+                return null;
+            }
+            IndexSearcher searcher = new IndexSearcher(context.reader());
+            searcher.setQueryCache(null);
+            var childScorer = searcher.createWeight(nestedTypeFilter, ScoreMode.COMPLETE_NO_SCORES, 1f)
+                .scorer(searcher.getLeafContexts().get(0));
+            if (childScorer == null) {
+                return null;
+            }
+            var parentsDocs = bitsetProducer.apply(parentTypeFilter).getBitSet(context);
+            return (doc, acc) -> {
+                List<SourceLoader.SyntheticVectorPatch> nestedPatches = new ArrayList<>();
+                collectChildren(nestedTypePath, doc, parentsDocs, childScorer.iterator(), (offset, childId) -> {
+                    List<SourceLoader.SyntheticVectorPatch> childPatches = new ArrayList<>();
+                    leaf.load(childId, childPatches);
+                    nestedPatches.add(new SourceLoader.NestedOffsetSyntheticVectorPath(offset, childPatches));
+                });
+                acc.add(new SourceLoader.NestedSyntheticVectorPath(fullPath(), nestedPatches));
+            };
+        };
+    }
+
+    @Override
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+        // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
+        if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
+            // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> super.syntheticFieldLoader(mappers.values().stream(), true), NOOP);
-        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, sourceLoader.requiredStoredFields());
+        SourceLoader sourceLoader = new SourceLoader.Synthetic(
+            filter,
+            () -> super.syntheticFieldLoader(filter, mappers, true),
+            NOOP,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+        );
+        // Some synthetic source use cases require using _ignored_source field
+        var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
+        // force sequential access since nested fields are indexed per block
+        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields, true);
         return new NestedSyntheticFieldLoader(
             storedFieldLoader,
             sourceLoader,
@@ -392,7 +466,7 @@ public class NestedObjectMapper extends ObjectMapper {
         );
     }
 
-    private class NestedSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private class NestedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private final org.elasticsearch.index.fieldvisitor.StoredFieldLoader storedFieldLoader;
         private final SourceLoader sourceLoader;
         private final Supplier<BitSetProducer> parentBitSetProducer;
@@ -415,11 +489,6 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
-        }
-
-        @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
             this.children.clear();
             this.leafStoredFieldLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
@@ -427,31 +496,24 @@ public class NestedObjectMapper extends ObjectMapper {
 
             IndexSearcher searcher = new IndexSearcher(leafReader);
             searcher.setQueryCache(null);
-            var childScorer = searcher.createWeight(childFilter, ScoreMode.COMPLETE_NO_SCORES, 1f).scorer(leafReader.getContext());
+            var childScorer = searcher.createWeight(childFilter, ScoreMode.COMPLETE_NO_SCORES, 1f)
+                .scorer(searcher.getLeafContexts().get(0));
             if (childScorer != null) {
                 var parentDocs = parentBitSetProducer.get().getBitSet(leafReader.getContext());
                 return parentDoc -> {
-                    collectChildren(parentDoc, parentDocs, childScorer.iterator());
+                    children.clear();
+                    collectChildren(
+                        nestedTypePath,
+                        parentDoc,
+                        parentDocs,
+                        childScorer.iterator(),
+                        (offset, childId) -> children.add(childId)
+                    );
                     return children.size() > 0;
                 };
             } else {
                 return parentDoc -> false;
             }
-        }
-
-        private List<Integer> collectChildren(int parentDoc, BitSet parentDocs, DocIdSetIterator childIt) throws IOException {
-            assert parentDocs.get(parentDoc) : "wrong context, doc " + parentDoc + " is not a parent of " + nestedTypePath;
-            final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-            int childDocId = childIt.docID();
-            if (childDocId <= prevParentDoc) {
-                childDocId = childIt.advance(prevParentDoc + 1);
-            }
-
-            children.clear();
-            for (; childDocId < parentDoc; childDocId = childIt.nextDoc()) {
-                children.add(childDocId);
-            }
-            return children;
         }
 
         @Override
@@ -463,17 +525,14 @@ public class NestedObjectMapper extends ObjectMapper {
         public void write(XContentBuilder b) throws IOException {
             assert (children != null && children.size() > 0);
             if (children.size() == 1) {
-                b.startObject(leafName());
+                b.field(leafName());
                 leafStoredFieldLoader.advanceTo(children.get(0));
                 leafSourceLoader.write(leafStoredFieldLoader, children.get(0), b);
-                b.endObject();
             } else {
                 b.startArray(leafName());
                 for (int childId : children) {
-                    b.startObject();
                     leafStoredFieldLoader.advanceTo(childId);
                     leafSourceLoader.write(leafStoredFieldLoader, childId, b);
-                    b.endObject();
                 }
                 b.endArray();
             }
@@ -482,6 +541,31 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public String fieldName() {
             return NestedObjectMapper.this.fullPath();
+        }
+
+        @Override
+        public void reset() {
+            children.clear();
+        }
+    }
+
+    private static void collectChildren(
+        String nestedTypePath,
+        int parentDoc,
+        BitSet parentDocs,
+        DocIdSetIterator childIt,
+        CheckedBiConsumer<Integer, Integer, IOException> childConsumer
+    ) throws IOException {
+        assert parentDoc < 0 || parentDocs.get(parentDoc) : "wrong context, doc " + parentDoc + " is not a parent of " + nestedTypePath;
+        final int prevParentDoc = parentDoc > 0 ? parentDocs.prevSetBit(parentDoc - 1) : -1;
+        int childDocId = childIt.docID();
+        if (childDocId <= prevParentDoc) {
+            childDocId = childIt.advance(prevParentDoc + 1);
+        }
+
+        int offset = 0;
+        for (; childDocId < parentDoc; childDocId = childIt.nextDoc()) {
+            childConsumer.accept(offset++, childDocId);
         }
     }
 }

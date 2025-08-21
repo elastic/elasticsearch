@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -23,7 +24,6 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -55,7 +56,7 @@ public class MetadataMappingService {
     public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        taskQueue = clusterService.createTaskQueue("put-mapping", Priority.HIGH, new PutMappingExecutor());
+        this.taskQueue = clusterService.createTaskQueue("put-mapping", Priority.HIGH, new PutMappingExecutor());
     }
 
     record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
@@ -105,7 +106,7 @@ public class MetadataMappingService {
                     final PutMappingClusterStateUpdateRequest request = task.request;
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
-                            final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+                            final IndexMetadata indexMetadata = currentState.metadata().indexMetadata(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
                                 MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
@@ -139,7 +140,7 @@ public class MetadataMappingService {
                 MapperService mapperService = indexMapperServices.get(index);
                 // IMPORTANT: always get the metadata from the state since it get's batched
                 // and if we pull it from the indexService we might miss an update etc.
-                final IndexMetadata indexMetadata = currentState.getMetadata().getIndexSafe(index);
+                final IndexMetadata indexMetadata = metadata.indexMetadata(index);
                 DocumentMapper existingMapper = mapperService.documentMapper();
                 if (existingMapper != null && existingMapper.mappingSource().equals(mappingUpdateSource)) {
                     continue;
@@ -208,7 +209,7 @@ public class MetadataMappingService {
                  * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
                  * statement.
                  */
-                builder.put(indexMetadataBuilder);
+                builder.getProject(metadata.projectFor(index).id()).put(indexMetadataBuilder);
                 updated |= updatedMapping;
             }
             if (updated) {
@@ -221,10 +222,16 @@ public class MetadataMappingService {
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        final Metadata metadata = clusterService.state().metadata();
+        final ClusterState state = clusterService.state();
         boolean noop = true;
         for (Index index : request.indices()) {
-            final IndexMetadata indexMetadata = metadata.index(index);
+            var project = state.metadata().lookupProject(index);
+            if (project.isEmpty()) {
+                // this is a race condition where the project got deleted from under a mapping update task
+                noop = false;
+                break;
+            }
+            final IndexMetadata indexMetadata = project.get().index(index);
             if (indexMetadata == null) {
                 // local store recovery sends a mapping update request during application of a cluster state on the data node which we might
                 // receive here before the CS update that created the index has been applied on all nodes and thus the index isn't found in

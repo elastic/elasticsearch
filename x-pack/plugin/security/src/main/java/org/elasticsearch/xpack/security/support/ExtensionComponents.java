@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -25,19 +26,22 @@ public final class ExtensionComponents implements SecurityExtension.SecurityComp
     private final ClusterService clusterService;
     private final ResourceWatcherService resourceWatcherService;
     private final UserRoleMapper roleMapper;
+    private final ProjectResolver projectResolver;
 
     public ExtensionComponents(
         Environment environment,
         Client client,
         ClusterService clusterService,
         ResourceWatcherService resourceWatcherService,
-        UserRoleMapper roleMapper
+        UserRoleMapper roleMapper,
+        ProjectResolver projectResolver
     ) {
         this.environment = environment;
         this.client = client;
         this.clusterService = clusterService;
         this.resourceWatcherService = resourceWatcherService;
         this.roleMapper = roleMapper;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -73,5 +77,10 @@ public final class ExtensionComponents implements SecurityExtension.SecurityComp
     @Override
     public UserRoleMapper roleMapper() {
         return roleMapper;
+    }
+
+    @Override
+    public ProjectResolver projectResolver() {
+        return projectResolver;
     }
 }

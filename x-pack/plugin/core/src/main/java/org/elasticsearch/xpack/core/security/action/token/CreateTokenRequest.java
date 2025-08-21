@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * fields for an OAuth 2.0 access token request that uses the <code>password</code> grant type or the
  * <code>refresh_token</code> grant type.
  */
-public final class CreateTokenRequest extends ActionRequest {
+public final class CreateTokenRequest extends LegacyActionRequest {
 
     public enum GrantType {
         PASSWORD("password"),

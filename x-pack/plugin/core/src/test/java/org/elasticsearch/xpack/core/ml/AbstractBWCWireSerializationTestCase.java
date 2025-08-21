@@ -7,25 +7,16 @@
 package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
+import java.util.Collection;
 
-import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 
 public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
-
-    public static List<TransportVersion> getAllBWCVersions() {
-        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersions.MINIMUM_COMPATIBLE);
-        return ALL_VERSIONS.subList(minCompatVersion, ALL_VERSIONS.size());
-    }
-
-    static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
 
     /**
      * Returns the expected instance if serialized from the given version.
@@ -35,7 +26,7 @@ public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> 
     /**
      * The bwc versions to test serialization against
      */
-    protected List<TransportVersion> bwcVersions() {
+    protected Collection<TransportVersion> bwcVersions() {
         return DEFAULT_BWC_VERSIONS;
     }
 

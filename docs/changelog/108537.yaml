@@ -1,6 +1,0 @@
-pr: 108537
-summary: Limit the value in prefix query
-area: Search
-type: enhancement
-issues:
- - 108486

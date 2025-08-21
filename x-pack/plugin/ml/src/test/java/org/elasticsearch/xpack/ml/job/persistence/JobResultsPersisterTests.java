@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -233,6 +234,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
     }
@@ -252,6 +254,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
 
@@ -302,6 +305,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
 
@@ -427,6 +431,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
     private ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
         ThreadPool tp = mock(ThreadPool.class);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * A response of a bulk execution. Holding a response for each item responding (in order) of the
@@ -36,12 +39,17 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     private final BulkItemResponse[] responses;
     private final long tookInMillis;
     private final long ingestTookInMillis;
+    private final BulkRequest.IncrementalState incrementalState;
 
     public BulkResponse(StreamInput in) throws IOException {
-        super(in);
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            incrementalState = new BulkRequest.IncrementalState(in);
+        } else {
+            incrementalState = BulkRequest.IncrementalState.EMPTY;
+        }
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis) {
@@ -49,9 +57,19 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis, long ingestTookInMillis) {
+        this(responses, tookInMillis, ingestTookInMillis, BulkRequest.IncrementalState.EMPTY);
+    }
+
+    public BulkResponse(
+        BulkItemResponse[] responses,
+        long tookInMillis,
+        long ingestTookInMillis,
+        BulkRequest.IncrementalState incrementalState
+    ) {
         this.responses = responses;
         this.tookInMillis = tookInMillis;
         this.ingestTookInMillis = ingestTookInMillis;
+        this.incrementalState = incrementalState;
     }
 
     /**
@@ -59,6 +77,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    public long getTookInMillis() {
+        return tookInMillis;
     }
 
     /**
@@ -73,6 +95,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
      */
     public long getIngestTookInMillis() {
         return ingestTookInMillis;
+    }
+
+    BulkRequest.IncrementalState getIncrementalState() {
+        return incrementalState;
     }
 
     /**
@@ -124,6 +150,9 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            incrementalState.writeTo(out);
+        }
     }
 
     @Override
@@ -137,5 +166,33 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
             }
             return builder.startArray(ITEMS);
         }), Iterators.forArray(responses), Iterators.<ToXContent>single((builder, p) -> builder.endArray().endObject()));
+    }
+
+    /**
+     * Combine many bulk responses into one.
+     */
+    public static BulkResponse combine(List<BulkResponse> responses) {
+        long tookInMillis = 0;
+        long ingestTookInMillis = NO_INGEST_TOOK;
+        int itemResponseCount = 0;
+        for (BulkResponse response : responses) {
+            tookInMillis += response.getTookInMillis();
+            if (response.getIngestTookInMillis() != NO_INGEST_TOOK) {
+                if (ingestTookInMillis == NO_INGEST_TOOK) {
+                    ingestTookInMillis = 0;
+                }
+                ingestTookInMillis += response.getIngestTookInMillis();
+            }
+            itemResponseCount += response.getItems().length;
+        }
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemResponseCount];
+        int i = 0;
+        for (BulkResponse response : responses) {
+            for (BulkItemResponse itemResponse : response.getItems()) {
+                bulkItemResponses[i++] = itemResponse;
+            }
+        }
+
+        return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
     }
 }

@@ -54,10 +54,9 @@ public class CryptoService {
     private static final String DEFAULT_KEY_ALGORITH = "AES";
     private static final int DEFAULT_KEY_LENGTH = 128;
 
-    private static final Setting<String> ENCRYPTION_ALGO_SETTING = new Setting<>(
+    private static final Setting<String> ENCRYPTION_ALGO_SETTING = Setting.simpleString(
         SecurityField.setting("encryption.algorithm"),
-        s -> DEFAULT_ENCRYPTION_ALGORITHM,
-        s -> s,
+        DEFAULT_ENCRYPTION_ALGORITHM,
         Property.NodeScope
     );
     private static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING = Setting.intSetting(
@@ -65,10 +64,9 @@ public class CryptoService {
         DEFAULT_KEY_LENGTH,
         Property.NodeScope
     );
-    private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING = new Setting<>(
+    private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING = Setting.simpleString(
         SecurityField.setting("encryption_key.algorithm"),
         DEFAULT_KEY_ALGORITH,
-        s -> s,
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CryptoService.class);

@@ -41,6 +41,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
             Set.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
         );
         allowedHeaders.add(AuditUtil.AUDIT_REQUEST_ID);
+        allowedHeaders.add(Task.TRACE_STATE);
         allowedHeaders.addAll(Task.HEADERS_TO_COPY);
         ALLOWED_TRANSPORT_HEADERS = Set.copyOf(allowedHeaders);
     }

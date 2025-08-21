@@ -20,14 +20,18 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
-    private static final String HF_EMBEDDINGS_ADDED = "8.12.0";
-    private static final String HF_ELSER_ADDED = "8.12.0";
+    // TODO: replace with proper test features
+    private static final String HF_EMBEDDINGS_TEST_FEATURE = "gte_v8.12.0";
+    private static final String HF_ELSER_TEST_FEATURE = "gte_v8.12.0";
 
     private static MockWebServer embeddingsServer;
     private static MockWebServer elserServer;
@@ -53,10 +57,9 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     public void testHFEmbeddings() throws IOException {
-        var embeddingsSupported = getOldClusterTestVersion().onOrAfter(HF_EMBEDDINGS_ADDED);
-        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
-        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("Hugging Face embedding service added in " + HF_EMBEDDINGS_ADDED, embeddingsSupported);
+        var embeddingsSupported = oldClusterHasFeature(HF_EMBEDDINGS_TEST_FEATURE);
+        String oldClusterEndpointIdentifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("Hugging Face embedding service supported", embeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
         final String upgradedClusterId = "upgraded-cluster-embeddings";
@@ -107,9 +110,9 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     public void testElser() throws IOException {
-        var supported = getOldClusterTestVersion().onOrAfter(HF_ELSER_ADDED);
-        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("HF elser service added in " + HF_ELSER_ADDED, supported);
+        var supported = oldClusterHasFeature(HF_ELSER_TEST_FEATURE);
+        String old_cluster_endpoint_identifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("HF elser service supported", supported);
 
         final String oldClusterId = "old-cluster-elser";
         final String upgradedClusterId = "upgraded-cluster-elser";
@@ -117,6 +120,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
         var testTaskType = TaskType.SPARSE_EMBEDDING;
 
         if (isOldCluster()) {
+            elserServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse()));
             put(oldClusterId, elserConfig(getUrl(elserServer)), testTaskType);
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier);
             assertThat(configs, hasSize(1));
@@ -131,11 +135,12 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            assertThat(taskSettings, anyOf(nullValue(), anEmptyMap()));
 
             assertElser(oldClusterId);
 
             // New endpoint
+            elserServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse()));
             put(upgradedClusterId, elserConfig(getUrl(elserServer)), testTaskType);
             configs = (List<Map<String, Object>>) get(upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
@@ -153,7 +158,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
         assertThat(inferenceMap.entrySet(), not(empty()));
     }
 
-    private String embeddingConfig(String url) {
+    static String embeddingConfig(String url) {
         return Strings.format("""
             {
                 "service": "hugging_face",
@@ -176,7 +181,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             """;
     }
 
-    private String elserConfig(String url) {
+    static String elserConfig(String url) {
         return Strings.format("""
             {
                 "service": "hugging_face",
@@ -188,7 +193,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             """, url);
     }
 
-    private String elserResponse() {
+    static String elserResponse() {
         return """
             [
                 {

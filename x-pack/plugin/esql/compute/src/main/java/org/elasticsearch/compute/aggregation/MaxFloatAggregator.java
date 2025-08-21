@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 class MaxFloatAggregator {
 
     public static float init() {
-        return Float.MIN_VALUE;
+        return -Float.MAX_VALUE;
     }
 
     public static float combine(float current, float v) {

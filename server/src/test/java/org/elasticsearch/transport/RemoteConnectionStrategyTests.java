@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 
 import static org.mockito.Mockito.mock;
 
@@ -98,17 +100,17 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         String change = randomFrom(ping, compress, compressionScheme);
         if (change.equals(ping)) {
             newBuilder.put(
-                RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 TimeValue.timeValueSeconds(5)
             );
         } else if (change.equals(compress)) {
             newBuilder.put(
-                RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 randomFrom(Compression.Enabled.FALSE, Compression.Enabled.TRUE)
             );
         } else if (change.equals(compressionScheme)) {
             newBuilder.put(
-                RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 Compression.Scheme.DEFLATE
             );
         } else {
@@ -154,6 +156,14 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                 profile.getTransportProfile()
             );
         }
+    }
+
+    public void testConnectionStrategySerialization() {
+        EnumSerializationTestUtils.assertEnumSerialization(
+            RemoteConnectionStrategy.ConnectionStrategy.class,
+            RemoteConnectionStrategy.ConnectionStrategy.SNIFF,
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY
+        );
     }
 
     private static class FakeConnectionStrategy extends RemoteConnectionStrategy {

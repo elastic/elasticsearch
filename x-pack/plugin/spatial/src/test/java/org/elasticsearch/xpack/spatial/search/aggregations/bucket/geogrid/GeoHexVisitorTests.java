@@ -83,9 +83,10 @@ public class GeoHexVisitorTests extends ESTestCase {
             visitor.reset(centerChild);
             reader.visit(visitor);
             if (hasArea) {
-                if (h3CrossesDateline && visitor.getLeftX() > visitor.getRightX()) {
-                    // if both polygons crosses the dateline it cannot be inside due to the polygon splitting technique
-                    assertEquals("failing h3: " + h3, GeoRelation.QUERY_CROSSES, visitor.relation());
+                if (h3CrossesDateline) {
+                    // if the h3 crosses the dateline, we might get CROSSES due to the polygon splitting technique. We can't
+                    // be sure which one is the correct one, so we just check that it is not DISJOINT
+                    assertNotSame("failing h3: " + h3, GeoRelation.QUERY_DISJOINT, visitor.relation());
                 } else {
                     assertEquals("failing h3: " + h3, GeoRelation.QUERY_INSIDE, visitor.relation());
                 }

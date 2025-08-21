@@ -1,6 +1,0 @@
-pr: 110019
-summary: Improve mechanism for extracting the result of a `PlainActionFuture`
-area: Distributed
-type: enhancement
-issues:
- - 108125

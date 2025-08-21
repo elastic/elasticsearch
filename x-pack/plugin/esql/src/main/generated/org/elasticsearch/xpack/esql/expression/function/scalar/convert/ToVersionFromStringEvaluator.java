@@ -10,29 +10,39 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToVersion}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToVersionFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator asString;
+
+  public ToVersionFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator asString,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.asString = asString;
   }
 
   @Override
-  public String name() {
-    return "ToVersionFromString";
+  public EvalOperator.ExpressionEvaluator next() {
+    return asString;
   }
 
   @Override
   public Block evalVector(Vector v) {
     BytesRefVector vector = (BytesRefVector) v;
+    OrdinalBytesRefVector ordinals = vector.asOrdinals();
+    if (ordinals != null) {
+      return evalOrdinals(ordinals);
+    }
     int positionCount = v.getPositionCount();
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
@@ -46,7 +56,7 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToVersion.fromKeyword(value);
   }
@@ -82,29 +92,52 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToVersion.fromKeyword(value);
+  }
+
+  private Block evalOrdinals(OrdinalBytesRefVector v) {
+    int positionCount = v.getDictionaryVector().getPositionCount();
+    BytesRef scratchPad = new BytesRef();
+    try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        builder.appendBytesRef(evalValue(v.getDictionaryVector(), p, scratchPad));
+      }
+      IntVector ordinals = v.getOrdinalsVector();
+      ordinals.incRef();
+      return new OrdinalBytesRefVector(ordinals, builder.build()).asBlock();
+    }
+  }
+
+  @Override
+  public String toString() {
+    return "ToVersionFromStringEvaluator[" + "asString=" + asString + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(asString);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory asString;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory asString) {
       this.source = source;
+      this.asString = asString;
     }
 
     @Override
     public ToVersionFromStringEvaluator get(DriverContext context) {
-      return new ToVersionFromStringEvaluator(field.get(context), source, context);
+      return new ToVersionFromStringEvaluator(source, asString.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToVersionFromStringEvaluator[field=" + field + "]";
+      return "ToVersionFromStringEvaluator[" + "asString=" + asString + "]";
     }
   }
 }

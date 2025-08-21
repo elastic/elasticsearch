@@ -14,7 +14,6 @@ setup:
             - synonyms: "test => check"
               id: "test-id-3"
 
-
 ---
 "Get a synonym rule":
   - do:

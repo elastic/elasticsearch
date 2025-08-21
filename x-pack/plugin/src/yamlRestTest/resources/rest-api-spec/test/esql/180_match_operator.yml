@@ -1,0 +1,202 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ match_operator_colon ]
+      reason: "Match operator added in 8.16.0"
+      test_runner_features: [capabilities, allowed_warnings_regex]
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              content:
+                type: text
+              id:
+                type: integer
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "content": "This is a brown fox", "id": 1 }
+          - { "index": { } }
+          - { "content": "This is a brown dog", "id": 2 }
+          - { "index": { } }
+          - { "content": "This dog is really brown", "id": 3 }
+          - { "index": { } }
+          - { "content": "The dog is brown but this document is very very long", "id": 4 }
+          - { "index": { } }
+          - { "content": "There is also a white cat", "id": 5 }
+          - { "index": { } }
+          - { "content": "The quick brown fox jumps over the lazy dog", "id": 6 }
+
+---
+"simple where match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content:"fox" | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 6 }
+
+---
+"combined where match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content:"fox" AND id > 5 | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 1 }
+  - match: { values.0.0: 6 }
+
+---
+"multiple match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content:"fox" AND content:"brown" | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 6 }
+
+---
+"not where match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE NOT content:"brown fox" | KEEP id | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 1 }
+  - match: { values.0.0: 5 }
+
+---
+"match with integer field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ match_additional_types ]
+      reason: "Additional types support for match"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE id:3 | KEEP id'
+
+  - length: { values: 1 }
+  - match: { values.0.0: 3 }
+
+---
+"match on non existing column":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE something:"fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/Unknown.column.\\[something\\]/" }
+
+---
+"match on eval column":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL upper_content = to_upper(content) | WHERE upper_content:"FOX" | KEEP id'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/operator.cannot.operate.on.\\[upper_content\\],.which.is.not.a.field.from.an.index.mapping/" }
+
+---
+"match on overwritten column":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | DROP content | EVAL content = CONCAT("ID: ", to_str(id)) | WHERE content:"fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/operator.cannot.operate.on.\\[content\\],.which.is.not.a.field.from.an.index.mapping/" }
+
+---
+"match after stats":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | STATS count(*) | WHERE content:"fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/Unknown.column.\\[content\\]/" }
+
+---
+"match with disjunctions":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ full_text_functions_disjunctions_compute_engine ]
+      reason: "Full text functions disjunctions support"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content:"fox" OR length(content) < 20'
+
+  - length: { values: 3 }
+
+---
+"match within eval":
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL matches_query = content:"fox"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/.*operator.is.only.supported.in.WHERE.*/" }

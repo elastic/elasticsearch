@@ -26,7 +26,7 @@ public class TermsQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return termsQuery(term, values);
     }
 
@@ -52,5 +52,10 @@ public class TermsQuery extends Query {
     @Override
     protected String innerToString() {
         return term + ":" + values;
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

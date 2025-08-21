@@ -121,9 +121,9 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
             builder.field("is_running", isRunning);
             builder.field("is_partial", isPartial);
             if (startTimeMillis != null) { // start time is available only for a running eql search
-                builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
+                builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
             }
-            builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
             if (isRunning == false) { // completion status is available only for a completed eql search
                 builder.field("completion_status", completionStatus.getStatus());
             }

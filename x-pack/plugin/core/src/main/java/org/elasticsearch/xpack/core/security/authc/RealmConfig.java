@@ -261,7 +261,7 @@ public class RealmConfig {
         }
     }
 
-    public static ConstructingObjectParser<RealmIdentifier, Void> REALM_IDENTIFIER_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RealmIdentifier, Void> REALM_IDENTIFIER_PARSER = new ConstructingObjectParser<>(
         "realm_identifier",
         false,
         (args, v) -> new RealmIdentifier((String) args[0], (String) args[1])

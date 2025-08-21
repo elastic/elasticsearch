@@ -1,5 +1,0 @@
-pr: 108410
-summary: GeoIP tasks should wait longer for master
-area: Ingest Node
-type: bug
-issues: []

@@ -32,9 +32,9 @@
       ]
     },
     "params":{
-      "flat_settings":{
+      "include_remotes":{
         "type":"boolean",
-        "description":"Return settings in flat format (default: false)"
+        "description":"Include remote cluster data into the response (default: false)"
       },
       "timeout":{
         "type":"time",

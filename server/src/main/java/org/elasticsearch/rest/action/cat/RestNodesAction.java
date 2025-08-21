@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -85,9 +86,8 @@ public class RestNodesAction extends AbstractCatAction {
 
         final boolean fullId = request.paramAsBoolean("full_id", false);
 
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear()
@@ -103,11 +103,11 @@ public class RestNodesAction extends AbstractCatAction {
         nodesStatsRequest.clear()
             .indices(true)
             .addMetrics(
-                NodesStatsRequestParameters.Metric.JVM.metricName(),
-                NodesStatsRequestParameters.Metric.OS.metricName(),
-                NodesStatsRequestParameters.Metric.FS.metricName(),
-                NodesStatsRequestParameters.Metric.PROCESS.metricName(),
-                NodesStatsRequestParameters.Metric.SCRIPT.metricName()
+                NodesStatsRequestParameters.Metric.JVM,
+                NodesStatsRequestParameters.Metric.OS,
+                NodesStatsRequestParameters.Metric.FS,
+                NodesStatsRequestParameters.Metric.PROCESS,
+                NodesStatsRequestParameters.Metric.SCRIPT
             );
         nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
 
@@ -229,6 +229,11 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell(
             "indexing.index_failed",
             "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
+        );
+        table.addCell(
+            "indexing.index_failed_due_to_version_conflict",
+            "alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
         );
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
@@ -367,7 +372,7 @@ public class RestNodesAction extends AbstractCatAction {
                 table.addCell("-");
             }
 
-            table.addCell(node.getVersion().toString());
+            table.addCell(node.getBuildVersion().toString());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
             table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
@@ -466,6 +471,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexTime());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedCount());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedDueToVersionConflictCount());
 
             MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();
             table.addCell(mergeStats == null ? null : mergeStats.getCurrent());

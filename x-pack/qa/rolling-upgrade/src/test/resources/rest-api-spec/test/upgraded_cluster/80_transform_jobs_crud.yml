@@ -7,6 +7,9 @@ setup:
         timeout: 70s
 ---
 "Get start, stop, upgrade and delete old cluster batch transform":
+  - skip:
+      awaits_fix: "https://github.com/elastic/ml-team/issues/1522"
+      reason: "Transform system index migration is broken"
   # Simple and complex OLD transforms
   - do:
       transform.get_transform:
@@ -222,6 +225,9 @@ setup:
         transform_id: "old-simple-continuous-transform"
 ---
 "Test GET, mixed continuous transforms":
+  - skip:
+      awaits_fix: "https://github.com/elastic/ml-team/issues/1522"
+      reason: "Transform system index migration is broken"
   - do:
       transform.get_transform:
         transform_id: "mixed-simple-continuous-transform"
@@ -287,7 +293,12 @@ setup:
 ---
 "Test index mappings for latest internal index and audit index":
   - skip:
+      awaits_fix: "https://github.com/elastic/ml-team/issues/1522"
+      reason: "Transform system index migration is broken"
+  - skip:
       features: warnings
+  - requires:
+      test_runner_features: warnings_regex
   - do:
       transform.put_transform:
         transform_id: "upgraded-simple-transform"
@@ -304,8 +315,8 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      warnings:
-        - "this request accesses system indices: [.transform-internal-007], but in a future major version, direct access to system indices will be prevented by default"
+      warnings_regex:
+        - "this request accesses system indices: \\[\\.transform-internal-\\d{3}(?:-reindexed-for-\\d{1,2})?], but in a future major version, direct access to system indices will be prevented by default"
       indices.get_mapping:
         index: .transform-internal-007
   - match: { \.transform-internal-007.mappings.dynamic: "false" }

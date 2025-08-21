@@ -39,9 +39,6 @@ public abstract class LeafShapeFieldData<T extends ShapeValues<?>> implements Le
         }
 
         @Override
-        public void close() {}
-
-        @Override
         public T getShapeValues() {
             return emptyValues;
         }

@@ -39,9 +39,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public abstract class TransformRestTestCase extends TransformCommonRestTestCase {
-
     protected static final String TEST_PASSWORD = "x-pack-test-password";
     protected static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString(TEST_PASSWORD.toCharArray());
+
+    protected static final String TEST_USER_NAME = "transform_user";
+    protected static final String BASIC_AUTH_VALUE_TRANSFORM_USER = basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+    protected static final String TEST_ADMIN_USER_NAME = "transform_admin";
+    protected static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN = basicAuthHeaderValue(
+        TEST_ADMIN_USER_NAME,
+        TEST_PASSWORD_SECURE_STRING
+    );
     private static final String BASIC_AUTH_VALUE_SUPER_USER = basicAuthHeaderValue("x_pack_rest_user", TEST_PASSWORD_SECURE_STRING);
 
     protected static final String REVIEWS_INDEX_NAME = "reviews";
@@ -405,7 +412,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         }
         updateTransformRequest.setJsonEntity(update);
 
-        client().performRequest(updateTransformRequest);
+        assertOKAndConsume(client().performRequest(updateTransformRequest));
     }
 
     protected void startTransform(String transformId) throws IOException {

@@ -7,17 +7,28 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.search.QueryParserHelper;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
 public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
 
@@ -106,6 +117,118 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     @Override
     protected boolean shouldUseDefaultFields() {
         return true;
+    }
+
+    @Override
+    protected InferenceIndexInformationForField resolveIndicesForFields(
+        QueryBuilder queryBuilder,
+        ResolvedIndices resolvedIndices,
+        boolean resolveInferenceFieldWildcards
+    ) {
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
+        MultiMatchQueryBuilder multiMatchQuery = (MultiMatchQueryBuilder) queryBuilder;
+
+        // If wildcard resolution is disabled, use the simple parent class implementation
+        if (resolveInferenceFieldWildcards == false || multiMatchQuery.resolveInferenceFieldWildcards() == false) {
+            return super.resolveIndicesForFields(queryBuilder, resolvedIndices, resolveInferenceFieldWildcards);
+        }
+
+        return resolveIndicesForFieldsWithWildcards(queryBuilder, resolvedIndices);
+    }
+
+    private InferenceIndexInformationForField resolveIndicesForFieldsWithWildcards(
+        QueryBuilder queryBuilder,
+        ResolvedIndices resolvedIndices
+    ) {
+        Map<String, Float> fieldsWithWeights = getFieldsWithWeights(queryBuilder);
+        Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+
+        // Global wildcard resolution for inference fields
+        Map<String, Float> globalInferenceFieldBoosts = new HashMap<>();
+
+        // Get all unique inference fields across all indices
+        Set<String> allInferenceFields = indexMetadataCollection.stream()
+            .flatMap(idx -> idx.getInferenceFields().keySet().stream())
+            .collect(Collectors.toSet());
+
+        // Calculate boost for each inference field based on matching patterns
+        for (String inferenceField : allInferenceFields) {
+            for (Map.Entry<String, Float> entry : fieldsWithWeights.entrySet()) {
+                String pattern = entry.getKey();
+                Float boost = entry.getValue();
+
+                if (Regex.isMatchAllPattern(pattern)
+                    || (Regex.isSimpleMatchPattern(pattern) && Regex.simpleMatch(pattern, inferenceField))
+                    || pattern.equals(inferenceField)) {
+                    addToFieldBoostsMap(globalInferenceFieldBoosts, inferenceField, boost);
+                }
+            }
+        }
+
+        // Per-index processing using pre-calculated global boosts
+        Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = new HashMap<>();
+        Map<String, Set<String>> nonInferenceFieldsPerIndex = new HashMap<>();
+        Map<String, Float> allFieldBoosts = new HashMap<>(globalInferenceFieldBoosts);
+
+        for (IndexMetadata indexMetadata : indexMetadataCollection) {
+            String indexName = indexMetadata.getIndex().getName();
+            Map<String, InferenceFieldMetadata> indexInferenceFields = new HashMap<>();
+            Map<String, InferenceFieldMetadata> indexInferenceMetadata = indexMetadata.getInferenceFields();
+
+            // Handle default fields per index when no fields are specified
+            Map<String, Float> fieldsToProcess = fieldsWithWeights;
+            if (fieldsToProcess.isEmpty() && shouldUseDefaultFields()) {
+                Settings settings = indexMetadata.getSettings();
+                List<String> defaultFields = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
+                fieldsToProcess = QueryParserHelper.parseFieldsAndWeights(defaultFields);
+            }
+
+            // Collect resolved inference fields for this index
+            Set<String> resolvedInferenceFields = new HashSet<>();
+
+            // Add wildcard-resolved inference fields that exist in this index
+            for (String inferenceField : globalInferenceFieldBoosts.keySet()) {
+                if (indexInferenceMetadata.containsKey(inferenceField)) {
+                    indexInferenceFields.put(inferenceField, indexInferenceMetadata.get(inferenceField));
+                    resolvedInferenceFields.add(inferenceField);
+                }
+            }
+
+            // Always handle explicit inference fields (both wildcard and non-wildcard cases)
+            for (Map.Entry<String, Float> entry : fieldsToProcess.entrySet()) {
+                String field = entry.getKey();
+                Float boost = entry.getValue();
+
+                if (indexInferenceMetadata.containsKey(field)) {
+                    indexInferenceFields.put(field, indexInferenceMetadata.get(field));
+                    resolvedInferenceFields.add(field);
+                    addToFieldBoostsMap(allFieldBoosts, field, boost);
+                }
+            }
+
+            // Non-inference fields: all patterns minus resolved inference fields
+            Set<String> indexNonInferenceFields = new HashSet<>(fieldsToProcess.keySet());
+            indexNonInferenceFields.removeAll(resolvedInferenceFields);
+
+            // Store boosts for non-inference field patterns
+            for (String nonInferenceField : indexNonInferenceFields) {
+                addToFieldBoostsMap(allFieldBoosts, nonInferenceField, fieldsToProcess.get(nonInferenceField));
+            }
+
+            if (indexInferenceFields.isEmpty() == false) {
+                inferenceFieldsPerIndex.put(indexName, indexInferenceFields);
+            }
+
+            if (indexNonInferenceFields.isEmpty() == false) {
+                nonInferenceFieldsPerIndex.put(indexName, indexNonInferenceFields);
+            }
+        }
+
+        return new InferenceIndexInformationForField(inferenceFieldsPerIndex, nonInferenceFieldsPerIndex, allFieldBoosts);
+    }
+
+    private static void addToFieldBoostsMap(Map<String, Float> fieldBoosts, String field, Float boost) {
+        fieldBoosts.compute(field, (k, v) -> v == null ? boost : v * boost);
     }
 
     private QueryBuilder buildMultiFieldSemanticQuery(

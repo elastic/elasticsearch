@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.queries;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -136,7 +135,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         fieldBoosts.compute(field, (k, v) -> v == null ? boost : v * boost);
     }
 
-    private InferenceIndexInformationForField resolveIndicesForFields(
+    protected InferenceIndexInformationForField resolveIndicesForFields(
         QueryBuilder queryBuilder,
         ResolvedIndices resolvedIndices,
         boolean resolveInferenceFieldWildcards
@@ -144,33 +143,10 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         Map<String, Float> fieldsWithWeights = getFieldsWithWeights(queryBuilder);
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
 
-        // STEP 1: Global wildcard resolution for inference fields
-        Map<String, Float> globalInferenceFieldBoosts = new HashMap<>();
-        if (resolveInferenceFieldWildcards) {
-            // Get all unique inference fields across all indices
-            Set<String> allInferenceFields = indexMetadataCollection.stream()
-                .flatMap(idx -> idx.getInferenceFields().keySet().stream())
-                .collect(Collectors.toSet());
-
-            // Calculate boost for each inference field based on matching patterns
-            for (String inferenceField : allInferenceFields) {
-                for (Map.Entry<String, Float> entry : fieldsWithWeights.entrySet()) {
-                    String pattern = entry.getKey();
-                    Float boost = entry.getValue();
-
-                    if (Regex.isMatchAllPattern(pattern)
-                        || (Regex.isSimpleMatchPattern(pattern) && Regex.simpleMatch(pattern, inferenceField))
-                        || pattern.equals(inferenceField)) {
-                        addToFieldBoostsMap(globalInferenceFieldBoosts, inferenceField, boost);
-                    }
-                }
-            }
-        }
-
-        // STEP 2: Per-index processing using pre-calculated global boosts
+        // Simple implementation: only handle explicit inference fields (no wildcards)
         Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = new HashMap<>();
         Map<String, Set<String>> nonInferenceFieldsPerIndex = new HashMap<>();
-        Map<String, Float> allFieldBoosts = new HashMap<>(globalInferenceFieldBoosts);
+        Map<String, Float> allFieldBoosts = new HashMap<>();
 
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             String indexName = indexMetadata.getIndex().getName();
@@ -188,29 +164,19 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             // Collect resolved inference fields for this index
             Set<String> resolvedInferenceFields = new HashSet<>();
 
-            if (resolveInferenceFieldWildcards) {
-                // Add inference fields that exist in this index (using pre-calculated boosts)
-                for (String inferenceField : globalInferenceFieldBoosts.keySet()) {
-                    if (indexInferenceMetadata.containsKey(inferenceField)) {
-                        indexInferenceFields.put(inferenceField, indexInferenceMetadata.get(inferenceField));
-                        resolvedInferenceFields.add(inferenceField);
-                    }
-                }
-            } else {
-                // Handle explicit inference fields (non-wildcard)
-                for (Map.Entry<String, Float> entry : fieldsToProcess.entrySet()) {
-                    String field = entry.getKey();
-                    Float boost = entry.getValue();
+            // Handle explicit inference fields only
+            for (Map.Entry<String, Float> entry : fieldsToProcess.entrySet()) {
+                String field = entry.getKey();
+                Float boost = entry.getValue();
 
-                    if (indexInferenceMetadata.containsKey(field)) {
-                        indexInferenceFields.put(field, indexInferenceMetadata.get(field));
-                        resolvedInferenceFields.add(field);
-                        addToFieldBoostsMap(allFieldBoosts, field, boost);
-                    }
+                if (indexInferenceMetadata.containsKey(field)) {
+                    indexInferenceFields.put(field, indexInferenceMetadata.get(field));
+                    resolvedInferenceFields.add(field);
+                    addToFieldBoostsMap(allFieldBoosts, field, boost);
                 }
             }
 
-            // Non-inference fields: all patterns minus resolved inference fields (simple approach like MultiFieldsInnerRetrieverUtils)
+            // Non-inference fields
             Set<String> indexNonInferenceFields = new HashSet<>(fieldsToProcess.keySet());
             indexNonInferenceFields.removeAll(resolvedInferenceFields);
 

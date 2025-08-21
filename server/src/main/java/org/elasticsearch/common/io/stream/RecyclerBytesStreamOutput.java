@@ -175,12 +175,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         int bytesNeeded = vIntLength(i);
         if (bytesNeeded > pageSize - currentPageOffset) {
             ensureCapacity(bytesNeeded);
-        }
-        if (bytesNeeded == 1) {
-            bytesRefBytes[bytesRefOffset + currentPageOffset] = (byte) i;
-            currentPageOffset += 1;
+            super.writeVInt(i);
         } else {
-            currentPageOffset += putMultiByteVInt(bytesRefBytes, i, bytesRefOffset + currentPageOffset);
+            if (bytesNeeded == 1) {
+                bytesRefBytes[bytesRefOffset + currentPageOffset] = (byte) i;
+                currentPageOffset += 1;
+            } else {
+                currentPageOffset += putMultiByteVInt(bytesRefBytes, i, bytesRefOffset + currentPageOffset);
+            }
         }
     }
 

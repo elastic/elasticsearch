@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -42,15 +43,17 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
@@ -61,6 +64,17 @@ import java.util.function.LongSupplier;
  */
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
+
+    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(4) {
+        {
+            add("id");
+            add("index");
+            add("op_type");
+            add("pretty");
+            add("error_trace");
+            add("timeout");
+        }
+    };
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -441,11 +455,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     );
                 }
 
-                if (e == null && bulkRequest.streamsRestrictedParamsUsed() && req.index().equals(streamType.getStreamName())) {
+                if (e == null && streamsRestrictedParamsUsed(bulkRequest) && req.index().equals(streamType.getStreamName())) {
                     e = new IllegalArgumentException(
                         "When writing to a stream, only the following parameters are allowed: ["
-                            + String.join(",", RestBulkAction.STREAMS_ALLOWED_PARAMS)
-                            + "]"
+                            + String.join(", ", STREAMS_ALLOWED_PARAMS)
+                            + "] however the following were used: "
+                            + bulkRequest.requestParamsUsed()
                     );
                 }
 
@@ -468,6 +483,13 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             }
         }
+    }
+
+    private boolean streamsRestrictedParamsUsed(BulkRequest bulkRequest) {
+        return Sets.difference(
+            bulkRequest.requestParamsUsed() == null ? Collections.emptySet() : bulkRequest.requestParamsUsed(),
+            STREAMS_ALLOWED_PARAMS
+        ).isEmpty() == false;
     }
 
     /**

@@ -23,7 +23,6 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -41,7 +40,6 @@ import org.elasticsearch.transport.Transports;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -64,14 +62,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
-    public static final Set<String> STREAMS_ALLOWED_PARAMS = new LinkedHashSet<>(2) {
-        {
-            add("index");
-            add("op_type");
-            add("error_trace");
-            add("timeout");
-        }
-    };
 
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
@@ -123,7 +113,7 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
-            bulkRequest.streamsRestrictedParamsUsed(usesStreamsRestrictedParams(request));
+            bulkRequest.requestParamsUsed(request.params().keySet());
             ReleasableBytesReference content = request.requiredContent();
 
             try {
@@ -154,13 +144,9 @@ public class RestBulkAction extends BaseRestHandler {
             return new ChunkHandler(
                 allowExplicitIndex,
                 request,
-                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, usesStreamsRestrictedParams(request))
+                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, request.params().keySet())
             );
         }
-    }
-
-    private boolean usesStreamsRestrictedParams(RestRequest request) {
-        return Sets.difference(request.params().keySet(), STREAMS_ALLOWED_PARAMS).isEmpty() == false;
     }
 
     private static Exception parseFailureException(Exception e) {

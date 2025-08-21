@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.TransportAbstractBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -123,26 +124,9 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ReleasableBytesReference source = request.requiredContent();
-
         String index = request.param("index");
-        ProjectMetadata projectMetadata = null;
 
-        for (StreamType streamType : StreamType.values()) {
-            if (index.equals(streamType.getStreamName())) {
-                if (projectMetadata == null) {
-                    projectMetadata = clusterService.state().projectState(projectIdResolver.getProjectId()).metadata();
-                }
-
-                if (streamType.streamTypeIsEnabled(projectMetadata)
-                    && Sets.difference(request.params().keySet(), RestBulkAction.STREAMS_ALLOWED_PARAMS).isEmpty() == false) {
-                    throw new IllegalArgumentException(
-                        "When writing to a stream, only the following parameters are allowed: ["
-                            + String.join(",", RestBulkAction.STREAMS_ALLOWED_PARAMS)
-                            + "]"
-                    );
-                }
-            }
-        }
+        validateStreamsParamRestrictions(request, index);
 
         IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(request.param("id"));
@@ -177,6 +161,28 @@ public class RestIndexAction extends BaseRestHandler {
                 )
             );
         };
+    }
+
+    private void validateStreamsParamRestrictions(RestRequest request, String index) {
+        ProjectMetadata projectMetadata = null;
+
+        for (StreamType streamType : StreamType.values()) {
+            if (index.equals(streamType.getStreamName())) {
+                if (projectMetadata == null) {
+                    projectMetadata = clusterService.state().projectState(projectIdResolver.getProjectId()).metadata();
+                }
+
+                if (streamType.streamTypeIsEnabled(projectMetadata)
+                    && Sets.difference(request.params().keySet(), TransportAbstractBulkAction.STREAMS_ALLOWED_PARAMS).isEmpty() == false) {
+                    throw new IllegalArgumentException(
+                        "When writing to a stream, only the following parameters are allowed: ["
+                            + String.join(", ", TransportAbstractBulkAction.STREAMS_ALLOWED_PARAMS)
+                            + "] however the following were used: "
+                            + request.params().keySet()
+                    );
+                }
+            }
+        }
     }
 
     @Override

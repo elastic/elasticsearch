@@ -24,7 +24,7 @@ teardown:
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "When writing to a stream, only the following parameters are allowed: [index,op_type,error_trace,timeout]" }
+  - match: { items.0.index.error.reason: '/When\ writing\ to\ a\ stream\,\ only\ the\ following\ parameters\ are\ allowed\:\ \[.+\]\ however\ the\ following\ were\ used\:\ \[.+\]/' }
   - match: { items.1.index.status: 201 }
 
 ---
@@ -42,7 +42,7 @@ teardown:
         refresh: true
         index: logs
         body: { "foo": "bar" }
-      catch: '/When writing to a stream, only the following parameters are allowed: \[index,op_type,error_trace,timeout\]/'
+      catch: '/When writing to a stream, only the following parameters are allowed: \[.+\] however the following were used: \[.+\]/'
 
 ---
 "Allowed Params Only - Bulk Should Succeed":
@@ -71,6 +71,21 @@ teardown:
         index: logs
         error_trace: true
         timeout: "1m"
+        body: |
+          { "foo": "bar" }
+  - match: { _index: "logs" }
+  - match: { result: "created" }
+
+---
+"Allowed Params Only - Single Doc with ID Should Succeed":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: logs
+        id: 123456
         body: |
           { "foo": "bar" }
   - match: { _index: "logs" }
@@ -121,7 +136,7 @@ teardown:
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "When writing to a stream, only the following parameters are allowed: [index,op_type,error_trace,timeout]" }
+  - match: { items.0.index.error.reason: '/When\ writing\ to\ a\ stream\,\ only\ the\ following\ parameters\ are\ allowed\:\ \[.+\]\ however\ the\ following\ were\ used\:\ \[.+\]/' }
 
 ---
 "Mixed Allowed and Disallowed Params - Single Doc Should Fail":
@@ -137,7 +152,7 @@ teardown:
         routing: "custom-routing"
         refresh: true
         body: { "foo": "bar" }
-      catch: '/When writing to a stream, only the following parameters are allowed: \[index,op_type,error_trace,timeout\]/'
+      catch: '/When writing to a stream, only the following parameters are allowed: \[.+\] however the following were used: \[.+\]/'
 
 ---
 "Multiple Disallowed Params - Bulk Should Fail":
@@ -156,7 +171,7 @@ teardown:
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "When writing to a stream, only the following parameters are allowed: [index,op_type,error_trace,timeout]" }
+  - match: { items.0.index.error.reason: '/When\ writing\ to\ a\ stream\,\ only\ the\ following\ parameters\ are\ allowed\:\ \[.+\]\ however\ the\ following\ were\ used\:\ \[.+\]/' }
 
 ---
 "Multiple Disallowed Params - Single Doc Should Fail":
@@ -172,4 +187,4 @@ teardown:
         wait_for_active_shards: "2"
         refresh: true
         body: { "foo": "bar" }
-      catch: '/When writing to a stream, only the following parameters are allowed: \[index,op_type,error_trace,timeout\]/'
+      catch: '/When writing to a stream, only the following parameters are allowed: \[.+\] however the following were used: \[.+\]/'

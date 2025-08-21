@@ -86,7 +86,7 @@ public class BulkRequest extends LegacyActionRequest
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
-    private boolean streamsRestrictedParamsUsed = false;
+    private Set<String> paramsUsed;
 
     private long sizeInBytes = 0;
 
@@ -110,7 +110,7 @@ public class BulkRequest extends LegacyActionRequest
             includeSourceOnError = in.readBoolean();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
-            streamsRestrictedParamsUsed = in.readBoolean();
+            paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
     }
 
@@ -479,7 +479,7 @@ public class BulkRequest extends LegacyActionRequest
             out.writeBoolean(includeSourceOnError);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
-            out.writeBoolean(streamsRestrictedParamsUsed);
+            out.writeCollection(paramsUsed, StreamOutput::writeString);
         }
     }
 
@@ -523,12 +523,12 @@ public class BulkRequest extends LegacyActionRequest
         return false; // Always false, but may be overridden by a subclass
     }
 
-    public boolean streamsRestrictedParamsUsed() {
-        return streamsRestrictedParamsUsed;
+    public Set<String> requestParamsUsed() {
+        return paramsUsed;
     }
 
-    public void streamsRestrictedParamsUsed(boolean streamsRestrictedParamsUsed) {
-        this.streamsRestrictedParamsUsed = streamsRestrictedParamsUsed;
+    public void requestParamsUsed(Set<String> paramsUsed) {
+        this.paramsUsed = paramsUsed;
     }
 
     /*
@@ -569,7 +569,7 @@ public class BulkRequest extends LegacyActionRequest
         bulkRequest.routing(routing());
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
-        bulkRequest.streamsRestrictedParamsUsed(streamsRestrictedParamsUsed());
+        bulkRequest.requestParamsUsed(requestParamsUsed());
         return bulkRequest;
     }
 }

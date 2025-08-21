@@ -912,23 +912,30 @@ public class ObjectMapper extends Mapper {
         return null;
     }
 
-    private static SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(Mapper mapper, SourceFilter sourceFilter) {
+    private static SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(
+        Mapper mapper,
+        SourceFilter sourceFilter,
+        SourceLoader.SyntheticVectorsLoader.AutoHybridChecker checker
+    ) {
         if (sourceFilter != null && sourceFilter.isPathFiltered(mapper.fullPath(), false)) {
             return null;
         }
         if (mapper instanceof ObjectMapper objMapper) {
-            return objMapper.syntheticVectorsLoader(sourceFilter);
+            return objMapper.syntheticVectorsLoader(sourceFilter, checker);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            return fieldMapper.syntheticVectorsLoader();
+            return fieldMapper.syntheticVectorsLoader(checker);
         } else {
             return null;
         }
     }
 
-    SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
+    SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(
+        SourceFilter sourceFilter,
+        SourceLoader.SyntheticVectorsLoader.AutoHybridChecker checker
+    ) {
         var loaders = mappers.values()
             .stream()
-            .map(m -> syntheticVectorsLoader(m, sourceFilter))
+            .map(m -> syntheticVectorsLoader(m, sourceFilter, checker))
             .filter(l -> l != null)
             .collect(Collectors.toList());
         if (loaders.isEmpty()) {

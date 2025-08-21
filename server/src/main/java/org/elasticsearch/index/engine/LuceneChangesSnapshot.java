@@ -83,7 +83,9 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         this.lastSeenSeqNo = fromSeqNo - 1;
         final TopDocs topDocs = nextTopDocs();
         this.maxDocIndex = topDocs.scoreDocs.length;
-        this.syntheticVectorPatchLoader = mapperService.mappingLookup().getMapping().syntheticVectorsLoader(null);
+        this.syntheticVectorPatchLoader = mapperService.mappingLookup()
+            .getMapping()
+            .syntheticVectorsLoader(null, mapperService.mappingLookup().isFieldMapperAutoHybrid());
         fillParallelArray(topDocs.scoreDocs, parallelArray);
     }
 

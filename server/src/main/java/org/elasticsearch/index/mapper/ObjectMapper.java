@@ -550,7 +550,6 @@ public class ObjectMapper extends Mapper {
     @Override
     public final void validate(MappingLookup mappers) {
         for (Mapper mapper : this.mappers.values()) {
-            mapper.validate(mappers);
             validateSubField(mapper, mappers);
         }
     }

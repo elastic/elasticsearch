@@ -20,6 +20,11 @@ import org.elasticsearch.core.Nullable;
 public class ServerlessRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
     private static final String SERVERLESS_RESERVED_NAMESPACE = "_project";
 
+    /**
+     *
+     * @param subobjects if null, it will be interpreted as subobjects != ObjectMapper.Subobjects.ENABLED
+     * @param name
+     */
     @Override
     public void validateNamespace(@Nullable ObjectMapper.Subobjects subobjects, String name) {
         if (name.equals(SERVERLESS_RESERVED_NAMESPACE)) {

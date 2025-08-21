@@ -27,17 +27,6 @@ public class BufferedMurmur3HasherTests extends ESTestCase {
         assertEquals(hasher.digestHash(), bufferedHasher.digestHash());
     }
 
-    /*public void testAddStringAndLength() {
-        String testString = randomUnicodeOfLengthBetween(10, 100);
-        bufferedHasher.addStringAndLength(testString);
-
-        for (int i = 0; i < testString.length(); i++) {
-            hasher.update(toBytes(testString.charAt(i)));
-        }
-        hasher.update(toBytes(testString.length()));
-        assertEquals(hasher.digestHash(), bufferedHasher.digestHash());
-    }*/
-
     public void testConstructorWithInvalidBufferSize() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new BufferedMurmur3Hasher(0, 31));
         assertEquals("Buffer size must be at least 32 bytes", exception.getMessage());

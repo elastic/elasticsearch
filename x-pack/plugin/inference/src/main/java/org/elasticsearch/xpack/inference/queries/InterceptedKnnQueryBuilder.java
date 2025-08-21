@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVectorQueryBuilder> {
     public static final String NAME = "intercepted_knn";
@@ -62,6 +66,19 @@ public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVecto
     @Override
     protected String getInferenceIdOverride() {
         return getQueryVectorBuilderModelId();
+    }
+
+    @Override
+    protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {
+        // Check if we are querying any non-inference fields
+        Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+        for (IndexMetadata indexMetadata : indexMetadataCollection) {
+            InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getFieldName());
+            if (inferenceFieldMetadata == null && originalQuery.queryVector() == null && getQueryVectorBuilderModelId() == null) {
+                // We are querying a non-inference field and neither a query vector nor query vector builder model ID has been provided
+                throw new IllegalArgumentException("Either query vector or query vector builder model ID must be specified");
+            }
+        }
     }
 
     @Override

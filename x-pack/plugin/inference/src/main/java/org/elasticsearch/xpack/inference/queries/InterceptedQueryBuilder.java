@@ -70,6 +70,8 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
         return null;
     }
 
+    protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {}
+
     @Override
     public QueryBuilder filter() {
         return copy(null);
@@ -128,7 +130,9 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
                 return this;
             }
 
-            // TODO: Need to get query-time inference ID from knn & sparse_vector queries
+            // Validate early to prevent partial failures
+            coordinatorNodeValidate(resolvedIndices);
+
             Set<String> inferenceIds = getInferenceIdsForForField(
                 resolvedIndices.getConcreteLocalIndicesMetadata().values(),
                 getFieldName()

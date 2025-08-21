@@ -26,7 +26,7 @@ public class MapEmbeddingsProvider implements EmbeddingsProvider {
     }
 
     public MapEmbeddingsProvider(StreamInput in) throws IOException {
-        this.embeddings = in.readMap(i -> i.readNamedWriteable(InferenceResults.class));
+        this.embeddings = in.readImmutableMap(i -> i.readNamedWriteable(InferenceResults.class));
     }
 
     @Override

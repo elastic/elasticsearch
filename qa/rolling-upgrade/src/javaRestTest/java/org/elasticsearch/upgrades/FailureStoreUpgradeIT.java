@@ -40,55 +40,51 @@ public class FailureStoreUpgradeIT extends AbstractRollingUpgradeWithSecurityTes
     }
 
     final String INDEX_TEMPLATE = """
-                {
-                    "index_patterns": ["$PATTERN"],
-                    "data_stream": {},
-                    "template": {
-                        "mappings":{
-                            "properties": {
-                                "@timestamp" : {
-                                    "type": "date"
-                                },
-                                "numeral": {
-                                    "type": "long"
-                                }
-                            }
+        {
+            "index_patterns": ["$PATTERN"],
+            "data_stream": {},
+            "template": {
+                "mappings":{
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "numeral": {
+                            "type": "long"
                         }
                     }
-                }""";
-
-    private static final String VALID_DOC =
-        """
-            {"@timestamp": "$now", "numeral": 0}
-            """;
-
-    private static final String INVALID_DOC =
-        """
-            {"@timestamp": "$now", "numeral": "foobar"}
-            """;
-
-    private static final String BULK =
-        """
-            {"create": {}}
-            {"@timestamp": "$now", "numeral": 0}
-            {"create": {}}
-            {"@timestamp": "$now", "numeral": 1}
-            {"create": {}}
-            {"@timestamp": "$now", "numeral": 2}
-            {"create": {}}
-            {"@timestamp": "$now", "numeral": 3}
-            {"create": {}}
-            {"@timestamp": "$now", "numeral": 4}
-            """;
-
-    private static final String ENABLE_FAILURE_STORE_OPTIONS =
-        """
-            {
-              "failure_store": {
-                "enabled": true
-              }
+                }
             }
-            """;
+        }""";
+
+    private static final String VALID_DOC = """
+        {"@timestamp": "$now", "numeral": 0}
+        """;
+
+    private static final String INVALID_DOC = """
+        {"@timestamp": "$now", "numeral": "foobar"}
+        """;
+
+    private static final String BULK = """
+        {"create": {}}
+        {"@timestamp": "$now", "numeral": 0}
+        {"create": {}}
+        {"@timestamp": "$now", "numeral": 1}
+        {"create": {}}
+        {"@timestamp": "$now", "numeral": 2}
+        {"create": {}}
+        {"@timestamp": "$now", "numeral": 3}
+        {"create": {}}
+        {"@timestamp": "$now", "numeral": 4}
+        """;
+
+    private static final String ENABLE_FAILURE_STORE_OPTIONS = """
+        {
+          "failure_store": {
+            "enabled": true
+          }
+        }
+        """;
 
     public void testFailureStoreOnPreviouslyExistingDataStream() throws Exception {
         assumeFalse(

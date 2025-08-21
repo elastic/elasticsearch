@@ -170,7 +170,7 @@ public class InlineJoin extends Join {
         LogicalPlan left = in.readNamedWriteable(LogicalPlan.class);
         LogicalPlan right = in.readNamedWriteable(LogicalPlan.class);
         JoinConfig config = new JoinConfig(in);
-        //return new InlineJoin(source, left, replaceStub(left, right), config);
+        // return new InlineJoin(source, left, replaceStub(left, right), config);
         return new InlineJoin(source, left, right, config);
     }
 

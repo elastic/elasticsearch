@@ -440,28 +440,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertSemanticTextField(mapperService, fieldName, true, null, null);
     }
 
-    public void testOldIndexSemanticTextSparseVersionRaisesError() throws IOException {
-        final XContentBuilder fieldMapping = fieldMapping(b -> {
-            b.field("type", "semantic_text");
-            b.field("inference_id", "another_inference_id");
-            b.startObject("model_settings");
-            b.field("task_type", "sparse_embedding");
-            b.endObject();
-        });
-
-        MapperParsingException exception = assertThrows(
-            MapperParsingException.class,
-            () -> createMapperService(
-                fieldMapping,
-                true,
-                IndexVersions.V_8_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
-            )
-        );
-        assertTrue(exception.getMessage().contains(ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR));
-        assertTrue(exception.getRootCause() instanceof IllegalArgumentException);
-    }
-
     public void testMultiFieldsSupport() throws IOException {
         if (useLegacyFormat) {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {

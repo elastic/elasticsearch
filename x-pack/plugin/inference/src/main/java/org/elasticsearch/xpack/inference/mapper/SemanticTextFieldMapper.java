@@ -132,8 +132,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
     public static final String WARNING_MESSAGE_8X = "Creating a `semantic_text` field on this index version may not include"
         + " optimized default settings. Consider creating a new index for better performance.";
-    public static final String ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR = "Creating a `semantic_text` field with `sparse_vector` models"
-        + " is not supported on this index. Try using a `dense_vector` model or create a new index with version 8.11+.";
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
@@ -1283,10 +1281,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         SparseVectorFieldMapper.Builder sparseVectorMapperBuilder,
         SemanticTextIndexOptions indexOptions
     ) {
-        if (indexVersionCreated.before(NEW_SPARSE_VECTOR)) {
-            throw new IllegalArgumentException(ERROR_MESSAGE_UNSUPPORTED_SPARSE_VECTOR);
-        }
-
         if (indexOptions != null) {
             SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions =
                 (SparseVectorFieldMapper.SparseVectorIndexOptions) indexOptions.indexOptions();

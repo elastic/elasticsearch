@@ -606,6 +606,15 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/100_knn_nested_search/nested kNN search inner_hits & profiling}
   issue: https://github.com/elastic/elasticsearch/issues/133273
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testDefaultIndexOptions {p0=true}
+  issue: https://github.com/elastic/elasticsearch/issues/133326
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testDefaultIndexOptions {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/133327
+- class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
+  method: testInvalidToken
+  issue: https://github.com/elastic/elasticsearch/issues/133328
 
 # Examples:
 #

@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -95,10 +96,9 @@ import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsM
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.EmbeddingsProvider;
 import org.elasticsearch.xpack.inference.queries.InterceptedMatchQueryBuilder;
-import org.elasticsearch.xpack.inference.queries.InterceptedQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.MapEmbeddingsProvider;
+import org.elasticsearch.xpack.inference.queries.NewSemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
-import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SingleEmbeddingsProvider;
@@ -438,11 +438,7 @@ public class InferencePlugin extends Plugin
             new NamedWriteableRegistry.Entry(EmbeddingsProvider.class, SingleEmbeddingsProvider.NAME, SingleEmbeddingsProvider::new)
         );
         entries.add(
-            new NamedWriteableRegistry.Entry(
-                InterceptedQueryBuilder.class,
-                InterceptedMatchQueryBuilder.NAME,
-                InterceptedMatchQueryBuilder::new
-            )
+            new NamedWriteableRegistry.Entry(QueryBuilder.class, InterceptedMatchQueryBuilder.NAME, InterceptedMatchQueryBuilder::new)
         );
         return entries;
     }
@@ -596,7 +592,7 @@ public class InferencePlugin extends Plugin
     public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
         return List.of(
             new SemanticKnnVectorQueryRewriteInterceptor(),
-            new SemanticMatchQueryRewriteInterceptor(),
+            new NewSemanticMatchQueryRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor()
         );
     }

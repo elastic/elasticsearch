@@ -43,6 +43,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_NORMALIZER;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
 
 /**
@@ -92,7 +93,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             for (LinearRetrieverComponent component : retrieverComponents) {
                 innerRetrievers.add(RetrieverSource.from(component.retriever));
                 weights[index] = component.weight;
-                normalizers[index] = component.normalizer;
+                normalizers[index] = resolveNormalizer(component.normalizer, normalizer);
                 index++;
             }
             return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
@@ -118,8 +119,18 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private static ScoreNormalizer[] getDefaultNormalizers(List<RetrieverSource> innerRetrievers) {
         int size = innerRetrievers != null ? innerRetrievers.size() : 0;
         ScoreNormalizer[] normalizers = new ScoreNormalizer[size];
-        Arrays.fill(normalizers, IdentityScoreNormalizer.INSTANCE);
+        Arrays.fill(normalizers, DEFAULT_NORMALIZER);
         return normalizers;
+    }
+
+    private static ScoreNormalizer resolveNormalizer(ScoreNormalizer componentNormalizer, ScoreNormalizer topLevelNormalizer) {
+        if (componentNormalizer != null) {
+            return componentNormalizer;
+        }
+        if (topLevelNormalizer != null) {
+            return topLevelNormalizer;
+        }
+        return DEFAULT_NORMALIZER;
     }
 
     public static LinearRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -167,7 +178,10 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.query = query;
         this.normalizer = normalizer;
         this.weights = weights;
-        this.normalizers = normalizers;
+        this.normalizers = new ScoreNormalizer[normalizers.length];
+        for (int i = 0; i < normalizers.length; i++) {
+            this.normalizers[i] = resolveNormalizer(normalizers[i], normalizer);
+        }
     }
 
     public LinearRetrieverBuilder(
@@ -221,19 +235,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 ),
                 validationException
             );
-        } else if (innerRetrievers.isEmpty() == false && normalizer != null) {
-            validationException = addValidationError(
-                String.format(
-                    Locale.ROOT,
-                    "[%s] [%s] cannot be provided when [%s] is specified",
-                    getName(),
-                    NORMALIZER_FIELD.getPreferredName(),
-                    RETRIEVERS_FIELD.getPreferredName()
-                ),
-                validationException
-            );
         }
-
         return validationException;
     }
 

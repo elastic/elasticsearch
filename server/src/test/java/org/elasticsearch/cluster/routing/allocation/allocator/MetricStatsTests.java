@@ -44,22 +44,17 @@ public class MetricStatsTests extends AbstractWireSerializingTestCase<ClusterBal
     }
 
     public void testToXContent() throws IOException {
-        double total = randomDouble();
-        double min = randomDouble();
-        double max = randomDouble();
-        double average = randomDouble();
-        double stdDev = randomDouble();
-        ClusterBalanceStats.MetricStats stats = new ClusterBalanceStats.MetricStats(total, min, max, average, stdDev);
+        ClusterBalanceStats.MetricStats stats = createRandomMetricStats();
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder = stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         // Convert to map for easy assertions
         Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
 
-        assertThat(map.get("total"), equalTo(total));
-        assertThat(map.get("min"), equalTo(min));
-        assertThat(map.get("max"), equalTo(max));
-        assertThat(map.get("average"), equalTo(average));
-        assertThat(map.get("std_dev"), equalTo(stdDev));
+        assertThat(map.get("total"), equalTo(stats.total()));
+        assertThat(map.get("min"), equalTo(stats.min()));
+        assertThat(map.get("max"), equalTo(stats.max()));
+        assertThat(map.get("average"), equalTo(stats.average()));
+        assertThat(map.get("std_dev"), equalTo(stats.stdDev()));
     }
 }

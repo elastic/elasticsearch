@@ -52,18 +52,7 @@ public class TierBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
 
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
-        ClusterBalanceStats.MetricStats shardCount = createRandomMetricStats();
-        ClusterBalanceStats.MetricStats undesiredShardAllocations = createRandomMetricStats();
-        ClusterBalanceStats.MetricStats forecastWriteLoad = createRandomMetricStats();
-        ClusterBalanceStats.MetricStats forecastDiskUsage = createRandomMetricStats();
-        ClusterBalanceStats.MetricStats actualDiskUsage = createRandomMetricStats();
-        ClusterBalanceStats.TierBalanceStats tierBalanceStats = new ClusterBalanceStats.TierBalanceStats(
-            shardCount,
-            undesiredShardAllocations,
-            forecastWriteLoad,
-            forecastDiskUsage,
-            actualDiskUsage
-        );
+        ClusterBalanceStats.TierBalanceStats tierBalanceStats = createRandomTierBalanceStats();
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder = tierBalanceStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -83,42 +72,42 @@ public class TierBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
 
         Map<String, Object> shardCountStats = (Map<String, Object>) map.get("shard_count");
         assertThat(shardCountStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
-        assertEquals(shardCountStats.get("total"), shardCount.total());
-        assertEquals(shardCountStats.get("average"), shardCount.average());
-        assertEquals(shardCountStats.get("min"), shardCount.min());
-        assertEquals(shardCountStats.get("max"), shardCount.max());
-        assertEquals(shardCountStats.get("std_dev"), shardCount.stdDev());
+        assertEquals(shardCountStats.get("total"), tierBalanceStats.shardCount().total());
+        assertEquals(shardCountStats.get("average"), tierBalanceStats.shardCount().average());
+        assertEquals(shardCountStats.get("min"), tierBalanceStats.shardCount().min());
+        assertEquals(shardCountStats.get("max"), tierBalanceStats.shardCount().max());
+        assertEquals(shardCountStats.get("std_dev"), tierBalanceStats.shardCount().stdDev());
 
         Map<String, Object> undesiredShardAllocationCountStats = (Map<String, Object>) map.get("undesired_shard_allocation_count");
         assertThat(undesiredShardAllocationCountStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
-        assertEquals(undesiredShardAllocationCountStats.get("total"), undesiredShardAllocations.total());
-        assertEquals(undesiredShardAllocationCountStats.get("average"), undesiredShardAllocations.average());
-        assertEquals(undesiredShardAllocationCountStats.get("min"), undesiredShardAllocations.min());
-        assertEquals(undesiredShardAllocationCountStats.get("max"), undesiredShardAllocations.max());
-        assertEquals(undesiredShardAllocationCountStats.get("std_dev"), undesiredShardAllocations.stdDev());
+        assertEquals(undesiredShardAllocationCountStats.get("total"), tierBalanceStats.undesiredShardAllocations().total());
+        assertEquals(undesiredShardAllocationCountStats.get("average"), tierBalanceStats.undesiredShardAllocations().average());
+        assertEquals(undesiredShardAllocationCountStats.get("min"), tierBalanceStats.undesiredShardAllocations().min());
+        assertEquals(undesiredShardAllocationCountStats.get("max"), tierBalanceStats.undesiredShardAllocations().max());
+        assertEquals(undesiredShardAllocationCountStats.get("std_dev"), tierBalanceStats.undesiredShardAllocations().stdDev());
 
         Map<String, Object> forecastWriteLoadStats = (Map<String, Object>) map.get("forecast_write_load");
         assertThat(forecastWriteLoadStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
-        assertEquals(forecastWriteLoadStats.get("total"), forecastWriteLoad.total());
-        assertEquals(forecastWriteLoadStats.get("average"), forecastWriteLoad.average());
-        assertEquals(forecastWriteLoadStats.get("min"), forecastWriteLoad.min());
-        assertEquals(forecastWriteLoadStats.get("max"), forecastWriteLoad.max());
-        assertEquals(forecastWriteLoadStats.get("std_dev"), forecastWriteLoad.stdDev());
+        assertEquals(forecastWriteLoadStats.get("total"), tierBalanceStats.forecastWriteLoad().total());
+        assertEquals(forecastWriteLoadStats.get("average"), tierBalanceStats.forecastWriteLoad().average());
+        assertEquals(forecastWriteLoadStats.get("min"), tierBalanceStats.forecastWriteLoad().min());
+        assertEquals(forecastWriteLoadStats.get("max"), tierBalanceStats.forecastWriteLoad().max());
+        assertEquals(forecastWriteLoadStats.get("std_dev"), tierBalanceStats.forecastWriteLoad().stdDev());
 
         Map<String, Object> forecastDiskUsageStats = (Map<String, Object>) map.get("forecast_disk_usage");
         assertThat(forecastDiskUsageStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
-        assertEquals(forecastDiskUsageStats.get("total"), forecastDiskUsage.total());
-        assertEquals(forecastDiskUsageStats.get("average"), forecastDiskUsage.average());
-        assertEquals(forecastDiskUsageStats.get("min"), forecastDiskUsage.min());
-        assertEquals(forecastDiskUsageStats.get("max"), forecastDiskUsage.max());
-        assertEquals(forecastDiskUsageStats.get("std_dev"), forecastDiskUsage.stdDev());
+        assertEquals(forecastDiskUsageStats.get("total"), tierBalanceStats.forecastShardSize().total());
+        assertEquals(forecastDiskUsageStats.get("average"), tierBalanceStats.forecastShardSize().average());
+        assertEquals(forecastDiskUsageStats.get("min"), tierBalanceStats.forecastShardSize().min());
+        assertEquals(forecastDiskUsageStats.get("max"), tierBalanceStats.forecastShardSize().max());
+        assertEquals(forecastDiskUsageStats.get("std_dev"), tierBalanceStats.forecastShardSize().stdDev());
 
         Map<String, Object> actualDiskUsageStats = (Map<String, Object>) map.get("actual_disk_usage");
         assertThat(actualDiskUsageStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
-        assertEquals(actualDiskUsageStats.get("total"), actualDiskUsage.total());
-        assertEquals(actualDiskUsageStats.get("average"), actualDiskUsage.average());
-        assertEquals(actualDiskUsageStats.get("min"), actualDiskUsage.min());
-        assertEquals(actualDiskUsageStats.get("max"), actualDiskUsage.max());
-        assertEquals(actualDiskUsageStats.get("std_dev"), actualDiskUsage.stdDev());
+        assertEquals(actualDiskUsageStats.get("total"), tierBalanceStats.actualShardSize().total());
+        assertEquals(actualDiskUsageStats.get("average"), tierBalanceStats.actualShardSize().average());
+        assertEquals(actualDiskUsageStats.get("min"), tierBalanceStats.actualShardSize().min());
+        assertEquals(actualDiskUsageStats.get("max"), tierBalanceStats.actualShardSize().max());
+        assertEquals(actualDiskUsageStats.get("std_dev"), tierBalanceStats.actualShardSize().stdDev());
     }
 }

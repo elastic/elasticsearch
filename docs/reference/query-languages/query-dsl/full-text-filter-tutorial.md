@@ -11,29 +11,27 @@ products:
 
 # Get started with Query DSL search and filters [full-text-filter-tutorial]
 
-This is a hands-on introduction to the basics of [full-text search](docs-content://solutions/search/full-text.md) with {{es}}, also known as *lexical search*, using the [`_search` API]({{es-apis}}operation/operation-search) and Query DSL.
-You'll also learn how to filter data to narrow down search results based on exact criteria.
+This is a hands-on introduction to the basics of full-text search with {{es}}, also known as *lexical search*, using the `_search` API and Query DSL.
 
-In this quickstart, you'll implement a search function for a cooking blog. The blog contains recipes with various attributes including textual content, categorical data, and numerical ratings.
-
-The goal is to create search queries that enable users to:
+You'll implement a search function for a cooking blog that contains recipes with textual content, categorical data, and numerical ratings.
+You'll apply filters to narrow down search results and combine multiple search criteria.
+For example, in this scenario you might want to:
 
 * Find recipes based on preferred or avoided ingredients
 * Explore dishes that meet specific dietary needs
 * Find top-rated recipes in specific categories
 * Find the latest recipes from favorite authors
 
-To achieve these goals, you'll use different Elasticsearch queries to perform full-text search, apply filters, and combine multiple search criteria.
+::::{tip}
+The code examples are in [Console](docs-content://explore-analyze/query-filter/tools/console.md) syntax by default.
+You can [convert into other programming languages](docs-content://explore-analyze/query-filter/tools/console.md#import-export-console-requests) in the Console UI.
+::::
 
 ## Requirements [full-text-filter-tutorial-requirements]
 
-You'll need a running {{es}} cluster, together with {{kib}} to use the Dev Tools API Console. Refer to [choose your deployment type](docs-content://deploy-manage/deploy.md#choosing-your-deployment-type) for deployment options.
-
-Want to get started quickly? Run the following command in your terminal to set up a [single-node local cluster in Docker](docs-content://solutions/search/run-elasticsearch-locally.md):
-
-```sh
-curl -fsSL https://elastic.co/start-local | sh
-```
+You can follow these steps in any {{es}} deployment.
+To see all deployment options, refer to [Choosing your deployment type](docs-content://deploy-manage/deploy.md#choosing-your-deployment-type).
+To get started quickly, set up a [single-node local cluster in Docker](docs-content://solutions/search/run-elasticsearch-locally.md).
 
 ## Create an index [full-text-filter-tutorial-create-index]
 
@@ -200,7 +198,7 @@ At search time, {{es}} defaults to the analyzer defined in the field mapping. In
 ```
 
 1. `hits`: Contains the total number of matching documents and their relation to the total.
-2. `max_score`: The highest relevance score among all matching documents. In this example, we only have one matching document.
+2. `max_score`: The highest relevance score among all matching documents. In this example, there is only have one matching document.
 3. `_score`: The relevance score for a specific document, indicating how well it matches the query. Higher scores indicate better matches. In this example the `max_score` is the same as the `_score`, as there is only one matching document.
 4. The title contains both "Fluffy" and "Pancakes", matching our search terms exactly.
 5. The description includes "fluffiest" and "pancakes", further contributing to the document's relevance due to the analysis process.
@@ -275,7 +273,7 @@ GET /cooking_blog/_search
 
 When users enter a search query, they often don't know (or care) whether their search terms appear in a specific field. A [`multi_match`](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md) query allows searching across multiple fields simultaneously.
 
-Let's start with a basic `multi_match` query:
+Start with a basic `multi_match` query:
 
 ```console
 GET /cooking_blog/_search
@@ -291,7 +289,8 @@ GET /cooking_blog/_search
 
 This query searches for "vegetarian curry" across the title, description, and tags fields. Each field is treated with equal importance.
 
-However, in many cases, matches in certain fields (like the title) might be more relevant than others. We can adjust the importance of each field using field boosting:
+However, in many cases, matches in certain fields (like the title) might be more relevant than others.
+You can adjust the importance of each field using field boosting:
 
 ```console
 GET /cooking_blog/_search
@@ -395,8 +394,8 @@ GET /cooking_blog/_search
 ::::{tip}
 The `.keyword` suffix accesses the unanalyzed version of a field, enabling exact, case-sensitive matching. This works in two scenarios:
 
-1. **When using dynamic mapping for text fields**. Elasticsearch automatically creates a `.keyword` sub-field.
-2. **When text fields are explicitly mapped with a `.keyword` sub-field**. For example, we explicitly mapped the `category` field [in an earlier step](#full-text-filter-tutorial-create-index) of this tutorial.
+1. **When using dynamic mapping for text fields**. {{es}} automatically creates a `.keyword` sub-field.
+2. **When text fields are explicitly mapped with a `.keyword` sub-field**. For example, you explicitly mapped the `category` field [in an earlier step](#full-text-filter-tutorial-create-index) of this tutorial.
 
 ::::
 
@@ -448,7 +447,7 @@ Avoid using the `term` query for [`text` fields](/reference/elasticsearch/mappin
 
 A [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md) query allows you to combine multiple query clauses to create sophisticated searches. In this tutorial, it's useful when users have complex requirements for finding recipes.
 
-Let's create a query that addresses the following user needs:
+ Create a query that addresses the following user needs:
 
 * Must be a vegetarian recipe
 * Should contain "curry" or "spicy" in the title or description
@@ -562,9 +561,11 @@ GET /cooking_blog/_search
 
 ## Learn more [full-text-filter-tutorial-learn-more]
 
-This tutorial introduced the basics of full-text search and filtering in {{es}}. Building a real-world search experience requires understanding many more advanced concepts and techniques. The following resources will help you dive deeper:
+This tutorial introduced the basics of full-text search and filtering in {{es}}.
+Building a real-world search experience requires understanding many more advanced concepts and techniques.
+The following resources will help you dive deeper:
 
 * [Full-text search](docs-content://solutions/search/full-text.md): Learn about the core components of full-text search in {{es}}.
-* [Elasticsearch basics — Search and analyze data](docs-content://explore-analyze/query-filter.md): Understand all your options for searching and analyzing data in {{es}}.
+* [{{es}} basics — Search and analyze data](docs-content://explore-analyze/query-filter.md): Understand all your options for searching and analyzing data in {{es}}.
 * [Text analysis](docs-content://solutions/search/full-text/text-analysis-during-search.md): Understand how text is processed for full-text search.
 * [Search your data](docs-content://solutions/search.md): Learn about more advanced search techniques using the `_search` API, including semantic search.

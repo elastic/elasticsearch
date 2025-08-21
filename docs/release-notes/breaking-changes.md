@@ -111,7 +111,7 @@ Existing `repository-s3` configurations may no longer be compatible. Notable dif
 - AWS SDK v2 requires the use of the V4 signature algorithm, therefore, the `s3.client.${CLIENT_NAME}.signer_override` setting is deprecated and no longer has any effect.
 - AWS SDK v2 does not support the `log-delivery-write` canned ACL.
 - AWS SDK v2 counts 4xx responses differently in its metrics reporting.
-- AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v2 could use either a regional endpoint or the global `https://sts.amazonaws.com` one.
+- AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v1 could use either a regional endpoint or the global `https://sts.amazonaws.com` one.
 
 **Action:**
 Test the upgrade in a non-production environment. Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items:

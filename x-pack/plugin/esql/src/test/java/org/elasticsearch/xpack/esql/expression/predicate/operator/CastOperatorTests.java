@@ -46,7 +46,7 @@ public class CastOperatorTests extends ESTestCase {
         docs.renderDocs();
     }
 
-    public static Map<List<DataType>, DataType> signatures() {
+    public static Map<List<DocsV3Support.Param>, DataType> signatures() {
         // The cast operator cannot produce sensible signatures unless we consider the type as an extra parameter
         return Map.of();
     }

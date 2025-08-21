@@ -164,7 +164,7 @@ public interface CuVSResourceManager {
         @Override
         public void finishedComputation(ManagedCuVSResources resources) {
             // currently does nothing, but could allow acquire to return possibly blocked resources
-            // something like enoughComputationCondition.signal()?
+            // something like enoughComputationCondition.signalAll()?
         }
 
         @Override
@@ -173,7 +173,7 @@ public interface CuVSResourceManager {
                 lock.lock();
                 assert resources.locked;
                 resources.locked = false;
-                enoughMemoryCondition.signal();
+                enoughMemoryCondition.signalAll();
             } finally {
                 lock.unlock();
             }

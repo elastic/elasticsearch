@@ -196,13 +196,18 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index-2"));
         indexRandom(true, "index-2", 10);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1,nonexisting"))) {
-            assertOk(response);
+        try (var response = run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))) {
+            assertOk(response); // okay when present index is empty
         }
         expectThrows(
             IndexNotFoundException.class,
-            equalTo("no such index [nonexisting]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting"))
+            equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
+            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1"))
+        );
+        expectThrows(
+            IndexNotFoundException.class,
+            equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
+            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1,nonexisting-2"))
         );
     }
 

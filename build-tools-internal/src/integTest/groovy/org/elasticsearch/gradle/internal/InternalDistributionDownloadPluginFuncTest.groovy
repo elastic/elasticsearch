@@ -167,8 +167,12 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                     }
                 }
             }
+
+            tasks.named('assemble').configure {
+                dependsOn buildTar
+            }
+
             artifacts {
-                it.add("default", buildTar)
                 it.add("extracted", buildExpanded)
             }
         """

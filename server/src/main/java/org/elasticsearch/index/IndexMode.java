@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -622,7 +623,8 @@ public enum IndexMode {
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
-            List<CompressedXContent> combinedTemplateMappings
+            List<CompressedXContent> combinedTemplateMappings,
+            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
         ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {

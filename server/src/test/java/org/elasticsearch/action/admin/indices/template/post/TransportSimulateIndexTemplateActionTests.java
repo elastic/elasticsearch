@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -69,7 +70,8 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings allSettings,
-                List<CompressedXContent> combinedTemplateMappings
+                List<CompressedXContent> combinedTemplateMappings,
+                ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
             ) {
                 return Settings.builder().put("test-setting", 0).build();
             }
@@ -82,7 +84,8 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
-                List<CompressedXContent> combinedTemplateMappings
+                List<CompressedXContent> combinedTemplateMappings,
+                ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
             ) {
                 return Settings.builder().put("test-setting-2", 10).build();
             }

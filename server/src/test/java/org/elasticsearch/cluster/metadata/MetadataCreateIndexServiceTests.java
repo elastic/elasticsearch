@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -775,7 +776,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
                 }
@@ -825,7 +827,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "override").build();
                 }
@@ -867,7 +870,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
                 }
@@ -910,7 +914,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
                 }
@@ -953,7 +958,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
                 }
@@ -1383,7 +1389,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
+        IndexMetadata indexMetadata = buildIndexMetadata(
+            "test",
+            aliases,
+            () -> null,
+            indexSettings,
+            4,
+            sourceIndexMetadata,
+            false,
+            Map.of()
+        );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
@@ -1811,7 +1826,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            ImmutableOpenMap.builder()
         );
     }
 }

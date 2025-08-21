@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -82,7 +83,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent(mapping))
+            List.of(new CompressedXContent(mapping)),
+            ImmutableOpenMap.builder()
         );
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
@@ -105,7 +107,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 "_doc": {
                     "properties": {
                         "field1": {
-                            "type": "keyword"
+                            "type": "keyword",
                             "time_series_dimension": true
                         },
                         "field2": {
@@ -127,7 +129,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent(mapping))
+            List.of(new CompressedXContent(mapping)),
+            ImmutableOpenMap.builder()
         );
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
@@ -197,7 +200,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3))
+            List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3)),
+            ImmutableOpenMap.builder()
         );
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
@@ -222,7 +226,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of()
+            List.of(),
+            ImmutableOpenMap.builder()
         );
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
@@ -247,7 +252,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent("{}"))
+            List.of(new CompressedXContent("{}")),
+            ImmutableOpenMap.builder()
         );
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
@@ -272,7 +278,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent("{}"))
+            List.of(new CompressedXContent("{}")),
+            ImmutableOpenMap.builder()
         );
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
@@ -304,7 +311,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent("{}"))
+            List.of(new CompressedXContent("{}")),
+            ImmutableOpenMap.builder()
         );
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
@@ -341,7 +349,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 projectMetadata,
                 now,
                 settings,
-                null
+                null,
+                ImmutableOpenMap.builder()
             )
         );
         assertThat(
@@ -367,7 +376,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             Instant.ofEpochMilli(1L),
             settings,
-            null
+            null,
+            ImmutableOpenMap.builder()
         );
         assertThat(result.size(), equalTo(0));
     }
@@ -389,7 +399,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of()
+            List.of(),
+            ImmutableOpenMap.builder()
         );
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
@@ -419,7 +430,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             Instant.ofEpochMilli(1L),
             settings,
-            List.of()
+            List.of(),
+            ImmutableOpenMap.builder()
         );
         assertThat(result.size(), equalTo(0));
     }
@@ -698,7 +710,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent(mapping))
+            List.of(new CompressedXContent(mapping)),
+            ImmutableOpenMap.builder()
         );
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)

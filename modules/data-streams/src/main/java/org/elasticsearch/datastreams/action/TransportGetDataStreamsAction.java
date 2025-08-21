@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -205,7 +206,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 state.metadata(),
                 Instant.now(),
                 settings,
-                List.of()
+                List.of(),
+                ImmutableOpenMap.builder()
             );
             var rawMode = addlSettinsg.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {

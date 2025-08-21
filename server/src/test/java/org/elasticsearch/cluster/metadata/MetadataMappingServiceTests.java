@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -27,6 +28,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -147,7 +149,12 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor(
             new IndexSettingProviders(Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper) {
+                public Settings onUpdateMappings(
+                    IndexMetadata indexMetadata,
+                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata,
+                    DocumentMapper documentMapper
+                ) {
+                    extraCustomMetadata.put("foo", Map.of("bar", "baz"));
                     return Settings.builder().put("index.mapping.total_fields.limit", 42).build();
                 }
             }))
@@ -166,11 +173,11 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        assertThat(resultingState.metadata().getDefaultProject().index("test").getSettingsVersion(), equalTo(1 + previousVersion));
-        assertThat(
-            resultingState.metadata().getDefaultProject().index("test").getSettings().get("index.mapping.total_fields.limit"),
-            equalTo("42")
-        );
+
+        IndexMetadata indexMetadata = resultingState.metadata().indexMetadata(indexService.index());
+        assertThat(indexMetadata.getSettingsVersion(), equalTo(1 + previousVersion));
+        assertThat(indexMetadata.getSettings().get("index.mapping.total_fields.limit"), equalTo("42"));
+        assertThat(indexMetadata.getCustomData("foo"), equalTo(Map.of("bar", "baz")));
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

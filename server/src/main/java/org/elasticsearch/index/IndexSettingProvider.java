@@ -12,6 +12,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * An {@link IndexSettingProvider} is a provider for index level settings that can be set
@@ -42,6 +44,7 @@ public interface IndexSettingProvider {
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
      *                                              defined on the create index request
      * @param combinedTemplateMappings              All the mappings resolved from the template that matches
+     * @param extraCustomMetadata                   A builder for custom metadata that can be used to add custom index metadata
      */
     default Settings getAdditionalIndexSettings(
         String indexName,
@@ -50,20 +53,26 @@ public interface IndexSettingProvider {
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
-        List<CompressedXContent> combinedTemplateMappings
+        List<CompressedXContent> combinedTemplateMappings,
+        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
     ) {
         return Settings.EMPTY;
     }
 
     /**
-     * Called when the mappings for an index are updated.
+     * Called when the mappings for an index are updated, before the new index metadata is created.
      * This method can be used to update index settings based on the new mappings.
      *
-     * @param indexMetadata the index metadata for the index being updated
-     * @param documentMapper the document mapper containing the updated mappings
+     * @param indexMetadata        the index metadata for the index being updated
+     * @param extraCustomMetadata  a builder for custom metadata that can be used to add custom index metadata
+     * @param documentMapper       the document mapper containing the updated mappings
      * @return additional settings to be applied to the index or {@link Settings#EMPTY} if no additional settings are needed
      */
-    default Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper) {
+    default Settings onUpdateMappings(
+        IndexMetadata indexMetadata,
+        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata,
+        DocumentMapper documentMapper
+    ) {
         return Settings.EMPTY;
     }
 

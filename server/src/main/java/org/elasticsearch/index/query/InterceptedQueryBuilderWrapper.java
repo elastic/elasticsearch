@@ -22,13 +22,21 @@ import java.util.Objects;
  * Wrapper for instances of {@link QueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
  */
-class InterceptedQueryBuilderWrapper implements QueryBuilder {
+class InterceptedQueryBuilderWrapper implements QueryBuilder, FilteredCCSQueryBuilder<QueryBuilder> {
 
     protected final QueryBuilder queryBuilder;
 
     InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
         super();
         this.queryBuilder = queryBuilder;
+    }
+
+    @Override
+    public QueryBuilder filter() {
+        if (queryBuilder instanceof FilteredCCSQueryBuilder<?> filtered) {
+            return new InterceptedQueryBuilderWrapper(filtered.filter());
+        }
+        return this;
     }
 
     @Override

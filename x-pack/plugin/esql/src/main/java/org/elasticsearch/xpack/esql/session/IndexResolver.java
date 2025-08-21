@@ -289,7 +289,7 @@ public class IndexResolver {
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
         if (includeAllDimensions) {
-            req.filters("-nested", "+dimensions");
+            req.filters("-nested", "+dimension");
         } else {
             req.filters("-nested");
         }

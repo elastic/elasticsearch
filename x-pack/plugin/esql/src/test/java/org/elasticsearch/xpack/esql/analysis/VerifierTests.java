@@ -2002,7 +2002,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": 42 })")
         );
         assertEquals(
-            "1:31: Invalid option [output_format] in [CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })], expected a [KEYWORD] value",
+            "1:31: Invalid option [output_format] in [CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })],"
+                + " expected a [KEYWORD] value",
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })")
         );
     }
@@ -2026,7 +2027,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })")
         );
         assertEquals(
-            "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })], expected a [INTEGER] value",
+            "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })],"
+                + " expected a [INTEGER] value",
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })")
         );
     }

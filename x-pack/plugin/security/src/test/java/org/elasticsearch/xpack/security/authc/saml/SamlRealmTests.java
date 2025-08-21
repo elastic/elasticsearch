@@ -978,21 +978,13 @@ public class SamlRealmTests extends SamlTestCase {
             )
         );
 
-        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
-        final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-        final SpConfiguration sp = new SingleSamlSpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
-        final Path path = getDataPath("idp1.xml");
-        Tuple<RealmConfig, SSLService> tuple = buildConfig(
-            "https://example.com",
-            builder -> builder.put(
-                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
-                attributeName
-            ).put(attributeSetting, attributeName)
-        );
-        final RealmConfig config = tuple.v1();
-        final SSLService sslService = tuple.v2();
+        Settings settings = buildSettings("https://example.com").put(
+            SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
+            attributeName
+        ).put(attributeSetting, attributeName).build();
+        final RealmConfig config = realmConfigFromGlobalSettings(settings);
 
-        var e = expectThrows(IllegalArgumentException.class, () -> SamlRealm.create(config, sslService, watcherService, roleMapper, sp));
+        var e = expectThrows(IllegalArgumentException.class, () -> config.getSetting(SamlRealmSettings.PRIVATE_ATTRIBUTES));
         assertThat(
             e.getCause().getMessage(),
             containsString(

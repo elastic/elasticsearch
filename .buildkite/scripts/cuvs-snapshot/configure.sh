@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eo pipefail
+set -euo pipefail
 
 if [[ -f /etc/profile.d/elastic-nvidia.sh ]]; then
   export JAVA_HOME="$HOME/.java/openjdk24"
@@ -8,10 +8,9 @@ if [[ -f /etc/profile.d/elastic-nvidia.sh ]]; then
 
   # Setup LD_LIBRARY_PATH, PATH
 
+  export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
   source /etc/profile.d/elastic-nvidia.sh
 fi
-
-set -u
 
 # Not running this before the tests results in an error when running the tests
 # No idea why...

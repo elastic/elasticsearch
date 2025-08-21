@@ -90,12 +90,15 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
             String name
     ) {
         given:
-        def originalLatestFiles = latestFilesModified.stream().map { readLatestFile(it) }.toList()
+        List<LatestFile> originalModifiedLatestFiles = readLatestFiles(latestFilesModified)
+        List<LatestFile> originalBranchesLatestFiles = readLatestFiles(branchesParam)
 
-        when: "generation should revert the latest files to their original state"
-        originalLatestFiles.forEach {
+        when: "We modify the latest files"
+        originalModifiedLatestFiles.forEach {
             latestTransportVersion(it.branch, it.name + "_modification", (it.id + 1).toString())
         }
+
+        and: "We run the generation task"
         def args = [
                 ":myserver:validateTransportVersionDefinitions",
                 ":myserver:generateTransportVersionDefinition"
@@ -104,26 +107,39 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
             args.add("--branches=" + branchesParam.join(","))
         }
         if (name != null) {
-            referencedTransportVersion(name)
+            referencedTransportVersion(name) // Ensure the definition file is referenced to allow validation to succeed
         }
         def result = gradleRunner(args.toArray(new String[0])).build()
 
-        then: "The generation and validation tasks should succeed, and the latest files should be reverted"
+        then: "The generation and validation tasks should succeed"
         result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
         result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
-        originalLatestFiles.forEach { originalLatest ->
-            def latest = readLatestFile(originalLatest.branch)
-            assert latest.branch == originalLatest.branch
-            assert latest.id == originalLatest.id
+
+        and: "The modified latest files should be reverted if there is no name specified or they are not specified in the branches param"
+        originalModifiedLatestFiles.forEach { originalLatest ->
+            boolean noNameSpecified = name == null
+            boolean modifiedNotInBranchesParam = branchesParam != null && branchesParam.contains(originalLatest.branch) == false
+            if (noNameSpecified || modifiedNotInBranchesParam) {
+                def latest = readLatestFile(originalLatest.branch)
+                assert latest.branch == originalLatest.branch
+                assert latest.id == originalLatest.id
+            }
         }
-        // TODO assert that the definition file is created if a name is specified, and contains the correct incremented IDs
+
+        and: "The latest files for the branches param should be incremented correctly"
+        if (name != null) {
+            validateDefinitionFile(name, originalBranchesLatestFiles,)
+        }
 
         where:
         branchesParam  | latestFilesModified | name
-//        null           | ["9.2"]             | null
-//        null           | ["9.2", "9.1"]      | null
-//        ["9.2", "9.1"] | ["9.2"]             | null
-        ["9.2"]        | ["9.1"]             | "test_tv" // TODO legitimate bug?
+        null           | ["9.2"]             | null
+        null           | ["9.2", "9.1"]      | null
+        ["9.2", "9.1"] | ["9.2"]             | null
+        ["9.2"]        | ["9.1"]             | null
+        ["9.2"]        | ["9.1"]             | "test_tv" // TODO legitimate bug, need to always clean up latest.
+        ["9.2", "9.1"] | ["9.2", "9.1"]      | "test_tv"
+
     }
 
     // TODO this test is finding a legitimate bug
@@ -173,10 +189,10 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         when:
         def result = gradleRunner(
-            ":myserver:validateTransportVersionDefinitions",
-            ":myserver:generateTransportVersionDefinition",
-            "--name=new_name" ,
-            "--branches=9.2"
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--name=new_name",
+                "--branches=9.2"
         ).build()
 
         then:

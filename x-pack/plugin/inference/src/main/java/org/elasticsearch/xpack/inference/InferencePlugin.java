@@ -441,9 +441,7 @@ public class InferencePlugin extends Plugin
         entries.add(
             new NamedWriteableRegistry.Entry(QueryBuilder.class, InterceptedMatchQueryBuilder.NAME, InterceptedMatchQueryBuilder::new)
         );
-        entries.add(
-            new NamedWriteableRegistry.Entry(QueryBuilder.class, InterceptedKnnQueryBuilder.NAME, InterceptedKnnQueryBuilder::new)
-        );
+        entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, InterceptedKnnQueryBuilder.NAME, InterceptedKnnQueryBuilder::new));
         return entries;
     }
 

@@ -104,7 +104,8 @@ public class PerNodeShardSnapshotCounter {
 
     private static boolean isRunningOnDataNode(SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus) {
         return shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.INIT
-            // Aborted shard snapshot is still running on the data node until it is FAILED
-            || shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.ABORTED;
+            // Aborted shard snapshot may still be running on the data node unless it was assigned-queued, i.e. never actually started
+            || (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.ABORTED
+                && shardSnapshotStatus.isAbortedAssignedQueued() == false);
     }
 }

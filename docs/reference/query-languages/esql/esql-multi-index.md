@@ -138,7 +138,7 @@ FROM events_*
 
 ## Index metadata [esql-multi-index-index-metadata]
 
-It can be helpful to know the particular index from which each row is sourced. To get this information, use the [`METADATA`](esql-metadata-fields.md) option on the [`FROM`](commands/source-commands.md#esql-from) command.
+It can be helpful to know the particular index from which each row is sourced. To get this information, use the [`METADATA`](esql-metadata-fields.md) option on the [`FROM`](commands/from.md) command.
 
 ```esql
 FROM events_* METADATA _index

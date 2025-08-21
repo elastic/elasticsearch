@@ -208,11 +208,16 @@ public class S3HttpHandler implements HttpHandler {
                     } else {
                         final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
 
-                        if (isProtectOverwrite(exchange) && blobs.containsKey(request.path())) {
-                            preconditionFailed = true;
-                            responseBody = null;
+                        if (isProtectOverwrite(exchange)) {
+                            var previousValue = blobs.putIfAbsent(request.path(), blobContents);
+                            if (previousValue != null) {
+                                preconditionFailed = true;
+                            }
                         } else {
                             blobs.put(request.path(), blobContents);
+                        }
+
+                        if (preconditionFailed == false) {
                             responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                                 + "<CompleteMultipartUploadResult>\n"
                                 + "<Bucket>"
@@ -222,6 +227,8 @@ public class S3HttpHandler implements HttpHandler {
                                 + request.path()
                                 + "</Key>\n"
                                 + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                        } else {
+                            responseBody = null;
                         }
                     }
                 }
@@ -241,27 +248,50 @@ public class S3HttpHandler implements HttpHandler {
             } else if (request.isPutObjectRequest()) {
                 // a copy request is a put request with an X-amz-copy-source header
                 final var copySource = copySourceName(exchange);
-                if (isProtectOverwrite(exchange) && blobs.containsKey(request.path())) {
-                    exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
-                } else if (copySource != null) {
+                if (copySource != null) {
                     var sourceBlob = blobs.get(copySource);
                     if (sourceBlob == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     } else {
-                        blobs.put(request.path(), sourceBlob);
+                        boolean preconditionFailed = false;
+                        if (isProtectOverwrite(exchange)) {
+                            var previousValue = blobs.putIfAbsent(request.path(), sourceBlob);
+                            if (previousValue != null) {
+                                preconditionFailed = true;
+                            }
+                        } else {
+                            blobs.put(request.path(), sourceBlob);
+                        }
 
-                        byte[] response = ("""
-                            <?xml version="1.0" encoding="UTF-8"?>
-                            <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
-                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                        exchange.getResponseBody().write(response);
+                        if (preconditionFailed) {
+                            exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
+                        } else {
+                            byte[] response = ("""
+                                <?xml version="1.0" encoding="UTF-8"?>
+                                <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
+                            exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                            exchange.getResponseBody().write(response);
+                        }
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    blobs.put(request.path(), blob.v2());
-                    exchange.getResponseHeaders().add("ETag", blob.v1());
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    boolean preconditionFailed = false;
+                    if (isProtectOverwrite(exchange)) {
+                        var previousValue = blobs.putIfAbsent(request.path(), blob.v2());
+                        if (previousValue != null) {
+                            preconditionFailed = true;
+                        }
+                    } else {
+                        blobs.put(request.path(), blob.v2());
+                    }
+
+                    if (preconditionFailed) {
+                        exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
+                    } else {
+                        exchange.getResponseHeaders().add("ETag", blob.v1());
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    }
                 }
 
             } else if (request.isListObjectsRequest()) {

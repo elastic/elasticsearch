@@ -32,10 +32,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class S3HttpHandlerTests extends ESTestCase {
 
@@ -383,35 +387,80 @@ public class S3HttpHandlerTests extends ESTestCase {
 
     }
 
-    public void testPreventObjectOverwrite() {
+    public void testPreventObjectOverwrite() throws InterruptedException {
         final var handler = new S3HttpHandler("bucket", "path");
 
-        final var body = randomBytesReference(50);
-        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/blob", body, ifNoneMatchHeader()).status());
-        assertEquals(
-            RestStatus.PRECONDITION_FAILED,
-            handleRequest(handler, "PUT", "/bucket/path/blob", body, ifNoneMatchHeader()).status()
-        );
+        Consumer<TestWriteTask> putObjectConsumer = (task) -> task.status = handleRequest(
+            handler,
+            "PUT",
+            "/bucket/path/blob",
+            task.body,
+            ifNoneMatchHeader()
+        ).status();
 
-        // multipart upload
-        final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
-        final var uploadId = getUploadId(createUploadResponse.body());
+        Consumer<TestWriteTask> prepareMultipartUploadConsumer = (task) -> {
+            final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
+            task.uploadId = getUploadId(createUploadResponse.body());
 
-        final var part1 = randomAlphaOfLength(50);
-        final var uploadPart1Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=1", part1);
-        final var part1Etag = Objects.requireNonNull(uploadPart1Response.etag());
+            final var uploadPart1Response = handleRequest(
+                handler,
+                "PUT",
+                "/bucket/path/blob?uploadId=" + task.uploadId + "&partNumber=1",
+                task.body
+            );
+            task.etag = Objects.requireNonNull(uploadPart1Response.etag());
+        };
 
-        assertEquals(
-            RestStatus.PRECONDITION_FAILED,
-            handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + uploadId, new BytesArray(Strings.format("""
+        Consumer<TestWriteTask> completeMultipartUploadConsumer = (task) -> {
+            task.status = handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + task.uploadId, new BytesArray(Strings.format("""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                    <Part>
                       <ETag>%s</ETag>
                       <PartNumber>1</PartNumber>
                    </Part>
-                </CompleteMultipartUpload>""", part1Etag)), ifNoneMatchHeader()).status()
+                </CompleteMultipartUpload>""", task.etag)), ifNoneMatchHeader()).status();
+        };
+
+        var tasks = List.of(
+            new TestWriteTask(putObjectConsumer),
+            new TestWriteTask(putObjectConsumer),
+            new TestWriteTask(completeMultipartUploadConsumer, prepareMultipartUploadConsumer),
+            new TestWriteTask(completeMultipartUploadConsumer, prepareMultipartUploadConsumer)
         );
+
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            tasks.forEach(task -> executor.submit(task.consumer));
+            executor.shutdown();
+            var done = executor.awaitTermination(1, TimeUnit.SECONDS);
+            assertTrue(done);
+        }
+
+        List<TestWriteTask> successfulTasks = tasks.stream().filter(task -> task.status == RestStatus.OK).toList();
+        assertThat(successfulTasks, hasSize(1));
+
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, successfulTasks.getFirst().body, TestHttpExchange.EMPTY_HEADERS),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
+    }
+
+    private static class TestWriteTask {
+        final BytesReference body;
+        final Runnable consumer;
+        String uploadId;
+        String etag;
+        RestStatus status;
+
+        TestWriteTask(Consumer<TestWriteTask> consumer, Consumer<TestWriteTask> prepare) {
+            this(consumer);
+            prepare.accept(this);
+        }
+
+        TestWriteTask(Consumer<TestWriteTask> consumer) {
+            this.body = randomBytesReference(50);
+            this.consumer = () -> consumer.accept(this);
+        }
     }
 
     private void runExtractPartETagsTest(String body, String... expectedTags) {

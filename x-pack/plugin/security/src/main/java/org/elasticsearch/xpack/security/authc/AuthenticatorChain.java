@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -46,12 +48,14 @@ class AuthenticatorChain {
     private final AuthenticationContextSerializer authenticationSerializer;
     private final RealmsAuthenticator realmsAuthenticator;
     private final List<Authenticator> allAuthenticators;
+    private final Tracer tracer;
 
     AuthenticatorChain(
         Settings settings,
         OperatorPrivilegesService operatorPrivilegesService,
         AnonymousUser anonymousUser,
         AuthenticationContextSerializer authenticationSerializer,
+        Tracer tracer,
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
         PluggableApiKeyAuthenticator pluggableApiKeyAuthenticator,
@@ -65,6 +69,7 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
+        this.tracer = tracer;
         this.allAuthenticators = List.of(
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
@@ -123,7 +128,7 @@ class AuthenticatorChain {
                     }
                 }
             }),
-            getAuthenticatorConsumer(context),
+            getAuthenticatorConsumer(context, tracer),
             allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
@@ -133,7 +138,7 @@ class AuthenticatorChain {
     }
 
     private static BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
-        Authenticator.Context context
+        Authenticator.Context context, Tracer tracer
     ) {
         return (authenticator, listener) -> {
             if (context.shouldExtractCredentials()) {
@@ -171,7 +176,7 @@ class AuthenticatorChain {
                 listener.onFailure(e);
             };
 
-            authenticator.authenticate(context, ActionListener.wrap(result -> {
+            ActionListener<AuthenticationResult<Authentication>> authResultListener = ActionListener.wrap(result -> {
                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                     onFailure.accept(result.getException());
                     return;
@@ -180,8 +185,20 @@ class AuthenticatorChain {
                     context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
                 }
                 listener.onResponse(result);
-            }, onFailure));
+            }, onFailure);
+
+            ActionListener<AuthenticationResult<Authentication>> afterAuthResultListener = ActionListener.runAfter(authResultListener,
+                () -> tracer.stopTrace(context));
+
+            tracer.startTrace(context.getThreadContext(), context, "authenticate", addUsefulMetadata(authenticator));
+            authenticator.authenticate(context, afterAuthResultListener);
         };
+    }
+
+    private static Map<String, Object> addUsefulMetadata(Authenticator authenticator) {
+        Map<String, Object> attribs = new HashMap<>();
+        attribs.put("security.authenticator.type", authenticator.name());
+        return attribs;
     }
 
     // Package private for test

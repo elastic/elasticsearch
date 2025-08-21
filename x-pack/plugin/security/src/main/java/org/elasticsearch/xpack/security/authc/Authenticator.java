@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -90,7 +93,7 @@ public interface Authenticator {
      * the next {@link Authenticator} is tried.
      * The extracted tokens are all appended with {@link #addAuthenticationToken(AuthenticationToken)}.
      */
-    class Context implements Closeable {
+    class Context implements Closeable, Traceable {
         private final ThreadContext threadContext;
         private final AuthenticationService.AuditableRequest request;
         private final User fallbackUser;
@@ -104,6 +107,7 @@ public interface Authenticator {
         private SecureString apiKeyString = null;
         private List<Realm> defaultOrderedRealmList = null;
         private List<Realm> unlicensedRealms = null;
+        private String requestId;
 
         /**
          * Context constructor that provides the authentication token directly as an argument.
@@ -129,6 +133,7 @@ public interface Authenticator {
             // if handleNullToken is false, fallbackUser and allowAnonymous are irrelevant
             this.fallbackUser = null;
             this.allowAnonymous = false;
+            this.requestId = UUIDs.randomBase64UUID(Randomness.get());;
         }
 
         /**
@@ -149,6 +154,7 @@ public interface Authenticator {
             this.fallbackUser = fallbackUser;
             this.allowAnonymous = allowAnonymous;
             this.realms = realms;
+            this.requestId = UUIDs.randomBase64UUID(Randomness.get());;
         }
 
         public ThreadContext getThreadContext() {
@@ -240,6 +246,11 @@ public interface Authenticator {
             if (false == getUnsuccessfulMessages().isEmpty()) {
                 ese.addMetadata("es.additional_unsuccessful_credentials", getUnsuccessfulMessages());
             }
+        }
+
+        @Override
+        public String getSpanId() {
+            return requestId;
         }
     }
 }

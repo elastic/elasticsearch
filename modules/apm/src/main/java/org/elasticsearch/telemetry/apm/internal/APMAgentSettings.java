@@ -285,6 +285,11 @@ public class APMAgentSettings {
         NodeScope
     );
 
+    // not a setting to reduce the footprint of this change
+    public static final List<String> TELEMETRY_TRACING_SANITIZE_FIELD_NAMES_EXCLUDES = List.of(
+        "security.authenticator.type"
+    );
+
     public static final Setting<Boolean> TELEMETRY_TRACING_ENABLED_SETTING = Setting.boolSetting(
         TELEMETRY_SETTING_PREFIX + "tracing.enabled",
         false,

@@ -214,7 +214,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             dataStreamOptions,
             new DataStreamIndices(BACKING_INDEX_PREFIX, List.copyOf(indices), rolloverOnWrite, autoShardingEvent),
-            new DataStreamIndices(FAILURE_STORE_PREFIX, List.copyOf(failureIndices), false, null)
+            new DataStreamIndices(FAILURE_STORE_PREFIX, List.copyOf(failureIndices), failureIndices.isEmpty(), null)
         );
     }
 
@@ -283,7 +283,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            failureIndicesBuilder.setRolloverOnWrite(in.readBoolean())
+            // Read the rollover on write flag from the stream, but force it on if the failure indices are empty
+            boolean failureStoreRolloverOnWrite = in.readBoolean();
+            failureStoreRolloverOnWrite |= failureIndices.isEmpty();
+            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
                 .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
         DataStreamOptions dataStreamOptions;
@@ -1490,7 +1493,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             new DataStreamIndices(
                 FAILURE_STORE_PREFIX,
                 args[13] != null ? (List<Index>) args[13] : List.of(),
-                args[14] != null && (boolean) args[14],
+                // We check if the list of failure indices are empty first, forcing rollover on write to true, and if they have entries,
+                // then we use whatever value was previously present.
+                (args[13] != null && ((List<Index>) args[13]).isEmpty()) || (args[14] != null && (boolean) args[14]),
                 (DataStreamAutoShardingEvent) args[15]
             )
         )
@@ -1859,8 +1864,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // The list of indices is expected to be an immutable list. We don't create an immutable copy here, as it might have
             // impact on the performance on some usages.
             this.indices = indices;
-            // There should never be a point where rollover on write is false if there are no indices present for this set
-            this.rolloverOnWrite = indices.isEmpty() || rolloverOnWrite;
+            this.rolloverOnWrite = rolloverOnWrite;
             this.autoShardingEvent = autoShardingEvent;
 
             assert getLookup().size() == indices.size() : "found duplicate index entries in " + indices;

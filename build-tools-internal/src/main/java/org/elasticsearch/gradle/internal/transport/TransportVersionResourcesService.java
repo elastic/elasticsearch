@@ -123,16 +123,15 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return getMainFile(resourcePath, TransportVersionDefinition::fromString);
     }
 
-    List<TransportVersionDefinition> getChangedNamedDefinitions() throws IOException {
-        List<TransportVersionDefinition> changedDefinitions = new ArrayList<>();
+    List<String> getChangedNamedDefinitionNames() {
+        List<String> changedDefinitions = new ArrayList<>();
         String namedPrefix = NAMED_DIR.toString();
         for (String changedPath : getChangedResources()) {
-            if (changedPath.contains(namedPrefix) == false) { // TODO make this more robust
+            if (changedPath.contains(namedPrefix) == false) {
                 continue;
             }
-            // TODO why are we getting the main file here? Shouldn't we just read the changed file directly?
-            TransportVersionDefinition definition = getMainFile(changedPath, TransportVersionDefinition::fromString);
-            changedDefinitions.add(definition);
+            String name = changedPath.substring(namedPrefix.length() + 1 /* skip slash */, changedPath.length() - 4 /* .csv */);
+            changedDefinitions.add(name);
         }
         return changedDefinitions;
     }
@@ -225,11 +224,18 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     private Set<String> getChangedResources() {
         if (changedResources.get() == null) {
             synchronized (changedResources) {
-                // gitCommand("add", "."); // TODO this finds the files that have been added without being committed.
-                String output = gitCommand("diff", "--name-only", "main", ".");
-
                 HashSet<String> resources = new HashSet<>();
-                Collections.addAll(resources, output.split(System.lineSeparator()));
+
+                // gitCommand("add", "."); // TODO this finds the files that have been added without being committed.
+                String diffOutput = gitCommand("diff", "--name-only", "main", ".");
+                if (diffOutput.strip().isEmpty() == false) {
+                    Collections.addAll(resources, diffOutput.split(System.lineSeparator()));
+                }
+
+                String untrackedOutput = gitCommand("ls-files", "--others", "--exclude-standard");
+                if (untrackedOutput.strip().isEmpty() == false) {
+                    Collections.addAll(resources, untrackedOutput.split(System.lineSeparator()));
+                }
                 changedResources.set(resources);
             }
         }

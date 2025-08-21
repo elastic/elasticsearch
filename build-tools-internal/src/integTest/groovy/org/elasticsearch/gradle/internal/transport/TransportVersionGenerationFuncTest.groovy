@@ -165,6 +165,25 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
+    def "unreferenced definitions should be deleted"() {
+        given:
+        namedTransportVersion("old_name", "8124000")
+        referencedTransportVersion("new_name")
+
+        when:
+        def result = gradleRunner(
+            ":myserver:validateTransportVersionDefinitions",
+            ":myserver:generateTransportVersionDefinition",
+            "--name=new_name" ,
+            "--branches=9.2"
+        ).build()
+
+        then:
+        !file("myserver/src/main/resources/transport/definitions/named/old_name.csv").exists()
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+    }
+
 
     /*
     TODO: Add tests that check that:

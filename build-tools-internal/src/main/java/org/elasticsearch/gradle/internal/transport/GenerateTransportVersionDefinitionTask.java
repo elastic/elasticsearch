@@ -100,10 +100,10 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     public void run() throws IOException {
         TransportVersionResourcesService resources = getResources().get();
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
-        List<TransportVersionDefinition> changedDefinitions = resources.getChangedNamedDefinitions();
+        List<String> changedDefinitionNames = resources.getChangedNamedDefinitionNames();
         String name = getTransportVersionName().isPresent()
             ? getTransportVersionName().get()
-            : findAddedTransportVersionName(resources, referencedNames, changedDefinitions);
+            : findAddedTransportVersionName(resources, referencedNames, changedDefinitionNames);
 
         if (name.isEmpty()) {
             resetAllLatestFiles(resources);
@@ -113,7 +113,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             resources.writeNamedDefinition(new TransportVersionDefinition(name, ids));
         }
 
-        removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitions);
+        removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitionNames);
     }
 
     private List<TransportVersionId> updateLatestFiles(TransportVersionResourcesService resources, String name) throws IOException {
@@ -195,13 +195,13 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     private void removeUnusedNamedDefinitions(
         TransportVersionResourcesService resources,
         Set<String> referencedNames,
-        List<TransportVersionDefinition> changedDefinitions
+        List<String> changedDefinitions
     ) throws IOException {
-        for (TransportVersionDefinition definition : changedDefinitions) {
-            if (referencedNames.contains(definition.name()) == false) {
+        for (String definitionName : changedDefinitions) {
+            if (referencedNames.contains(definitionName) == false) {
                 // we added this definition file, but it's now unreferenced, so delete it
-                getLogger().lifecycle("Deleting unreferenced named transport version definition [" + definition.name() + "]");
-                resources.deleteNamedDefinition(definition.name());
+                getLogger().lifecycle("Deleting unreferenced named transport version definition [" + definitionName + "]");
+                resources.deleteNamedDefinition(definitionName);
             }
         }
     }
@@ -209,7 +209,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     private String findAddedTransportVersionName(
         TransportVersionResourcesService resources,
         Set<String> referencedNames,
-        List<TransportVersionDefinition> changedDefinitions
+        List<String> changedDefinitions
     ) throws IOException {
         // First check for unreferenced names. We only care about the first one. If there is more than one
         // validation will fail later and the developer will have to remove one. When that happens, generation
@@ -225,7 +225,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         if (changedDefinitions.isEmpty()) {
             return "";
         } else {
-            return changedDefinitions.getFirst().name();
+            return changedDefinitions.getFirst();
         }
     }
 }

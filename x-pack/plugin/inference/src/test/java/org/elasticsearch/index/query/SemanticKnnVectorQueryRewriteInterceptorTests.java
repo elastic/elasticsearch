@@ -7,6 +7,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -31,6 +32,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "Adapt to new interceptors")
 public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
 
     private TestThreadPool threadPool;

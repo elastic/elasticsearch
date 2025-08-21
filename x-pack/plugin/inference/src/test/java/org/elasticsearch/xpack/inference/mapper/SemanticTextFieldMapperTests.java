@@ -446,9 +446,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertOldIndexUnsupported(fieldMapping);
     }
 
-    private void assertOldIndexUnsupported(
-        XContentBuilder fieldMapping
-    ) {
+    private void assertOldIndexUnsupported(XContentBuilder fieldMapping) {
 
         MapperParsingException exception = assertThrows(
             MapperParsingException.class,

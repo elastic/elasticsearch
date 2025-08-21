@@ -171,6 +171,34 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
+    public void writeVInt(int i) throws IOException {
+        int bytesNeeded = vIntLength(i);
+        if (bytesNeeded > pageSize - currentPageOffset) {
+            ensureCapacity(bytesNeeded);
+        }
+        if (bytesNeeded == 1) {
+            bytesRefBytes[bytesRefOffset + currentPageOffset] = (byte) i;
+            currentPageOffset += 1;
+        } else {
+            currentPageOffset += putMultiByteVInt(bytesRefBytes, i, bytesRefOffset + currentPageOffset);
+        }
+    }
+
+    private static int vIntLength(int value) {
+        int leadingZeros = Integer.numberOfLeadingZeros(value);
+        if (leadingZeros >= 25) {
+            return 1;
+        } else if (leadingZeros >= 18) {
+            return 2;
+        } else if (leadingZeros >= 11) {
+            return 3;
+        } else if (leadingZeros >= 4) {
+            return 4;
+        }
+        return 5;
+    }
+
+    @Override
     public void writeInt(int i) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         if (4 > (pageSize - currentPageOffset)) {

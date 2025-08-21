@@ -9,18 +9,26 @@ package org.elasticsearch.xpack.downsample;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-public class DownsampleWithBasicRestIT extends ESClientYamlSuiteTestCase {
+public class DownsampleWithSecurityRestIT extends ESClientYamlSuiteTestCase {
+
+    public static final String USERNAME = "elastic_admin";
+    public static final String PASSWORD = "admin-password";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .user(USERNAME, PASSWORD)
         .build();
 
     @Override
@@ -28,13 +36,18 @@ public class DownsampleWithBasicRestIT extends ESClientYamlSuiteTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public DownsampleWithBasicRestIT(final ClientYamlTestCandidate testCandidate) {
+    public DownsampleWithSecurityRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String authentication = basicAuthHeaderValue(USERNAME, new SecureString(PASSWORD.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", authentication).build();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "downsample" });
+        return ESClientYamlSuiteTestCase.createParameters(new String[] { "downsample-with-security" });
     }
-
 }

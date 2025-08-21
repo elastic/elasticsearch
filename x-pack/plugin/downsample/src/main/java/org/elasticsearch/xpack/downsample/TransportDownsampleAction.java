@@ -945,9 +945,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (sourceIndexMetadata.getRoutingPaths().isEmpty() == false) {
             builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths());
         }
-        if (sourceIndexMetadata.getTimeSeriesDimensions().isEmpty() == false) {
-            builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getTimeSeriesDimensions());
-        }
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
@@ -966,7 +963,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             projectId,
             downsampleIndexName,
             downsampleIndexName
-        ).settings(builder.build()).settingsSystemProvided(true).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
+        ).settings(builder.build()).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override

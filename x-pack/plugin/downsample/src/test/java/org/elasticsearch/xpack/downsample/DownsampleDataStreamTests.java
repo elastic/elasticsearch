@@ -188,27 +188,29 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
 
     private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
         final TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
-        Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        if (randomBoolean()) {
-            settings.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"));
-        }
-        final Template template = new Template(settings.build(), new CompressedXContent("""
-            {
-                "properties": {
-                    "@timestamp" : {
-                        "type": "date"
-                    },
-                    "routing_field": {
-                        "type": "keyword",
-                        "time_series_dimension": true
-                    },
-                    "counter": {
-                        "type": "long",
-                        "time_series_metric": "counter"
+        final Template template = new Template(
+            indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"))
+                .build(),
+            new CompressedXContent("""
+                {
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "routing_field": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "counter": {
+                            "type": "long",
+                            "time_series_metric": "counter"
+                        }
                     }
                 }
-            }
-            """), null);
+                """),
+            null
+        );
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)

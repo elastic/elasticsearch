@@ -107,7 +107,7 @@ public interface Authenticator {
         private SecureString apiKeyString = null;
         private List<Realm> defaultOrderedRealmList = null;
         private List<Realm> unlicensedRealms = null;
-        private String requestId;
+        private String contextId;
 
         /**
          * Context constructor that provides the authentication token directly as an argument.
@@ -133,7 +133,7 @@ public interface Authenticator {
             // if handleNullToken is false, fallbackUser and allowAnonymous are irrelevant
             this.fallbackUser = null;
             this.allowAnonymous = false;
-            this.requestId = UUIDs.randomBase64UUID(Randomness.get());;
+            this.contextId = UUIDs.randomBase64UUID(Randomness.get());
         }
 
         /**
@@ -154,7 +154,7 @@ public interface Authenticator {
             this.fallbackUser = fallbackUser;
             this.allowAnonymous = allowAnonymous;
             this.realms = realms;
-            this.requestId = UUIDs.randomBase64UUID(Randomness.get());;
+            this.contextId = UUIDs.randomBase64UUID(Randomness.get());
         }
 
         public ThreadContext getThreadContext() {
@@ -250,7 +250,7 @@ public interface Authenticator {
 
         @Override
         public String getSpanId() {
-            return requestId;
+            return contextId;
         }
     }
 }

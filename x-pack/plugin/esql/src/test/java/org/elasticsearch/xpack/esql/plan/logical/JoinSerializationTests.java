@@ -32,7 +32,7 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
         List<Attribute> matchFields = randomFieldAttributes(1, 10, false);
         List<Attribute> leftFields = randomFieldAttributes(1, 10, false);
         List<Attribute> rightFields = randomFieldAttributes(1, 10, false);
-        return new JoinConfig(type, matchFields, leftFields, rightFields);
+        return new JoinConfig(type, matchFields, leftFields, rightFields, null);
     }
 
     @Override

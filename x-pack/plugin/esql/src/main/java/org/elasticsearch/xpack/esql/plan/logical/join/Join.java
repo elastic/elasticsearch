@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -111,10 +112,11 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType type,
         List<Attribute> matchFields,
         List<Attribute> leftFields,
-        List<Attribute> rightFields
+        List<Attribute> rightFields,
+        Expression joinOnConditions
     ) {
         super(source, left, right);
-        this.config = new JoinConfig(type, matchFields, leftFields, rightFields);
+        this.config = new JoinConfig(type, matchFields, leftFields, rightFields, joinOnConditions);
     }
 
     public Join(StreamInput in) throws IOException {
@@ -160,7 +162,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             config.type(),
             config.matchFields(),
             config.leftFields(),
-            config.rightFields()
+            config.rightFields(),
+            config.joinOnConditions()
         );
     }
 
@@ -211,10 +214,33 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         List<Attribute> output;
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
-            // right side becomes nullable and overrides left except for join keys, which we preserve from the left
-            AttributeSet rightKeys = AttributeSet.of(config.rightFields());
-            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
-            output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+            if (config.joinOnConditions() == null) {
+                // right side becomes nullable and overrides left except for join keys, which we preserve from the left
+                AttributeSet rightKeys = AttributeSet.of(config.rightFields());
+                List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
+                    .filter(attr -> rightKeys.contains(attr) == false)
+                    .toList();
+                output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+            } else {
+                // suppose we have
+                // index1 a, b, c, d
+                // index2 c, d, e, f
+                // we have expression join on (index1.b > index2.c AND index1.d > index2.d)
+                // We keep a,b,d from the left side (a, b only on left, d is join key, so we keep it from the left)
+                // we keep c,e,f from the right side(c is not part of the join key on the left so gets shadowed, e,f only on right)
+                Set<String> leftJoinKeyNames = config.leftFields()
+                    .stream()
+                    .map(Attribute::name)
+                    .collect(java.util.stream.Collectors.toSet());
+                // as we can do (left_key > right_key) now as join condition, we want to preserve the right_key
+                // unless it is also a key on the left side,
+                // but we need to do name equality only
+                List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
+                    .filter(attr -> leftJoinKeyNames.contains(attr.name()) == false)
+                    .toList();
+                output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+            }
+
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }

@@ -46,6 +46,8 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -593,7 +595,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Literal tableName = Literal.keyword(source, visitIndexPattern(List.of(ctx.indexPattern())));
 
-        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
+        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/, null);
     }
 
     @Override
@@ -642,6 +644,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // ON only with un-qualified names for now
         var predicates = expressions(condition.joinPredicate());
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        List<Expression> joinExpressions = new ArrayList<>(predicates.size());
         for (var f : predicates) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
@@ -653,9 +656,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     );
                 }
                 joinFields.add(ua);
+            } else if (f instanceof EsqlBinaryComparison comparison) {
+                joinFields.add((Attribute) comparison.left());
+                joinExpressions.add(f);
             } else {
-                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
+                throw new ParsingException(
+                    f.source(),
+                    "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                    f.sourceText()
+                );
             }
+
         }
 
         var matchFieldsCount = joinFields.size();
@@ -685,7 +696,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
                 throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
             }
-            return new LookupJoin(source, p, right, joinFields, hasRemotes);
+            return new LookupJoin(source, p, right, joinFields, hasRemotes, Predicates.combineAnd(joinExpressions));
         };
     }
 

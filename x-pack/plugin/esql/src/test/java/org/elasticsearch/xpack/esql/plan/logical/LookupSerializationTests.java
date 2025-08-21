@@ -24,7 +24,7 @@ public class LookupSerializationTests extends AbstractLogicalPlanSerializationTe
         Expression tableName = AbstractExpressionSerializationTests.randomChild();
         List<Attribute> matchFields = randomFieldAttributes(1, 10, false);
         LocalRelation localRelation = randomBoolean() ? null : LocalRelationSerializationTests.randomLocalRelation();
-        return new Lookup(source, child, tableName, matchFields, localRelation);
+        return new Lookup(source, child, tableName, matchFields, localRelation, null);
     }
 
     @Override
@@ -48,6 +48,6 @@ public class LookupSerializationTests extends AbstractLogicalPlanSerializationTe
                 () -> randomBoolean() ? null : LocalRelationSerializationTests.randomLocalRelation()
             );
         }
-        return new Lookup(source, child, tableName, matchFields, localRelation);
+        return new Lookup(source, child, tableName, matchFields, localRelation, null);
     }
 }

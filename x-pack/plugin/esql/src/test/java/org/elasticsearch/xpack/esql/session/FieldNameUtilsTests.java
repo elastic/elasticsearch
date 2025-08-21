@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -1607,7 +1606,7 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testMetrics() {
         var query = "TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
-        if (Build.current().isSnapshot() == false) {
+        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
             var e = expectThrows(ParsingException.class, () -> parser.createStatement(query, EsqlTestUtils.TEST_CFG));
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
             return;
@@ -2243,6 +2242,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testRerankerAfterFuse() {
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2256,6 +2257,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSimpleFuse() {
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees METADATA _id, _index, _score
             | FORK ( WHERE emp_no:10001 )
@@ -2267,6 +2270,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithMatchAndScore() {
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2279,6 +2284,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithDisjunctionAndPostFilter() {
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" OR author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2292,6 +2299,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithStats() {
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2303,6 +2312,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithMultipleForkBranches() {
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK (WHERE author:"Keith Faulkner" AND qstr("author:Rory or author:Beverlie") | SORT _score, _id DESC | LIMIT 3)
@@ -2318,6 +2329,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithSemanticSearch() {
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM semantic_text METADATA _id, _score, _index
             | FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
@@ -2503,6 +2516,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkAfterLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2529,6 +2544,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2555,6 +2572,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2826,6 +2845,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeInlineStatsIgnore() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender
@@ -2837,6 +2858,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithInlineStatsIgnore() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender
@@ -2849,6 +2872,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkAfterInlineStatsIgnore() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender

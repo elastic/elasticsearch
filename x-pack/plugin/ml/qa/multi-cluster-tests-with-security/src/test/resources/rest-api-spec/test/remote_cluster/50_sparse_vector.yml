@@ -620,7 +620,7 @@ teardown:
           {"index": { "_id": "11" }}
           {"content_embedding":{"is": 0.6, "pugs": 0.6 }}
           {"index": { "_id": "12" }}
-          {"content_embedding":{"is": 0.1891394, "pugs": 0.1 }}
+          {"content_embedding":{"cats": 0.1 }}
 
   - do:
       search:
@@ -631,12 +631,25 @@ teardown:
               field: content_embedding
               query_vector:
                 pugs: 0.5
-                cats: 0.5
-                is: 0.04600334
+                cats: 0.18
+                is: 0.20
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "11" }
   - match: { hits.hits.1._id: "12" }
+
+  - do:
+      search:
+        index: test-sparse-vector-pruning-default
+        body:
+          query:
+            sparse_vector:
+              field: content_embedding
+              query_vector:
+                is: 0.21 # 0.2 is the weight threshold for the default pruning config
+
+  - match: { hits.total.value: 11 }
+
 
   - do:
       search:

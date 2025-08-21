@@ -98,8 +98,8 @@ import org.elasticsearch.xpack.inference.queries.EmbeddingsProvider;
 import org.elasticsearch.xpack.inference.queries.InterceptedKnnQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedMatchQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.MapEmbeddingsProvider;
+import org.elasticsearch.xpack.inference.queries.NewSemanticKnnQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.NewSemanticMatchQueryRewriteInterceptor;
-import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SingleEmbeddingsProvider;
@@ -595,7 +595,7 @@ public class InferencePlugin extends Plugin
     @Override
     public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
         return List.of(
-            new SemanticKnnVectorQueryRewriteInterceptor(),
+            new NewSemanticKnnQueryRewriteInterceptor(),
             new NewSemanticMatchQueryRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor()
         );

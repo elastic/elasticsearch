@@ -100,7 +100,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final Instant resolvedAt,
         Settings settings,
         final List<CompressedXContent> combinedTemplateMappings,
-        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata) {
+        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+    ) {
         Settings.Builder settingsBuilder = null;
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
         // This index name is used when validating component and index templates, we should skip this check in that case.

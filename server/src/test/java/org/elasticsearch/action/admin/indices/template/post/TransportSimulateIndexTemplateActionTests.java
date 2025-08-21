@@ -71,7 +71,8 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 Instant resolvedAt,
                 Settings allSettings,
                 List<CompressedXContent> combinedTemplateMappings,
-                ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata) {
+                ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+            ) {
                 return Settings.builder().put("test-setting", 0).build();
             }
         }, new IndexSettingProvider() {
@@ -84,7 +85,8 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
                 List<CompressedXContent> combinedTemplateMappings,
-                ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata) {
+                ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+            ) {
                 return Settings.builder().put("test-setting-2", 10).build();
             }
 

@@ -207,7 +207,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 Instant.now(),
                 settings,
                 List.of(),
-                ImmutableOpenMap.builder());
+                ImmutableOpenMap.builder()
+            );
             var rawMode = addlSettinsg.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {
                 indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));

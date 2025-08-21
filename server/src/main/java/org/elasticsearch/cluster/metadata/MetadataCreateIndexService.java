@@ -1163,7 +1163,8 @@ public class MetadataCreateIndexService {
                     resolvedAt,
                     templateAndRequestSettings,
                     combinedTemplateMappings,
-                    customMetadataBuilder);
+                    customMetadataBuilder
+                );
                 validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
                 additionalIndexSettings.put(newAdditionalSettings);
                 if (provider.overrulesTemplateAndRequestSettings()) {
@@ -1500,7 +1501,8 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        Map<String, DiffableStringMap> customData) {
+        Map<String, DiffableStringMap> customData
+    ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
         // now, update the mappings with the actual source

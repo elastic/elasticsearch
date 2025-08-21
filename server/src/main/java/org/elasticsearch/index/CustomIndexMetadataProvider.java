@@ -22,7 +22,6 @@ import java.util.Map;
 
 public interface CustomIndexMetadataProvider {
 
-
     Map<String, Map<String, String>> onCreateIndex(
         String indexName,
         @Nullable String dataStreamName,
@@ -33,8 +32,5 @@ public interface CustomIndexMetadataProvider {
         List<CompressedXContent> combinedTemplateMappings
     );
 
-    Map<String, Map<String, String>> onMappingUpdate(
-        IndexMetadata indexMetadata,
-        MapperService mapperService
-    );
+    Map<String, Map<String, String>> onMappingUpdate(IndexMetadata indexMetadata, MapperService mapperService);
 }

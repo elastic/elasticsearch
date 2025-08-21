@@ -233,7 +233,8 @@ public class DataTier {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata) {
+            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+        ) {
             Set<String> settings = indexTemplateAndCreateRequestSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings

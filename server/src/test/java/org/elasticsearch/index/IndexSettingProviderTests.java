@@ -95,7 +95,8 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata) {
+            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+        ) {
             if (enabled.get()) {
                 var builder = Settings.builder().put("index.refresh_interval", intervalValue);
                 if (INDEX_SETTING_DEPTH_ENABLED.get()) {

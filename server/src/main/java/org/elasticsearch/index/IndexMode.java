@@ -622,7 +622,8 @@ public enum IndexMode {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata) {
+            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+        ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {
                 String modeName = indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey());

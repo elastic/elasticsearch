@@ -173,7 +173,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final long originalLatency = randomNonNegativeLong();
 
         assertThat(
-            ShardMovementWriteLoadSimulator.updateThreadPoolQueueLatencyWithShardMovements(
+            ShardMovementWriteLoadSimulator.adjustThreadPoolQueueLatencyWithShardMovements(
                 originalLatency,
                 randomFloatBetween(0.0f, 99.0f, true)
             ),
@@ -181,7 +181,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         );
 
         assertThat(
-            ShardMovementWriteLoadSimulator.updateThreadPoolQueueLatencyWithShardMovements(
+            ShardMovementWriteLoadSimulator.adjustThreadPoolQueueLatencyWithShardMovements(
                 originalLatency,
                 -randomFloatBetween(0.0f, 99.0f, false)
             ),

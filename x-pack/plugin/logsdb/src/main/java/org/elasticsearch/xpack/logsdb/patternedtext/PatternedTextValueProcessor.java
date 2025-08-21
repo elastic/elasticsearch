@@ -11,20 +11,26 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.util.ByteUtils;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class PatternedTextValueProcessor {
-    private static final String TEXT_ARG_PLACEHOLDER = "%W";
     private static final String DELIMITER = "[\\s\\[\\]]";
-    private static final String SPACE = " ";
 
-    record Parts(String template, String templateId, List<String> args) {
-        Parts(String template, List<String> args) {
-            this(template, PatternedTextValueProcessor.templateId(template), args);
+    public record Parts(String template, String templateId, List<String> args, List<Arg.Schema> schemas) {
+        Parts(String template, List<String> args, List<Arg.Schema> schemas) {
+            this(template, PatternedTextValueProcessor.templateId(template), args, schemas);
         }
+    }
+
+    public static int originalSize(String template, String[] args) {
+        int size = template.length();
+        for (var arg : args) {
+            size += arg.length();
+        }
+        return size;
     }
 
     static String templateId(String template) {
@@ -36,88 +42,63 @@ public class PatternedTextValueProcessor {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashBytes);
     }
 
-    static Parts split(String text) {
-        StringBuilder template = new StringBuilder();
+    public static Parts split(String text) throws IOException {
+        StringBuilder template = new StringBuilder(text.length());
         List<String> args = new ArrayList<>();
+        List<Arg.Schema> schemas = new ArrayList<>();
         String[] tokens = text.split(DELIMITER);
         int textIndex = 0;
+        int prevArgOffset = 0;
         for (String token : tokens) {
             if (token.isEmpty()) {
+                // add the previous delimiter
                 if (textIndex < text.length() - 1) {
                     template.append(text.charAt(textIndex++));
                 }
-                continue;
-            }
-            if (isArg(token)) {
-                args.add(token);
-                template.append(TEXT_ARG_PLACEHOLDER);
             } else {
-                template.append(token);
-            }
-            textIndex += token.length();
-            if (textIndex < text.length()) {
-                template.append(text.charAt(textIndex++));
+                if (Arg.isArg(token)) {
+                    args.add(token);
+                    schemas.add(new Arg.Schema(Arg.Type.GENERAL, template.length() - prevArgOffset));
+                    prevArgOffset = template.length();
+                } else {
+                    template.append(token);
+                }
+                textIndex += token.length();
+                if (textIndex < text.length()) {
+                    template.append(text.charAt(textIndex++));
+                }
             }
         }
         while (textIndex < text.length()) {
             template.append(text.charAt(textIndex++));
         }
-        return new Parts(template.toString(), args);
+        return new Parts(template.toString(), args, schemas);
     }
 
-    private static boolean isArg(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            if (Character.isDigit(text.charAt(i))) {
-                return true;
-            }
-        }
-        return false;
+    // For testing
+    public static String merge(Parts parts) {
+        return merge(parts.template, parts.args.toArray(String[]::new), parts.schemas);
     }
 
-    static String merge(Parts parts) {
-        StringBuilder builder = new StringBuilder();
-        String[] templateParts = parts.template.split(DELIMITER);
-        int i = 0;
-        int templateIndex = 0;
-        for (String part : templateParts) {
-            if (part.equals(TEXT_ARG_PLACEHOLDER)) {
-                builder.append(parts.args.get(i++));
-                templateIndex += TEXT_ARG_PLACEHOLDER.length();
-            } else if (part.isEmpty() == false) {
-                builder.append(part);
-                templateIndex += part.length();
-            }
-            if (templateIndex < parts.template.length()) {
-                builder.append(parts.template.charAt(templateIndex++));
-            }
+    public static String merge(String template, String[] args, List<Arg.Schema> schemas) {
+        StringBuilder builder = new StringBuilder(originalSize(template, args));
+        int numArgs = args.length;
+
+        int offsetInTemplate = 0;
+        int nextToWrite = 0;
+        for (int i = 0; i < numArgs; i++) {
+            String arg = args[i];
+            var argSchema = schemas.get(i);
+
+            offsetInTemplate += argSchema.offsetFromPrevArg();
+            builder.append(template, nextToWrite, offsetInTemplate);
+            builder.append(arg);
+            nextToWrite = offsetInTemplate;
         }
-        assert i == parts.args.size() : "expected " + i + " but got " + parts.args.size();
-        assert builder.toString().contains(TEXT_ARG_PLACEHOLDER) == false : builder.toString();
-        while (templateIndex < parts.template.length()) {
-            builder.append(parts.template.charAt(templateIndex++));
+
+        if (nextToWrite < template.length()) {
+            builder.append(template, nextToWrite, template.length());
         }
         return builder.toString();
-    }
-
-    static String encodeRemainingArgs(Parts parts) {
-        return String.join(SPACE, parts.args);
-    }
-
-    static List<String> decodeRemainingArgs(String mergedArgs) {
-        return Arrays.asList(mergedArgs.split(SPACE));
-    }
-
-    static int countArgs(String template) {
-        int count = 0;
-        for (int i = 0; i < template.length() - 1; i++) {
-            if (template.charAt(i) == '%') {
-                char next = template.charAt(i + 1);
-                if (next == 'W') {
-                    count++;
-                    i++;
-                }
-            }
-        }
-        return count;
     }
 }

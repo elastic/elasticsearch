@@ -769,6 +769,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
+        // TODO this is temporary only until caps supppot is complete
+        shouldBeSupported.remove(DataType.DATE_RANGE);
         for (DataType type : shouldBeSupported) {
             assertTrue(type.typeName(), typesAndValues.containsKey(type));
         }

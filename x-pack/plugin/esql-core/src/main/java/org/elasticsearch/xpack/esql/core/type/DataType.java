@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_DATE_RANGE_CREATED_VERSION;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -270,6 +271,7 @@ public enum DataType implements Writeable {
      * Nanosecond precision date, stored as a 64-bit signed number.
      */
     DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
+    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().supportedOn(ESQL_DATE_RANGE_CREATED_VERSION)),
     /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
@@ -982,5 +984,6 @@ public enum DataType implements Writeable {
         public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
             "esql_aggregate_metric_double_created_version"
         );
+
     }
 }

@@ -3160,6 +3160,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 ),
                 true,
+                true,
                 true
             )
         );
@@ -3186,6 +3187,7 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 ),
+                true,
                 true,
                 true
             )
@@ -3216,6 +3218,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 ),
                 true,
+                true,
                 true
             )
         );
@@ -3243,6 +3246,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 ),
                 true,
+                true,
                 true
             )
         );
@@ -3269,6 +3273,7 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 ),
+                true,
                 true,
                 true
             )
@@ -3298,6 +3303,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 ),
                 true,
+                true,
                 true
             )
         );
@@ -3318,13 +3324,13 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false));
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3342,7 +3348,7 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(
@@ -3351,7 +3357,7 @@ public class AnalyzerTests extends ESTestCase {
             );
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, false, true));
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, false, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3801,7 +3807,12 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(new FieldCapabilitiesResponse(idxResponses, List.of()), true, true);
+        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(
+            new FieldCapabilitiesResponse(idxResponses, List.of()),
+            true,
+            true,
+            true
+        );
         IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);

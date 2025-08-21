@@ -84,6 +84,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_CO
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToLongs;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
@@ -1261,6 +1262,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         // This has been added just to test a round trip. In reality, TSID should never be taken from XContent
                         byte[] decode = Base64.getUrlDecoder().decode(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(decode));
+                    }
+                    case DATE_RANGE -> {
+                        BlockLoader.DateRangeBuilder b = (BlockLoader.DateRangeBuilder) builder;
+                        var ll = dateRangeToLongs(value.toString());
+                        b.from().appendLong(ll.from());
+                        b.to().appendLong(ll.to());
                     }
                 }
             }

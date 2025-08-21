@@ -199,6 +199,9 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     private void assumeMultiValued() {
-        assumeTrue("Type must support multi-values", elementType != ElementType.AGGREGATE_METRIC_DOUBLE);
+        assumeTrue(
+            "Type must support multi-values",
+            elementType != ElementType.AGGREGATE_METRIC_DOUBLE && elementType != ElementType.DATE_RANGE
+        );
     }
 }

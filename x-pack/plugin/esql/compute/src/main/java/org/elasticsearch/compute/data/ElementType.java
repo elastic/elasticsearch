@@ -64,7 +64,9 @@ public enum ElementType {
         "AggregateMetricDouble",
         BlockFactory::newAggregateMetricDoubleBlockBuilder,
         AggregateMetricDoubleArrayBlock::readFrom
-    );
+    ),
+
+    DATE_RANGE(11, "DateRange", BlockFactory::newDateRangeBlockBuilder, DateRangeArrayBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 
@@ -113,6 +115,8 @@ public enum ElementType {
             elementType = BOOLEAN;
         } else if (type == AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class) {
             elementType = AGGREGATE_METRIC_DOUBLE;
+        } else if (type == DateRangeBlockBuilder.DateRangeLiteral.class) {
+            elementType = DATE_RANGE;
         } else if (type == null || type == Void.class) {
             elementType = NULL;
         } else {

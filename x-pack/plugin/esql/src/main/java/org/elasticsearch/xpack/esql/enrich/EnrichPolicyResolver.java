@@ -258,7 +258,7 @@ public class EnrichPolicyResolver {
                     field.getTimeSeriesFieldType()
                 );
                 EsField old = mappings.putIfAbsent(m.getKey(), field);
-                if (old != null && old.getDataType().equals(field.getDataType()) == false) {
+                if (old != null && typeMismatch(old.getDataType(), field.getDataType())) {
                     String error = "field [" + m.getKey() + "] of enrich policy [" + policyName + "] has different data types ";
                     error += "[" + old.getDataType() + ", " + field.getDataType() + "] across clusters";
                     return Tuple.tuple(null, error);
@@ -282,6 +282,15 @@ public class EnrichPolicyResolver {
         assert last != null;
         var resolved = new ResolvedEnrichPolicy(last.matchField(), last.matchType(), last.enrichFields(), concreteIndices, mappings);
         return Tuple.tuple(resolved, null);
+    }
+
+    // When trying to enrich with a field, check if there is a mismatch in the types.
+    // Apart from just comparing them, the only special case is DATE_RANGE: it used to be an enrichment-only
+    // field and then added as a first-class ESQL field type. So in enrichment over clusters it may appear as
+    // DATE_RANGE VS UNSUPPORTED, even though it's still the same type.
+    private boolean typeMismatch(DataType old, DataType field) {
+        if (old == DataType.DATE_RANGE && field == DataType.UNSUPPORTED) return false;
+        return old.equals(field) == false;
     }
 
     private String missingPolicyError(String policyName, Collection<String> targetClusters, List<String> missingClusters) {
@@ -453,6 +462,7 @@ public class EnrichPolicyResolver {
                             null,
                             false,
                             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
+                            false,
                             false,
                             false,
                             refs.acquire(indexResult -> {

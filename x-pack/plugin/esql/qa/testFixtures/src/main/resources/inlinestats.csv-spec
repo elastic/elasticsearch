@@ -2400,8 +2400,8 @@ twoConsecutiveInlinestatsWithFalseFiltes
 required_capability: inlinestats_v10
 from employees
 | keep emp_no
-| limit 3
 | sort emp_no
+| limit 3
 | inlinestats count = count(*) where false
 | inlinestats cc = count_distinct(emp_no) where false
 ;

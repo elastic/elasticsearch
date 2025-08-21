@@ -586,7 +586,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         FieldAttribute g = getFieldAttribute("g");
         EsRelation left = relation(List.of(a, getFieldAttribute("b")));
         EsRelation right = relation(List.of(c, d, e, f, g));
-        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(a), List.of(c));
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(a), List.of(c), null);
         Join join = new Join(EMPTY, left, right, joinConfig);
 
         // Predicates
@@ -837,7 +837,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation left = relation(List.of(a, b));
         EsRelation right = relation(List.of(c, b));
 
-        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b), List.of(a, b), List.of(b, c));
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b), List.of(a, b), List.of(b, c), null);
         return new Join(EMPTY, left, right, joinConfig);
     }
 }

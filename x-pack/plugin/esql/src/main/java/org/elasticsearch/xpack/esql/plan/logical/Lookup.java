@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,18 +45,21 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
     // afterward, it is converted into a Join (BinaryPlan) hence why here it is not a child
     private final LocalRelation localRelation;
     private List<Attribute> lazyOutput;
+    private final Expression joinOnConditions;
 
     public Lookup(
         Source source,
         LogicalPlan child,
         Expression tableName,
         List<Attribute> matchFields,
-        @Nullable LocalRelation localRelation
+        @Nullable LocalRelation localRelation,
+        @Nullable Expression joinOnConditions
     ) {
         super(source, child);
         this.tableName = tableName;
         this.matchFields = matchFields;
         this.localRelation = localRelation;
+        this.joinOnConditions = joinOnConditions;
     }
 
     public Lookup(StreamInput in) throws IOException {
@@ -63,6 +67,11 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
         this.tableName = in.readNamedWriteable(Expression.class);
         this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+            this.joinOnConditions = in.readOptionalNamedWriteable(Expression.class);
+        } else {
+            this.joinOnConditions = null;
+        }
     }
 
     @Override
@@ -76,6 +85,11 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
         } else {
             out.writeBoolean(true);
             localRelation.writeTo(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+            out.writeOptionalNamedWriteable(joinOnConditions);
+        } else if (joinOnConditions != null) {
+            throw new IOException("LOOKUP with ON conditions is not supported on remote node");
         }
     }
 
@@ -115,7 +129,11 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
                 }
             }
         }
-        return new JoinConfig(JoinTypes.LEFT, matchFields, leftFields, rightFields);
+        return new JoinConfig(JoinTypes.LEFT, matchFields, leftFields, rightFields, joinOnConditions);
+    }
+
+    public Expression getJoinOnConditions() {
+        return joinOnConditions;
     }
 
     @Override
@@ -125,12 +143,12 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Lookup(source(), newChild, tableName, matchFields, localRelation);
+        return new Lookup(source(), newChild, tableName, matchFields, localRelation, joinOnConditions);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Lookup::new, child(), tableName, matchFields, localRelation);
+        return NodeInfo.create(this, Lookup::new, child(), tableName, matchFields, localRelation, joinOnConditions);
     }
 
     @Override
@@ -158,11 +176,12 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
         Lookup lookup = (Lookup) o;
         return Objects.equals(tableName, lookup.tableName)
             && Objects.equals(matchFields, lookup.matchFields)
-            && Objects.equals(localRelation, lookup.localRelation);
+            && Objects.equals(localRelation, lookup.localRelation)
+            && Objects.equals(joinOnConditions, lookup.joinOnConditions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), tableName, matchFields, localRelation);
+        return Objects.hash(super.hashCode(), tableName, matchFields, localRelation, joinOnConditions);
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -96,7 +97,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.extractFields,
             request.matchFields,
             request.source,
-            request.rightPreJoinPlan
+            request.rightPreJoinPlan,
+            request.joinOnConditions
         );
     }
 
@@ -123,10 +125,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         PhysicalPlan physicalPlan = request.rightPreJoinPlan;
         physicalPlan = localLookupNodePlanning(physicalPlan);
-        if (queryLists.size() == 1 && physicalPlan instanceof FilterExec == false) {
+        if (queryLists.size() == 1 && physicalPlan instanceof FilterExec == false && request.joinOnConditions == null) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService);
+        return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService, request, aliasFilter);
 
     }
 
@@ -161,6 +163,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     public static class Request extends AbstractLookupService.Request {
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
+        private final Expression joinOnConditions;
 
         Request(
             String sessionId,
@@ -170,11 +173,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source,
-            PhysicalPlan rightPreJoinPlan
+            PhysicalPlan rightPreJoinPlan,
+            Expression joinOnConditions
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
+            this.joinOnConditions = joinOnConditions;
         }
     }
 
@@ -186,6 +191,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
+        private final Expression joinOnConditions;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -198,11 +204,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields,
             List<MatchConfig> matchFields,
             Source source,
-            PhysicalPlan rightPreJoinPlan
+            PhysicalPlan rightPreJoinPlan,
+            Expression joinOnConditions
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
+            this.joinOnConditions = joinOnConditions;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -252,6 +260,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
             }
+            Expression joinOnConditions = null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+                joinOnConditions = in.readOptionalNamedWriteable(Expression.class);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -261,10 +273,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 extractFields,
                 matchFields,
                 source,
-                rightPreJoinPlan
+                rightPreJoinPlan,
+                joinOnConditions
             );
             result.setParentTask(parentTaskId);
             return result;
+        }
+
+        public Expression getJoinOnConditions() {
+            return joinOnConditions;
+        }
+
+        public List<MatchConfig> getMatchFields() {
+            return matchFields;
         }
 
         @Override
@@ -306,6 +327,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+                out.writeOptionalNamedWriteable(joinOnConditions);
+            } else {
+                if (joinOnConditions != null) {
+                    throw new EsqlIllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
+                }
             }
         }
 

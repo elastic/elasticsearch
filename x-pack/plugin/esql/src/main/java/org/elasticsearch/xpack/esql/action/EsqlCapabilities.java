@@ -1399,7 +1399,12 @@ public class EsqlCapabilities {
         /**
          * Allow qualifiers in attribute names.
          */
-        NAME_QUALIFIERS(Build.current().isSnapshot());
+        NAME_QUALIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * Allow lookup join on boolean expressions
+         */
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 
         private final boolean enabled;
 

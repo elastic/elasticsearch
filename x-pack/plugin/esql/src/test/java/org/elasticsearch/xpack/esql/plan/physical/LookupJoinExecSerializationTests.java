@@ -21,7 +21,7 @@ public class LookupJoinExecSerializationTests extends AbstractPhysicalPlanSerial
         List<Attribute> leftFields = randomFields();
         List<Attribute> rightFields = randomFields();
         List<Attribute> addedFields = randomFields();
-        return new LookupJoinExec(source, child, lookup, leftFields, rightFields, addedFields);
+        return new LookupJoinExec(source, child, lookup, leftFields, rightFields, addedFields, null);
     }
 
     private static List<Attribute> randomFields() {
@@ -48,7 +48,7 @@ public class LookupJoinExecSerializationTests extends AbstractPhysicalPlanSerial
             case 4 -> addedFields = randomValueOtherThan(addedFields, LookupJoinExecSerializationTests::randomFields);
             default -> throw new UnsupportedOperationException();
         }
-        return new LookupJoinExec(instance.source(), child, lookup, leftFields, rightFields, addedFields);
+        return new LookupJoinExec(instance.source(), child, lookup, leftFields, rightFields, addedFields, null);
     }
 
     @Override

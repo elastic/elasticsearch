@@ -40,7 +40,7 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractWire
     protected GetInferenceDiagnosticsAction.NodeResponse mutateInstance(GetInferenceDiagnosticsAction.NodeResponse instance)
         throws IOException {
         var select = randomIntBetween(0, 3);
-        var connPoolStats = instance.getConnectionPoolStats();
+        var connPoolStats = instance.getExternalConnectionPoolStats();
 
         return switch (select) {
             case 0 -> new GetInferenceDiagnosticsAction.NodeResponse(

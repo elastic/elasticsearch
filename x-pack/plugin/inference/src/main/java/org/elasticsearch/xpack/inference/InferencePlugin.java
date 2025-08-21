@@ -219,6 +219,8 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
+    public record ClientManagers(HttpClientManager externalManager, HttpClientManager eisManager) {}
+
     public InferencePlugin(Settings settings) {
         this.settings = settings;
     }
@@ -302,6 +304,8 @@ public class InferencePlugin extends Plugin
             inferenceServiceSettings.getConnectionTtl()
         );
 
+        var clientManagers = new ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager);
+
         var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
             serviceComponents.get(),
             elasticInferenceServiceHttpClientManager,
@@ -373,7 +377,7 @@ public class InferencePlugin extends Plugin
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
-        components.add(httpClientManager);
+        components.add(clientManagers);
         components.add(inferenceStatsBinding);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -116,29 +117,44 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
     public static class NodeResponse extends BaseNodeResponse implements ToXContentFragment {
         static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
+        static final String EIS_CONNECTION_POOL_STATS_FIELD_NAME = "eis_connection_pool_stats";
 
-        private final ConnectionPoolStats connectionPoolStats;
+        private final ConnectionPoolStats externalConnectionPoolStats;
+        private final ConnectionPoolStats eisConnectionPoolStats;
 
-        public NodeResponse(DiscoveryNode node, PoolStats poolStats) {
+        public NodeResponse(DiscoveryNode node, PoolStats externalPoolStats, PoolStats eisPoolStats) {
             super(node);
-            connectionPoolStats = ConnectionPoolStats.of(poolStats);
+            externalConnectionPoolStats = ConnectionPoolStats.of(externalPoolStats);
+            eisConnectionPoolStats = ConnectionPoolStats.of(eisPoolStats);
         }
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
 
-            connectionPoolStats = new ConnectionPoolStats(in);
+            externalConnectionPoolStats = new ConnectionPoolStats(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DIAGNOSTICS_FOR_EIS)) {
+                eisConnectionPoolStats = new ConnectionPoolStats(in);
+            } else {
+                eisConnectionPoolStats = null; // EIS stats are not available in older versions
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            connectionPoolStats.writeTo(out);
+            externalConnectionPoolStats.writeTo(out);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DIAGNOSTICS_FOR_EIS)) {
+                eisConnectionPoolStats.writeTo(out);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(CONNECTION_POOL_STATS_FIELD_NAME, connectionPoolStats, params);
+            builder.field(CONNECTION_POOL_STATS_FIELD_NAME, externalConnectionPoolStats, params);
+            if (eisConnectionPoolStats != null) {
+                builder.field(EIS_CONNECTION_POOL_STATS_FIELD_NAME, eisConnectionPoolStats, params);
+            }
             return builder;
         }
 
@@ -147,16 +163,21 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse response = (NodeResponse) o;
-            return Objects.equals(connectionPoolStats, response.connectionPoolStats);
+            return Objects.equals(externalConnectionPoolStats, response.externalConnectionPoolStats)
+                && Objects.equals(eisConnectionPoolStats, response.eisConnectionPoolStats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectionPoolStats);
+            return Objects.hash(externalConnectionPoolStats, eisConnectionPoolStats);
         }
 
-        ConnectionPoolStats getConnectionPoolStats() {
-            return connectionPoolStats;
+        ConnectionPoolStats getExternalConnectionPoolStats() {
+            return externalConnectionPoolStats;
+        }
+
+        ConnectionPoolStats getEisConnectionPoolStats() {
+            return eisConnectionPoolStats;
         }
 
         static class ConnectionPoolStats implements ToXContentObject, Writeable {

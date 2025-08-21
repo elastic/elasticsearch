@@ -63,6 +63,14 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             new TestCase(null, List.of()),
             new TestCase(new ExistsQueryBuilder("f1"), List.of("f1")),
             new TestCase(new ExistsQueryBuilder("f2"), List.of("f2")),
+            new TestCase(
+                new BoolQueryBuilder().should(new ExistsQueryBuilder("f1")).should(new ExistsQueryBuilder("f2")).minimumShouldMatch(1),
+                List.of()
+            ),
+            new TestCase(
+                new BoolQueryBuilder().should(new ExistsQueryBuilder("f1")).should(new ExistsQueryBuilder("f2")).minimumShouldMatch(2),
+                List.of()
+            ),
             new TestCase(new BoolQueryBuilder().filter(new ExistsQueryBuilder("f1")), List.of("f1")),
             new TestCase(new BoolQueryBuilder().filter(new ExistsQueryBuilder("f1")), List.of("f1")),
             new TestCase(new BoolQueryBuilder().filter(new ExistsQueryBuilder("f1")).should(new RangeQueryBuilder("f2")), List.of("f1")),

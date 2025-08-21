@@ -33,6 +33,7 @@ public final class SearchFeatures implements FeatureSpecification {
     static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
     public static final NodeFeature BBQ_HNSW_DEFAULT_INDEXING = new NodeFeature("search.vectors.mappers.default_bbq_hnsw");
     public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
+    public static final NodeFeature SEARCH_RESCORE_SCRIPT = new NodeFeature("search.rescore.script");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -43,7 +44,8 @@ public final class SearchFeatures implements FeatureSpecification {
             INT_SORT_FOR_INT_SHORT_BYTE_FIELDS,
             MULTI_MATCH_CHECKS_POSITIONS,
             BBQ_HNSW_DEFAULT_INDEXING,
-            SEARCH_WITH_NO_DIMENSIONS_BUGFIX
+            SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
+            SEARCH_RESCORE_SCRIPT
         );
     }
 }

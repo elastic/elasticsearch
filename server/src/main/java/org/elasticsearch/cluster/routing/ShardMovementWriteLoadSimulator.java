@@ -88,11 +88,32 @@ public class ShardMovementWriteLoadSimulator {
             .get(ThreadPool.Names.WRITE);
         return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
             writeThreadPoolStats.totalThreadPoolThreads(),
-            (float) Math.max(
-                (writeThreadPoolStats.averageThreadPoolUtilization() + (writeLoadDelta / writeThreadPoolStats.totalThreadPoolThreads())),
-                0.0
+            updateNodeUtilizationWithShardMovements(
+                writeThreadPoolStats.averageThreadPoolUtilization(),
+                (float) writeLoadDelta,
+                writeThreadPoolStats.totalThreadPoolThreads()
             ),
-            writeThreadPoolStats.averageThreadPoolQueueLatencyMillis()
+            writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()
         );
+    }
+
+    /**
+     * The {@code nodeUtilization} is the average utilization per thread for some duration of time. The {@code shardWriteLoadDelta} is the
+     * sum of shards' total execution time. Dividing the shards total execution time by the number of threads provides the average
+     * utilization of each write thread for those shards. The change in shard load can then be added to the node utilization.
+     *
+     * @param nodeUtilization The current node-level write load percent utilization.
+     * @param shardWriteLoadDelta The change in shard(s) execution time across all threads. This can be positive or negative depending on
+     *                            whether shards were moved onto the node or off of the node.
+     * @param numberOfWriteThreads The number of threads available in the node's write thread pool.
+     * @return The new node-level write load percent utilization after adding the shard write load delta.
+     */
+    public static float updateNodeUtilizationWithShardMovements(
+        float nodeUtilization,
+        float shardWriteLoadDelta,
+        int numberOfWriteThreads
+    ) {
+        float newNodeUtilization = nodeUtilization + (shardWriteLoadDelta / numberOfWriteThreads);
+        return (float) Math.max(newNodeUtilization, 0.0);
     }
 }

@@ -86,7 +86,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final OriginSettingClient rolloverClient;
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
-    private final FeatureService featureService;
 
     @Inject
     public TransportBulkAction(
@@ -187,7 +186,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexingPressure,
             systemIndices,
             projectResolver,
-            relativeTimeProvider
+            relativeTimeProvider,
+            featureService
         );
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         Objects.requireNonNull(relativeTimeProvider);
@@ -195,7 +195,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.failureStoreMetrics = failureStoreMetrics;
-        this.featureService = featureService;
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(

@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.OS
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   description = 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'

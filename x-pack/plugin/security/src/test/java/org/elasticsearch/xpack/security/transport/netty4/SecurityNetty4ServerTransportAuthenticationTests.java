@@ -41,7 +41,7 @@ import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SniffConnectionStrategy;
@@ -374,7 +374,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomAlphaOfLength(20)
             );
             return Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
@@ -397,7 +397,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomAlphaOfLength(20)
             );
             return Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();

@@ -12,6 +12,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -83,7 +84,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             baseSettings,
             Collections.singletonMap(engine.getType(), engine),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());

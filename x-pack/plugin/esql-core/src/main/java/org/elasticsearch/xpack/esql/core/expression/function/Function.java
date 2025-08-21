@@ -17,8 +17,8 @@ import java.util.Objects;
 import java.util.StringJoiner;
 
 /**
- * Any SQL expression with parentheses, like {@code MAX()}, or {@code ABS()}. A
- * function is always a {@code NamedExpression}.
+ * Any ESQL function; generally this is translated into a computation to be evaluated on arguments, including scalar functions (e.g. in
+ * {@code EVAL}) or aggregation functions ({@code STATS}).
  */
 public abstract class Function extends Expression {
 

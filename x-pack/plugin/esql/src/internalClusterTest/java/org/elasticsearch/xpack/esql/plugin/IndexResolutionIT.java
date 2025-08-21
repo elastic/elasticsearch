@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -109,6 +110,10 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.cluster.metadata.MetadataIndexStateService:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/133011"
+    )
     public void testDoesNotResolveClosedIndex() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
         indexRandom(true, "index-1", 10);

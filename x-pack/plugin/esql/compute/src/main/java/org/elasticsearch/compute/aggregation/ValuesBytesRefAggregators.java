@@ -178,10 +178,21 @@ final class ValuesBytesRefAggregators {
         IntVector ordinalIds,
         IntVector hashIds
     ) {
-        for (int p = 0; p < groupIds.getPositionCount(); p++) {
-            int groupId = groupIds.getInt(p);
-            int ord = ordinalIds.getInt(p + positionOffset);
-            state.addValueOrdinal(groupId, hashIds.getInt(ord));
+        if (groupIds.isConstant() && hashIds.isConstant()) {
+            state.addValueOrdinal(groupIds.getInt(0), hashIds.getInt(0));
+            return;
+        }
+        int lastGroup = groupIds.getInt(0);
+        int lastOrd = ordinalIds.getInt(positionOffset);
+        state.addValueOrdinal(lastGroup, hashIds.getInt(lastOrd));
+        for (int p = 1; p < groupIds.getPositionCount(); p++) {
+            final int nextGroup = groupIds.getInt(p);
+            final int nextOrd = ordinalIds.getInt(p + positionOffset);
+            if (nextGroup != lastGroup || nextOrd != lastOrd) {
+                lastGroup = nextGroup;
+                lastOrd = nextOrd;
+                state.addValueOrdinal(lastGroup, hashIds.getInt(lastOrd));
+            }
         }
     }
 

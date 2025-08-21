@@ -1,8 +1,13 @@
 ---
 setup:
   - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ dense_vector_field_type ]
       test_runner_features: [ capabilities, contains ]
-      reason: "make sure new functions run where supported only"
+      reason: "make sure new functions run where supported only, dense vector needed for index creation"
   - do:
       indices.create:
         index: employees
@@ -24,6 +29,10 @@ setup:
                 dims: 3
                 index: true
                 similarity: l2_norm
+              ip:
+                type: ip
+              favorite_numbers:
+                type: integer
 
   - do:
       bulk:
@@ -31,11 +40,11 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith", "image_vector": [ 0.1, 0.2, 0.3 ] }
+          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith", "image_vector": [ 0.1, 0.2, 0.3 ], "ip": "192.168.1.1" , "favorite_numbers": [ 4, 2, 3 ] }
           - { "index": { } }
-          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson", "image_vector": [ 0.4, 0.5, 0.6 ] }
+          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson", "image_vector": [ 0.4, 0.5, 0.6 ], "ip": "192.168.1.2" , "favorite_numbers": [ 4, 7, -2 ] }
           - { "index": { } }
-          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ] }
+          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ], "ip": "10.168.1.2" , "favorite_numbers": [ 2, 1, 3 ] }
 
 ---
 TOP function with constant folding:
@@ -559,3 +568,165 @@ Query using TERM function on name but with non constant query:
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "second argument of [TERM(name, salary)] must be [string], found value [salary] type [integer]" }
 
+---
+
+Percentile with foldable value:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW x = 100 | STATS p = PERCENTILE(x, 19.8 + 13.4454545) | LIMIT 1
+  - match: { columns.0.name: "p" }
+  - match: { values.0.0: 100 }
+
+---
+
+Percentile with non-foldable value:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees | STATS p = PERCENTILE(salary, salary + 1)  | LIMIT 1
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "second argument of [PERCENTILE(salary, salary + 1)] must be a constant, received [salary + 1]" }
+
+---
+COUNT_DISTINCT with foldable precision:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS c1 = COUNT_DISTINCT(salary, 234 + 543)  | LIMIT 1
+  - match: { columns.0.name: "c1" }
+  - length: { values: 1 }
+
+---
+COUNT_DISTINCT with no precision:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS c1 = COUNT_DISTINCT(salary)  | LIMIT 1
+  - match: { columns.0.name: "c1" }
+  - length: { values: 1 }
+
+---
+COUNT_DISTINCT with non-foldable precision:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS COUNT_DISTINCT(salary, salary + 1)  | LIMIT 1
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "second argument of [COUNT_DISTINCT(salary, salary + 1)] must be a constant, received [salary + 1]" }
+
+---
+MV_SORT with foldable order:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2]
+            | EVAL sa = mv_sort(a, CONCAT("AS", "C")), sd = mv_sort(a, CONCAT("DE", "SC")) | LIMIT 1
+  - match: { columns.0.name: "a" }
+  - match: { columns.1.name: "sa" }
+  - match: { columns.2.name: "sd" }
+  - match: { values.0.1: [ -3, 2, 2, 4 ] }
+  - match: { values.0.2: [ 4, 2, 2, -3 ] }
+---
+MV_SORT with foldable order on employee favorite numbers:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE salary == 50000
+            | EVAL sa = mv_sort(favorite_numbers, CONCAT("AS", "C"))
+            | KEEP sa
+            | LIMIT 1
+
+  - match: { columns.0.name: "sa" }
+  - match: { values.0.0: [ 2,3,4 ] }
+
+---
+MV_SORT with invalid foldable order:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2]
+            | EVAL sa = mv_sort(a, CONCAT("ASC", "DESC")) | LIMIT 1
+  - match: { error.type: "illegal_argument_exception" }
+  - contains: { error.reason: "Invalid order value in [mv_sort(a, CONCAT(\"ASC\", \"DESC\"))], expected one of [ASC, DESC] but got [ASCDESC]" }
+
+
+---
+MV_SORT with invalid non-foldable order:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2], str = "REVERSE"
+            | EVAL sa = mv_sort(a, CONCAT(str, "DESC")) | LIMIT 1
+  - match: { error.type: "illegal_argument_exception" }
+  - contains: { error.reason: "Invalid order value in [mv_sort(a, CONCAT(str, \"DESC\"))], expected one of [ASC, DESC] but got [REVERSEDESC]" }
+
+---
+CIDR_MATCH with multiple CIDRs:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW ip1 = "127.0.0.3"
+            | WHERE CIDR_MATCH(TO_IP(ip1), CONCAT("127", ".0.0.2/32"), "127.0.0.3/32") | LIMIT 5
+  - match: { columns.0.name: "ip1" }
+  - match: { values.0.0: "127.0.0.3" }
+
+---
+CIDR_MATCH with non-foldable CIDRs:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE CIDR_MATCH(ip, CONCAT(TO_STRING(ip), "/8"), "127.0.0.3/32") | LIMIT 5
+  - length: { values: 3 }
+
+---
+Employee name equals:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE CONCAT("Alice"," Smith") == name
+            | KEEP hire_date, salary, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.2: "Alice Smith" }
+
+---
+Employee name in list:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE name in (CONCAT("Alice"," Smith"), CONCAT("fake", " name"))
+            | KEEP hire_date, salary, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.2: "Alice Smith" }

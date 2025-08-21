@@ -536,4 +536,21 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
+
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { "1,1", "1,2", "1,3" };
+    }
+
+    @Override
+    protected Object[] getThreeEncodedSampleValues() {
+        return new Object[] {
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 1f).numericValue(),
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 2f).numericValue(),
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 3f).numericValue() };
+    }
+
+    @Override
+    protected boolean supportsBulkBlockReading() {
+        return true;
+    }
 }

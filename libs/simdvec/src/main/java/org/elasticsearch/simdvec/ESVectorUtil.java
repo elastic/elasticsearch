@@ -51,6 +51,10 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
     }
 
+    public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension);
+    }
+
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + B_QUERY + " x " + d.length);
@@ -288,5 +292,111 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
         }
         return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
+    }
+
+    /**
+     * Bulk computation of square distances between a query vector and four vectors.Result is stored in the provided distances array.
+     *
+     * @param q the query vector
+     * @param v0 the first vector
+     * @param v1 the second vector
+     * @param v2 the third vector
+     * @param v3 the fourth vector
+     * @param distances an array to store the computed square distances, must have length 4
+     *
+     * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
+     */
+    public static void squareDistanceBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        if (q.length != v0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v0.length);
+        }
+        if (q.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v1.length);
+        }
+        if (q.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v2.length);
+        }
+        if (q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v3.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distances);
+    }
+
+    /**
+     * Bulk computation of the soar distance for a vector to four centroids
+     * @param v1 the vector
+     * @param c0 the first centroid
+     * @param c1 the second centroid
+     * @param c2 the third centroid
+     * @param c3 the fourth centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @param distances an array to store the computed soar distances, must have length 4
+     */
+    public static void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        if (v1.length != c0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c0.length);
+        }
+        if (v1.length != c1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c1.length);
+        }
+        if (v1.length != c2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c2.length);
+        }
+        if (v1.length != c3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c3.length);
+        }
+        if (v1.length != originalResidual.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + originalResidual.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.soarDistanceBulk(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
+    }
+
+    /**
+     * Packs the provided int array populated with "0" and "1" values into a byte array.
+     *
+     * @param vector the int array to pack, must contain only "0" and "1" values.
+     * @param packed the byte array to store the packed result, must be large enough to hold the packed data.
+     */
+    public static void packAsBinary(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
+        }
+        IMPL.packAsBinary(vector, packed);
+    }
+
+    /**
+     * The idea here is to organize the query vector bits such that the first bit
+     * of every dimension is in the first set dimensions bits, or (dimensions/8) bytes. The second,
+     * third, and fourth bits are in the second, third, and fourth set of dimensions bits,
+     * respectively. This allows for direct bitwise comparisons with the stored index vectors through
+     * summing the bitwise results with the relative required bit shifts.
+     *
+     * @param q the query vector, assumed to be half-byte quantized with values between 0 and 15
+     * @param quantQueryByte the byte array to store the transposed query vector.
+     *
+     **/
+    public static void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+        if (quantQueryByte.length * Byte.SIZE < 4 * q.length) {
+            throw new IllegalArgumentException("packed array is too small: " + quantQueryByte.length * Byte.SIZE + " < " + 4 * q.length);
+        }
+        IMPL.transposeHalfByte(q, quantQueryByte);
     }
 }

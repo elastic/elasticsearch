@@ -14,6 +14,11 @@
         },
         "default_pipeline": "logs@default-pipeline"
       }
+    },
+    "data_stream_options": {
+      "failure_store": {
+        "enabled": true
+      }
     }
   },
   "_meta": {

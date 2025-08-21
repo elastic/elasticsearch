@@ -27,6 +27,18 @@
     "events_received": {
       "type": "long"
     },
+    "event_city": {
+      "type": "geo_point"
+    },
+    "event_city_boundary": {
+      "type": "geo_shape"
+    },
+    "event_shape": {
+      "type": "shape"
+    },
+    "event_location": {
+      "type": "point"
+    },
     "network": {
       "properties": {
         "bytes_in": {

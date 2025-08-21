@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
@@ -76,11 +77,6 @@ public class FieldNameUtils {
             return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
         }
 
-        // TODO: Improve field resolution for FORK - right now we request all fields
-        if (parsed.anyMatch(p -> p instanceof Fork)) {
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
-        }
-
         Holder<Boolean> projectAll = new Holder<>(false);
         parsed.forEachExpressionDown(UnresolvedStar.class, us -> {// explicit "*" fields selection
             if (projectAll.get()) {
@@ -93,7 +89,7 @@ public class FieldNameUtils {
             return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
         }
 
-        var referencesBuilder = AttributeSet.builder();
+        var referencesBuilder = new Holder<>(AttributeSet.builder());
         // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can cover some
         // attributes ("lookup join" generated columns among others); steps like removal of Aliases should ignore fields matching the
         // wildcards.
@@ -110,19 +106,49 @@ public class FieldNameUtils {
         // lookup indices where we request "*" because we may require all their fields
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
-        boolean[] canRemoveAliases = new boolean[] { true };
+        var canRemoveAliases = new Holder<>(true);
 
-        parsed.forEachDown(p -> {// go over each plan top-down
-            if (p instanceof RegexExtract re) { // for Grok and Dissect
+        var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
+        forEachDownProcessor.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
+            if (p instanceof Fork fork) {
+                // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
+                var forkRefsResult = AttributeSet.builder();
+                forkRefsResult.addAll(referencesBuilder.get());
+
+                for (var forkBranch : fork.children()) {
+                    referencesBuilder.set(AttributeSet.builder());
+                    var isNestedFork = forkBranch.forEachDownMayReturnEarly(forEachDownProcessor.get());
+                    // This assert is just for good measure. FORKs within FORKs is yet not supported.
+                    assert isNestedFork == false : "Nested FORKs are not yet supported";
+                    // This is a safety measure for fork where the list of fields returned is empty.
+                    // It can be empty for a branch that does need all the fields. For example "fork (where true) (where a is not null)"
+                    // but it can also be empty for queries where NO fields are needed from ES,
+                    // for example "fork (eval x = 1 | keep x) (eval y = 1 | keep y)" but we cannot establish this yet.
+                    if (referencesBuilder.get().isEmpty()) {
+                        projectAll.set(true);
+                        // Return early, we'll be returning all references no matter what the remainder of the query is.
+                        breakEarly.set(true);
+                        return;
+                    }
+                    forkRefsResult.addAll(referencesBuilder.get());
+                }
+
+                forkRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
+                referencesBuilder.set(forkRefsResult);
+
+                // Return early, we've already explored all fork branches.
+                breakEarly.set(true);
+                return;
+            } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
-                referencesBuilder.addAll(re.input().references());
+                referencesBuilder.get().addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
-                referencesBuilder.addAll(enrichRefs);
+                referencesBuilder.get().addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
                     joinRefs.addAll(usingJoinType.columns());
@@ -135,15 +161,15 @@ public class FieldNameUtils {
                     joinRefs.addAll(keepRefs);
                 }
             } else {
-                referencesBuilder.addAll(p.references());
+                referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    referencesBuilder.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.get().add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
-                    referencesBuilder.add(ua);
+                    referencesBuilder.get().add(ua);
                     if (p instanceof Keep) {
                         keepRefs.add(ua);
                     } else if (p instanceof Drop) {
@@ -168,10 +194,10 @@ public class FieldNameUtils {
             //
             // and ips_policy enriches the results with the same name ip field),
             // these aliases should be kept in the list of fields.
-            if (canRemoveAliases[0] && p.anyMatch(FieldNameUtils::couldOverrideAliases)) {
-                canRemoveAliases[0] = false;
+            if (canRemoveAliases.get() && p.anyMatch(FieldNameUtils::couldOverrideAliases)) {
+                canRemoveAliases.set(false);
             }
-            if (canRemoveAliases[0]) {
+            if (canRemoveAliases.get()) {
                 // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
                 // for example "from test | eval x = salary | stats max = max(x) by gender"
                 // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
@@ -187,21 +213,25 @@ public class FieldNameUtils {
                     if (fieldNames.contains(ne.name())) {
                         return;
                     }
-                    referencesBuilder.removeIf(
-                        attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
-                    );
+                    referencesBuilder.get()
+                        .removeIf(attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr)));
                 });
             }
         });
+        parsed.forEachDownMayReturnEarly(forEachDownProcessor.get());
+
+        if (projectAll.get()) {
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+        }
 
         // Add JOIN ON column references afterward to avoid Alias removal
-        referencesBuilder.addAll(joinRefs);
+        referencesBuilder.get().addAll(joinRefs);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        referencesBuilder.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
-        Set<String> fieldNames = referencesBuilder.build().names();
+        referencesBuilder.get().removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
+        Set<String> fieldNames = referencesBuilder.get().build().names();
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index

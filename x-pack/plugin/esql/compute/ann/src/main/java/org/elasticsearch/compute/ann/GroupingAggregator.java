@@ -27,9 +27,4 @@ public @interface GroupingAggregator {
      * into a warning and turn into a null value.
      */
     Class<? extends Exception>[] warnExceptions() default {};
-
-    /**
-     * {@code true} if this is a time-series aggregation
-     */
-    boolean timeseries() default false;
 }

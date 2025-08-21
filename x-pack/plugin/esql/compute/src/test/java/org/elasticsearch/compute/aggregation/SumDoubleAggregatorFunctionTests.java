@@ -44,8 +44,8 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        double sum = input.stream().flatMapToDouble(b -> allDoubles(b)).sum();
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        double sum = input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))).sum();
         assertThat(((DoubleBlock) result).getDouble(0), closeTo(sum, .0001));
     }
 

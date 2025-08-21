@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 

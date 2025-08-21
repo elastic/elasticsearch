@@ -177,7 +177,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
             }
-            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            try {
+                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            } catch (Exception e) {
+                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
+                logger.debug(
+                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
+                    result.getShardIndex(),
+                    Arrays.toString(topDocs.fields),
+                    e
+                );
+            }
         }
         super.onShardResult(result);
     }
@@ -552,7 +562,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
+    public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
     static void registerNodeSearchAction(
         SearchTransportService searchTransportService,

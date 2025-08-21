@@ -40,6 +40,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,31 +57,33 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * This is a cache for {@link BitSet} instances that are used with the {@link DocumentSubsetReader}.
  * It is bounded by memory size and access time.
- *
+ * <p>
  * DLS uses {@link BitSet} instances to track which documents should be visible to the user ("live") and which should not ("dead").
  * This means that there is a bit for each document in a Lucene index (ES shard).
  * Consequently, an index with 10 million document will use more than 1Mb of bitset memory for every unique DLS query, and an index
  * with 1 billion documents will use more than 100Mb of memory per DLS query.
  * Because DLS supports templating queries based on user metadata, there may be many distinct queries in use for each index, even if
  * there is only a single active role.
- *
+ * <p>
  * The primary benefit of the cache is to avoid recalculating the "live docs" (visible documents) when a user performs multiple
  * consecutive queries across one or more large indices. Given the memory examples above, the cache is only useful if it can hold at
  * least 1 large (100Mb or more ) {@code BitSet} during a user's active session, and ideally should be capable of support multiple
  * simultaneous users with distinct DLS queries.
- *
+ * <p>
  * For this reason the default memory usage (weight) for the cache set to 10% of JVM heap ({@link #CACHE_SIZE_SETTING}), so that it
  * automatically scales with the size of the Elasticsearch deployment, and can provide benefit to most use cases without needing
  * customisation. On a 32Gb heap, a 10% cache would be 3.2Gb which is large enough to store BitSets representing 25 billion docs.
- *
+ * <p>
  * However, because queries can be templated by user metadata and that metadata can change frequently, it is common for the
- * effetively lifetime of a single DLS query to be relatively short. We do not want to sacrifice 10% of heap to a cache that is storing
- * BitSets that are not longer needed, so we set the TTL on this cache to be 2 hours ({@link #CACHE_TTL_SETTING}). This time has been
+ * effective lifetime of a single DLS query to be relatively short. We do not want to sacrifice 10% of heap to a cache that is storing
+ * BitSets that are no longer needed, so we set the TTL on this cache to be 2 hours ({@link #CACHE_TTL_SETTING}). This time has been
  * chosen so that it will retain BitSets that are in active use during a user's session, but not be an ongoing drain on memory.
  *
  * @see org.elasticsearch.index.cache.bitset.BitsetFilterCache
  */
 public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListener, Closeable, Accountable {
+
+    private static final Logger logger = LogManager.getLogger(DocumentSubsetBitsetCache.class);
 
     /**
      * The TTL defaults to 2 hours. We default to a large cache size ({@link #CACHE_SIZE_SETTING}), and aggressively
@@ -101,8 +105,6 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     );
 
     private static final BitSet NULL_MARKER = new FixedBitSet(0);
-
-    private static final Logger logger = LogManager.getLogger(DocumentSubsetBitsetCache.class);
 
     /**
      * When a {@link BitSet} is evicted from {@link #bitsetCache}, we need to also remove it from {@link #keysByIndex}.
@@ -130,7 +132,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * @param cleanupExecutor An executor on which the cache cleanup tasks can be run. Due to the way the cache is structured internally,
      *                        it is sometimes necessary to run an asynchronous task to synchronize the internal state.
      */
-    protected DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
+    // visible for testing
+    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
         final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
         this.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
         this.cacheModificationLock = new ReleasableLock(readWriteLock.readLock());
@@ -150,8 +153,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     @Override
-    public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
-        final Set<BitsetCacheKey> keys = keysByIndex.remove(ownerCoreCacheKey);
+    public void onClose(IndexReader.CacheKey indexKey) {
+        final Set<BitsetCacheKey> keys = keysByIndex.remove(indexKey);
         if (keys != null) {
             // Because this Set has been removed from the map, and the only update to the set is performed in a
             // Map#compute call, it should not be possible to get a concurrent modification here.
@@ -163,22 +166,22 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * Cleanup (synchronize) the internal state when an object is removed from the primary cache
      */
     private void onCacheEviction(RemovalNotification<BitsetCacheKey, BitSet> notification) {
-        final BitsetCacheKey bitsetKey = notification.getKey();
-        final IndexReader.CacheKey indexKey = bitsetKey.index;
-        if (keysByIndex.getOrDefault(indexKey, Set.of()).contains(bitsetKey) == false) {
-            // If the bitsetKey isn't in the lookup map, then there's nothing to synchronize
+        final BitsetCacheKey cacheKey = notification.getKey();
+        final IndexReader.CacheKey indexKey = cacheKey.indexKey;
+        if (keysByIndex.getOrDefault(indexKey, Set.of()).contains(cacheKey) == false) {
+            // If the cacheKey isn't in the lookup map, then there's nothing to synchronize
             return;
         }
         // We push this to a background thread, so that it reduces the risk of blocking searches, but also so that the lock management is
         // simpler - this callback is likely to take place on a thread that is actively adding something to the cache, and is therefore
-        // holding the read ("update") side of the lock. It is not possible to upgrade a read lock to a write ("eviction") lock, but we
+        // holding the read ("update") side of the lock. It is not possible to upgrade a read lock to a write lock ("eviction"), but we
         // need to acquire that lock here.
         cleanupExecutor.submit(() -> {
             try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
                 // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
-                if (bitsetCache.get(bitsetKey) == null) {
+                if (bitsetCache.get(cacheKey) == null) {
                     // key is no longer in the cache, make sure it is no longer in the lookup map either.
-                    Optional.ofNullable(keysByIndex.get(indexKey)).ifPresent(set -> set.remove(bitsetKey));
+                    Optional.ofNullable(keysByIndex.get(indexKey)).ifPresent(set -> set.remove(cacheKey));
                 }
             }
         });
@@ -214,7 +217,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     /**
      * Obtain the {@link BitSet} for the given {@code query} in the given {@code context}.
      * If there is a cached entry for that query and context, it will be returned.
-     * Otherwise a new BitSet will be created and stored in the cache.
+     * Otherwise, a new BitSet will be created and stored in the cache.
      * The returned BitSet may be null (e.g. if the query has no results).
      */
     @Nullable
@@ -289,7 +292,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     // Package private for testing
     static boolean isEffectiveMatchAllDocsQuery(Query rewrittenQuery) {
-        if (rewrittenQuery instanceof ConstantScoreQuery && ((ConstantScoreQuery) rewrittenQuery).getQuery() instanceof MatchAllDocsQuery) {
+        if (rewrittenQuery instanceof ConstantScoreQuery csq && csq.getQuery() instanceof MatchAllDocsQuery) {
             return true;
         }
         if (rewrittenQuery instanceof MatchAllDocsQuery) {
@@ -319,16 +322,31 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     public Map<String, Object> usageStats() {
         final ByteSizeValue ram = ByteSizeValue.ofBytes(ramBytesUsed());
-        return Map.of("count", entryCount(), "memory", ram.toString(), "memory_in_bytes", ram.getBytes());
+        final Cache.Stats cacheStats = bitsetCache.stats();
+
+        final Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("count", entryCount());
+        stats.put("memory", ram.toString());
+        stats.put("memory_in_bytes", ram.getBytes());
+        stats.put("hits", cacheStats.getHits());
+        stats.put("misses", cacheStats.getMisses());
+        stats.put("evictions", cacheStats.getEvictions());
+        return Collections.unmodifiableMap(stats);
     }
 
-    private static class BitsetCacheKey {
-        final IndexReader.CacheKey index;
-        final Query query;
+    private static final class BitsetCacheKey {
 
-        private BitsetCacheKey(IndexReader.CacheKey index, Query query) {
-            this.index = index;
+        final IndexReader.CacheKey indexKey;
+        final Query query;
+        final int hashCode;
+
+        private BitsetCacheKey(IndexReader.CacheKey indexKey, Query query) {
+            this.indexKey = indexKey;
             this.query = query;
+            // compute the hashCode eagerly, since it's used multiple times in the cache implementation anyway -- the query here will
+            // be a ConstantScoreQuery around a BooleanQuery, and BooleanQuery already *lazily* caches the hashCode, so this isn't
+            // altogether that much faster in reality, but it makes it more explicit here that we're doing this
+            this.hashCode = computeHashCode();
         }
 
         @Override
@@ -340,17 +358,23 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 return false;
             }
             final BitsetCacheKey that = (BitsetCacheKey) other;
-            return Objects.equals(this.index, that.index) && Objects.equals(this.query, that.query);
+            return Objects.equals(this.indexKey, that.indexKey) && Objects.equals(this.query, that.query);
+        }
+
+        private int computeHashCode() {
+            int result = indexKey.hashCode();
+            result = 31 * result + query.hashCode();
+            return result;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(index, query);
+            return hashCode;
         }
 
         @Override
         public String toString() {
-            return getClass().getSimpleName() + "(" + index + "," + query + ")";
+            return getClass().getSimpleName() + "(" + indexKey + "," + query + ")";
         }
     }
 
@@ -360,15 +384,15 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      */
     void verifyInternalConsistency() {
         this.bitsetCache.keys().forEach(bck -> {
-            final Set<BitsetCacheKey> set = this.keysByIndex.get(bck.index);
+            final Set<BitsetCacheKey> set = this.keysByIndex.get(bck.indexKey);
             if (set == null) {
                 throw new IllegalStateException(
-                    "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.index + "] in the lookup map"
+                    "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.indexKey + "] in the lookup map"
                 );
             }
             if (set.contains(bck) == false) {
                 throw new IllegalStateException(
-                    "Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.index + "] does not contain that key"
+                    "Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.indexKey + "] does not contain that key"
                 );
             }
         });

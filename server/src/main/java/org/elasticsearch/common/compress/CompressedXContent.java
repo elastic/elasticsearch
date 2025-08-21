@@ -135,7 +135,7 @@ public final class CompressedXContent implements Writeable {
      * that may already be compressed.
      */
     public CompressedXContent(BytesReference data) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(data);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(data);
         if (compressor != null) {
             // already compressed...
             this.bytes = BytesReference.toBytes(data);
@@ -148,7 +148,7 @@ public final class CompressedXContent implements Writeable {
     }
 
     private void assertConsistent() {
-        assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
+        assert CompressorFactory.compressorForUnknownXContentType(new BytesArray(bytes)) != null;
         assert this.sha256.equals(sha256(uncompressed()));
         assert this.sha256.equals(sha256FromCompressed(bytes));
     }

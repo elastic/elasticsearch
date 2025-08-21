@@ -47,7 +47,7 @@ class PercentileFloatAggregator {
         state.add(groupId, inValue);
     }
 
-    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluatePercentile(selected, driverContext);
+    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.evaluatePercentile(selected, ctx.driverContext());
     }
 }

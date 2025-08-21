@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -37,16 +36,8 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public EsqlSpecIT(
-        String fileName,
-        String groupName,
-        String testName,
-        Integer lineNumber,
-        CsvTestCase testCase,
-        String instructions,
-        Mode mode
-    ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override

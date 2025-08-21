@@ -848,18 +848,18 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | ENRICH countries
             | STATS size=count(*) by country
             | SORT size DESC
-            | LIMIT 2"""));
+            | LIMIT 3"""));
         assertOK(response);
 
         Map<String, Object> responseAsMap = entityAsMap(response);
         List<?> columns = (List<?>) responseAsMap.get("columns");
         List<?> values = (List<?>) responseAsMap.get("values");
         assertEquals(2, columns.size());
-        assertEquals(2, values.size());
+        assertEquals(3, values.size());
         List<?> flatList = values.stream()
             .flatMap(innerList -> innerList instanceof List ? ((List<?>) innerList).stream() : Stream.empty())
             .collect(Collectors.toList());
-        assertThat(flatList, containsInAnyOrder(1, 3, "usa", "germany"));
+        assertThat(flatList, containsInAnyOrder(1, 1, 3, "usa", "germany", "japan"));
     }
 
     private void createAliases() throws Exception {

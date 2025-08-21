@@ -50,8 +50,8 @@ public class SampleIntAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Set<Integer> inputValues = input.stream().flatMapToInt(AggregatorFunctionTestCase::allInts).boxed().collect(Collectors.toSet());
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        Set<Integer> inputValues = input.stream().flatMapToInt(p -> allInts(p.getBlock(0))).boxed().collect(Collectors.toSet());
         Integer[] resultValues = AggregatorFunctionTestCase.allInts(result).boxed().toArray(Integer[]::new);
         assertThat(resultValues, arrayWithSize(Math.min(inputValues.size(), LIMIT)));
         assertThat(inputValues, hasItems(resultValues));

@@ -70,12 +70,14 @@ public class RemoteSearchForceConnectTimeoutIT extends AbstractMultiClustersTest
 
     public void testTimeoutSetting() {
         var latch = new CountDownLatch(1);
-        for (String nodeName : cluster(LOCAL_CLUSTER).getNodeNames()) {
-            MockTransportService mts = (MockTransportService) cluster(LOCAL_CLUSTER).getInstance(TransportService.class, nodeName);
-
-            mts.addConnectBehavior(
-                cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, (String) null),
-                ((transport, discoveryNode, profile, listener) -> {
+        for (String localNodeName : cluster(LOCAL_CLUSTER).getNodeNames()) {
+            MockTransportService localMts = (MockTransportService) cluster(LOCAL_CLUSTER).getInstance(
+                TransportService.class,
+                localNodeName
+            );
+            for (String remoteNodeName : cluster(REMOTE_CLUSTER_1).getNodeNames()) {
+                TransportService remoteTs = cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, remoteNodeName);
+                localMts.addConnectBehavior(remoteTs, ((transport, discoveryNode, profile, listener) -> {
                     try {
                         latch.await();
                     } catch (InterruptedException e) {
@@ -83,8 +85,8 @@ public class RemoteSearchForceConnectTimeoutIT extends AbstractMultiClustersTest
                     }
 
                     transport.openConnection(discoveryNode, profile, listener);
-                })
-            );
+                }));
+            }
         }
 
         // Add some dummy data to prove we are communicating fine with the remote.

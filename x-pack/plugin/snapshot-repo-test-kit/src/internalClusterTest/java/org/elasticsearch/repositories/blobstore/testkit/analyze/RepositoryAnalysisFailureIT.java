@@ -40,6 +40,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -592,7 +593,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 DISRUPTABLE_REPO_TYPE,
@@ -603,7 +605,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    BlobPath.EMPTY
+                    BlobPath.EMPTY,
+                    snapshotMetrics
                 )
             );
         }
@@ -620,9 +623,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            BlobPath basePath
+            BlobPath basePath,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 
         void setBlobStore(BlobStore blobStore) {

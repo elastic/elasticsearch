@@ -17,6 +17,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -172,8 +174,13 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
 
         @Override
-        AzureStorageService createAzureStorageService(Settings settingsToUse, AzureClientProvider azureClientProvider) {
-            return new AzureStorageService(settingsToUse, azureClientProvider) {
+        AzureStorageService createAzureStorageService(
+            Settings settingsToUse,
+            AzureClientProvider azureClientProvider,
+            ClusterService clusterService,
+            ProjectResolver projectResolver
+        ) {
+            return new AzureStorageService(settingsToUse, azureClientProvider, clusterService, projectResolver) {
                 @Override
                 RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                     return new RequestRetryOptions(

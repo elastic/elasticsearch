@@ -1,4 +1,7 @@
-## `ENRICH` [esql-enrich]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 `ENRICH` enables you to add data from existing indices as new columns using an
 enrich policy.

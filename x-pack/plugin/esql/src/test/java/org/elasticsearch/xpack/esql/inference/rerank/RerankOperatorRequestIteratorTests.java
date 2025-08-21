@@ -18,20 +18,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RerankOperatorRequestIteratorTests extends ComputeTestCase {
 
-    public void testIterateSmallInput() {
+    public void testIterateSmallInput() throws Exception {
         assertIterate(between(1, 100), randomIntBetween(1, 1_000));
     }
 
-    public void testIterateLargeInput() {
+    public void testIterateLargeInput() throws Exception {
         assertIterate(between(10_000, 100_000), randomIntBetween(1, 1_000));
     }
 
-    private void assertIterate(int size, int batchSize) {
+    private void assertIterate(int size, int batchSize) throws Exception {
         final String inferenceId = randomIdentifier();
         final String queryText = randomIdentifier();
+        final BytesRefBlock inputBlock = randomInputBlock(size);
 
         try (
-            BytesRefBlock inputBlock = randomInputBlock(size);
             RerankOperatorRequestIterator requestIterator = new RerankOperatorRequestIterator(inputBlock, inferenceId, queryText, batchSize)
         ) {
             BytesRef scratch = new BytesRef();
@@ -49,6 +49,8 @@ public class RerankOperatorRequestIteratorTests extends ComputeTestCase {
                 }
             }
         }
+
+        allBreakersEmpty();
     }
 
     private BytesRefBlock randomInputBlock(int size) {

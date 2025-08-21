@@ -195,8 +195,8 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         computeNumDocsIfNeeded();
         final Bits actualLiveDocs = in.getLiveDocs();
         if (roleQueryBits == null) {
-            // If we would return a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
-            // but that isn't the case. No docs match with the role query and therefore all docs are marked as deleted
+            // If we were to return a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
+            // but that isn't the case. No docs match with the role query and therefore all docs are marked as deleted.
             return new Bits.MatchNoBits(in.maxDoc());
         } else if (roleQueryBits instanceof MatchAllBitSet) {
             return actualLiveDocs;

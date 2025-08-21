@@ -401,6 +401,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -430,12 +436,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

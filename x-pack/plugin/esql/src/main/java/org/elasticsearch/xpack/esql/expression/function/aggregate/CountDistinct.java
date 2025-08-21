@@ -19,7 +19,6 @@ import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -49,6 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
+import static org.elasticsearch.xpack.esql.expression.Foldables.intValueOf;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -210,14 +210,16 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        int precision = this.precision == null
-            ? DEFAULT_PRECISION
-            : ((Number) this.precision.fold(FoldContext.small() /* TODO remove me */)).intValue();
+        int precision = this.precision == null ? DEFAULT_PRECISION : precisionValue();
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
         return SUPPLIERS.get(type).apply(precision);
+    }
+
+    private int precisionValue() {
+        return intValueOf(precision, source().text(), "Precision");
     }
 
     @Override

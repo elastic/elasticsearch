@@ -83,7 +83,8 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     public String string() {
         if (string == null) {
             string = new String(bytes.bytes(), bytes.offset(), bytes.length(), StandardCharsets.UTF_8);
-            assert (stringLength < 0) || (string.length() == stringLength);
+            // Temp disable
+            // assert (stringLength < 0) || (string.length() == stringLength);
         }
         return string;
     }

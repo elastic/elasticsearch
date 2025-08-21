@@ -20,8 +20,8 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  */
 public class DateEsField extends EsField {
 
-    public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, TimeSeriesFieldType.UNKNOWN);
+    public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues, TimeSeriesFieldType tsType) {
+        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, tsType);
     }
 
     private DateEsField(

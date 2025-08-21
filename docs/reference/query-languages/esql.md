@@ -89,7 +89,6 @@ You can interact with {{esql}} in two ways:
 ### Reference documentation
 
 #### Core references
-* [{{esql}} reference](elasticsearch://reference/query-languages/esql.md)
 * [{{esql}} syntax](esql/esql-syntax.md)
 
 #### Commands, functions, and operators

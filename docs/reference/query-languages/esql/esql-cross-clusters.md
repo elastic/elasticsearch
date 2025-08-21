@@ -10,7 +10,6 @@ products:
 ---
 
 
-
 # Use ES|QL across clusters [esql-cross-clusters]
 
 With {{esql}}, you can execute a single query across multiple clusters.
@@ -18,18 +17,18 @@ With {{esql}}, you can execute a single query across multiple clusters.
 
 ## Prerequisites [esql-ccs-prerequisites]
 
-* {{ccs-cap}} requires remote clusters. To set up remote clusters, see [*Remote clusters*](../../../deploy-manage/remote-clusters.md).
+* {{ccs-cap}} requires remote clusters. To set up remote clusters, see [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
 
-    To ensure your remote cluster configuration supports {{ccs}}, see [Supported {{ccs}} configurations](../../../solutions/search/cross-cluster-search.md#ccs-supported-configurations).
+    To ensure your remote cluster configuration supports {{ccs}}, see [Supported {{ccs}} configurations](docs-content://solutions/search/cross-cluster-search.md#ccs-supported-configurations).
 
 * For full {{ccs}} capabilities, the local and remote cluster must be on the same [subscription level](https://www.elastic.co/subscriptions).
-* The local coordinating node must have the [`remote_cluster_client`](../../../deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
-* If you use [sniff mode](/deploy-manage/remote-clusters/remote-clusters-self-managed.md#sniff-mode), the local coordinating node must be able to connect to seed and gateway nodes on the remote cluster.
+* The local coordinating node must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
+* If you use [sniff mode](docs-content:///deploy-manage/remote-clusters/remote-clusters-self-managed.md#sniff-mode), the local coordinating node must be able to connect to seed and gateway nodes on the remote cluster.
 
     We recommend using gateway nodes capable of serving as coordinating nodes. The seed nodes can be a subset of these gateway nodes.
 
-* If you use [proxy mode](/deploy-manage/remote-clusters/remote-clusters-self-managed.md#proxy-mode), the local coordinating node must be able to connect to the configured `proxy_address`. The proxy at this address must be able to route connections to gateway and coordinating nodes on the remote cluster.
-* {{ccs-cap}} requires different security privileges on the local cluster and remote cluster. See [Configure privileges for {{ccs}}](../../../deploy-manage/remote-clusters/remote-clusters-cert.md#remote-clusters-privileges-ccs) and [*Remote clusters*](../../../deploy-manage/remote-clusters.md).
+* If you use [proxy mode](docs-content:///deploy-manage/remote-clusters/remote-clusters-self-managed.md#proxy-mode), the local coordinating node must be able to connect to the configured `proxy_address`. The proxy at this address must be able to route connections to gateway and coordinating nodes on the remote cluster.
+* {{ccs-cap}} requires different security privileges on the local cluster and remote cluster. See [Configure privileges for {{ccs}}](docs-content://deploy-manage/remote-clusters/remote-clusters-cert.md#remote-clusters-privileges-ccs) and [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
 
 
 ## Security model [esql-ccs-security-model]
@@ -57,19 +56,19 @@ Use [API key authentication](#esql-ccs-security-model-api-key) instead.
 
 TLS certificate authentication secures remote clusters with mutual TLS. This could be the preferred model when a single administrator has full control over both clusters. We generally recommend that roles and their privileges be identical in both clusters.
 
-Refer to [TLS certificate authentication](../../../deploy-manage/remote-clusters/remote-clusters-cert.md) for prerequisites and detailed setup instructions.
+Refer to [TLS certificate authentication](docs-content://deploy-manage/remote-clusters/remote-clusters-cert.md) for prerequisites and detailed setup instructions.
 
 
 ### API key authentication [esql-ccs-security-model-api-key]
 
-The following information pertains to using {{esql}} across clusters with the [**API key based security model**](../../../deploy-manage/remote-clusters/remote-clusters-api-key.md). You’ll need to follow the steps on that page for the **full setup instructions**. This page only contains additional information specific to {{esql}}.
+The following information pertains to using {{esql}} across clusters with the [**API key based security model**](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md). You’ll need to follow the steps on that page for the **full setup instructions**. This page only contains additional information specific to {{esql}}.
 
 API key based cross-cluster search (CCS) enables more granular control over allowed actions between clusters. This may be the preferred model when you have different administrators for different clusters and want more control over who can access what data. In this model, cluster administrators must explicitly define the access given to clusters and users.
 
 You will need to:
 
-* Create an API key on the **remote cluster** using the [Create cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) API or using the [Kibana API keys UI](../../../deploy-manage/api-keys/elasticsearch-api-keys.md).
-* Add the API key to the keystore on the **local cluster**, as part of the steps in [configuring the local cluster](../../../deploy-manage/remote-clusters/remote-clusters-api-key.md#remote-clusters-security-api-key-local-actions). All cross-cluster requests from the local cluster are bound by the API key’s privileges.
+* Create an API key on the **remote cluster** using the [Create cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) API or using the [Kibana API keys UI](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md).
+* Add the API key to the keystore on the **local cluster**, as part of the steps in [configuring the local cluster](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md#remote-clusters-security-api-key-local-actions). All cross-cluster requests from the local cluster are bound by the API key’s privileges.
 
 Using {{esql}} with the API key based security model requires some additional permissions that may not be needed when using the traditional query DSL based search. The following example API call creates a role that can query remote indices using {{esql}} when using the API key based security model. The final privilege, `remote_cluster`, is required to allow remote enrich operations.
 
@@ -358,7 +357,7 @@ Which returns:
 
 ## Enrich across clusters [ccq-enrich]
 
-Enrich in {{esql}} across clusters operates similarly to [local enrich](elasticsearch://reference/query-languages/esql/commands/processing-commands.md#esql-enrich). If the enrich policy and its enrich indices are consistent across all clusters, simply write the enrich command as you would without remote clusters. In this default mode, {{esql}} can execute the enrich command on either the local cluster or the remote clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that the policy exists with consistent data on both the local cluster and the remote clusters is critical for ES|QL to produce a consistent query result.
+Enrich in {{esql}} across clusters operates similarly to [local enrich](commands/enrich.md). If the enrich policy and its enrich indices are consistent across all clusters, simply write the enrich command as you would without remote clusters. In this default mode, {{esql}} can execute the enrich command on either the local cluster or the remote clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that the policy exists with consistent data on both the local cluster and the remote clusters is critical for ES|QL to produce a consistent query result.
 
 ::::{tip}
 Enrich in {{esql}} across clusters using the API key based security model was introduced in version **8.15.0**. Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to use the new required permissions. Refer to the example in the [API key authentication](#esql-ccs-security-model-api-key) section.
@@ -414,7 +413,7 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 | LIMIT 10
 ```
 
-A `_remote` enrich cannot be executed after a [stats](elasticsearch://reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) command. The following example would result in an error:
+A `_remote` enrich cannot be executed after a [`STATS`](commands/stats-by.md) command. The following example would result in an error:
 
 ```esql
 FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
@@ -505,4 +504,4 @@ Running multiple versions of {{es}} in the same cluster beyond the duration of a
 ::::
 
 
-For more information about upgrades, see [Upgrading {{es}}](../../../deploy-manage/upgrade/deployment-or-cluster.md).
+For more information about upgrades, see [Upgrading {{es}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).

@@ -173,6 +173,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
             }
 
             artifacts {
+                it.add("default", buildTar)
                 it.add("extracted", buildExpanded)
             }
         """

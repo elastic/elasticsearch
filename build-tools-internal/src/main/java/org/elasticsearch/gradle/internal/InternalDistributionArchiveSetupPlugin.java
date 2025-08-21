@@ -9,11 +9,9 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.plugins.BasePlugin;
@@ -44,6 +42,7 @@ import static org.elasticsearch.gradle.internal.conventions.GUtils.capitalize;
  */
 public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
+    public static final String DEFAULT_CONFIGURATION_NAME = "default";
     public static final String EXTRACTED_CONFIGURATION_NAME = "extracted";
     public static final String COMPOSITE_CONFIGURATION_NAME = "composite";
     private NamedDomainObjectContainer<DistributionArchive> container;
@@ -74,7 +73,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
             var subProjectName = archiveToSubprojectName(distributionArchive.getName());
             project.project(subProjectName, sub -> {
                 sub.getPlugins().apply(BasePlugin.class);
-
+                sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
                 sub.getTasks().named("assemble").configure(task -> task.dependsOn(distributionArchive.getArchiveTask()));
                 var extractedConfiguration = sub.getConfigurations().create(EXTRACTED_CONFIGURATION_NAME);
                 extractedConfiguration.setCanBeResolved(false);

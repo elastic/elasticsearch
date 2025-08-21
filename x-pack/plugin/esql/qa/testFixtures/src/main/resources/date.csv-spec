@@ -1,3 +1,10 @@
+dateRange
+from date_ranges;
+
+name:keyword | range:date_range
+Slayer       | 666-667
+;
+
 simple
 from employees | sort emp_no | keep emp_no, hire_date | limit 1;
 

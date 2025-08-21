@@ -3,7 +3,7 @@ config:
 steps:
   - group: gpu-tests
     steps:
-      - label: "{{matrix.CHECK_TASK}} / gpu-tests"
+      - label: "{{matrix.GRADLE_TASK}} / gpu-tests"
         key: "packaging-tests-unix"
         command: .buildkite/scripts/cuvs-snapshot/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints {{matrix.GRADLE_TASK}}
         timeout_in_minutes: 300
@@ -17,7 +17,7 @@ steps:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
         matrix:
           setup:
-            CHECK_TASK:
+            GRADLE_TASK:
               - checkPart1
               - checkPart2
               - checkPart3

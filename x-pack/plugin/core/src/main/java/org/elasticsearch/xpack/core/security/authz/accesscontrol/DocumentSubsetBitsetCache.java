@@ -51,7 +51,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -250,9 +249,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         final BitsetCacheKey cacheKey = new BitsetCacheKey(indexKey, query);
 
         try (ReleasableLock ignored = cacheModificationLock.acquire()) {
-            final AtomicBoolean cacheKeyWasPresent = new AtomicBoolean(true);
+            final boolean[] cacheKeyWasPresent = new boolean[] { true };
             final BitSet bitSet = bitsetCache.computeIfAbsent(cacheKey, ignore1 -> {
-                cacheKeyWasPresent.set(false);
+                cacheKeyWasPresent[0] = false;
                 // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
                 keysByIndex.compute(indexKey, (ignore2, set) -> {
                     if (set == null) {
@@ -281,7 +280,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 }
                 return result;
             });
-            if (cacheKeyWasPresent.get()) {
+            if (cacheKeyWasPresent[0]) {
                 hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
             } else {
                 missesTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);

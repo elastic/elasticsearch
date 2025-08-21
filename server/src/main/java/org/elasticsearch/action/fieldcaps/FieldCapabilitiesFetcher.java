@@ -171,7 +171,7 @@ class FieldCapabilitiesFetcher {
         for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
             final String field = entry.getKey();
             MappedFieldType ft = entry.getValue();
-            if (fieldNameFilter.test(field) == false && ((ft.isDimension() && includeDimensions) == false)) {
+            if (fieldNameFilter.test(field) == false && ((includeDimensions && ft.isDimension()) == false)) {
                 continue;
             }
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))

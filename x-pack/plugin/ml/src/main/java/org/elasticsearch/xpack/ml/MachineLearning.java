@@ -763,7 +763,7 @@ public class MachineLearning extends Plugin
      */
     public static final Setting<TimeValue> SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME = Setting.timeSetting(
         "xpack.ml.trained_models.adaptive_allocations.scale_to_zero_time",
-        TimeValue.timeValueHours(24),
+        TimeValue.timeValueHours(4),
         TimeValue.timeValueMinutes(1),
         Property.Dynamic,
         Setting.Property.NodeScope

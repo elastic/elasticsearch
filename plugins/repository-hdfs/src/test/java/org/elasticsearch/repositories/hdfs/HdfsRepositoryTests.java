@@ -62,4 +62,9 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
             assertThat(response.result().blobs(), equalTo(0L));
         }
     }
+
+    @Override
+    public void testFailIfAlreadyExists() {
+        // HDFS does not implement failIfAlreadyExists correctly
+    }
 }

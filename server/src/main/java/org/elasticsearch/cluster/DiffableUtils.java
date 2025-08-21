@@ -104,8 +104,8 @@ public final class DiffableUtils {
      */
     @SuppressWarnings("unchecked")
     public static <K, T extends Diffable<T>, T1 extends T, T2 extends T, M extends Map<K, T>> MapDiff<K, T, M> merge(
-        MapDiff<K, T1, ? extends Map<K, T1>> diff1,
-        MapDiff<K, T2, ? extends Map<K, T2>> diff2,
+        MapDiff<K, T1, ? extends ImmutableOpenMap<K, T1>> diff1,
+        MapDiff<K, T2, ? extends ImmutableOpenMap<K, T2>> diff2,
         KeySerializer<K> keySerializer
     ) {
         return merge(diff1, diff2, keySerializer, DiffableValueSerializer.getWriteOnlyInstance());
@@ -116,8 +116,8 @@ public final class DiffableUtils {
      */
     @SuppressWarnings("unchecked")
     public static <K, T, T1 extends T, T2 extends T, M extends Map<K, T>> MapDiff<K, T, M> merge(
-        MapDiff<K, T1, ? extends Map<K, T1>> diff1,
-        MapDiff<K, T2, ? extends Map<K, T2>> diff2,
+        MapDiff<K, T1, ? extends ImmutableOpenMap<K, T1>> diff1,
+        MapDiff<K, T2, ? extends ImmutableOpenMap<K, T2>> diff2,
         KeySerializer<K> keySerializer,
         ValueSerializer<K, T> valueSerializer
     ) {
@@ -130,7 +130,7 @@ public final class DiffableUtils {
             mapEntries(diff1.getUpserts(), val -> (T) val),
             mapEntries(diff2.getUpserts(), val -> (T) val)
         ).toList();
-        return new MapDiff<>(keySerializer, valueSerializer, deletes, diffs, upserts, DiffableUtils::createImmutableMapBuilder);
+        return new MapDiff<K, T, M>(keySerializer, valueSerializer, deletes, diffs, upserts, DiffableUtils::createImmutableMapBuilder);
     }
 
     /**

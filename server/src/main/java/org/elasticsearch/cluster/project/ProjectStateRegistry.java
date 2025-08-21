@@ -316,7 +316,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             this.projectsMarkedForDeletionGeneration = original.projectsMarkedForDeletionGeneration;
         }
 
-        private void modifyEntry(ProjectId projectId, Function<Entry, Entry> modifier) {
+        private void updateEntry(ProjectId projectId, Function<Entry, Entry> modifier) {
             Entry entry = projectsEntries.get(projectId);
             if (entry == null) {
                 entry = new Entry();
@@ -326,12 +326,12 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         }
 
         public Builder putProjectSettings(ProjectId projectId, Settings settings) {
-            modifyEntry(projectId, entry -> entry.withSettings(settings));
+            updateEntry(projectId, entry -> entry.withSettings(settings));
             return this;
         }
 
         public Builder putReservedStateMetadata(ProjectId projectId, ReservedStateMetadata reservedStateMetadata) {
-            modifyEntry(projectId, entry -> entry.withReservedStateMetadata(reservedStateMetadata));
+            updateEntry(projectId, entry -> entry.withReservedStateMetadata(reservedStateMetadata));
             return this;
         }
 
@@ -397,10 +397,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         }
 
         public Entry withReservedStateMetadata(ReservedStateMetadata reservedStateMetadata) {
-            ImmutableOpenMap<String, ReservedStateMetadata> build = ImmutableOpenMap.builder(this.reservedStateMetadata)
+            ImmutableOpenMap<String, ReservedStateMetadata> reservedStateMetadataMap = ImmutableOpenMap.builder(this.reservedStateMetadata)
                 .fPut(reservedStateMetadata.namespace(), reservedStateMetadata)
                 .build();
-            return new Entry(settings, build);
+            return new Entry(settings, reservedStateMetadataMap);
         }
 
         @Override

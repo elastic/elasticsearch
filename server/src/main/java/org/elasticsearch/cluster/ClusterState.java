@@ -1365,7 +1365,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 COMPATIBILITY_VERSIONS_VALUE_SERIALIZER
             );
             features = after.clusterFeatures.diff(before.clusterFeatures);
-
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);

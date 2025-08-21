@@ -765,6 +765,7 @@ public class MachineLearning extends Plugin
         "xpack.ml.trained_models.adaptive_allocations.scale_to_zero_time",
         TimeValue.timeValueHours(4),
         TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueHours(72),
         Property.Dynamic,
         Setting.Property.NodeScope
     );

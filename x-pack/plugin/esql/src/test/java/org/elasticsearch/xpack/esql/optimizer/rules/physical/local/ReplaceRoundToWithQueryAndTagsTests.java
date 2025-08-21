@@ -391,6 +391,60 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
         }
     }
 
+    // If the number of rounding points is 127 or less, the query is rewritten to use QueryAndTags.
+    // If the number of rounding points is 128 or more, the query is not rewritten.
+    public void testRoundToTransformToQueryAndTagsUpperLimit() {
+        for (int numOfPoints : List.of(127, 128)) {
+            StringBuilder points = new StringBuilder();
+            for (int i = 0; i < numOfPoints; i++) {
+                if (i > 0) {
+                    points.append(", ");
+                }
+                points.append(i);
+            }
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats count(*) by x = round_to(integer, {})
+                """, points.toString());
+
+            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec agg = as(limit.child(), AggregateExec.class);
+            assertThat(agg.getMode(), is(FINAL));
+            List<? extends Expression> groupings = agg.groupings();
+            NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
+            assertEquals("x", grouping.name());
+            assertEquals(DataType.INTEGER, grouping.dataType());
+            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
+            ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
+            assertThat(exchange.inBetweenAggs(), is(true));
+            agg = as(exchange.child(), AggregateExec.class);
+            EvalExec evalExec = as(agg.child(), EvalExec.class);
+            List<Alias> aliases = evalExec.fields();
+            assertEquals(1, aliases.size());
+            if (numOfPoints == 127) {
+                FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
+                assertTrue(roundToTag.name().startsWith("$$integer$round_to$"));
+                EsQueryExec esQueryExec = as(evalExec.child(), EsQueryExec.class);
+                List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+                assertEquals(128, queryBuilderAndTags.size()); // 127 + nullBucket
+                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+            } else { // numOfPoints == 128, query rewrite does not happen
+                RoundTo roundTo = as(aliases.get(0).child(), RoundTo.class);
+                assertEquals(128, roundTo.points().size());
+                FieldExtractExec fieldExtractExec = as(evalExec.child(), FieldExtractExec.class);
+                EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+                List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+                assertEquals(1, queryBuilderAndTags.size());
+                EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+                assertNull(queryBuilder.query());
+                assertTrue(queryBuilder.tags().isEmpty());
+                assertNull(esQueryExec.query());
+            }
+        }
+    }
+
     private static void verifyQueryAndTags(List<EsQueryExec.QueryBuilderAndTags> expected, List<EsQueryExec.QueryBuilderAndTags> actual) {
         assertEquals(expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++) {

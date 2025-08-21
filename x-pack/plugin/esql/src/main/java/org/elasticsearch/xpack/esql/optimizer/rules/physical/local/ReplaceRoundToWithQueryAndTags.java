@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -253,6 +255,11 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     EvalExec,
     LocalPhysicalOptimizerContext> {
 
+    // this is the maximum number of rounding points supported by this rule,
+    // it is the same as the maximum number of buckets used in Rounding.
+    public static final int MAX_NUM_POINTS = 127;
+    private static final Logger logger = LogManager.getLogger(ReplaceRoundToWithQueryAndTags.class);
+
     @Override
     protected PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = evalExec;
@@ -268,7 +275,18 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 .toList();
             // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
-                plan = planRoundTo(roundTos.get(0), evalExec, queryExec, ctx);
+                RoundTo roundTo = roundTos.get(0);
+                int count = roundTo.points().size();
+                if (count > MAX_NUM_POINTS) {
+                    logger.debug(
+                        "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
+                        roundTo.source(),
+                        count,
+                        MAX_NUM_POINTS
+                    );
+                    return evalExec;
+                }
+                plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
             }
         }
         return plan;

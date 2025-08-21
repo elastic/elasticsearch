@@ -4633,7 +4633,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
                     List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
                     command.contains("join")
-                        ? "JOIN ON clause only supports fields at the moment"
+                        ? "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
                         : "declared as a constant, cannot be used as an identifier"
                 );
             }

@@ -140,9 +140,11 @@ public class LocalMapper {
                 fragmentExec,
                 config.leftFields(),
                 config.rightFields(),
-                join.rightOutputFields()
+                join.rightOutputFields(),
+                config.joinOnConditions()
             );
         }
         return MapperUtils.unsupported(binary);
     }
+
 }

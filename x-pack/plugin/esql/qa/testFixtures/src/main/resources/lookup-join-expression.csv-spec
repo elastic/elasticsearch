@@ -1,0 +1,333 @@
+//
+// CSV spec for LOOKUP JOIN command with expression join
+//
+
+lookupWithExpressionEquals
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages == language_code
+| KEEP emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 2                     | French
+;
+
+lookupWithExpressionNotEquals
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages != language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+10001          | 2                 | 3                     | Spanish
+10001          | 2                 | 4                     | German
+;
+
+lookupWithExpressionGreater
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages > language_code
+| KEEP emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+;
+
+lookupWithExpressionGreaterOrEquals
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages >= language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT language_code
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+10001          | 2                 | 2                     | French
+;
+
+lookupWithExpressionLess
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages < language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT language_code
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 3                     | Spanish
+10001          | 2                 | 4                     | German
+;
+
+lookupWithExpressionLessOrEquals
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages <= language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 2                     | French
+10001          | 2                 | 3                     | Spanish
+10001          | 2                 | 4                     | German
+;
+
+lookupWithTwoExpressionsAnd
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL expected_lang = "English"
+| LOOKUP JOIN languages_lookup ON languages > language_code AND expected_lang == language_name
+| KEEP emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+;
+
+lookupWithTwoExpressionsAndNoMatch
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL expected_lang = "French"
+| LOOKUP JOIN languages_lookup ON languages > language_code AND expected_lang == language_name
+| KEEP emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | null                  | null
+;
+
+lookupWithTwoExpressionsSelfJoin
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM languages_lookup
+| RENAME language_code AS left_code, language_name AS left_name
+| LOOKUP JOIN languages_lookup ON left_code > language_code AND left_name != language_name
+| WHERE left_code = 2
+| KEEP left_code, left_name, language_code, language_name
+;
+
+left_code:integer | left_name:keyword | language_code:integer | language_name:keyword
+2                 | French            | 1                     | English
+;
+
+lookupMultiColTwoExprAnd
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| RENAME id_int AS left_id, name_str AS left_name
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id == id_int AND left_name == name_str
+| KEEP left_id, left_name, id_int, name_str
+| SORT left_id, left_name, id_int, name_str
+;
+
+left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
+1               | foo               | 1              | foo
+2               | bar               | 2              | bar
+3               | baz               | 3              | baz
+4               | qux               | 4              | qux
+5               | foo               | 5              | foo
+;
+
+lookupMultiColThreeExprAnd
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| RENAME id_int AS left_id, name_str AS left_name, is_active_bool AS left_is_active
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id == id_int AND left_name == name_str AND left_is_active == is_active_bool
+| KEEP left_id, left_name, left_is_active, id_int, name_str, is_active_bool
+| SORT left_id
+;
+
+left_id:integer | left_name:keyword | left_is_active:boolean | id_int:integer | name_str:keyword | is_active_bool:boolean
+1               | foo               | true                   | 1              | foo              | true
+2               | bar               | false                  | 2              | bar              | false
+3               | baz               | true                   | 3              | baz              | true
+4               | qux               | false                  | 4              | qux              | false
+5               | foo               | false                  | 5              | foo              | false
+;
+
+lookupMultiColFourExprAnd
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| RENAME id_int AS left_id, name_str AS left_name, is_active_bool AS left_is_active, ip_addr AS left_ip
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id == id_int AND left_name == name_str AND left_is_active == is_active_bool AND left_ip == ip_addr
+| KEEP left_id, left_name, left_is_active, left_ip, id_int, name_str, is_active_bool, ip_addr
+| SORT left_id
+;
+
+left_id:integer | left_name:keyword | left_is_active:boolean | left_ip:ip    | id_int:integer | name_str:keyword | is_active_bool:boolean | ip_addr:ip
+1               | foo               | true                   | 192.168.1.1   | 1              | foo              | true                   | 192.168.1.1
+2               | bar               | false                  | 192.168.1.2   | 2              | bar              | false                  | 192.168.1.2
+3               | baz               | true                   | 192.168.1.3   | 3              | baz              | true                   | 192.168.1.3
+4               | qux               | false                  | 192.168.1.4   | 4              | qux              | false                  | 192.168.1.4
+5               | foo               | false                  | 192.168.1.5   | 5              | foo              | false                  | 192.168.1.5
+;
+
+lookupMultiColTwoExprAndNoMatch
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| RENAME id_int AS left_id, name_str AS left_name
+| EVAL left_name = "nomatch"
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id == id_int AND left_name == name_str
+| KEEP left_id, left_name, id_int, name_str
+| SORT left_id
+;
+
+left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
+1               | nomatch           | null           | null
+2               | nomatch           | null           | null
+3               | nomatch           | null           | null
+4               | nomatch           | null           | null
+5               | nomatch           | null           | null
+;
+
+lookupMultiColMixedEqNeq
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| RENAME id_int AS left_id, name_str AS left_name
+| LOOKUP JOIN multi_column_joinable_lookup ON left_name == name_str AND left_id != id_int
+| KEEP left_id, left_name, id_int, name_str
+| SORT left_id
+;
+
+left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
+1               | foo               | 5              | foo
+2               | bar               | null           | null
+3               | baz               | null           | null
+4               | qux               | null           | null
+5               | foo               | 1              | foo
+;
+
+lookupMultiColMixedGtEq
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| RENAME id_int AS left_id, name_str AS left_name
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id > id_int AND left_name == name_str
+| KEEP left_id, left_name, id_int, name_str
+| SORT left_id
+;
+
+left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
+1               | foo               | null           | null
+2               | bar               | null           | null
+3               | baz               | null           | null
+4               | qux               | null           | null
+5               | foo               | 1              | foo
+;
+
+lookupMultiColMixedLtNeqEq
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| RENAME id_int AS left_id, name_str AS left_name, is_active_bool AS left_is_active
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id < id_int AND left_name != name_str AND left_is_active == is_active_bool
+| KEEP left_id, left_name, left_is_active, id_int, name_str, is_active_bool
+| SORT left_id, id_int
+;
+
+left_id:integer | left_name:keyword | left_is_active:boolean | id_int:integer | name_str:keyword | is_active_bool:boolean
+1               | foo               | true                   | 3              | baz              | true
+2               | bar               | false                  | 4              | qux              | false
+2               | bar               | false                  | 5              | foo              | false
+3               | baz               | true                   | null           | null             | null
+4               | qux               | false                  | 5              | foo              | false
+5               | foo               | false                  | null           | null             | null
+;
+
+lookupMultiColMixedGteNeq
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| RENAME id_int AS left_id, name_str AS left_name
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id >= id_int AND left_name != name_str
+| KEEP left_id, left_name, id_int, name_str
+| SORT left_id, id_int
+;
+
+left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
+1               | foo               | null           | null
+2               | bar               | 1              | foo
+3               | baz               | 1              | foo
+3               | baz               | 2              | bar
+4               | qux               | 1              | foo
+4               | qux               | 2              | bar
+4               | qux               | 3              | baz
+5               | foo               | 2              | bar
+5               | foo               | 3              | baz
+5               | foo               | 4              | qux
+;
+
+lookupMultiColMixedLteEq
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| WHERE id_int == 3
+| RENAME id_int AS left_id, name_str AS left_name
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id <= id_int AND left_name == name_str
+| KEEP left_id, left_name, id_int, name_str
+| SORT id_int
+;
+
+left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
+3               | baz               | 3              | baz
+;
+
+lookupMultiColFourMixed
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable_lookup
+| WHERE id_int == 2
+| RENAME id_int AS left_id, name_str AS left_name, is_active_bool AS left_is_active, ip_addr AS left_ip
+| LOOKUP JOIN multi_column_joinable_lookup ON left_id < id_int AND left_name != name_str AND left_is_active != is_active_bool AND left_ip != ip_addr
+| KEEP left_id, left_name, left_is_active, left_ip, id_int, name_str, is_active_bool, ip_addr
+| SORT id_int
+;
+
+left_id:integer | left_name:keyword | left_is_active:boolean | left_ip:ip    | id_int:integer | name_str:keyword | is_active_bool:boolean | ip_addr:ip
+2               | bar               | false                  | 192.168.1.2   | 3              | baz              | true                   | 192.168.1.3
+;

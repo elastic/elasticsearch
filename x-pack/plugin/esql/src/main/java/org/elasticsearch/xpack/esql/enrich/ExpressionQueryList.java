@@ -11,13 +11,18 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -42,19 +47,99 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private final List<QueryList> queryLists;
     private final List<Query> preJoinFilters = new ArrayList<>();
     private final SearchExecutionContext context;
+    boolean isExpressionJoin = false;
+    private final AliasFilter aliasFilter;
 
     public ExpressionQueryList(
         List<QueryList> queryLists,
         SearchExecutionContext context,
         PhysicalPlan rightPreJoinPlan,
-        ClusterService clusterService
+        ClusterService clusterService,
+        LookupFromIndexService.TransportRequest request,
+        AliasFilter aliasFilter
     ) {
-        if (queryLists.size() < 2 && (rightPreJoinPlan instanceof FilterExec == false)) {
+        if (queryLists.size() < 2 && (rightPreJoinPlan instanceof FilterExec == false) && request.getJoinOnConditions() == null) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists or a pre-join filter");
         }
         this.queryLists = queryLists;
         this.context = context;
+        this.aliasFilter = aliasFilter;
+        buildJoinOnConditions(request, clusterService);
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
+
+    }
+
+    private void buildJoinOnConditions(LookupFromIndexService.TransportRequest request, ClusterService clusterService) {
+        // we support 2 modes of operation:
+        // Join on fields
+        // Join on AND of binary comparisons
+        Expression filter = request.getJoinOnConditions();
+        if (filter == null) {
+            // the join on conditions are already populated via the queryLists
+            // there is nothing to do here
+            return;
+        } else {
+            // clear the join on conditions in the query lists
+            // the join on condition needs to come from the expression
+            queryLists.clear();
+        }
+        List<Expression> expressions = Predicates.splitAnd(filter);
+        for (Expression expr : expressions) {
+            if (expr instanceof EsqlBinaryComparison binaryComparison) {
+                // the left side comes from the page that was sent to the lookup node
+                // the right side is the field from the lookup index
+                // check if the left side is in the request.getMatchFields()
+                // if it is its corresponding page is the corresponding number in request.inputPage
+                Expression left = binaryComparison.left();
+                if (left instanceof Attribute leftAttribute) {
+                    boolean matched = false;
+                    for (int i = 0; i < request.getMatchFields().size(); i++) {
+                        if (request.getMatchFields().get(i).fieldName().string().equals(leftAttribute.name())) {
+                            Block block = request.getInputPage().getBlock(i);
+                            Expression right = binaryComparison.right();
+                            if (right instanceof Attribute rightAttribute) {
+                                MappedFieldType fieldType = context.getFieldType(rightAttribute.name());
+                                if (fieldType != null) {
+                                    isExpressionJoin = true;
+                                    queryLists.add(
+                                        new BinaryComparisonQueryList(
+                                            fieldType,
+                                            context,
+                                            block,
+                                            binaryComparison,
+                                            clusterService,
+                                            aliasFilter
+                                        )
+                                    );
+                                    matched = true;
+                                    break;
+                                } else {
+                                    throw new IllegalArgumentException(
+                                        "Could not find field [" + rightAttribute.name() + "] in the lookup join index"
+                                    );
+                                }
+                            } else {
+                                throw new IllegalArgumentException(
+                                    "Only field from the right dataset are supported on the right of the join on condition but got: " + expr
+                                );
+                            }
+                        }
+                    }
+                    if (matched == false) {
+                        throw new IllegalArgumentException(
+                            "Could not find field [" + leftAttribute.name() + "] in the left side of the lookup join"
+                        );
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        "Only field from the left dataset are supported on the left of the join on condition but got: " + expr
+                    );
+                }
+            } else {
+                // we only support binary comparisons in the join on conditions
+                throw new IllegalArgumentException("Only binary comparisons are supported in join ON conditions, but got: " + expr);
+            }
+        }
     }
 
     private void addToPreJoinFilters(QueryBuilder query) {

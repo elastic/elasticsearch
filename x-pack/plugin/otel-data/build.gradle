@@ -8,7 +8,6 @@ plugins {
   id 'elasticsearch.internal-es-plugin'
   id 'elasticsearch.internal-yaml-rest-test'
   id 'elasticsearch.internal-cluster-test'
-  id('com.google.protobuf') version '0.9.5'
 }
 
 esplugin {
@@ -18,8 +17,6 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-// manually update verification-metadata.xml via dev-tools/protoc_exe_sha256.sh when updating the protobuf version
-def protobufVersion = "4.32.0"
 dependencies {
   api project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))
@@ -58,88 +55,4 @@ dependencies {
   testImplementation "io.opentelemetry:opentelemetry-exporter-sender-jdk:$otelVersion"
   testImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:$otelVersion"
   testImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion"
-
-  implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
-}
-
-protobuf {
-  protoc {
-    // The artifact spec for the Protobuf Compiler
-    artifact = "com.google.protobuf:protoc:${protobufVersion}"
-  }
-}
-
-def otlpProtoVersion = "1.7.0" // Version of the OpenTelemetry proto files to use
-
-// To generate the checksum, download the file and run "shasum -a 256 ~/path/to/vfoo.zip"
-def protoChecksum = "ddb80357ff146f5e3bda584907185b1f635412a4b31edf6f96b102a18b8e05dc"
-def protoArchivePath = layout.buildDirectory.file("archives/opentelemetry-proto-${otlpProtoVersion}.zip")
-
-def downloadProtoArchive = tasks.register("downloadProtoArchive") {
-  outputs.file(protoArchivePath)
-  onlyIf { !protoArchivePath.get().asFile.exists() }
-  doLast {
-    protoArchivePath.get().asFile.parentFile.mkdirs()
-    "https://github.com/open-telemetry/opentelemetry-proto/archive/v${otlpProtoVersion}.zip".toURL()
-      .withInputStream { is ->
-        protoArchivePath.get().asFile.withOutputStream {os -> os << is }
-      }
-  }
-}
-
-def verifyProtoArchive = tasks.register("verifyProtoArchive") {
-  dependsOn(downloadProtoArchive)
-  doLast {
-    protoArchivePath.get().asFile.withInputStream { inputStream ->
-      def sha256 = inputStream.readAllBytes().digest("SHA-256")
-      if (sha256 != protoChecksum) {
-        throw new GradleException("Checksum verification failed for $protoArchivePath: expected $protoChecksum, got $sha256")
-      }
-    }
-  }
-}
-
-def unzipProtoArchive = tasks.register("unzipProtoArchive", Copy) {
-  dependsOn(verifyProtoArchive)
-  from zipTree(protoArchivePath)
-  into layout.buildDirectory.dir("protos")
-}
-
-// Avoid unnecessary String allocations in the generated AnyValue class
-// We always need the ByteString (UTF-8) representation of string attributes
-def adjustAnyValueBuilder = tasks.register("adjustAnyValueBuilder") {
-  doLast {
-    ant.replace(
-      file: 'build/generated/sources/proto/main/java/io/opentelemetry/proto/common/v1/AnyValue.java',
-      token: 'java.lang.String s = input.readStringRequireUtf8();',
-      value: 'com.google.protobuf.ByteString s = input.readBytes();',
-      encoding: 'UTF-8'
-    )
-  }
-}
-
-sourceSets {
-  main {
-    proto {
-      srcDir layout.buildDirectory.dir("protos/opentelemetry-proto-${otlpProtoVersion}")
-    }
-  }
-}
-
-afterEvaluate {
-  tasks.named("generateProto") {
-    dependsOn(unzipProtoArchive)
-    finalizedBy(adjustAnyValueBuilder)
-  }
-}
-
-idea {
-  module {
-    sourceDirs += layout.buildDirectory.dir("generated/sources/proto/main/java").get().asFile
-  }
-}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /opentelemetry-.*/, to: 'opentelemetry'
-  mapping from: /protobuf.*/, to: 'protobuf'
 }

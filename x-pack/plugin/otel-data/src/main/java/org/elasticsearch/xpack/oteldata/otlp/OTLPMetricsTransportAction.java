@@ -7,12 +7,6 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
-import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
-import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
-import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
-
-import com.google.protobuf.MessageLite;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -67,40 +61,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, MetricsRequest request, ActionListener<MetricsResponse> listener) {
-        try {
-            var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.exportMetricsServiceRequest.streamInput());
-
-            listener.onResponse(
-                new MetricsResponse(
-                    RestStatus.NOT_IMPLEMENTED,
-                    responseWithRejectedDataPoints(
-                        metricsServiceRequest.getResourceMetricsList().size(),
-                        "OTLP metrics is not implemented yet"
-                    )
-                )
-            );
-
-        } catch (Exception e) {
-            logger.error("failed to execute otlp metrics request", e);
-
-            listener.onResponse(
-                new MetricsResponse(
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    ExportMetricsServiceResponse.newBuilder()
-                        .getPartialSuccessBuilder()
-                        .setErrorMessage("unexpected error while processing otlp metrics request: " + e.getMessage())
-                        .build()
-                )
-            );
-        }
-    }
-
-    private static ExportMetricsPartialSuccess responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
-        return ExportMetricsServiceResponse.newBuilder()
-            .getPartialSuccessBuilder()
-            .setRejectedDataPoints(rejectedDataPoints)
-            .setErrorMessage(message)
-            .build();
+        listener.onResponse(new MetricsResponse(RestStatus.NOT_IMPLEMENTED, new BytesArray(new byte[0])));
     }
 
     public static class MetricsRequest extends ActionRequest {
@@ -125,8 +86,8 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         private final BytesReference response;
         private final RestStatus status;
 
-        public MetricsResponse(RestStatus status, MessageLite response) {
-            this.response = new BytesArray(response.toByteArray());
+        public MetricsResponse(RestStatus status, BytesReference response) {
+            this.response = response;
             this.status = status;
         }
 

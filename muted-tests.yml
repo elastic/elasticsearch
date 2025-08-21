@@ -612,6 +612,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on unmapped byte field}
   issue: https://github.com/elastic/elasticsearch/issues/133331
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:change_point.Values null column}
+  issue: https://github.com/elastic/elasticsearch/issues/133334
 
 # Examples:
 #

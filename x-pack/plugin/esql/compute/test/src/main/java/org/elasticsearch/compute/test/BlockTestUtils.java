@@ -71,6 +71,7 @@ public class BlockTestUtils {
             );
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
+            case DATE_RANGE -> throw new IllegalArgumentException("can't make random values for date range");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }

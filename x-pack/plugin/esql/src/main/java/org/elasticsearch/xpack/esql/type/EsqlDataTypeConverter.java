@@ -19,6 +19,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
+import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.core.Booleans;
@@ -564,6 +565,27 @@ public class EsqlDataTypeConverter {
 
     public static String ipToString(BytesRef field) {
         return DocValueFormat.IP.format(field);
+    }
+
+    public static String dateRangeToString(long from, long to) {
+        var formattedFrom = DEFAULT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(from));
+        var formattedTo = DEFAULT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(to));
+        return "{gte: " + formattedFrom + "\\, lt: " + formattedTo + "}";
+    }
+
+    public static String dateRangeLiteralToString(DateRangeBlockBuilder.DateRangeLiteral lit) {
+        return dateRangeToString(lit.from(), lit.to());
+    }
+
+    static long parseDate(String s) {
+        return DateFormatters.from(DEFAULT_DATE_TIME_FORMATTER.parse(s)).toInstant().toEpochMilli();
+    }
+
+    public static DateRangeBlockBuilder.DateRangeLiteral parseDateRange(String s) {
+        var dates = s.replaceAll("[^0-9-,]", "").split(",");
+        assert dates.length == 2;
+        long leftNormalizer = 0, rightNormalizer = 1;
+        return new DateRangeBlockBuilder.DateRangeLiteral(parseDate(dates[0]) + leftNormalizer, parseDate(dates[1]) - rightNormalizer);
     }
 
     public static BytesRef stringToVersion(BytesRef field) {

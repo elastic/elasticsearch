@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -349,6 +351,98 @@ public class RangeFieldMapper extends FieldMapper {
                 context
             );
         }
+
+        public static class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+            private final String fieldName;
+
+            public DateRangeDocValuesLoader(String fieldName) {
+                this.fieldName = fieldName;
+            }
+
+            @Override
+            public Builder builder(BlockFactory factory, int expectedCount) {
+                return factory.longsFromDocValues(expectedCount);
+            }
+
+            @Override
+            public AllReader reader(LeafReaderContext context) throws IOException {
+                var docValues = context.reader().getBinaryDocValues(fieldName);
+                return new DateRangeDocValuesReader(docValues);
+                /*
+                if (docValues != null) {
+                    NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                    if (singleton != null) {
+                        return new BlockDocValuesReader.SingletonLongs(singleton);
+                    }
+                    return new BlockDocValuesReader.Longs(docValues);
+                }
+                NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
+                if (singleton != null) {
+                    return new BlockDocValuesReader.SingletonLongs(singleton);
+                }
+                return new ConstantNullsReader(); */
+            }
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new DateRangeDocValuesLoader(name());
+            }
+            throw new IllegalStateException("Cannot load blocks without doc values");
+        }
+    }
+
+    public static class DateRangeDocValuesReader extends BlockDocValuesReader {
+        private final BytesRef spare = new BytesRef();
+
+        private final BinaryDocValues numericDocValues;
+
+        public DateRangeDocValuesReader(BinaryDocValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        protected int docId() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return "";
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            try (BlockLoader.DateRangeBuilder builder = factory.dateRangeBuilder(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    read(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            read(docId, (BlockLoader.DateRangeBuilder) builder);
+        }
+
+        private void read(int doc, BlockLoader.DateRangeBuilder builder) throws IOException {
+            // WRONG?
+            if (false == numericDocValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+
+            BytesRef ref = numericDocValues.binaryValue();
+            var ranges = BinaryRangeUtil.decodeLongRanges(ref);
+            for (var range : ranges) {
+                builder.from().appendLong((long) range.getFrom());
+                builder.to().appendLong((long) range.to);
+            }
+        }
     }
 
     private final RangeType type;
@@ -420,10 +514,14 @@ public class RangeFieldMapper extends FieldMapper {
 
     private Range parseRange(XContentParser parser) throws IOException {
         final XContentParser.Token start = parser.currentToken();
-        if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
-            return parseIpRangeFromCidr(parser);
-        }
+        return (start != XContentParser.Token.VALUE_STRING) ? parseGeneralRange(parser, start) : switch (fieldType().rangeType) {
+            case RangeType.IP -> parseIpRangeFromCidr(parser);
+            case RangeType.DATE -> parseDateRange(parser.text());
+            default -> parseGeneralRange(parser, start);
+        };
+    }
 
+    private Range parseGeneralRange(XContentParser parser, XContentParser.Token start) throws IOException {
         if (start != XContentParser.Token.START_OBJECT) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
@@ -481,6 +579,14 @@ public class RangeFieldMapper extends FieldMapper {
     private static Range parseIpRangeFromCidr(final XContentParser parser) throws IOException {
         final InetAddresses.IpRange range = InetAddresses.parseIpRangeFromCidr(parser.text());
         return new Range(RangeType.IP, range.lowerBound(), range.upperBound(), true, true);
+    }
+
+    private static Range parseDateRange(String s) throws IOException {
+        var nums = s.split("-");
+        assert nums.length == 2 : "Expected two numbers in the date range string: " + s;
+        var from = Long.parseLong(nums[0].trim());
+        var to = Long.parseLong(nums[1].trim());
+        return new Range(RangeType.DATE, from, to, true, false);
     }
 
     @Override

@@ -48,7 +48,6 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -69,7 +68,6 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -302,10 +300,10 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     .build()
             );
             var e = expectThrows(
-                InvalidIndexTemplateException.class,
+                IllegalArgumentException.class,
                 () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
             );
-            assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+            assertThat(e.getCause().getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
         }
     }
 
@@ -649,7 +647,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
 
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of()));
 
         // put mapping with k8s.pod.uid as another time series dimension
         var putMappingRequest = new PutMappingRequest(dataStreamName).source("""
@@ -664,7 +662,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             """, XContentType.JSON);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
 
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of()));
 
         indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +41,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -97,8 +99,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final ProjectMetadata metadata,
         final Instant resolvedAt,
         Settings settings,
-        final List<CompressedXContent> combinedTemplateMappings
-    ) {
+        final List<CompressedXContent> combinedTemplateMappings,
+        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata) {
         Settings.Builder settingsBuilder = null;
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
         // This index name is used when validating component and index templates, we should skip this check in that case.

@@ -945,8 +945,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (sourceIndexMetadata.getRoutingPaths().isEmpty() == false) {
             builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths());
         }
-        if (sourceIndexMetadata.getDimensions().isEmpty() == false) {
-            builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getDimensions());
+        if (sourceIndexMetadata.getTimeSeriesDimensions().isEmpty() == false) {
+            builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getTimeSeriesDimensions());
         }
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             builder.put(

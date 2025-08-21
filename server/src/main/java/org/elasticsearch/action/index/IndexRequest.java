@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
@@ -363,7 +364,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * When {@link org.elasticsearch.cluster.metadata.IndexMetadata#INDEX_DIMENSIONS} is populated,
+     * When {@link IndexMetadata#getTimeSeriesDimensions()} is populated,
      * the coordinating node will calculate _tsid during routing and set it on the request.
      * For time series indices where the setting is not populated, the _tsid will be created in the data node during document parsing.
      * <p>

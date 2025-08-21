@@ -63,7 +63,7 @@ public abstract class IndexRouting {
      * Build the routing from {@link IndexMetadata}.
      */
     public static IndexRouting fromIndexMetadata(IndexMetadata metadata) {
-        if (metadata.getRoutingPaths().isEmpty() == false || metadata.getDimensions().isEmpty() == false) {
+        if (metadata.getRoutingPaths().isEmpty() == false || metadata.getTimeSeriesDimensions().isEmpty() == false) {
             return new ExtractFromSource(metadata);
         }
         if (metadata.isRoutingPartitionedIndex()) {
@@ -324,17 +324,18 @@ public abstract class IndexRouting {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
             indexMode = metadata.getIndexMode();
+            assert indexMode != null : "Index mode must be set for ExtractFromSource routing";
             var createTsidDuringRouting = false;
             var trackTimeSeriesRoutingHash = false;
             List<String> includePaths;
             includePaths = metadata.getRoutingPaths();
             if (indexMode == IndexMode.TIME_SERIES) {
-                if (metadata.getDimensions().isEmpty() == false && metadata.getRoutingPaths().isEmpty()) {
+                if (metadata.getTimeSeriesDimensions().isEmpty() == false && metadata.getRoutingPaths().isEmpty()) {
                     // This optimization is only available for new indices where
                     // the dimensions index setting is automatically populated from the mappings.
                     // If users manually set the routing paths, the optimization is not applied.
                     createTsidDuringRouting = true;
-                    includePaths = metadata.getDimensions();
+                    includePaths = metadata.getTimeSeriesDimensions();
                 }
                 if (metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
                     trackTimeSeriesRoutingHash = true;

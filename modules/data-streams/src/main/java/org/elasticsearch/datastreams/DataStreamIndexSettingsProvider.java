@@ -11,7 +11,9 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccess;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -36,8 +38,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DIMENSIONS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
 /**
@@ -63,7 +65,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
-        List<CompressedXContent> combinedTemplateMappings
+        List<CompressedXContent> combinedTemplateMappings,
+        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
@@ -127,7 +130,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             dimensions
                         );
                         if (dimensions.isEmpty() == false) {
-                            builder.putList(matchesAllDimensions ? INDEX_DIMENSIONS.getKey() : INDEX_ROUTING_PATH.getKey(), dimensions);
+                            if (matchesAllDimensions) {
+                                TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(extraCustomMetadata, dimensions);
+                            } else {
+                                builder.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
+                            }
                         }
                     }
                     return builder.build();
@@ -139,15 +146,19 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     /**
-     * This is called when mappings are updated, so that the {@link IndexMetadata#INDEX_DIMENSIONS}
+     * This is called when mappings are updated, so that the {@link IndexMetadata#getTimeSeriesDimensions()}
      * and {@link IndexMetadata#INDEX_ROUTING_PATH} settings are updated to match the new mappings.
-     * Updates {@link IndexMetadata#INDEX_DIMENSIONS} if a new dimension field is added to the mappings,
+     * Updates {@link IndexMetadata#getTimeSeriesDimensions} if a new dimension field is added to the mappings,
      * or sets {@link IndexMetadata#INDEX_ROUTING_PATH} if a new dimension field is added that doesn't allow for matching all
      * dimension fields via a wildcard pattern.
      */
     @Override
-    public Settings onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper) {
-        List<String> indexDimensions = INDEX_DIMENSIONS.get(indexMetadata.getSettings());
+    public Settings onUpdateMappings(
+        IndexMetadata indexMetadata,
+        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata,
+        DocumentMapper documentMapper
+    ) {
+        List<String> indexDimensions = indexMetadata.getTimeSeriesDimensions();
         if (indexDimensions.isEmpty()) {
             return Settings.EMPTY;
         }
@@ -158,8 +169,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             return Settings.EMPTY;
         }
         if (matchesAllDimensions) {
-            return Settings.builder().putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions).build();
+            TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(extraCustomMetadata, newIndexDimensions);
+            return Settings.EMPTY;
         } else {
+            // If the new dimensions don't match all potential dimension fields, we need to set index.routing_path
             return Settings.builder().putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions).build();
         }
     }

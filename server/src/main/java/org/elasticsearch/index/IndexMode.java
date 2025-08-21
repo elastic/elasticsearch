@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -147,17 +148,6 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
-            if (isEmpty(settings, routingPath) && isEmpty(settings, IndexMetadata.INDEX_DIMENSIONS)) {
-                // index.dimensions is a private setting that only gets populated for data streams.
-                // We don't include it in the error message to not confuse users that are manually creating time series indices
-                // which is the only case where this error can occur.
-                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + routingPath.getKey() + "]");
-            }
-        }
-
-        private static boolean isEmpty(Map<Setting<?>, Object> settings, Setting<List<String>> setting) {
-            return Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting));
         }
 
         private static String error(Setting<?> unsupported) {
@@ -420,7 +410,7 @@ public enum IndexMode {
         }
     }
 
-    protected static String tsdbMode() {
+    public static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
@@ -469,7 +459,6 @@ public enum IndexMode {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_ROUTING_PATH,
-                IndexMetadata.INDEX_DIMENSIONS,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME
@@ -632,8 +621,8 @@ public enum IndexMode {
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
-            List<CompressedXContent> combinedTemplateMappings
-        ) {
+            List<CompressedXContent> combinedTemplateMappings,
+            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {
                 String modeName = indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey());

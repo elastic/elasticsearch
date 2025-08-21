@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -64,7 +65,16 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
+        var result = provider.getAdditionalIndexSettings(
+            indexName,
+            dataStreamName,
+            null,
+            null,
+            null,
+            settings,
+            List.of(),
+            ImmutableOpenMap.builder()
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
     }
@@ -73,7 +83,16 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-apm.app.test";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
+        var result = provider.getAdditionalIndexSettings(
+            indexName,
+            dataStreamName,
+            null,
+            null,
+            null,
+            settings,
+            List.of(),
+            ImmutableOpenMap.builder()
+        );
         assertThat(result.size(), equalTo(0));
     }
 
@@ -81,12 +100,30 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         for (String dataStreamName : new String[] { "profiling-metrics", "profiling-events" }) {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-            var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
+            var result = provider.getAdditionalIndexSettings(
+                indexName,
+                dataStreamName,
+                null,
+                null,
+                null,
+                settings,
+                List.of(),
+                ImmutableOpenMap.builder()
+            );
             assertThat(result.size(), equalTo(0));
         }
 
         for (String indexName : new String[] { ".profiling-sq-executables", ".profiling-sq-leafframes", ".profiling-stacktraces" }) {
-            var result = provider.getAdditionalIndexSettings(indexName, null, null, null, null, settings, List.of());
+            var result = provider.getAdditionalIndexSettings(
+                indexName,
+                null,
+                null,
+                null,
+                null,
+                settings,
+                List.of(),
+                ImmutableOpenMap.builder()
+            );
             assertThat(result.size(), equalTo(0));
         }
     }
@@ -95,7 +132,16 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of());
+        var result = provider.getAdditionalIndexSettings(
+            indexName,
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            null,
+            null,
+            settings,
+            List.of(),
+            ImmutableOpenMap.builder()
+        );
         assertThat(result.size(), equalTo(0));
     }
 
@@ -126,7 +172,16 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of());
+        var result = provider.getAdditionalIndexSettings(
+            indexName,
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            null,
+            null,
+            settings,
+            List.of(),
+            ImmutableOpenMap.builder()
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
     }

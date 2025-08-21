@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -87,18 +86,18 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                     if (ij != null) { // this is an Aggregate part of right-hand side of an InlineJoin
                         final LogicalPlan leftHandSide = ij.left(); // final so we can use it in the lambda below
                         // replace the right hand side Aggregate with an Eval
-                        var newRight = ij.right().transformDown(p -> {
-                            // both following steps are executed for the hand-right side of the InlineJoin
-                            if (p instanceof Aggregate a && a == aggregate) {
+                        var newRight = ij.right().transformDown(Aggregate.class, agg -> {
+                            LogicalPlan p = agg;
+                            if (agg == aggregate) {
                                 // the aggregate becomes a simple Eval since it's not needed anymore (it was replaced with Literals)
                                 p = new Eval(aggregate.source(), aggregate.child(), newEvals);
-                            } else if (p instanceof StubRelation) {
-                                // Remove the StubRelation since the right-hand side of the join is now part of the main plan
-                                // and it won't be executed separately by the EsqlSession inlinestats planning.
-                                p = leftHandSide;
                             }
                             return p;
                         });
+                        // Remove the StubRelation since the right-hand side of the join is now part of the main plan
+                        // and it won't be executed separately by the EsqlSession inlinestats planning.
+                        newRight = InlineJoin.replaceStub(leftHandSide, newRight);
+
                         // project the correct output (the one of the former inlinejoin) and remove the InlineJoin altogether,
                         // replacing it with its right-hand side followed by its left-hand side
                         plan = new Project(ij.source(), newRight, ij.output());

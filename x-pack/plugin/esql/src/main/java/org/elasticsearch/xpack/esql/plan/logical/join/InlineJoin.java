@@ -80,17 +80,26 @@ public class InlineJoin extends Join {
      * NOTE: this will replace all {@link StubRelation}s found with the source and the method is meant to be used to replace one node only
      * when being called on a plan that has only ONE StubRelation in it.
      */
-    public static LogicalPlan replaceStub(LogicalPlan source, LogicalPlan stubbed) {
+    public static LogicalPlan replaceStub(LogicalPlan stubReplacement, LogicalPlan stubbedPlan) {
         // here we could have used stubbed.transformUp(StubRelation.class, stubRelation -> source)
         // but transformUp skips changing a node if its transformed variant is equal to its original variant.
         // A StubRelation can contain in its output ReferenceAttributes which do not use NameIds for equality, but only names and
         // two ReferenceAttributes with the same name are equal and the transformation will not be applied.
-        return stubbed.transformUp(UnaryPlan.class, up -> {
+        Holder<Boolean> doneReplacing = new Holder<>(false);
+        var result = stubbedPlan.transformUp(UnaryPlan.class, up -> {
             if (up.child() instanceof StubRelation) {
-                return up.replaceChild(source);
+                if (doneReplacing.get() == false) {
+                    doneReplacing.set(true);
+                    return up.replaceChild(stubReplacement);
+                }
+                assert false : "Expected to replace a single StubRelation in the plan, but found more than one";
             }
             return up;
         });
+
+        assert doneReplacing.get() : "Expected to replace a single StubRelation in the plan, but none found";
+
+        return result;
     }
 
     /**
@@ -161,7 +170,8 @@ public class InlineJoin extends Join {
         LogicalPlan left = in.readNamedWriteable(LogicalPlan.class);
         LogicalPlan right = in.readNamedWriteable(LogicalPlan.class);
         JoinConfig config = new JoinConfig(in);
-        return new InlineJoin(source, left, replaceStub(left, right), config);
+        //return new InlineJoin(source, left, replaceStub(left, right), config);
+        return new InlineJoin(source, left, right, config);
     }
 
     @Override

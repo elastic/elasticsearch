@@ -2396,3 +2396,18 @@ FROM employees
 10010          |null           |4                |6.949207097931448  |7.127229475750027|27921.220736207077|10             
 ;
 
+twoConsecutiveInlinestatsWithFalseFiltes
+required_capability: inlinestats_v10
+from employees
+| keep emp_no
+| limit 3
+| sort emp_no
+| inlinestats count = count(*) where false
+| inlinestats cc = count_distinct(emp_no) where false
+;
+
+    emp_no:i   |     count:l   |      cc:l       
+10001          |0              |0              
+10002          |0              |0              
+10003          |0              |0              
+;

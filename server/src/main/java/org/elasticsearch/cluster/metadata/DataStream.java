@@ -265,6 +265,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             failureStoreRolloverOnWrite |= failureIndices.isEmpty();
             failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
                 .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
+        } else {
+            // If we are reading from an older version that does not have these fields, just default
+            // to a reasonable value for rollover on write for the failure store
+            failureIndicesBuilder.setRolloverOnWrite(failureIndices.isEmpty());
         }
         DataStreamOptions dataStreamOptions;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {

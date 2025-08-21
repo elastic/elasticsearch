@@ -1,5 +1,7 @@
 config:
   allow-labels: test-gpu
+  skip-labels:
+    - ">test-mute"
 steps:
   - group: gpu-tests
     steps:

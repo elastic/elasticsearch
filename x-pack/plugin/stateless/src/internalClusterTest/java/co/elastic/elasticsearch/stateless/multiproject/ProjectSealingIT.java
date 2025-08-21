@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
@@ -87,9 +88,11 @@ public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(3);
 
         var projects = randomSet(2, 4, ESTestCase::randomUniqueProjectId);
+        logger.info("--> creating projects {}", projects);
         for (ProjectId project : projects) {
             putProject(project);
         }
+        logger.info("--> creating indices...");
         Map<ProjectId, Collection<String>> indicesPerProject = new HashMap<>();
         var indices = randomSet(1, 4, ESTestCase::randomIdentifier);
         for (ProjectId project : projects) {
@@ -132,16 +135,24 @@ public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
         }
 
         final var flushedProject = randomFrom(projects);
+        final var metadata = internalCluster().clusterService().state().metadata();
+        final int flushedProjectTotalShardCount = (int) allShards.stream()
+            .filter(s -> metadata.projectFor(s.getIndex()).id().equals(flushedProject))
+            .count();
+        logger.info("--> flushing project [{}]", flushedProject);
+        logger.info("--> Shards with writes per project: {}", shardsWithWritesPerProject);
         var flushResp = client().projectClient(flushedProject).admin().indices().prepareFlush().execute().actionGet();
-        assertThat(flushResp.getTotalShards(), equalTo(shardsWithWritesPerProject.get(flushedProject).size()));
-        assertThat(flushResp.getFailedShards(), equalTo(0));
-        assertThat(flushResp.getSuccessfulShards(), equalTo(shardsWithWritesPerProject.get(flushedProject).size()));
+        assertThat(flushResp.getTotalShards(), greaterThanOrEqualTo(shardsWithWritesPerProject.get(flushedProject).size()));
+        assertThat(flushResp.getTotalShards(), equalTo(flushedProjectTotalShardCount));
+        assertThat("expected no shard flush failure", flushResp.getFailedShards(), equalTo(0));
+        assertThat(flushResp.getSuccessfulShards(), greaterThanOrEqualTo(shardsWithWritesPerProject.get(flushedProject).size()));
+        assertThat(flushResp.getSuccessfulShards(), equalTo(flushedProjectTotalShardCount));
 
         for (ShardId shardId : allShards) {
             final var projectId = internalCluster().clusterService().state().metadata().projectFor(shardId.getIndex()).id();
             final long currentGeneration = getSegmentGeneration(shardId);
             final long previousGeneration = shardSegmentGenerationsBeforeFlush.get(shardId);
-            if (projectId.equals(flushedProject)) {
+            if (projectId.equals(flushedProject) && shardsWithWritesPerProject.get(flushedProject).contains(shardId)) {
                 assertThat(currentGeneration, equalTo(previousGeneration + 1));
             } else {
                 assertThat(currentGeneration, equalTo(previousGeneration));

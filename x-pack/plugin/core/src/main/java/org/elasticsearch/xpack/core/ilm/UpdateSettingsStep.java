@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Updates the settings for an index.
@@ -23,11 +23,26 @@ import java.util.Objects;
 public class UpdateSettingsStep extends AsyncActionStep {
     public static final String NAME = "update-settings";
 
-    private final Settings settings;
+    private static final Function<IndexMetadata, String> DEFAULT_TARGET_INDEX_NAME_SUPPLIER = indexMetadata -> indexMetadata.getIndex()
+        .getName();
+
+    private final Function<IndexMetadata, String> targetIndexNameSupplier;
+    private final Function<IndexMetadata, Settings> settingsSupplier;
 
     public UpdateSettingsStep(StepKey key, StepKey nextStepKey, Client client, Settings settings) {
+        this(key, nextStepKey, client, DEFAULT_TARGET_INDEX_NAME_SUPPLIER, indexMetadata -> settings);
+    }
+
+    public UpdateSettingsStep(
+        StepKey key,
+        StepKey nextStepKey,
+        Client client,
+        Function<IndexMetadata, String> targetIndexNameSupplier,
+        Function<IndexMetadata, Settings> settingsSupplier
+    ) {
         super(key, nextStepKey, client);
-        this.settings = settings;
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
+        this.settingsSupplier = settingsSupplier;
     }
 
     @Override
@@ -42,32 +57,16 @@ public class UpdateSettingsStep extends AsyncActionStep {
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(
-            TimeValue.MAX_VALUE
-        ).settings(settings);
+        String indexName = targetIndexNameSupplier.apply(indexMetadata);
+        Settings settings = settingsSupplier.apply(indexMetadata);
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE)
+            .settings(settings);
         getClient(currentState.projectId()).admin()
             .indices()
             .updateSettings(updateSettingsRequest, listener.delegateFailureAndWrap((l, r) -> l.onResponse(null)));
     }
 
-    public Settings getSettings() {
-        return settings;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), settings);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        UpdateSettingsStep other = (UpdateSettingsStep) obj;
-        return super.equals(obj) && Objects.equals(settings, other.settings);
+    public Function<IndexMetadata, Settings> getSettingsSupplier() {
+        return settingsSupplier;
     }
 }

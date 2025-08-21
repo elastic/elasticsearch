@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEI
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
     public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature("rrf_retriever.multi_fields_query_format_support");
     public static final NodeFeature WEIGHTED_SUPPORT = new NodeFeature("rrf_retriever.weighted_support");
+    public static final NodeFeature SIMPLIFIED_WEIGHTED_SUPPORT = new NodeFeature("rrf_retriever.simplified_weighted_support");
 
     public static final String NAME = "rrf";
 

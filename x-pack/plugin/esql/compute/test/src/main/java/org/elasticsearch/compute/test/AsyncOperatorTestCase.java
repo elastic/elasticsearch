@@ -9,19 +9,23 @@ package org.elasticsearch.compute.test;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.MapMatcher;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class AsyncOperatorTestCase extends OperatorTestCase {
     @Override
+    @SuppressWarnings("unchecked")
     protected final void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
         var mapMatcher = matchesMap().entry("pages_received", input.size())
             .entry("pages_completed", input.size())
-            .entry("process_nanos", matchNumberGreaterThanOrEqualTo(0));
+            .entry("process_nanos", either(greaterThanOrEqualTo(0)).or((Matcher<Integer>) (Matcher<?>) greaterThanOrEqualTo(0L)));
 
         mapMatcher = extendStatusMatcher(mapMatcher, input, output);
 

@@ -29,11 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.comparesEqualTo;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -167,30 +163,6 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
         }
         matcher = matcher.entry("rows_received", totalInputRows).entry("rows_emitted", totalOutputRows);
         assertMap(map, matcher);
-    }
-
-    /**
-     * EqualTo matcher that takes care of whole number types (Integers and longs).
-     */
-    protected final Matcher<Object> matchNumberEqualTo(Number value) {
-        return wholeMatcher(comparesEqualTo(value.intValue()), comparesEqualTo(value.longValue()));
-    }
-
-    /**
-     * GreaterThanOrEqualTo matcher that takes care of whole number types (Integers and longs).
-     */
-    protected final Matcher<Object> matchNumberGreaterThanOrEqualTo(Number value) {
-        return wholeMatcher(greaterThanOrEqualTo(value.intValue()), greaterThanOrEqualTo(value.longValue()));
-    }
-
-    /**
-     * Matcher that matches based on the number type (Integer or long).
-     */
-    @SuppressWarnings("unchecked")
-    protected final Matcher<Object> wholeMatcher(Matcher<Integer> integerMatcher, Matcher<Long> longMatcher) {
-        return either(both(instanceOf(Integer.class)).and((Matcher<? super Object>) (Matcher<?>) integerMatcher)).or(
-            both(instanceOf(Long.class)).and((Matcher<? super Object>) (Matcher<?>) longMatcher)
-        );
     }
 
     /**

@@ -433,7 +433,9 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
 
     def "Latest files mangled by a merge conflict should be regenerated, and the most recent definition file should be updated"() {
-
+        // TODO when will this be run? Inside the merge conflict resolution? If so, there will be two new definition files and references.
+        //  How do we know which one to apply first? We need to use git to find the branch (main) that is being merged into.
+        //    Will this be different than `main` when not in conflict resolution? e.g. do we need a different git command for this?
     }
 
     List<LatestFile> readLatestFiles(List<String> branches) {

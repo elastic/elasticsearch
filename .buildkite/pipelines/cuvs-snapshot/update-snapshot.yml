@@ -5,7 +5,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404-nvidia
       machineType: g2-standard-16
-      zones: us-central1-a
+      zones: us-central1-b,us-central1-c
       diskSizeGb: 150
   - wait: ~
   - trigger: "elasticsearch-cuvs-run-tests"

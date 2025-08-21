@@ -71,7 +71,7 @@ public class RRFRetrieverComponent implements ToXContentObject {
         // Check if this is a structured component (starts with "retriever" or "weight")
         if (RETRIEVER_FIELD.match(firstFieldName, parser.getDeprecationHandler())
             || WEIGHT_FIELD.match(firstFieldName, parser.getDeprecationHandler())) {
-            // Parse structured format: {"retriever": {...}, "weight": 1.5}
+            // This is a structured component - parse manually
             RetrieverBuilder retriever = null;
             Float weight = null;
 
@@ -113,7 +113,6 @@ public class RRFRetrieverComponent implements ToXContentObject {
 
             return new RRFRetrieverComponent(retriever, weight);
         } else {
-            // Handle direct retriever format: {"standard": {...}}
             RetrieverBuilder retriever = parser.namedObject(RetrieverBuilder.class, firstFieldName, context);
             context.trackRetrieverUsage(retriever.getName());
             if (parser.nextToken() != XContentParser.Token.END_OBJECT) {

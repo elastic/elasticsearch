@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 public final class DocVector extends AbstractVector implements Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
+    public static int NO_GLOBAL_SHARD = -1;
 
     /**
      * Per position memory cost to build the shard segment doc map required
@@ -32,6 +33,8 @@ public final class DocVector extends AbstractVector implements Vector {
     public static final int SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD = Integer.BYTES * 2;
 
     private final IntVector shards;
+    /** See {@link org.elasticsearch.compute.lucene.ShardContext#globalIndex()} */
+    private final int globalShard;
     private final IntVector segments;
     private final IntVector docs;
 
@@ -60,6 +63,7 @@ public final class DocVector extends AbstractVector implements Vector {
     public DocVector(
         ShardRefCounted shardRefCounters,
         IntVector shards,
+        int globalShard,
         IntVector segments,
         IntVector docs,
         Boolean singleSegmentNonDecreasing
@@ -67,6 +71,7 @@ public final class DocVector extends AbstractVector implements Vector {
         super(shards.getPositionCount(), shards.blockFactory());
         this.shardRefCounters = shardRefCounters;
         this.shards = shards;
+        this.globalShard = globalShard;
         this.segments = segments;
         this.docs = docs;
         this.singleSegmentNonDecreasing = singleSegmentNonDecreasing;
@@ -88,18 +93,23 @@ public final class DocVector extends AbstractVector implements Vector {
     public DocVector(
         ShardRefCounted shardRefCounters,
         IntVector shards,
+        int globalShard,
         IntVector segments,
         IntVector docs,
         int[] docMapForwards,
         int[] docMapBackwards
     ) {
-        this(shardRefCounters, shards, segments, docs, null);
+        this(shardRefCounters, shards, globalShard, segments, docs, null);
         this.shardSegmentDocMapForwards = docMapForwards;
         this.shardSegmentDocMapBackwards = docMapBackwards;
     }
 
     public IntVector shards() {
         return shards;
+    }
+
+    public int globalShard() {
+        return globalShard;
     }
 
     public IntVector segments() {
@@ -269,7 +279,7 @@ public final class DocVector extends AbstractVector implements Vector {
             filteredShards = shards.filter(positions);
             filteredSegments = segments.filter(positions);
             filteredDocs = docs.filter(positions);
-            result = new DocVector(shardRefCounters, filteredShards, filteredSegments, filteredDocs, null);
+            result = new DocVector(shardRefCounters, filteredShards, globalShard, filteredSegments, filteredDocs, null);
             return result;
         } finally {
             if (result == null) {
@@ -300,7 +310,7 @@ public final class DocVector extends AbstractVector implements Vector {
 
     @Override
     public int hashCode() {
-        return Objects.hash(shards, segments, docs);
+        return Objects.hash(shards, globalShard, segments, docs);
     }
 
     @Override
@@ -309,7 +319,10 @@ public final class DocVector extends AbstractVector implements Vector {
             return false;
         }
         DocVector other = (DocVector) obj;
-        return shards.equals(other.shards) && segments.equals(other.segments) && docs.equals(other.docs);
+        return shards.equals(other.shards)
+            && globalShard == other.globalShard
+            && segments.equals(other.segments)
+            && docs.equals(other.docs);
     }
 
     private static long ramBytesOrZero(int[] array) {

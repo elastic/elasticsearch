@@ -1398,6 +1398,7 @@ public class BasicBlockTests extends ESTestCase {
         DocBlock block = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             intVector(positionCount),
+            DocVector.NO_GLOBAL_SHARD,
             intVector(positionCount),
             intVector(positionCount),
             true
@@ -1440,6 +1441,7 @@ public class BasicBlockTests extends ESTestCase {
         DocVector vector = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
             intVector(positionCount),
+            DocVector.NO_GLOBAL_SHARD,
             intVector(positionCount),
             intVector(positionCount),
             true

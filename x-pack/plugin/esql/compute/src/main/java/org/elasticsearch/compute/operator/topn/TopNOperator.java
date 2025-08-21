@@ -274,7 +274,8 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize
+                maxPageSize,
+                driverContext.phase()
             );
         }
 
@@ -301,6 +302,7 @@ public class TopNOperator implements Operator, Accountable {
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
+    private final DriverContext.Phase phase;
 
     private Row spare;
     private int spareValuesPreAllocSize = 0;
@@ -338,7 +340,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize,
+        DriverContext.Phase phase
     ) {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
@@ -347,6 +350,7 @@ public class TopNOperator implements Operator, Accountable {
         this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.inputQueue = new Queue(topCount);
+        this.phase = phase;
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -470,7 +474,9 @@ public class TopNOperator implements Operator, Accountable {
                             elementTypes.get(b),
                             encoders.get(b).toUnsortable(),
                             channelInKey(sortOrders, b),
-                            size
+                            size,
+                            phase
+
                         );
                     }
                     p = 0;

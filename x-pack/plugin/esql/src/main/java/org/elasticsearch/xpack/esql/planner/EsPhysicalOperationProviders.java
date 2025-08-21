@@ -62,6 +62,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -145,12 +146,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public abstract double storedFieldsSequentialProportion();
     }
 
-    private final List<ShardContext> shardContexts;
+    private final FunctionList<ShardContext> shardContexts;
     private final PhysicalSettings physicalSettings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
-        List<ShardContext> shardContexts,
+        FunctionList<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PhysicalSettings physicalSettings
     ) {
@@ -163,15 +164,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
-        List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.stream()
-            .map(
-                s -> new ValuesSourceReaderOperator.ShardContext(
-                    s.searcher().getIndexReader(),
-                    s::newSourceLoader,
-                    s.storedFieldsSequentialProportion()
-                )
-            )
-            .toList();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
@@ -181,6 +173,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // TODO: consolidate with ValuesSourceReaderOperator
             return source.with(new TimeSeriesExtractFieldOperator.Factory(fields, shardContexts), layout.build());
         } else {
+            List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.map(
+                s -> new ValuesSourceReaderOperator.ShardContext(
+                    s.searcher().getIndexReader(),
+                    s::newSourceLoader,
+                    s.storedFieldsSequentialProportion()
+                )
+            );
             return source.with(
                 new ValuesSourceReaderOperator.Factory(physicalSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
                 layout.build()
@@ -226,7 +225,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final KeywordEsField unmappedEsField;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
-            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
+            super(ctx.index, ctx.globalIndex, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.unmappedEsField = unmappedEsField;
         }
 
@@ -410,6 +409,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     public static class DefaultShardContext extends ShardContext {
         private final int index;
+        private final int globalIndex;
+
         /**
          * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
          * dependency here.
@@ -419,8 +420,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
 
-        public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+        public DefaultShardContext(int index, int globalIndex, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
             this.index = index;
+            this.globalIndex = globalIndex;
             this.releasable = releasable;
             this.ctx = ctx;
             this.aliasFilter = aliasFilter;
@@ -431,6 +433,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public int index() {
             return index;
+        }
+
+        @Override
+        public int globalIndex() {
+            return globalIndex;
         }
 
         @Override

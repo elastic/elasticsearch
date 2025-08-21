@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
@@ -23,18 +24,22 @@ import java.util.Map;
 class ResultBuilderForDoc implements ResultBuilder {
     private final BlockFactory blockFactory;
     private final int[] shards;
+    /** {@link org.elasticsearch.compute.lucene.ShardContext#globalIndex()}. */
+    private int globalShard = DocVector.NO_GLOBAL_SHARD;
     private final int[] segments;
     private final int[] docs;
+    private final DriverContext.Phase phase;
     private int position;
     private @Nullable RefCounted nextRefCounted;
     private final Map<Integer, RefCounted> refCounted = new HashMap<>();
 
-    ResultBuilderForDoc(BlockFactory blockFactory, int positions) {
+    ResultBuilderForDoc(BlockFactory blockFactory, int positions, DriverContext.Phase phase) {
         // TODO use fixed length builders
         this.blockFactory = blockFactory;
         this.shards = new int[positions];
         this.segments = new int[positions];
         this.docs = new int[positions];
+        this.phase = phase;
     }
 
     @Override
@@ -55,6 +60,24 @@ class ResultBuilderForDoc implements ResultBuilder {
             throw new IllegalStateException("setNextRefCounted must be set before each decodeValue call");
         }
         shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
+        int globalShard = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
+        switch (phase) {
+            case OTHER -> {
+                // We need to keep the global shard around for the reduce phase. However, since this we are in (presumably) local data
+                // phase, all shards should share the same global shard.
+                if (this.globalShard == DocVector.NO_GLOBAL_SHARD) {
+                    this.globalShard = globalShard;
+                } else {
+                    if (globalShard != this.globalShard) {
+                        throw new IllegalStateException(
+                            "global shard must be the same for all rows, but got " + globalShard + " != " + this.globalShard
+                        );
+                    }
+                }
+            }
+            // Swap the local index with the global one, so it can be used by later field extractors.
+            case NODE_REDUCE -> shards[position] = globalShard;
+        }
         segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         docs[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         refCounted.putIfAbsent(shards[position], nextRefCounted);
@@ -71,7 +94,15 @@ class ResultBuilderForDoc implements ResultBuilder {
             shardsVector = blockFactory.newIntArrayVector(shards, position);
             segmentsVector = blockFactory.newIntArrayVector(segments, position);
             var docsVector = blockFactory.newIntArrayVector(docs, position);
-            var docsBlock = new DocVector(new ShardRefCountedMap(refCounted), shardsVector, segmentsVector, docsVector, null).asBlock();
+            DocVector docVector = new DocVector(
+                new ShardRefCountedMap(refCounted),
+                shardsVector,
+                globalShard,
+                segmentsVector,
+                docsVector,
+                null
+            );
+            var docsBlock = docVector.asBlock();
             success = true;
             return docsBlock;
         } finally {

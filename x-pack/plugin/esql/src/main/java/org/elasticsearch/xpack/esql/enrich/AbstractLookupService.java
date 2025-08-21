@@ -299,7 +299,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 localBreakerSettings.maxOverReservedBytes()
             );
             releasables.add(localBreaker);
-            final DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
+            final DriverContext driverContext = new DriverContext(
+                bigArrays,
+                blockFactory.newChildFactory(localBreaker),
+                DriverContext.Phase.OTHER
+            );
             final ElementType[] mergingTypes = new ElementType[request.extractFields.size()];
             for (int i = 0; i < request.extractFields.size(); i++) {
                 mergingTypes[i] = PlannerUtils.toElementType(request.extractFields.get(i).dataType());
@@ -686,16 +690,17 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         SearchExecutionContext executionContext,
         Releasable release
     ) {
-        public static LookupShardContext fromSearchContext(SearchContext context) {
+        public static LookupShardContext fromSearchContext(SearchContext searchContext) {
             return new LookupShardContext(
                 new EsPhysicalOperationProviders.DefaultShardContext(
                     0,
-                    context,
-                    context.getSearchExecutionContext(),
-                    context.request().getAliasFilter()
+                    0,
+                    searchContext,
+                    searchContext.getSearchExecutionContext(),
+                    searchContext.request().getAliasFilter()
                 ),
-                context.getSearchExecutionContext(),
-                context
+                searchContext.getSearchExecutionContext(),
+                searchContext
             );
         }
     }

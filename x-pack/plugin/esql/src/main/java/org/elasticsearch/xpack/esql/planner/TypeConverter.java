@@ -34,7 +34,8 @@ class TypeConverter {
             new org.elasticsearch.compute.data.BlockFactory(
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 BigArrays.NON_RECYCLING_INSTANCE
-            )
+            ),
+            DriverContext.Phase.OTHER
         );
         return new TypeConverter(convertFunction.functionName(), convertFunction.toEvaluator(new EvaluatorMapper.ToEvaluator() {
             @Override

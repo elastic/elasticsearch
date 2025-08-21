@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -30,12 +32,9 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -49,15 +48,26 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
@@ -65,12 +75,14 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -120,6 +132,8 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * </ul>
  */
 public class ComputeService {
+    public static final String DATA_DESCRIPTION = "data";
+    public static final String REDUCE_DESCRIPTION = "node_reduce";
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     private static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -190,6 +204,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        ProjectAfterTopN projectAfterTopN,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -206,7 +221,19 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            executePlan(
+                sessionId,
+                rootTask,
+                flags,
+                physicalPlan,
+                configuration,
+                foldContext,
+                execInfo,
+                null,
+                projectAfterTopN,
+                listener,
+                null
+            );
             return;
         }
 
@@ -234,7 +261,7 @@ public class ComputeService {
                 "main.final",
                 LOCAL_CLUSTER,
                 flags,
-                List.of(),
+                FunctionList.empty(),
                 configuration,
                 foldContext,
                 mainExchangeSource::createExchangeSource,
@@ -253,7 +280,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute());
+                runCompute(rootTask, computeContext, mainPlan, projectAfterTopN, localListener.acquireCompute());
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -272,6 +299,7 @@ public class ComputeService {
                         foldContext,
                         execInfo,
                         "subplan-" + i,
+                        projectAfterTopN,
                         ActionListener.wrap(result -> {
                             exchangeSink.addCompletionListener(
                                 ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
@@ -297,6 +325,7 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         String profileQualifier,
+        ProjectAfterTopN projectAfterTopN,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier
     ) {
@@ -337,7 +366,7 @@ public class ComputeService {
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
-                List.of(),
+                FunctionList.empty(),
                 configuration,
                 foldContext,
                 null,
@@ -354,7 +383,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, projectAfterTopN, computeListener.acquireCompute());
                 return;
             }
         } else {
@@ -429,13 +458,14 @@ public class ComputeService {
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
-                            List.of(),
+                            FunctionList.empty(),
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
+                        projectAfterTopN,
                         localListener.acquireCompute()
                     );
                     // starts computes on data nodes on the main cluster
@@ -592,33 +622,21 @@ public class ComputeService {
         ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
-        listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
-        List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
-        for (int i = 0; i < context.searchContexts().size(); i++) {
-            SearchContext searchContext = context.searchContexts().get(i);
-            var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
-
-                @Override
-                public SourceProvider createSourceProvider() {
-                    return new ReinitializingSourceProvider(super::createSourceProvider);
-                }
-            };
-            contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    searchContext,
-                    searchExecutionContext,
-                    searchContext.request().getAliasFilter()
-                )
-            );
-        }
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        ProjectAfterTopN projectAfterTopN,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
+        var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
-            contexts,
+            shardContexts,
             searchService.getIndicesService().getAnalysis(),
             physicalSettings
         );
+
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -634,29 +652,41 @@ public class ComputeService {
                 lookupFromIndexService,
                 inferenceService,
                 physicalOperationProviders,
-                contexts
+                shardContexts
             );
 
-            LOGGER.debug("Received physical plan:\n{}", plan);
+            LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
             var localPlan = PlannerUtils.localPlan(
                 context.flags(),
                 context.searchExecutionContexts(),
                 context.configuration(),
                 context.foldCtx(),
+                projectAfterTopN,
                 plan
             );
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
+            }
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), localPlan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
+                context.description(),
+                context.foldCtx(),
+                localPlan,
+                context.description().equals(REDUCE_DESCRIPTION) ? DriverContext.Phase.NODE_REDUCE : DriverContext.Phase.OTHER
+            );
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+                LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
             var drivers = localExecutionPlan.createDrivers(context.sessionId());
-            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
-            // will hold a reference to the contexts where relevant.
-            contexts.forEach(RefCounted::decRef);
+            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the reader
+            // operators will hold a reference to the contexts where relevant. However, we should only do this for the data computations,
+            // because in other cases the drivers won't increment the reference count of the contexts (no readers).
+            if (context.description().equals(DATA_DESCRIPTION)) {
+                shardContexts.forEach(RefCounted::decRef);
+            }
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
@@ -693,19 +723,134 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
+            Releasables.close(context.searchContexts());
+            LOGGER.fatal("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }
     }
 
-    static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {
-        PhysicalPlan reducePlan = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
-        if (enable) {
-            PhysicalPlan p = PlannerUtils.reductionPlan(plan);
-            if (p != null) {
-                reducePlan = p.replaceChildren(List.of(reducePlan));
-            }
+    static PhysicalPlan reductionPlan(
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec plan,
+        ReductionPlanFeatures features
+    ) {
+        PhysicalPlan source = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
+        if (features == ReductionPlanFeatures.DISABLED) {
+            return plan.replaceChild(source);
         }
-        return new ExchangeSinkExec(plan.source(), plan.output(), plan.isIntermediateAgg(), reducePlan);
+
+        PhysicalPlan newPlan = switch (PlannerUtils.reductionPlan(plan)) {
+            case PlannerUtils.SimplePlanReduction.NO_REDUCTION -> source;
+            case PlannerUtils.SimplePlanReduction.TOP_N ->
+                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
+                // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
+                // we also need the original plan, since we add the project in the reduction node.
+                fixTopNSource(flags, configuration, foldCtx, plan).filter(unused -> features == ReductionPlanFeatures.ALL)
+                    .orElseGet(() -> plan.replaceChildren(List.of(source)));
+            case PlannerUtils.ReducedPlan rp -> rp.plan().replaceChildren(List.of(source));
+        };
+        return plan.replaceChild(newPlan);
+    }
+
+    enum ReductionPlanFeatures {
+        ALL,
+        WITHOUT_TOP_N,
+        DISABLED
+    }
+
+    /** Returns {@code Optional.empty()} if the plan is not a TopN source, or if it references multiple indices. */
+    private static Optional<PhysicalPlan> fixTopNSource(
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec plan
+    ) {
+        FragmentExec fragment = plan.child() instanceof FragmentExec fe ? fe : null;
+        if (fragment == null) {
+            return Optional.empty();
+        }
+        var fakeSearchStats = new SearchStatsHacks();
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, fakeSearchStats)
+        );
+        ProjectAfterTopN projectAfterTopN = ProjectAfterTopN.KEEP;
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, fakeSearchStats, projectAfterTopN)
+        ) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */, projectAfterTopN);
+            }
+        };
+        var localPlan = PlannerUtils.localPlan(plan, logicalOptimizer, physicalOptimizer);
+        if (RemoveProjectAfterTopN.isTopNCompatible(localPlan)) {
+            PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
+                var child = topN.child();
+                return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
+            });
+            return Optional.of(((UnaryExec) result).child());
+        }
+        return Optional.empty();
+    }
+
+    // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
+    private static class SearchStatsHacks implements SearchStats {
+        @Override
+        public boolean exists(FieldAttribute.FieldName field) {
+            return true;
+        }
+
+        @Override
+        public boolean isIndexed(FieldAttribute.FieldName field) {
+            return false;
+        }
+
+        @Override
+        public boolean hasDocValues(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasExactSubfield(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldAttribute.FieldName field, BytesRef value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object min(FieldAttribute.FieldName field) {
+            return null;
+        }
+
+        @Override
+        public Object max(FieldAttribute.FieldName field) {
+            return null;
+        }
+
+        @Override
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     String newChildSession(String session) {

@@ -27,6 +27,8 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.common.FunctionList;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -248,7 +250,13 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
-        final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(plan, true);
+        final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(
+            computeService.createFlags(),
+            configuration,
+            configuration.newFoldContext(),
+            plan,
+            ComputeService.ReductionPlanFeatures.WITHOUT_TOP_N
+        );
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
@@ -271,13 +279,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         "remote_reduce",
                         clusterAlias,
                         flags,
-                        List.of(),
+                        FunctionList.empty(),
                         configuration,
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    ProjectAfterTopN.REMOVE,
                     computeListener.acquireCompute()
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(

@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -425,6 +426,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
+        }
+
+        @Override
+        public int globalIndex() {
+            return DocVector.NO_GLOBAL_SHARD;
         }
 
         @Override

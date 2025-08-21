@@ -148,7 +148,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             }
             docsVector = docsBuilder.build();
             page = new Page(
-                new DocVector(ShardRefCounted.fromShardContext(shardContext), shardsVector, segmentsVector, docsVector, null).asBlock(),
+                new DocVector(ShardRefCounted.fromShardContext(shardContext), shardsVector, 0, segmentsVector, docsVector, null).asBlock(),
                 positionsVector.asBlock()
             );
         } finally {

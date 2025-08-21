@@ -62,11 +62,19 @@ public class DriverContext {
 
     private Runnable earlyTerminationChecker = () -> {};
 
+    private final Phase phase;
+
+    // Mostly used by tests. Production code should pass an explicit phase.
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, WarningsMode.COLLECT);
+        this(bigArrays, blockFactory, WarningsMode.COLLECT, Phase.OTHER);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode) {
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, Phase phase) {
+        this(bigArrays, blockFactory, WarningsMode.COLLECT, phase);
+    }
+
+    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode, Phase phase) {
+        this.phase = phase;
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
@@ -198,6 +206,16 @@ public class DriverContext {
     public enum WarningsMode {
         COLLECT,
         IGNORE
+    }
+
+    public Phase phase() {
+        return phase;
+    }
+
+    public enum Phase {
+        /** The local reduce phase, where we (might) aggregate data node results. */
+        NODE_REDUCE,
+        OTHER
     }
 
     /**

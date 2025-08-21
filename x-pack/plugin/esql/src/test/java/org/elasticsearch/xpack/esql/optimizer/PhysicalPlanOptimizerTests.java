@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -7884,7 +7886,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(new EsqlFlags(true), config, FoldContext.small(), plan, TEST_SEARCH_STATS);
+        plan = PlannerUtils.localPlan(
+            new EsqlFlags(true),
+            config,
+            FoldContext.small(),
+            plan,
+            TEST_SEARCH_STATS,
+            LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
+        );
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -7901,14 +7910,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
-                List.of(),
+                FunctionList.empty(),
                 null,
                 new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
             ),
             List.of()
         );
 
-        return planner.plan("test", FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), plan, DriverContext.Phase.OTHER);
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -8004,10 +8013,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT %d
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
-        TopNExec reductionTopN = as(reduction, TopNExec.class);
-        assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
-        assertThat(reductionTopN.limit().fold(FoldContext.small()), equalTo(limit));
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(plans.v2());
+        assertThat(reduction, equalTo(PlannerUtils.SimplePlanReduction.TOP_N));
     }
 
     public void testReductionPlanForAggs() {
@@ -8016,7 +8023,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats x = sum(salary) BY first_name
             """);
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
@@ -8024,7 +8031,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testReductionPlanForLimit() {
         var plan = physicalPlan("FROM test | LIMIT 10");
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         LimitExec limitExec = as(reduction, LimitExec.class);
         assertThat(limitExec.estimatedRowSize(), equalTo(328));
     }
@@ -8261,7 +8268,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // individually hence why here the plan is kept as is
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
-            var localPlan = PlannerUtils.localPlan(new EsqlFlags(true), config, FoldContext.small(), fragment, searchStats);
+            var localPlan = PlannerUtils.localPlan(
+                new EsqlFlags(true),
+                config,
+                FoldContext.small(),
+                fragment,
+                searchStats,
+                LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
+            );
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 

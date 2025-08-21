@@ -191,7 +191,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shardRefCounters, shards, segments, docs, null);
+                result = new DocVector(shardRefCounters, shards, DocVector.NO_GLOBAL_SHARD, segments, docs, null);
                 return result.asBlock();
             } finally {
                 if (result == null) {

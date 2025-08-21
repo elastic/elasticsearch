@@ -45,7 +45,6 @@ import java.util.function.Consumer;
  * this class is here to save the day.
  */
 public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements Releasable {
-
     public record ShardConfig(Query query, IndexSearcher searcher) {}
 
     private final BlockFactory blockFactory;

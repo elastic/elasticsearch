@@ -45,6 +45,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -515,7 +516,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class BaseSparseNumericValues extends NumericDocValues {
+    abstract static class BaseSparseNumericValues extends NumericDocValues implements BlockDocValuesReader.OptionalSingletonDoubles {
         protected final IndexedDISI disi;
 
         BaseSparseNumericValues(IndexedDISI disi) {
@@ -545,6 +546,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public final long cost() {
             return disi.cost();
+        }
+
+        @Override
+        public BlockLoader.Block tryReadDoubles(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean nullsFiltered
+        ) throws IOException {
+            return null;
         }
     }
 
@@ -1456,6 +1468,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             );
             return new BaseSparseNumericValues(disi) {
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+                private IndexedDISI jumpDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
@@ -1478,6 +1491,69 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         }
                     }
                     return currentBlock[blockInIndex];
+                }
+
+                @Override
+                public BlockLoader.Block tryReadDoubles(
+                    BlockLoader.BlockFactory factory,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    BlockDocValuesReader.ToDouble toDouble,
+                    boolean nullsFiltered
+                ) throws IOException {
+                    if (nullsFiltered == false) {
+                        return null;
+                    }
+                    final int firstDoc = docs.get(offset);
+                    if (disi.advanceExact(firstDoc) == false) {
+                        assert false : "nullsFiltered is true, but doc [" + firstDoc + "] has no value";
+                        throw new IllegalStateException("nullsFiltered is true, but doc [" + firstDoc + "] has no value");
+                    }
+                    if (jumpDISI == null) {
+                        jumpDISI = new IndexedDISI(
+                            data,
+                            entry.docsWithFieldOffset,
+                            entry.docsWithFieldLength,
+                            entry.jumpTableEntryCount,
+                            entry.denseRankPower,
+                            entry.numValues
+                        );
+                    }
+                    final int lastDoc = docs.get(docs.count() - 1);
+                    if (jumpDISI.advanceExact(lastDoc) == false) {
+                        assert false : "nullsFiltered is true, but doc [" + lastDoc + "] has no value";
+                        throw new IllegalStateException("nullsFiltered is true, but doc [" + lastDoc + "] has no value");
+                    }
+                    // Assumes docIds are unique - if the number of value indices between the first
+                    // and last doc equals the doc count, all values can be read and converted in bulk
+                    // TODO: Pass docCount attr for enrich and lookup.
+                    final int firstIndex = disi.index();
+                    final int lastIndex = jumpDISI.index();
+                    final int valueCount = lastIndex - firstIndex + 1;
+                    // TODO: encode this via docCount
+                    if (valueCount == docs.count()) {
+                        final double[] values = new double[valueCount];
+                        int i = 0;
+                        while (i < valueCount) {
+                            final int index = firstIndex + i;
+                            final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                            final int blockStartIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                            if (blockIndex != currentBlockIndex) {
+                                assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
+                                if (currentBlockIndex + 1 != blockIndex) {
+                                    valuesData.seek(indexReader.get(blockIndex));
+                                }
+                                currentBlockIndex = blockIndex;
+                                decoder.decode(valuesData, currentBlock);
+                            }
+                            // bulk convert from the
+                            final int count = Math.min(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockStartIndex, valueCount - i);
+                            toDouble.convert(currentBlock, blockStartIndex, values, i, count);
+                            i += count;
+                        }
+                        return factory.doubles(values, docs.count());
+                    }
+                    return null;
                 }
             };
         }

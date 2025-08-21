@@ -121,6 +121,16 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.Block doubles(double[] values, int expectedCount) {
+                try (BlockLoader.DoubleBuilder builder = doubles(expectedCount)) {
+                    for (double value : values) {
+                        builder.appendDouble(value);
+                    }
+                    return builder.build();
+                }
+            }
+
+            @Override
             public BlockLoader.FloatBuilder denseVectors(int expectedCount, int dimensions) {
                 class FloatsBuilder extends TestBlock.Builder implements BlockLoader.FloatBuilder {
                     int numElements = 0;

@@ -1,4 +1,7 @@
-## `FROM` [esql-from]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `FROM` source command returns a table with data from a data stream, index,
 or alias.

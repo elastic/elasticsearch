@@ -108,6 +108,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
+    public boolean isDimension() {
+        return false;
+    }
+
+    @Override
     public String nodeString() {
         return toString();
     }

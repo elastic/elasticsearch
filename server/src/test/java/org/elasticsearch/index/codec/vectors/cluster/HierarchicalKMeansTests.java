@@ -46,8 +46,9 @@ public class HierarchicalKMeansTests extends ESTestCase {
             assertEquals(nVectors, soarAssignments.length);
             // verify no duplicates exist
             for (int i = 0; i < assignments.length; i++) {
-                assertTrue(soarAssignments[i] >= 0 && soarAssignments[i] < centroids.length);
-                assertNotEquals(assignments[i], soarAssignments[i]);
+                int soarAssignment = soarAssignments[i];
+                assertTrue(soarAssignment == -1 || (soarAssignment >= 0 && soarAssignment < centroids.length));
+                assertNotEquals(assignments[i], soarAssignment);
             }
         } else {
             assertEquals(0, soarAssignments.length);

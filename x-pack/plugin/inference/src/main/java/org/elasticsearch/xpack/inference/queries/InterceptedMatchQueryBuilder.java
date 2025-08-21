@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.queries;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 
@@ -34,11 +35,6 @@ public class InterceptedMatchQueryBuilder extends InterceptedQueryBuilder<MatchQ
     }
 
     @Override
-    protected Class<MatchQueryBuilder> originalQueryClass() {
-        return MatchQueryBuilder.class;
-    }
-
-    @Override
     protected String getFieldName() {
         return originalQuery.fieldName();
     }
@@ -51,5 +47,10 @@ public class InterceptedMatchQueryBuilder extends InterceptedQueryBuilder<MatchQ
     @Override
     protected QueryBuilder copy(EmbeddingsProvider embeddingsProvider) {
         return new InterceptedMatchQueryBuilder(this, embeddingsProvider);
+    }
+
+    @Override
+    protected QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextField) {
+        return new SemanticQueryBuilder(getFieldName(), getQuery(), null, embeddingsProvider);
     }
 }

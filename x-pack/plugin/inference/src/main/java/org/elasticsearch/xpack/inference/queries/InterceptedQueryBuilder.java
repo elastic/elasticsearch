@@ -55,14 +55,14 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
         this.embeddingsProvider = embeddingsProvider;
     }
 
-    protected abstract Class<T> originalQueryClass();
-
     // TODO: Support multiple fields
     protected abstract String getFieldName();
 
     protected abstract String getQuery();
 
     protected abstract QueryBuilder copy(EmbeddingsProvider embeddingsProvider);
+
+    protected abstract QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextField);
 
     @Override
     public QueryBuilder filter() {
@@ -108,11 +108,9 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
             MappedFieldType fieldType = indexMetadataContext.getFieldType(getFieldName());
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType) {
-                return new SemanticQueryBuilder(getFieldName(), getQuery(), null, embeddingsProvider);
+            } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextField) {
+                return querySemanticTextField(semanticTextField);
             } else {
-                // TODO: Sometimes need to modify the original query before returning it
-                // For example, need to add embeddings to knn query
                 return originalQuery;
             }
         }

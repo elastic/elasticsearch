@@ -413,7 +413,7 @@ public class SnapshotsServiceUtils {
             .entrySet()) {
             SnapshotsInProgress.ShardSnapshotStatus shardStatus = shardSnapshotEntry.getValue();
             ShardId shardId = snapshotEntry.shardId(shardSnapshotEntry.getKey());
-            if (shardStatus.isUnassignedQueued() || shardStatus.isAssignedQueued()) {
+            if (shardStatus.equals(SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
                 // this shard snapshot is waiting for a previous snapshot to finish execution for this shard
                 final SnapshotsInProgress.ShardSnapshotStatus knownFailure = knownFailures.get(shardSnapshotEntry.getKey());
                 if (knownFailure == null) {
@@ -422,30 +422,14 @@ public class SnapshotsServiceUtils {
                         // shard became unassigned while queued after a delete or clone operation so we can fail as missing here
                         assert snapshotEntry.partial();
                         snapshotChanged = true;
-                        logger.debug("failing snapshot of shard [{}] with status [{}] because index got deleted", shardId, shardStatus);
-                        final SnapshotsInProgress.ShardSnapshotStatus newShardStatus = shardStatus.isAssignedQueued()
-                            ? new SnapshotsInProgress.ShardSnapshotStatus(
-                                shardStatus.nodeId(),
-                                SnapshotsInProgress.ShardState.FAILED,
-                                shardStatus.generation(),
-                                "shard is deleted"
-                            )
-                            : SnapshotsInProgress.ShardSnapshotStatus.MISSING;
-                        shards.put(shardId, newShardStatus);
-                        knownFailures.put(shardSnapshotEntry.getKey(), newShardStatus);
+                        logger.debug("failing snapshot of shard [{}] because index got deleted", shardId);
+                        shards.put(shardId, SnapshotsInProgress.ShardSnapshotStatus.MISSING);
+                        knownFailures.put(shardSnapshotEntry.getKey(), SnapshotsInProgress.ShardSnapshotStatus.MISSING);
                     } else {
                         // if no failure is known for the shard we keep waiting
                         shards.put(shardId, shardStatus);
                     }
                 } else {
-                    assert shardStatus.isAssignedQueued() == false
-                        : shardId
-                            + " with status "
-                            + shardStatus
-                            + " has unexpected known failure "
-                            + knownFailure
-                            + " in snapshot entry "
-                            + snapshotEntry;
                     // If a failure is known for an execution we waited on for this shard then we fail with the same exception here
                     // as well
                     snapshotChanged = true;

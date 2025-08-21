@@ -415,7 +415,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testOldIndexSemanticTextDenseVectorCreation() throws IOException {
+    public void testOldIndexSemanticTextDenseVectorRaisesError() throws IOException {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(b -> {
             b.field("type", "semantic_text");

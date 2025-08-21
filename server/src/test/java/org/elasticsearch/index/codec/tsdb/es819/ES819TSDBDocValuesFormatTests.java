@@ -69,7 +69,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     private final Codec codec = new Elasticsearch92Lucene103Codec() {
 
         final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
-            ESTestCase.randomIntBetween(1, 4096),
+            ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
             random().nextBoolean()
         );

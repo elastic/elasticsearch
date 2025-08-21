@@ -1,5 +1,5 @@
 pr: 133080
-summary: "Add mapping exception when creating a `semantic_text` field in indices created prior to 8.11.0"
+summary: "Add mapper parsing exception when creating a `semantic_text` field in indices created prior to 8.11.0"
 area: Relevance
 type: bug
 issues: []

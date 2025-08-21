@@ -103,6 +103,11 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return multiMatchQuery.resolveInferenceFieldWildcards();
     }
 
+    @Override
+    protected boolean shouldUseDefaultFields() {
+        return true;
+    }
+
     private QueryBuilder buildMultiFieldSemanticQuery(
         MultiMatchQueryBuilder originalQuery,
         Set<String> inferenceFields,

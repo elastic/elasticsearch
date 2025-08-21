@@ -101,6 +101,17 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     protected abstract boolean shouldResolveInferenceFieldWildcards(QueryBuilder queryBuilder);
 
     /**
+     * Determines if this query type should use default fields when no fields are specified.
+     * This is typically only needed for multi_match queries.
+     * Default implementation returns false for most query types.
+     *
+     * @return true if default fields should be used when no fields are specified, false otherwise.
+     */
+    protected boolean shouldUseDefaultFields() {
+        return false;
+    }
+
+    /**
      * Builds the inference query
      *
      * @param queryBuilder {@link QueryBuilder}
@@ -166,9 +177,9 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             Map<String, InferenceFieldMetadata> indexInferenceFields = new HashMap<>();
             Map<String, InferenceFieldMetadata> indexInferenceMetadata = indexMetadata.getInferenceFields();
 
-            // Handle default fields per index when no fields are specified
+            // Handle default fields per index when no fields are specified (only for multi_match queries)
             Map<String, Float> fieldsToProcess = fieldsWithWeights;
-            if (fieldsToProcess.isEmpty()) {
+            if (fieldsToProcess.isEmpty() && shouldUseDefaultFields()) {
                 Settings settings = indexMetadata.getSettings();
                 List<String> defaultFields = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
                 fieldsToProcess = QueryParserHelper.parseFieldsAndWeights(defaultFields);

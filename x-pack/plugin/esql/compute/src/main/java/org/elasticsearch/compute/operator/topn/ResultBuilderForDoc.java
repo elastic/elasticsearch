@@ -59,7 +59,7 @@ class ResultBuilderForDoc implements ResultBuilder {
         if (nextRefCounted == null) {
             throw new IllegalStateException("setNextRefCounted must be set before each decodeValue call");
         }
-        shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values); // Skipping over the original local shard.
+        shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         int globalShard = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         switch (phase) {
             case OTHER -> {
@@ -76,7 +76,7 @@ class ResultBuilderForDoc implements ResultBuilder {
                 }
             }
             // Swap the local index with the global one, so it can be used by later field extractors.
-            case REDUCE -> shards[position] = globalShard;
+            case NODE_REDUCE -> shards[position] = globalShard;
         }
         segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         docs[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);

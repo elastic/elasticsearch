@@ -675,7 +675,7 @@ public class ComputeService {
                 context.description(),
                 context.foldCtx(),
                 localPlan,
-                context.description().equals(REDUCE_DESCRIPTION) ? DriverContext.Phase.REDUCE : DriverContext.Phase.OTHER
+                context.description().equals(REDUCE_DESCRIPTION) ? DriverContext.Phase.NODE_REDUCE : DriverContext.Phase.OTHER
             );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());

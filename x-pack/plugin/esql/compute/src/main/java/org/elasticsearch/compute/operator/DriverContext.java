@@ -213,7 +213,8 @@ public class DriverContext {
     }
 
     public enum Phase {
-        REDUCE,
+        /** The local reduce phase, where we (might) aggregate data node results. */
+        NODE_REDUCE,
         OTHER
     }
 

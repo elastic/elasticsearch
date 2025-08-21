@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStrategy;

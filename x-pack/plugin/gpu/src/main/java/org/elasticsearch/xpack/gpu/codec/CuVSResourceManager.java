@@ -78,10 +78,10 @@ public interface CuVSResourceManager {
             CuVSProvider.provider().gpuInfoProvider()
         );
 
-        final ManagedCuVSResources[] pool;
-        final int capacity;
-        final GPUInfoProvider gpuInfoProvider;
-        int createdCount;
+        private final ManagedCuVSResources[] pool;
+        private final int capacity;
+        private final GPUInfoProvider gpuInfoProvider;
+        private int createdCount;
 
         ReentrantLock lock = new ReentrantLock();
         Condition poolAvailableCondition = lock.newCondition();
@@ -121,21 +121,19 @@ public interface CuVSResourceManager {
                 }
 
                 // Check resources availability
-                var resourcesInfo = gpuInfoProvider.getCurrentInfo(res);
-
                 // Memory
                 long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims);
-                if (requiredMemoryInBytes > resourcesInfo.totalDeviceMemoryInBytes()) {
+                if (requiredMemoryInBytes > gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes()) {
                     throw new IllegalArgumentException(
                         Strings.format(
                             "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%dMB]",
                             numVectors,
                             dims,
-                            resourcesInfo.totalDeviceMemoryInBytes() / 1048576.0f
+                            gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes() / (1024L * 1024L)
                         )
                     );
                 }
-                while (requiredMemoryInBytes > resourcesInfo.freeDeviceMemoryInBytes()) {
+                while (requiredMemoryInBytes > gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes()) {
                     enoughMemoryCondition.await();
                 }
 
@@ -197,6 +195,11 @@ public interface CuVSResourceManager {
         @Override
         public ScopedAccess access() {
             return delegate.access();
+        }
+
+        @Override
+        public int deviceId() {
+            return delegate.deviceId();
         }
 
         @Override

@@ -13,17 +13,27 @@ import com.nvidia.cuvs.CuVSResourcesInfo;
 import com.nvidia.cuvs.GPUInfo;
 import com.nvidia.cuvs.GPUInfoProvider;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class CuVSResourceManagerTests extends ESTestCase {
+
+    private static final Logger log = LogManager.getLogger(CuVSResourceManagerTests.class);
+
+    public static final long TOTAL_DEVICE_MEMORY_IN_BYTES = 256L * 1024 * 1024;
 
     public void testBasic() throws InterruptedException {
         var mgr = new MockPoolingCuVSResourceManager(2);
@@ -65,10 +75,52 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
+    public void testBlockingOnInsufficientMemory() throws Exception {
+        var mgr = new MockPoolingCuVSResourceManager(2);
+        var res1 = mgr.acquire(16 * 1024, 1024);
+
+        AtomicReference<CuVSResources> holder = new AtomicReference<>();
+        Thread t = new Thread(() -> {
+            try {
+                var res2 = mgr.acquire((16 * 1024) + 1, 1024);
+                holder.set(res2);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+        });
+        t.start();
+        Thread.sleep(1_000);
+        assertNull(holder.get());
+        mgr.release(res1);
+        t.join();
+        assertThat(holder.get().toString(), anyOf(containsString("id=0"), containsString("id=1")));
+        mgr.shutdown();
+    }
+
+    public void testNotBlockingOnSufficientMemory() throws Exception {
+        var mgr = new MockPoolingCuVSResourceManager(2);
+        var res1 = mgr.acquire(16 * 1024, 1024);
+
+        AtomicReference<CuVSResources> holder = new AtomicReference<>();
+        Thread t = new Thread(() -> {
+            try {
+                var res2 = mgr.acquire((16 * 1024) - 1, 1024);
+                holder.set(res2);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+        });
+        t.start();
+        t.join(5_000);
+        assertNotNull(holder.get());
+        assertThat(holder.get().toString(), not(equalTo(res1.toString())));
+        mgr.shutdown();
+    }
+
     public void testManagedResIsNotClosable() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(1);
         var res = mgr.acquire(0, 0);
-        assertThrows(UnsupportedOperationException.class, () -> res.close());
+        assertThrows(UnsupportedOperationException.class, res::close);
         mgr.release(res);
         mgr.shutdown();
     }
@@ -85,15 +137,44 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     static class MockPoolingCuVSResourceManager extends CuVSResourceManager.PoolingCuVSResourceManager {
 
-        final AtomicInteger idGenerator = new AtomicInteger();
+        private final AtomicInteger idGenerator = new AtomicInteger();
+        private final List<Long> allocations;
 
         MockPoolingCuVSResourceManager(int capacity) {
-            super(capacity, new MockGPUInfoProvider());
+            this(capacity, new ArrayList<>());
+        }
+
+        private MockPoolingCuVSResourceManager(int capacity, List<Long> allocationList) {
+            super(capacity, new MockGPUInfoProvider(() -> freeMemoryFunction(allocationList)));
+            this.allocations = allocationList;
+        }
+
+        private static long freeMemoryFunction(List<Long> allocations) {
+            return TOTAL_DEVICE_MEMORY_IN_BYTES - allocations.stream().mapToLong(x -> x).sum();
         }
 
         @Override
         protected CuVSResources createNew() {
             return new MockCuVSResources(idGenerator.getAndIncrement());
+        }
+
+        @Override
+        public ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException {
+            var res = super.acquire(numVectors, dims);
+            long memory = (long)(numVectors * dims * Float.BYTES *
+                CuVSResourceManager.PoolingCuVSResourceManager.GPU_COMPUTATION_MEMORY_FACTOR);
+            allocations.add(memory);
+            log.info("Added [{}]", memory);
+            return res;
+        }
+
+        @Override
+        public void release(ManagedCuVSResources resources) {
+            if (allocations.isEmpty() == false) {
+                var x = allocations.removeLast();
+                log.info("Removed [{}]", x);
+            }
+            super.release(resources);
         }
     }
 
@@ -111,6 +192,11 @@ public class CuVSResourceManagerTests extends ESTestCase {
         }
 
         @Override
+        public int deviceId() {
+            return 0;
+        }
+
+        @Override
         public void close() {}
 
         @Override
@@ -125,6 +211,12 @@ public class CuVSResourceManagerTests extends ESTestCase {
     }
 
     private static class MockGPUInfoProvider implements GPUInfoProvider {
+        private final LongSupplier freeMemorySupplier;
+
+        MockGPUInfoProvider(LongSupplier freeMemorySupplier) {
+            this.freeMemorySupplier = freeMemorySupplier;
+        }
+
         @Override
         public List<GPUInfo> availableGPUs() throws Throwable {
             throw new UnsupportedOperationException();
@@ -137,7 +229,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
         @Override
         public CuVSResourcesInfo getCurrentInfo(CuVSResources cuVSResources) {
-            return new CuVSResourcesInfo(256L * 1024 * 1024, 2048L * 1024 * 1024);
+            return new CuVSResourcesInfo(freeMemorySupplier.getAsLong(), TOTAL_DEVICE_MEMORY_IN_BYTES);
         }
     }
 }

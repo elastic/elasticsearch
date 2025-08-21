@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -153,8 +152,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     }
 
     /**
-     * Builds a semantic query for multiple fields.
-     * Uses BoolQuery when minimum_should_match is specified, otherwise uses DisMax with appropriate tie_breaker.
+     * Builds a semantic query for multiple fields using Dismax.
      */
     private QueryBuilder buildSemanticQuery(
         MultiMatchQueryBuilder originalQuery,
@@ -162,91 +160,48 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         Set<String> inferenceFields,
         String queryValue
     ) {
-        String minimumShouldMatch = originalQuery.minimumShouldMatch();
-
-        if (minimumShouldMatch != null) {
-            // Use BoolQuery when minimum_should_match is specified
-            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-            for (String fieldName : inferenceFields) {
-                boolQuery.should(createSemanticQuery(fieldName, queryValue, indexInformation));
-            }
-            boolQuery.minimumShouldMatch(minimumShouldMatch);
-            boolQuery.boost(originalQuery.boost());
-            boolQuery.queryName(originalQuery.queryName());
-            return boolQuery;
-        } else {
-            // Use DisMax for default behavior with tie_breaker
-            DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
-            for (String fieldName : inferenceFields) {
-                disMaxQuery.add(createSemanticQuery(fieldName, queryValue, indexInformation));
-            }
-            // Apply tie_breaker - use explicit value or fall back to type's default
-            Float tieBreaker = originalQuery.tieBreaker();
-            disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
-            disMaxQuery.boost(originalQuery.boost());
-            disMaxQuery.queryName(originalQuery.queryName());
-            return disMaxQuery;
+        DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
+        for (String fieldName : inferenceFields) {
+            disMaxQuery.add(createSemanticQuery(fieldName, queryValue, indexInformation));
         }
+
+        // Apply tie_breaker - use explicit value or fall back to type's default
+        Float tieBreaker = originalQuery.tieBreaker();
+        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
+        disMaxQuery.boost(originalQuery.boost());
+        disMaxQuery.queryName(originalQuery.queryName());
+        return disMaxQuery;
     }
 
     /**
      * Builds a combined query for both inference and non-inference fields.
-     * Uses BoolQuery when minimum_should_match is specified, otherwise uses DisMax for BEST_FIELDS
-     * and BoolQuery for MOST_FIELDS to match core multi_match behavior.
      */
     private QueryBuilder buildCombinedQuery(
         MultiMatchQueryBuilder originalQuery,
         InferenceIndexInformationForField inferenceInfo,
         String queryValue
     ) {
-        String minimumShouldMatch = originalQuery.minimumShouldMatch();
-        boolean isMostFields = originalQuery.type() == MultiMatchQueryBuilder.Type.MOST_FIELDS;
+        DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
 
-        if (minimumShouldMatch != null || isMostFields) {
-            // Use BoolQuery when minimum_should_match is specified or for MOST_FIELDS
-            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-
-            // Add semantic queries
-            for (String fieldName : inferenceInfo.getAllInferenceFields()) {
-                Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
-                if (semanticIndices.isEmpty() == false) {
-                    boolQuery.should(
-                        createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName))
-                    );
-                }
+        // Add semantic queries
+        for (String fieldName : inferenceInfo.getAllInferenceFields()) {
+            Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
+            if (semanticIndices.isEmpty() == false) {
+                disMaxQuery.add(
+                    createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName))
+                );
             }
-
-            // Add non-inference queries
-            addNonInferenceQueries(boolQuery::should, originalQuery, inferenceInfo);
-
-            // Set minimum_should_match - default to "1" for MOST_FIELDS when not specified
-            boolQuery.minimumShouldMatch(Objects.requireNonNullElse(minimumShouldMatch, "1"));
-            boolQuery.boost(originalQuery.boost());
-            boolQuery.queryName(originalQuery.queryName());
-            return boolQuery;
-        } else {
-            // Use DisMaxQuery for BEST_FIELDS without minimum_should_match
-            DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
-
-            // Add semantic queries
-            for (String fieldName : inferenceInfo.getAllInferenceFields()) {
-                Set<String> semanticIndices = inferenceInfo.getInferenceIndicesForField(fieldName);
-                if (semanticIndices.isEmpty() == false) {
-                    disMaxQuery.add(
-                        createSemanticSubQuery(semanticIndices, fieldName, queryValue).boost(inferenceInfo.getFieldBoost(fieldName))
-                    );
-                }
-            }
-
-            // Add non-inference queries
-            addNonInferenceQueries(disMaxQuery::add, originalQuery, inferenceInfo);
-
-            Float tieBreaker = originalQuery.tieBreaker();
-            disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
-            disMaxQuery.boost(originalQuery.boost());
-            disMaxQuery.queryName(originalQuery.queryName());
-            return disMaxQuery;
         }
+
+        // Add non-inference queries
+        addNonInferenceQueries(disMaxQuery::add, originalQuery, inferenceInfo);
+
+        // Apply tie_breaker - use explicit value or fall back to type's default
+        Float tieBreaker = originalQuery.tieBreaker();
+        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
+        disMaxQuery.boost(originalQuery.boost());
+        disMaxQuery.queryName(originalQuery.queryName());
+        return disMaxQuery;
     }
 
     private void addNonInferenceQueries(

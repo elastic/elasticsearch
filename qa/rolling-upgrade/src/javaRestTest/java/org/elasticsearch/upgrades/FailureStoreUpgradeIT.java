@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class FailureStoreUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class FailureStoreUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public FailureStoreUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -88,8 +88,8 @@ public class FailureStoreUpgradeIT extends AbstractRollingUpgradeWithSecurityTes
 
     public void testFailureStoreOnPreviouslyExistingDataStream() throws Exception {
         assumeFalse(
-            "testing migration from data streams created before failure store feature existed",
-            oldClusterHasFeature(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)
+            "testing migration from data streams created before failure store feature state was added",
+            oldClusterHasFeature("gte_v8.15.0")
         );
         String dataStreamName = "fs-ds-upgrade-test";
         String failureStoreName = dataStreamName + "::failures";

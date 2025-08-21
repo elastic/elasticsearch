@@ -95,7 +95,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         when: "We modify the latest files"
         originalModifiedLatestFiles.forEach {
-            latestTransportVersion(it.branch, it.name + "_modification", (it.id + 1).toString())
+            latestTransportVersion(it.branch, it.name + "_modification", (it.id + 7).toString())
         }
 
         and: "We run the generation task"
@@ -106,10 +106,12 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         if (branchesParam != null) {
             args.add("--branches=" + branchesParam.join(","))
         }
-        if (name != null) {
-            referencedTransportVersion(name) // Ensure the definition file is referenced to allow validation to succeed
-        }
         def result = gradleRunner(args.toArray(new String[0])).build()
+
+        and: "If a name is specified, we add a reference so validation succeeds"
+        if (name != null) {
+            referencedTransportVersion(name)
+        }
 
         then: "The generation and validation tasks should succeed"
         result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
@@ -143,7 +145,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
     // TODO this test is finding a legitimate bug
-    def "definitions that are no longer referenced should be deleted and latest files reverted"(List<String> branches) {
+    def "When a reference is removed after a definition is generated, the definition should be deleted and latest files reverted"(List<String> branches) {
         given:
         String definitionName = "test_tv_patch_ids"
         referencedTransportVersion(definitionName)
@@ -182,34 +184,190 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
-    def "unreferenced definition files should be deleted"() {
+    def "When a reference is renamed after a definition was generated, the original should be removed and latest files updated"(List<String> branches) {
         given:
-        namedTransportVersion("old_name", "8124000")
-        referencedTransportVersion("new_name")
+        String firstName = "original_tv_name"
+        referencedTransportVersion(firstName)
+        List<LatestFile> originalLatestFiles1 = readLatestFiles(branches)
 
-        when:
+        when: "The definition is generated"
         def result = gradleRunner(
                 ":myserver:validateTransportVersionDefinitions",
                 ":myserver:generateTransportVersionDefinition",
-                "--name=new_name",
-                "--branches=9.2"
+                "--name=" + firstName,
+                "--branches=" + branches.join(",")
         ).build()
 
-        then:
-        !file("myserver/src/main/resources/transport/definitions/named/old_name.csv").exists()
+        then: "The generation task should succeed and create the definition file"
+        file("myserver/src/main/resources/transport/definitions/named/${firstName}.csv").exists()
         result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
         result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(firstName, originalLatestFiles1)
+
+        when: "The reference is renamed and the generation is run again"
+        deleteTransportVersionReference(firstName)
+        String secondName = "new_tv_name"
+        referencedTransportVersion(secondName)
+        List<LatestFile> originalLatestFiles2 = readLatestFiles(branches)
+
+        def secondResult = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and the definition file should be deleted"
+        !file("myserver/src/main/resources/transport/definitions/named/${firstName}.csv").exists()
+        file("myserver/src/main/resources/transport/definitions/named/${secondName}.csv").exists()
+        secondResult.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        secondResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(secondName, originalLatestFiles2)
+
+        where:
+        branches << [
+                ["9.2"],
+                ["9.2", "9.1"]
+        ]
     }
 
+    def "when a definition file is deleted and the reference and latest files haven't been, the system should regenerate"(List<String> branches) {
+        given:
+        String definitionName = "test_tv"
+        referencedTransportVersion(definitionName)
+        List<LatestFile> originalLatestFiles = readLatestFiles(branches)
 
-    /*
-    TODO: Add tests that check that:
-        -
-        - a latest file without a corresponding definition file should be reverted to main
-        - a merge conflict should be resolved, resulting in regeneration of the latest file.
-        - add a reference, generate, remove the reference, add another reference, generate
-        -
-     */
+        when: "The definition is generated"
+        def result = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--name=" + definitionName,
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and create the definition file"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(definitionName, originalLatestFiles)
+
+        when: "The definition file is deleted"
+        file("myserver/src/main/resources/transport/definitions/named/${definitionName}.csv").delete()
+
+        then: "The definition file should no longer exist"
+        !file("myserver/src/main/resources/transport/definitions/named/${definitionName}.csv").exists()
+
+        when: "Validation is run"
+        def validationResult = gradleRunner(":myserver:validateTransportVersionDefinitions").buildAndFail()
+
+        then: "The validation task should fail since the definition file is missing"
+        validationResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.FAILED
+
+        when: "The generation task is run again"
+        def secondResult = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and the definition file should be recreated"
+        secondResult.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        secondResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(definitionName, originalLatestFiles)
+
+        where:
+        branches << [
+                ["9.2"],
+                ["9.2", "9.1"]
+        ]
+    }
+
+    def "When a latest file is incorrectly changed and a referenced definition file exists, the latest file should be regenerated"(List<String> branches) {
+        given:
+        String definitionName = "test_tv"
+        referencedTransportVersion(definitionName)
+        List<LatestFile> originalLatestFiles = readLatestFiles(branches)
+
+        when: "The definition is generated"
+        def result = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--name=" + definitionName,
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and create the definition file"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(definitionName, originalLatestFiles)
+
+        when: "The latest files are modified"
+        originalLatestFiles.forEach {
+            latestTransportVersion(it.branch, it.name + "_modification", (it.id + 7).toString())
+        }
+
+        and: "The generation task is run again"
+        def secondResult = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and the latest files should be reverted and incremented correctly"
+        secondResult.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        secondResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(definitionName, originalLatestFiles)
+
+        where:
+        branches << [
+                ["9.2"],
+                ["9.2", "9.1"]
+        ]
+    }
+
+    // TODO legitimate bug, need to always clean up latest for patch versions
+    def "When a definition is created with a patch version, then generation is called without the patch version, the state should be updated"() {
+        given:
+        String definitionName = "test_tv"
+        referencedTransportVersion(definitionName)
+        List<String> branches = ["9.2", "9.1"]
+        List<String> mainBranch = ["9.2"]
+        List<LatestFile> originalLatestFilesWithPatch = readLatestFiles(branches)
+        List<LatestFile> originalLatestMainFile = readLatestFiles(mainBranch)
+        String originalLatestPatchText = file("myserver/src/main/resources/transport/latest/9.1.csv").text.strip()
+
+        when: "The definition is generated with a patch version"
+        def result = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--name=" + definitionName,
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and create the definition file"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(definitionName, originalLatestFilesWithPatch)
+
+        when: "The generation is called again without the patch version"
+        def secondResult = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--branches=" + mainBranch.join(",")
+        ).build()
+
+        then: "The generation task should succeed and the definition file should be updated"
+        secondResult.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        secondResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(definitionName, originalLatestMainFile)
+        originalLatestPatchText == file("myserver/src/main/resources/transport/latest/9.1.csv").text.strip()
+    }
+
+    def "Latest files mangled by a merge conflict should be regenerated, and the most recent definition file should be updated"() {
+
+    }
+
+    def "When a reference is deleted, the system should revert to the original state"() {
+
+    }
 
     List<LatestFile> readLatestFiles(List<String> branches) {
         return branches.stream()

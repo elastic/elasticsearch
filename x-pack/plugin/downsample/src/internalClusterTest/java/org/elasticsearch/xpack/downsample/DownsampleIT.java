@@ -276,7 +276,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             // TODO: add to counter tests below when support for counters is added
             for (String innerCommand : List.of("first_over_time", "last_over_time")) {
                 String command = outerCommand + " (" + innerCommand + "(cpu))";
-                try (var resp = esqlCommand("TS " + secondIndex + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)" )) {
+                try (var resp = esqlCommand("TS " + secondIndex + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")) {
                     var columns = resp.columns();
                     assertThat(columns, hasSize(3));
                     assertThat(
@@ -296,7 +296,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             // tests on counter types
             for (String innerCommand : List.of("rate")) {
                 String command = outerCommand + " (" + innerCommand + "(request))";
-                try (var resp = esqlCommand("TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)" )) {
+                try (var resp = esqlCommand("TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")) {
                     var columns = resp.columns();
                     assertThat(columns, hasSize(3));
                     assertThat(

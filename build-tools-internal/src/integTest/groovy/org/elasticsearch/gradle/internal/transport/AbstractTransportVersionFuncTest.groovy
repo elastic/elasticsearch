@@ -41,11 +41,11 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         javaResource("myserver", "transport/definitions/unreferenced/" + name + ".csv", id)
     }
 
-    def definedAndUsedTransportVersion(String name, String ids) {
-        return definedAndUsedTransportVersion(name, ids, "Test${name.capitalize()}")
+    def namedAndReferencedTransportVersion(String name, String ids) {
+        return namedAndReferencedTransportVersion(name, ids, "Test${name.capitalize()}")
     }
 
-    def definedAndUsedTransportVersion(String name, String ids, String classname) {
+    def namedAndReferencedTransportVersion(String name, String ids, String classname) {
         javaSource("myserver", "org.elasticsearch", classname, "", """
             static final TransportVersion usage = TransportVersion.fromName("${name}");
         """)
@@ -60,17 +60,17 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         return gradleRunner(":${project}:validateTransportVersionReferences").buildAndFail()
     }
 
-    def validateDefinitionsFails() {
-        return gradleRunner(":myserver:validateTransportVersionDefinitions").buildAndFail()
+    def validateResourcesFails() {
+        return gradleRunner(":myserver:validateTransportVersionResources").buildAndFail()
     }
 
-    def assertReferencesFailure(BuildResult result, String project, String expectedOutput) {
+    def assertValidateReferencesFailure(BuildResult result, String project, String expectedOutput) {
         result.task(":${project}:validateTransportVersionReferences").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
     }
 
-    def assertDefinitionsFailure(BuildResult result, String expectedOutput) {
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.FAILED
+    def assertValidateResourcesFailure(BuildResult result, String expectedOutput) {
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
     }
 
@@ -80,9 +80,6 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         settingsFile << """
             include ':myserver'
             include ':myplugin'
-        """
-        file("gradle.properties") << """
-            org.elasticsearch.transport.definitionsProject=:myserver
         """
 
         file("myserver/build.gradle") << """

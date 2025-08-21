@@ -190,10 +190,15 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         this.query = query;
         this.rankConstant = rankConstant;
         Objects.requireNonNull(weights, "weights must not be null");
-        if (weights.length != innerRetrievers.size()) {
-            throw new IllegalArgumentException(
-                "weights array length [" + weights.length + "] must match retrievers count [" + innerRetrievers.size() + "]"
-            );
+        // For simplified syntax (fields + query), allow empty weights array since weights are handled during rewrite
+        // For explicit retriever syntax, weights must match the number of retrievers
+        if (fields == null || query == null) {
+            // Explicit retriever syntax - validate weights match retrievers
+            if (weights.length != innerRetrievers.size()) {
+                throw new IllegalArgumentException(
+                    "weights array length [" + weights.length + "] must match retrievers count [" + innerRetrievers.size() + "]"
+                );
+            }
         }
         this.weights = weights;
     }

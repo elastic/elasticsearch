@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -52,5 +53,10 @@ public class InterceptedMatchQueryBuilder extends InterceptedQueryBuilder<MatchQ
     @Override
     protected QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextField) {
         return new SemanticQueryBuilder(getFieldName(), getQuery(), null, embeddingsProvider);
+    }
+
+    @Override
+    protected QueryBuilder queryNonSemanticTextField(MappedFieldType fieldType) {
+        return originalQuery;
     }
 }

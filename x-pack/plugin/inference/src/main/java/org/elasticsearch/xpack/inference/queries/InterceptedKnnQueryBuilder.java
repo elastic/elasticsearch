@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.InferenceResults;
@@ -70,20 +71,7 @@ public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVecto
         if (queryVector == null) {
             // TODO: Handle when query vector builder overrides inference ID
             String inferenceId = semanticTextField.getSearchInferenceId();
-            InferenceResults inferenceResults = embeddingsProvider.getEmbeddings(inferenceId);
-            if (inferenceResults == null) {
-                throw new IllegalStateException("Could not find embeddings from inference endpoint [" + inferenceId + "]");
-            } else if (inferenceResults instanceof MlTextEmbeddingResults == false) {
-                throw new IllegalArgumentException(
-                    "Expected query inference results to be of type ["
-                        + MlTextEmbeddingResults.NAME
-                        + "], got ["
-                        + inferenceResults.getWriteableName()
-                        + "]. Are you specifying a compatible inference endpoint? Has the inference endpoint configuration changed?"
-                );
-            }
-
-            MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
+            MlTextEmbeddingResults textEmbeddingResults = getEmbeddings(inferenceId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
@@ -100,5 +88,51 @@ public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVecto
         return QueryBuilders.nestedQuery(SemanticTextField.getChunksFieldName(getFieldName()), innerKnnQuery, ScoreMode.Max)
             .boost(originalQuery.boost())
             .queryName(originalQuery.queryName());
+    }
+
+    @Override
+    protected QueryBuilder queryNonSemanticTextField(MappedFieldType fieldType) {
+        VectorData queryVector = originalQuery.queryVector();
+        if (queryVector == null) {
+            QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
+            if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder) {
+                String inferenceId = textEmbeddingQueryVectorBuilder.getModelId();
+                if (inferenceId == null) {
+                    throw new IllegalArgumentException("Either query vector or query vector builder model ID must be specified");
+                }
+
+                MlTextEmbeddingResults textEmbeddingResults = getEmbeddings(inferenceId);
+                queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
+            }
+        }
+
+        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            getFieldName(),
+            queryVector,
+            originalQuery.k(),
+            originalQuery.numCands(),
+            originalQuery.rescoreVectorBuilder(),
+            originalQuery.getVectorSimilarity()
+        ).boost(originalQuery.boost()).queryName(originalQuery.queryName());
+        knnQuery.addFilterQueries(originalQuery.filterQueries());
+
+        return knnQuery;
+    }
+
+    private MlTextEmbeddingResults getEmbeddings(String inferenceId) {
+        InferenceResults inferenceResults = embeddingsProvider.getEmbeddings(inferenceId);
+        if (inferenceResults == null) {
+            throw new IllegalStateException("Could not find embeddings from inference endpoint [" + inferenceId + "]");
+        } else if (inferenceResults instanceof MlTextEmbeddingResults == false) {
+            throw new IllegalArgumentException(
+                "Expected query inference results to be of type ["
+                    + MlTextEmbeddingResults.NAME
+                    + "], got ["
+                    + inferenceResults.getWriteableName()
+                    + "]. Are you specifying a compatible inference endpoint? Has the inference endpoint configuration changed?"
+            );
+        }
+
+        return (MlTextEmbeddingResults) inferenceResults;
     }
 }

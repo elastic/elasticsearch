@@ -64,6 +64,8 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
 
     protected abstract QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextField);
 
+    protected abstract QueryBuilder queryNonSemanticTextField(MappedFieldType fieldType);
+
     @Override
     public QueryBuilder filter() {
         return copy(null);
@@ -111,7 +113,7 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
             } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextField) {
                 return querySemanticTextField(semanticTextField);
             } else {
-                return originalQuery;
+                return queryNonSemanticTextField(fieldType);
             }
         }
 

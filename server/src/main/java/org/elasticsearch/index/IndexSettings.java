@@ -680,7 +680,7 @@ public final class IndexSettings {
     public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
         "index.mapping.use_doc_values_skipper",
-        false,
+        true,
         Property.IndexScope,
         Property.Final
     );

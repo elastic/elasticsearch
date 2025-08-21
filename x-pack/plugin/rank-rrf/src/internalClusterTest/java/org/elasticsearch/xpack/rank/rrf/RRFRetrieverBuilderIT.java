@@ -838,5 +838,4 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
     }
-
 }

@@ -6942,7 +6942,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsWithoutGrouping() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -6963,7 +6963,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMixedAggsWithoutGrouping() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -6988,7 +6988,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMixedAggsWithMathWithoutGrouping() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
@@ -7026,7 +7026,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByOneDimension() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         TopN topN = as(plan, TopN.class);
@@ -7051,7 +7051,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByTwoDimension() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS avg(rate(network.total_bytes_in)) BY cluster, pod";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
@@ -7091,7 +7091,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByTimeBucket() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -7120,7 +7120,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByTimeBucketAndDimensions() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = """
             TS k8s
             | STATS avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
@@ -7162,7 +7162,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateSumOfTwoRates() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = """
             TS k8s
             | STATS max(rate(network.total_bytes_in) + rate(network.total_bytes_out)) BY pod, bucket(@timestamp, 5 minute), cluster
@@ -7183,7 +7183,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMixedAggsGroupedByTimeBucketAndDimensions() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = """
             TS k8s
             | STATS avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
@@ -7235,7 +7235,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testAdjustMetricsRateBeforeFinalAgg() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = """
             TS k8s
             | STATS avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
@@ -7293,7 +7293,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMaxOverTime() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(max_over_time(network.bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -7322,7 +7322,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateAvgOverTime() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(avg_over_time(network.bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -7355,7 +7355,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testMetricsWithoutRate() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         List<String> queries = List.of("""
             TS k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
             | LIMIT 10

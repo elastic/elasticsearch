@@ -24,7 +24,10 @@ dependencies {
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   compileOnly project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('mapper-version'))
 
   clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-version'))
+  clusterModules project(xpackModule('inference'))
   clusterModules project(':modules:data-streams')
 }

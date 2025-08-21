@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -41,6 +42,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -677,9 +679,14 @@ public class TasksIT extends ESIntegTestCase {
             Iterable<? extends Throwable> failures = wait.apply(taskId);
 
             for (Throwable failure : failures) {
-                assertNotNull(
-                    ExceptionsHelper.unwrap(failure, ElasticsearchTimeoutException.class, ReceiveTimeoutTransportException.class)
+                final Throwable cause = ExceptionsHelper.unwrap(
+                    failure,
+                    ElasticsearchTimeoutException.class,
+                    ReceiveTimeoutTransportException.class
                 );
+                assertNotNull(cause);
+                assertThat(asInstanceOf(ElasticsearchException.class, cause).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                assertTrue(asInstanceOf(ElasticsearchException.class, cause).isTimeout());
             }
         } finally {
             // Now we can unblock those requests

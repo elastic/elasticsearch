@@ -431,7 +431,10 @@ public final class RemoteClusterService extends RemoteClusterAware
         boolean forceRebuild,
         ActionListener<RemoteClusterConnectionStatus> listener
     ) {
-        final var mergedSettings = Settings.builder().put(settings).put(newSettings).build();
+        if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
+        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
         final var linkedProjectConfig = RemoteClusterSettings.toConfigBuilder(clusterAlias, mergedSettings)
             .originProjectId(projectId)
             .linkedProjectAlias(clusterAlias)
@@ -446,10 +449,6 @@ public final class RemoteClusterService extends RemoteClusterAware
     ) {
         final var projectId = config.originProjectId();
         final var clusterAlias = config.linkedProjectAlias();
-        if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
-        }
-
         final var connectionMap = getConnectionsMapForProject(projectId);
         RemoteClusterConnection remote = connectionMap.get(clusterAlias);
         if (RemoteConnectionStrategy.isConnectionEnabled(config) == false) {

@@ -14,10 +14,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStrategy;
 
+// FIXME: Refactor into a class heirarchy with subclasses for each connection strategy
 public record LinkedProjectConfig(
     ProjectId originProjectId,
     ProjectId linkedProjectId,
@@ -72,6 +74,9 @@ public record LinkedProjectConfig(
         }
 
         public Builder linkedProjectAlias(String linkedProjectAlias) {
+            if (linkedProjectAlias == null || linkedProjectAlias.isBlank()) {
+                throw new IllegalArgumentException("linkedProjectAlias cannot be null or empty");
+            }
             this.linkedProjectAlias = linkedProjectAlias;
             return this;
         }

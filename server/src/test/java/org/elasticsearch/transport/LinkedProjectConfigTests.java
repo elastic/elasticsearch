@@ -57,4 +57,9 @@ public class LinkedProjectConfigTests extends ESTestCase {
 
         assertThat("expect builder generated config to match the original config", builtConfig, equalTo(config));
     }
+
+    public void testLinkedProjectAliasValidation() {
+        assertThrows(IllegalArgumentException.class, () -> LinkedProjectConfig.builder().linkedProjectAlias(null).build());
+        assertThrows(IllegalArgumentException.class, () -> LinkedProjectConfig.builder().linkedProjectAlias("").build());
+    }
 }

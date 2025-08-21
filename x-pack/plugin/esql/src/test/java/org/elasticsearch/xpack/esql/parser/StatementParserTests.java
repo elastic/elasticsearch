@@ -4628,13 +4628,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String param2 = randomBoolean() ? "?" : "??";
             String param3 = randomBoolean() ? "?" : "??";
             if (param1.equals("?") || param2.equals("?") || param3.equals("?")) {
-                expectError(
-                    LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
-                    List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                    command.contains("join")
-                        ? "JOIN ON clause only supports fields at the moment"
-                        : "declared as a constant, cannot be used as an identifier"
-                );
+                if (command.contains("join")) {
+                    plan = statement(
+                        LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                        new QueryParams(List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")))
+                    );
+                    assertNotNull(plan);
+                } else {
+                    expectError(
+                        LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                        List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
+                        "declared as a constant, cannot be used as an identifier"
+                    );
+                }
             }
         }
     }

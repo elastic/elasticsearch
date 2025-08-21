@@ -116,7 +116,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         if (queryLists.size() == 1 && (request.candidateRightHandFilters == null || request.candidateRightHandFilters.isEmpty())) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists, context, request.candidateRightHandFilters, clusterService);
+        return new ExpressionQueryList(queryLists, context, request.candidateRightHandFilters, clusterService, request, aliasFilter);
 
     }
 
@@ -235,6 +235,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             );
             result.setParentTask(parentTaskId);
             return result;
+        }
+
+        public List<MatchConfig> getMatchFields() {
+            return matchFields;
         }
 
         @Override

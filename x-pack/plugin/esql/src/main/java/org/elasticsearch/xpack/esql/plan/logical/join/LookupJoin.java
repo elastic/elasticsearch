@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -29,12 +30,45 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  */
 public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields, boolean isRemote) {
-        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), isRemote);
+    public LookupJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        List<Attribute> joinFields,
+        boolean isRemote,
+        List<Expression> candidateRightHandFilters
+    ) {
+        this(
+            source,
+            left,
+            right,
+            new UsingJoinType(LEFT, joinFields),
+            emptyList(),
+            emptyList(),
+            emptyList(),
+            isRemote,
+            candidateRightHandFilters
+        );
     }
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
-        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), false);
+    public LookupJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        List<Attribute> joinFields,
+        List<Expression> candidateRightHandFilters
+    ) {
+        this(
+            source,
+            left,
+            right,
+            new UsingJoinType(LEFT, joinFields),
+            emptyList(),
+            emptyList(),
+            emptyList(),
+            false,
+            candidateRightHandFilters
+        );
     }
 
     public LookupJoin(
@@ -45,17 +79,31 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
         List<Attribute> joinFields,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        boolean isRemote
+        boolean isRemote,
+        List<Expression> candidateRightHandFilters
     ) {
-        this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields), isRemote);
+        this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields), isRemote, candidateRightHandFilters);
     }
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig) {
-        this(source, left, right, joinConfig, false);
+    public LookupJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinConfig joinConfig,
+        List<Expression> candidateRightHandFilters
+    ) {
+        this(source, left, right, joinConfig, false, candidateRightHandFilters);
     }
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {
-        super(source, left, right, joinConfig, isRemote, null);
+    public LookupJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinConfig joinConfig,
+        boolean isRemote,
+        List<Expression> candidateRightHandFilters
+    ) {
+        super(source, left, right, joinConfig, isRemote, candidateRightHandFilters);
     }
 
     /**
@@ -69,7 +117,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new LookupJoin(source(), left, right, config(), isRemote());
+        return new LookupJoin(source(), left, right, config(), isRemote(), candidateRightHandFilters());
     }
 
     @Override
@@ -83,7 +131,8 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
             config().matchFields(),
             config().leftFields(),
             config().rightFields(),
-            isRemote()
+            isRemote(),
+            candidateRightHandFilters()
         );
     }
 

@@ -2006,6 +2006,100 @@ language_code_float:integer | language_name:keyword
 127                         | max_byte
 ;
 
+lookupWithExpressionEquals
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages == language_code
+| KEEP emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 2                     | French
+;
+
+lookupWithExpressionNotEquals
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages != language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT language_code
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+10001          | 2                 | 3                     | Spanish
+10001          | 2                 | 4                     | German
+;
+
+lookupWithExpressionGreater
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages > language_code
+| KEEP emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+;
+
+lookupWithExpressionGreaterOrEquals
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages >= language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT language_code
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+10001          | 2                 | 2                     | French
+;
+
+lookupWithExpressionLess
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages < language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT language_code
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 3                     | Spanish
+10001          | 2                 | 4                     | German
+;
+
+lookupWithExpressionLessOrEquals
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_expression
+
+FROM employees
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages <= language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT language_code
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 2                     | French
+10001          | 2                 | 3                     | Spanish
+10001          | 2                 | 4                     | German
+;
+
 byteJoinDouble
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_mixed_numeric_fields

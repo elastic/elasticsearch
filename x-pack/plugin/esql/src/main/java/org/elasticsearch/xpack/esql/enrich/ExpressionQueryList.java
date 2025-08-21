@@ -13,11 +13,16 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
@@ -35,25 +40,38 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private static final Logger logger = LogManager.getLogger(ExpressionQueryList.class);
-    private final List<QueryList> queryLists;
+    private List<QueryList> queryLists;
     private final List<Query> preJoinFilters = new ArrayList<>();
     private final SearchExecutionContext context;
+    boolean isExpressionJoin = false;
+    private final AliasFilter aliasFilter;
 
     public ExpressionQueryList(
         List<QueryList> queryLists,
         SearchExecutionContext context,
         List<Expression> candidateRightHandFilters,
-        ClusterService clusterService
+        ClusterService clusterService,
+        LookupFromIndexService.TransportRequest request,
+        AliasFilter aliasFilter
     ) {
         if (queryLists.size() < 2 && (candidateRightHandFilters == null || candidateRightHandFilters.isEmpty())) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists");
         }
-        this.queryLists = queryLists;
+        this.queryLists = new ArrayList<>();
         this.context = context;
-        buildPrePostJoinFilter(candidateRightHandFilters, clusterService);
+        this.aliasFilter = aliasFilter;
+        buildPrePostJoinFilter(candidateRightHandFilters, clusterService, request);
+        if (isExpressionJoin == false) {
+            this.queryLists.addAll(queryLists);
+        }
+
     }
 
-    private void buildPrePostJoinFilter(List<Expression> candidateRightHandFilters, ClusterService clusterService) {
+    private void buildPrePostJoinFilter(
+        List<Expression> candidateRightHandFilters,
+        ClusterService clusterService,
+        LookupFromIndexService.TransportRequest request
+    ) {
         if (candidateRightHandFilters == null || candidateRightHandFilters.isEmpty()) {
             return; // no filters to apply
         }
@@ -68,7 +86,11 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                         preJoinFilters.add(
                             translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder().toQuery(context)
                         );
+                    } else {
+                        applyFilterWithQueryList(filter, request, clusterService);
                     }
+                } else {
+                    applyFilterWithQueryList(filter, request, clusterService);
                 }
                 // If the filter is not translatable we will not apply it for now
                 // as performance testing showed no performance improvement.
@@ -81,8 +103,39 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         }
     }
 
+    private void applyFilterWithQueryList(
+        Expression filter,
+        LookupFromIndexService.TransportRequest request,
+        ClusterService clusterService
+    ) {
+        if (filter instanceof EsqlBinaryComparison binaryComparison) {
+            // the left side comes from the page that was sent to the lookup node
+            // the right side is the field from the lookup index
+            // check if the left side is in the request.getMatchFields()
+            // if it is its corresponding page is the corresponding number in request.inputPage
+            Expression left = binaryComparison.left();
+            if (left instanceof Attribute leftAttribute) {
+                for (int i = 0; i < request.getMatchFields().size(); i++) {
+                    if (request.getMatchFields().get(i).fieldName().string().equals(leftAttribute.name())) {
+                        Block block = request.getInputPage().getBlock(i);
+                        Expression right = binaryComparison.right();
+                        if (right instanceof Attribute rightAttribute) {
+                            MappedFieldType fieldType = context.getFieldType(rightAttribute.name());
+                            if (fieldType != null) {
+                                isExpressionJoin = true;
+                                queryLists.add(
+                                    new BinaryComparisonQueryList(fieldType, context, block, binaryComparison, clusterService, aliasFilter)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @Override
-    public Query getQuery(int position) {
+    public Query getQuery(int position) throws IOException {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryList queryList : queryLists) {
             Query q = queryList.getQuery(position);

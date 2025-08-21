@@ -165,8 +165,12 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             if (scoped.rightFilters().isEmpty() == false && join.candidateRightHandFilters().isEmpty()) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters(), foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
-                    join = join.withCandidateRightHandFilters(rightPushableFilters);
-                    optimizationApplied = true;
+                    List<Expression> filters = new ArrayList<>(join.candidateRightHandFilters());
+                    if (filters.containsAll(rightPushableFilters) == false) {
+                        filters.addAll(rightPushableFilters);
+                        join = join.withCandidateRightHandFilters(filters);
+                        optimizationApplied = true;
+                    }
                 }
                 /*
                 We still want to reapply the filters that we just applied to the right child,

@@ -558,6 +558,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             this.source = source;
         }
 
+        public Page getInputPage() {
+            return inputPage;
+        }
+
         @Override
         public final String[] indices() {
             return new String[] { indexPattern };

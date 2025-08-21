@@ -228,8 +228,13 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
             // right side becomes nullable and overrides left except for join keys, which we preserve from the left
-            AttributeSet rightKeys = AttributeSet.of(config.rightFields());
-            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
+            // AttributeSet rightKeys = AttributeSet.of(config.rightFields());
+            Set<String> leftAttrNames = config.leftFields().stream().map(Attribute::name).collect(java.util.stream.Collectors.toSet());
+            // as we can do (left_key > right_key) now as join condition, we want to preserve the right_key,
+            // unless it is also a key on the left side, but we need to do name equality only
+            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
+                .filter(attr -> leftAttrNames.contains(attr.name()) == false)
+                .toList();
             output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");

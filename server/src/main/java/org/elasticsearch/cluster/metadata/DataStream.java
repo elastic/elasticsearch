@@ -1718,7 +1718,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // The list of indices is expected to be an immutable list. We don't create an immutable copy here, as it might have
             // impact on the performance on some usages.
             this.indices = indices;
-            this.rolloverOnWrite = rolloverOnWrite;
+            // There should never be a point where rollover on write is false if there are no indices present for this set
+            this.rolloverOnWrite = indices.isEmpty() || rolloverOnWrite;
             this.autoShardingEvent = autoShardingEvent;
 
             assert getLookup().size() == indices.size() : "found duplicate index entries in " + indices;

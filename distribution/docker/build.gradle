@@ -195,6 +195,9 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
       }
     } else {
       into('bin') {
+        filePermissions {
+          unix(0755)
+        }
         from projectDir.resolve("src/docker/bin")
       }
 

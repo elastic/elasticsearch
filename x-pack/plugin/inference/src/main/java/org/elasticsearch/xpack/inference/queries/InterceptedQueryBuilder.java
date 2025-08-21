@@ -66,6 +66,10 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
 
     protected abstract QueryBuilder queryNonSemanticTextField(MappedFieldType fieldType);
 
+    protected String getInferenceIdOverride() {
+        return null;
+    }
+
     @Override
     public QueryBuilder filter() {
         return copy(null);
@@ -154,15 +158,25 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
                 return originalQuery;
             }
 
+            String inferenceIdOverride = getInferenceIdOverride();
+            if (inferenceIdOverride != null) {
+                inferenceIds = Set.of(inferenceIdOverride);
+            }
+
+            // If the query is null, there's nothing to generate embeddings for. This can happen if pre-computed embeddings are provided
+            // by the user.
+            String query = getQuery();
             MapEmbeddingsProvider embeddingsProvider = new MapEmbeddingsProvider();
-            for (String inferenceId : inferenceIds) {
-                SemanticQueryBuilder.registerInferenceAsyncAction(
-                    queryRewriteContext,
-                    embeddingsProvider,
-                    getFieldName(),
-                    getQuery(),
-                    inferenceId
-                );
+            if (query != null) {
+                for (String inferenceId : inferenceIds) {
+                    SemanticQueryBuilder.registerInferenceAsyncAction(
+                        queryRewriteContext,
+                        embeddingsProvider,
+                        getFieldName(),
+                        query,
+                        inferenceId
+                    );
+                }
             }
 
             return copy(embeddingsProvider);

@@ -60,6 +60,11 @@ public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVecto
     }
 
     @Override
+    protected String getInferenceIdOverride() {
+        return getQueryVectorBuilderModelId();
+    }
+
+    @Override
     protected QueryBuilder copy(EmbeddingsProvider embeddingsProvider) {
         return new InterceptedKnnQueryBuilder(this, embeddingsProvider);
     }
@@ -69,8 +74,11 @@ public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVecto
         // TODO: Detect when querying a sparse vector semantic text field here?
         VectorData queryVector = originalQuery.queryVector();
         if (queryVector == null) {
-            // TODO: Handle when query vector builder overrides inference ID
-            String inferenceId = semanticTextField.getSearchInferenceId();
+            String inferenceId = getQueryVectorBuilderModelId();
+            if (inferenceId == null) {
+                inferenceId = semanticTextField.getSearchInferenceId();
+            }
+
             MlTextEmbeddingResults textEmbeddingResults = getEmbeddings(inferenceId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
@@ -94,16 +102,13 @@ public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVecto
     protected QueryBuilder queryNonSemanticTextField(MappedFieldType fieldType) {
         VectorData queryVector = originalQuery.queryVector();
         if (queryVector == null) {
-            QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
-            if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder) {
-                String inferenceId = textEmbeddingQueryVectorBuilder.getModelId();
-                if (inferenceId == null) {
-                    throw new IllegalArgumentException("Either query vector or query vector builder model ID must be specified");
-                }
-
-                MlTextEmbeddingResults textEmbeddingResults = getEmbeddings(inferenceId);
-                queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
+            String modelId = getQueryVectorBuilderModelId();
+            if (modelId == null) {
+                throw new IllegalArgumentException("Either query vector or query vector builder model ID must be specified");
             }
+
+            MlTextEmbeddingResults textEmbeddingResults = getEmbeddings(modelId);
+            queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
@@ -134,5 +139,15 @@ public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVecto
         }
 
         return (MlTextEmbeddingResults) inferenceResults;
+    }
+
+    private String getQueryVectorBuilderModelId() {
+        String modelId = null;
+        QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
+        if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder) {
+            modelId = textEmbeddingQueryVectorBuilder.getModelId();
+        }
+
+        return modelId;
     }
 }

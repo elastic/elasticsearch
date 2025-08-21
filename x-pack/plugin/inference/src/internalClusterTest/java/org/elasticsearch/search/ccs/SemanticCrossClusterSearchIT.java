@@ -22,8 +22,10 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -32,6 +34,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
@@ -122,6 +125,24 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(INFERENCE_FIELD, "foo");
+        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
+        searchRequest.setCcsMinimizeRoundtrips(true);
+
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            assertEquals(0, response.getFailedShards());
+            assertEquals(10, response.getHits().getHits().length);
+        });
+    }
+
+    public void testKnnCrossClusterSearch() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        TextEmbeddingQueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, "foo");
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(INFERENCE_FIELD, queryVectorBuilder, 10, 100, null);
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
         searchRequest.setCcsMinimizeRoundtrips(true);
@@ -260,10 +281,21 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         return response.getPointInTimeId();
     }
 
-    public static class FakeMlPlugin extends Plugin {
+    public static class FakeMlPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return new MlInferenceNamedXContentProvider().getNamedWriteables();
+        }
+
+        @Override
+        public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
+            return List.of(
+                new QueryVectorBuilderSpec<>(
+                    TextEmbeddingQueryVectorBuilder.NAME,
+                    TextEmbeddingQueryVectorBuilder::new,
+                    TextEmbeddingQueryVectorBuilder.PARSER
+                )
+            );
         }
     }
 }

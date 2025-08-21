@@ -600,15 +600,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testSortedDocValuesSingleUniqueValue
-  issue: https://github.com/elastic/elasticsearch/issues/133221
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testSortedNumberMergeAwayAllValuesWithSkipper
-  issue: https://github.com/elastic/elasticsearch/issues/133223
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testSortedSetDocValuesWithSkipperSmall
-  issue: https://github.com/elastic/elasticsearch/issues/133224
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupByNothing
   issue: https://github.com/elastic/elasticsearch/issues/133225

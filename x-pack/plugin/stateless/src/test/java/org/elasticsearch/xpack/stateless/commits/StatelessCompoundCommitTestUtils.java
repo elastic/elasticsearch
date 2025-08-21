@@ -33,10 +33,9 @@ import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.c
 import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
-import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
+import static org.elasticsearch.test.ESTestCase.randomNonEmptySubsetOf;
 
 public final class StatelessCompoundCommitTestUtils {
 
@@ -65,7 +64,7 @@ public final class StatelessCompoundCommitTestUtils {
                 termAndGeneration,
                 commitFiles,
                 randomNonZeroPositiveLong(),
-                Set.copyOf(randomSubsetOf(commitFiles.keySet())),
+                Set.copyOf(randomNonEmptySubsetOf(commitFiles.keySet())),
                 randomNonZeroPositiveLong(),
                 randomInternalFilesReplicatedRanges()
             );
@@ -77,7 +76,7 @@ public final class StatelessCompoundCommitTestUtils {
                 randomNodeEphemeralId(),
                 commitFiles,
                 randomNonZeroPositiveLong(),
-                Set.copyOf(randomSubsetOf(commitFiles.keySet())),
+                Set.copyOf(randomNonEmptySubsetOf(commitFiles.keySet())),
                 randomNonZeroPositiveLong(),
                 randomInternalFilesReplicatedRanges()
             );
@@ -97,10 +96,7 @@ public final class StatelessCompoundCommitTestUtils {
     }
 
     public static Map<String, BlobLocation> randomCommitFiles() {
-        final int entries = randomInt(50);
-        if (entries == 0) {
-            return Map.of();
-        }
+        final int entries = randomIntBetween(1, 50);
         return IntStream.range(0, entries + 1)
             .mapToObj(operand -> UUIDs.randomBase64UUID())
             .collect(Collectors.toMap(Function.identity(), s -> {

@@ -249,15 +249,17 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        var maybeDefault = defaultConfigIds.get(inferenceEntityId);
+        if (maybeDefault != null) {
+            getDefaultConfig(false, maybeDefault, listener);
+            logger.debug("Returning default inference endpoint [{}] with secrets", inferenceEntityId);
+            return;
+        }
+
         ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
-                var maybeDefault = defaultConfigIds.get(inferenceEntityId);
-                if (maybeDefault != null) {
-                    getDefaultConfig(true, maybeDefault, listener);
-                } else {
-                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
-                }
+                listener.onFailure(inferenceNotFoundException(inferenceEntityId));
                 return;
             }
 
@@ -289,15 +291,16 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        var maybeDefault = defaultConfigIds.get(inferenceEntityId);
+        if (maybeDefault != null) {
+            getDefaultConfig(false, maybeDefault, listener);
+            return;
+        }
+
         ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
-                var maybeDefault = defaultConfigIds.get(inferenceEntityId);
-                if (maybeDefault != null) {
-                    getDefaultConfig(true, maybeDefault, listener);
-                } else {
-                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
-                }
+                listener.onFailure(inferenceNotFoundException(inferenceEntityId));
                 return;
             }
 
@@ -428,7 +431,11 @@ public class ModelRegistry implements ClusterStateListener {
                     if (persistDefaultEndpoints) {
                         storeDefaultEndpoint(m, () -> listener.onResponse(modelToUnparsedModel(m)));
                     } else {
-                        listener.onResponse(modelToUnparsedModel(m));
+                        if (m.getSecrets() != null) {
+                            listener.onResponse(modelToUnparsedModelWithSecrets(m));
+                        } else {
+                            listener.onResponse(modelToUnparsedModel(m));
+                        }
                     }
                     break;
                 }
@@ -919,6 +926,26 @@ public class ModelRegistry implements ClusterStateListener {
             return request.opType(operation).id(docId).source(source);
         } catch (IOException ex) {
             throw new ElasticsearchException(format("Unexpected serialization exception for index [%s] doc [%s]", indexName, docId), ex);
+        }
+    }
+
+    private static UnparsedModel modelToUnparsedModelWithSecrets(Model model) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder(); var secretsBuilder = XContentFactory.jsonBuilder()) {
+            model.getConfigurations()
+                .toXContent(builder, new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString())));
+
+            model.getSecrets()
+                .toXContent(
+                    secretsBuilder,
+                    new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString()))
+                );
+
+            var modelConfigMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            var modelSecretsMap = XContentHelper.convertToMap(BytesReference.bytes(secretsBuilder), false, builder.contentType()).v2();
+            return unparsedModelFromMap(new ModelConfigMap(modelConfigMap, modelSecretsMap));
+
+        } catch (IOException ex) {
+            throw new ElasticsearchException("[{}] Error serializing inference endpoint configuration", model.getInferenceEntityId(), ex);
         }
     }
 

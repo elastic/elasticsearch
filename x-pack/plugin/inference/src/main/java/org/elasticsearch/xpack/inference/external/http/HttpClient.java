@@ -30,7 +30,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_RESPONSE_THREAD_POOL_NAME;
 
 /**
  * Provides a wrapper around a {@link CloseableHttpAsyncClient} to move the responses to a separate thread for processing.
@@ -135,7 +135,7 @@ public class HttpClient implements Closeable {
     }
 
     private void respondUsingUtilityThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
+        threadPool.executor(UTILITY_RESPONSE_THREAD_POOL_NAME).execute(() -> {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
@@ -150,7 +150,7 @@ public class HttpClient implements Closeable {
     }
 
     private void failUsingUtilityThread(Exception exception, ActionListener<?> listener) {
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
+        threadPool.executor(UTILITY_RESPONSE_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
     }
 
     public void stream(HttpRequest request, HttpContext context, ActionListener<StreamingHttpResult> listener) throws IOException {
@@ -167,12 +167,12 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> streamingProcessor.failed(ex));
+                threadPool.executor(UTILITY_RESPONSE_THREAD_POOL_NAME).execute(() -> streamingProcessor.failed(ex));
             }
 
             @Override
             public void cancelled() {
-                threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                threadPool.executor(UTILITY_RESPONSE_THREAD_POOL_NAME)
                     .execute(
                         () -> streamingProcessor.failed(
                             new CancellationException(

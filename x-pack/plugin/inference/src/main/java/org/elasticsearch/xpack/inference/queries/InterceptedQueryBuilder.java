@@ -43,9 +43,10 @@ public abstract class InterceptedQueryBuilder<T extends AbstractQueryBuilder<T>>
         this.embeddingsProvider = null;
     }
 
+    @SuppressWarnings("unchecked")
     protected InterceptedQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        this.originalQuery = in.readNamedWriteable(originalQueryClass());
+        this.originalQuery = (T) in.readNamedWriteable(QueryBuilder.class);
         this.embeddingsProvider = in.readOptionalNamedWriteable(EmbeddingsProvider.class);
     }
 

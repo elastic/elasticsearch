@@ -25,7 +25,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -169,7 +168,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return (n, c) -> {
             if (c.getIndexSettings().getIndexVersionCreated().before(NEW_SPARSE_VECTOR)) {
                 throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
-            };
+            }
+            ;
             if (InferenceMetadataFieldsMapper.isEnabled(c.getIndexSettings().getSettings()) == false) {
                 notInMultiFields(type).accept(n, c);
             }

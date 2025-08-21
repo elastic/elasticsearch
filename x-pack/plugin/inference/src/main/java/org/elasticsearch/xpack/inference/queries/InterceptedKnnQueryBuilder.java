@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
@@ -59,9 +62,42 @@ public class InterceptedKnnQueryBuilder extends InterceptedQueryBuilder<KnnVecto
 
     @Override
     protected QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextField) {
-        // TODO: Implement
-        return null;
+        QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
+        if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder
+            && textEmbeddingQueryVectorBuilder.getModelId() == null) {
+            // If the model ID was not specified, we infer the inference ID associated with the semantic_text field
+            queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(
+                semanticTextField.getSearchInferenceId(),
+                textEmbeddingQueryVectorBuilder.getModelText()
+            );
+        }
+
+        String embeddingsFieldName = SemanticTextField.getEmbeddingsFieldName(getFieldName());
+        KnnVectorQueryBuilder innerKnnQuery;
+        if (queryVectorBuilder != null) {
+            innerKnnQuery = new KnnVectorQueryBuilder(
+                embeddingsFieldName,
+                queryVectorBuilder,
+                originalQuery.k(),
+                originalQuery.numCands(),
+                originalQuery.getVectorSimilarity()
+            );
+        } else {
+            innerKnnQuery = new KnnVectorQueryBuilder(
+                embeddingsFieldName,
+                originalQuery.queryVector(),
+                originalQuery.k(),
+                originalQuery.numCands(),
+                originalQuery.rescoreVectorBuilder(),
+                originalQuery.getVectorSimilarity()
+            );
+        }
+        innerKnnQuery.addFilterQueries(originalQuery.filterQueries());
+
+        return QueryBuilders.nestedQuery(
+            SemanticTextField.getChunksFieldName(getFieldName()),
+            innerKnnQuery,
+            ScoreMode.Max
+        ).boost(originalQuery.boost()).queryName(originalQuery.queryName());
     }
-
-
 }

@@ -119,13 +119,15 @@ public class WriteLoadConstraintMonitor {
 
         if (haveCalledRerouteRecently == false
             || Sets.difference(nodeIdsExceedingLatencyThreshold, lastSetOfHotSpottedNodes).isEmpty() == false) {
-            final String reason = Strings.format(
-                "write load constraint monitor: "
-                    + "Found %s exceeding the write thread pool queue latency threshold (%s with capacity, %d total)",
-                nodeSummary(nodeIdsExceedingLatencyThreshold),
-                nodeSummary(potentialRelocationTargets),
-                state.nodes().size()
-            );
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "Found {} exceeding the write thread pool queue latency threshold ({} with capacity, {} total), triggering reroute",
+                    nodeSummary(nodeIdsExceedingLatencyThreshold),
+                    nodeSummary(potentialRelocationTargets),
+                    state.nodes().size()
+                );
+            }
+            final String reason = "hot-spotting detected by write load constraint monitor";
             rerouteService.reroute(
                 reason,
                 Priority.NORMAL,

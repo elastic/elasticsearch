@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -111,6 +112,23 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
             assertNotNull(response);
+            assertEquals(10, response.getHits().getHits().length);
+        });
+    }
+
+    public void testMatchCrossClusterSearch() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(INFERENCE_FIELD, "foo");
+        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
+        searchRequest.setCcsMinimizeRoundtrips(true);
+
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            assertEquals(0, response.getFailedShards());
             assertEquals(10, response.getHits().getHits().length);
         });
     }

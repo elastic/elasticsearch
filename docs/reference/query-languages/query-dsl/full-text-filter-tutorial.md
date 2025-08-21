@@ -13,14 +13,16 @@ products:
 
 This is a hands-on introduction to the basics of full-text search with {{es}}, also known as *lexical search*, using the `_search` API and Query DSL.
 
-You'll implement a search function for a cooking blog that contains recipes with textual content, categorical data, and numerical ratings.
-You'll apply filters to narrow down search results and combine multiple search criteria.
-For example, in this scenario you might want to:
+In this tutorial, you'll implement a search function for a cooking blog and learn how to filter data to narrow down search results based on exact criteria.
+The blog contains recipes with various attributes including textual content, categorical data, and numerical ratings.
+The goal is to create search queries to:
 
 * Find recipes based on preferred or avoided ingredients
 * Explore dishes that meet specific dietary needs
 * Find top-rated recipes in specific categories
 * Find the latest recipes from favorite authors
+
+To achieve these goals, you'll use different {{es}} queries to perform full-text search, apply filters, and combine multiple search criteria.
 
 ::::{tip}
 The code examples are in [Console](docs-content://explore-analyze/query-filter/tools/console.md) syntax by default.
@@ -29,7 +31,7 @@ You can [convert into other programming languages](docs-content://explore-analyz
 
 ## Requirements [full-text-filter-tutorial-requirements]
 
-You can follow these steps in any {{es}} deployment.
+You can follow these steps in any type of {{es}} deployment.
 To see all deployment options, refer to [Choosing your deployment type](docs-content://deploy-manage/deploy.md#choosing-your-deployment-type).
 To get started quickly, set up a [single-node local cluster in Docker](docs-content://solutions/search/run-elasticsearch-locally.md).
 
@@ -101,8 +103,8 @@ PUT /cooking_blog/_mapping
 ```
 
 1. `analyzer`: Used for text analysis. If you don't specify it, the `standard` analyzer is used by default for `text` fields. It's included here for demonstration purposes. To know more about analyzers, refer [Anatomy of an analyzer](https://docs-v3-preview.elastic.dev/elastic/docs-content/tree/main/manage-data/data-store/text-analysis/anatomy-of-an-analyzer).
-2. `ignore_above`: Prevents indexing values longer than 256 characters in the `keyword` field. This is the default value and it's included here for demonstration purposes. It helps to save disk space and avoid potential issues with Lucene's term byte-length limit. For more information, refer [ignore_above parameter](/reference/elasticsearch/mapping-reference/ignore-above.md).
-3. `description`: A field declared with both `text` and `keyword` [data types](/reference/elasticsearch/mapping-reference/field-data-types.md). Such fields are called  [Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md). This enables both full-text search and exact matching/filtering on the same field. If you use [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md), these multi-fields will be created automatically. A few other fields in the mapping like `author`, `category`, `tags` are also declared as multi-fields.
+2. `ignore_above`: Prevents indexing values longer than 256 characters in the `keyword` field. This is the default value and it's included here for demonstration purposes. It helps to save disk space and avoid potential issues with Lucene's term byte-length limit. For more information, refer to [ignore_above parameter](/reference/elasticsearch/mapping-reference/ignore-above.md).
+3. `description`: A field declared with both `text` and `keyword` [data types](/reference/elasticsearch/mapping-reference/field-data-types.md). Such fields are called [multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md). This enables both full-text search and exact matching/filtering on the same field. If you use [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md), these multi-fields will be created automatically. A few other fields in the mapping like `author`, `category`, `tags` are also declared as multi-fields.
 
 
 
@@ -113,7 +115,7 @@ Full-text search is powered by [text analysis](docs-content://solutions/search/f
 
 ## Add sample blog posts to your index [full-text-filter-tutorial-index-data]
 
-Next, you'll need to index some example blog posts using the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk). Note that `text` fields are analyzed and multi-fields are generated at index time.
+Next, index some example blog posts using the [bulk API]({{es-apis}}operation/operation-bulk). Note that `text` fields are analyzed and multi-fields are generated at index time.
 
 ```console
 POST /cooking_blog/_bulk?refresh=wait_for
@@ -135,7 +137,7 @@ Full-text search involves executing text-based queries across one or more docume
 
 ### Use `match` query [_match_query]
 
-The [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md) query is the standard query for full-text, or "lexical", search. The query text will be analyzed according to the analyzer configuration specified on each field (or at query time).
+The [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md) query is the standard query for full-text search. The query text will be analyzed according to the analyzer configuration specified on each field (or at query time).
 
 First, search the `description` field for "fluffy pancakes":
 
@@ -154,7 +156,7 @@ GET /cooking_blog/_search
 
 1. By default, the `match` query uses `OR` logic between the resulting tokens. This means it will match documents that contain either "fluffy" or "pancakes", or both, in the description field.
 
-At search time, {{es}} defaults to the analyzer defined in the field mapping. In this example, we're using the `standard` analyzer. Using a different analyzer at search time is an [advanced use case](docs-content://manage-data/data-store/text-analysis/index-search-analysis.md#different-analyzers).
+At search time, {{es}} defaults to the analyzer defined in the field mapping. This example uses the `standard` analyzer. Using a different analyzer at search time is an [advanced use case](docs-content://manage-data/data-store/text-analysis/index-search-analysis.md#different-analyzers).
 
 ::::{dropdown} Example response
 ```console-result
@@ -200,14 +202,15 @@ At search time, {{es}} defaults to the analyzer defined in the field mapping. In
 1. `hits`: Contains the total number of matching documents and their relation to the total.
 2. `max_score`: The highest relevance score among all matching documents. In this example, there is only have one matching document.
 3. `_score`: The relevance score for a specific document, indicating how well it matches the query. Higher scores indicate better matches. In this example the `max_score` is the same as the `_score`, as there is only one matching document.
-4. The title contains both "Fluffy" and "Pancakes", matching our search terms exactly.
+4. The title contains both "Fluffy" and "Pancakes", matching the search terms exactly.
 5. The description includes "fluffiest" and "pancakes", further contributing to the document's relevance due to the analysis process.
 
 ::::
 
 ### Include all terms match in a query [_require_all_terms_in_a_match_query]
 
-Specify the `and` operator to include both terms in the `description` field. This stricter search returns *zero hits* on our sample data, as no document contains both "fluffy" and "pancakes" in the description.
+Specify the `and` operator to include both terms in the `description` field.
+This stricter search returns *zero hits* on the sample data because no documents contain both "fluffy" and "pancakes" in the description.
 
 ```console
 GET /cooking_blog/_search
@@ -269,9 +272,10 @@ GET /cooking_blog/_search
 }
 ```
 
-## Search across multiple fields at once [full-text-filter-tutorial-multi-match]
+## Search across multiple fields [full-text-filter-tutorial-multi-match]
 
-When users enter a search query, they often don't know (or care) whether their search terms appear in a specific field. A [`multi_match`](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md) query allows searching across multiple fields simultaneously.
+When you enter a search query, you might not know whether the search terms appear in a specific field.
+A [`multi_match`](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md) query enables you to search across multiple fields simultaneously.
 
 Start with a basic `multi_match` query:
 
@@ -304,11 +308,13 @@ GET /cooking_blog/_search
 }
 ```
 
-1. The `^` syntax applies a boost to specific fields:* `title^3`: The title field is 3 times more important than an unboosted field
-* `description^2`: The description is 2 times more important
-* `tags`: No boost applied (equivalent to `^1`)
+1. The `^` syntax applies a boost to specific fields:
 
-  These boosts help tune relevance, prioritizing matches in the title over the description, and matches in the description over tags.
+  * `title^3`: The title field is 3 times more important than an unboosted field.
+  * `description^2`: The description is 2 times more important.
+  * `tags`: No boost applied (equivalent to `^1`).
+
+  These boosts help tune relevance, prioritizing matches in the title over the description and matches in the description over tags.
 
 Learn more about fields and per-field boosting in the [`multi_match` query](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md) reference.
 
@@ -354,24 +360,22 @@ Learn more about fields and per-field boosting in the [`multi_match` query](/ref
 }
 ```
 
-1. The title contains "Vegetarian" and "Curry", which matches our search terms. The title field has the highest boost (^3), contributing significantly to this document's relevance score.
+1. The title contains "Vegetarian" and "Curry", which matches the search terms. The title field has the highest boost (^3), contributing significantly to this document's relevance score.
 2. The description contains "curry" and related terms like "vegetables", further increasing the document's relevance.
-3. The tags include both "vegetarian" and "curry", providing an exact match for our search terms, albeit with no boost.
+3. The tags include both "vegetarian" and "curry", providing an exact match for the search terms, albeit with no boost.
 
-
-This result demonstrates how the `multi_match` query with field boosts helps users find relevant recipes across multiple fields. Even though the exact phrase "vegetarian curry" doesn't appear in any single field, the combination of matches across fields produces a highly relevant result.
+This result demonstrates how the `multi_match` query with field boosts helps you find relevant recipes across multiple fields.
+Even though the exact phrase "vegetarian curry" doesn't appear in any single field, the combination of matches across fields produces a highly relevant result.
 
 ::::
 
-
 ::::{tip}
-The `multi_match` query is often recommended over a single `match` query for most text search use cases, as it provides more flexibility and better matches user expectations.
-
+The `multi_match` query is often recommended over a single `match` query for most text search use cases because it provides more flexibility and better matches user expectations.
 ::::
 
 ## Filter and find exact matches [full-text-filter-tutorial-filtering]
 
-[Filtering](docs-content://explore-analyze/query-filter/languages/querydsl.md#filter-context) allows you to narrow down your search results based on exact criteria. Unlike full-text searches, filters are binary (yes/no) and do not affect the relevance score. Filters execute faster than queries because excluded results don't need to be scored.
+[Filtering](docs-content://explore-analyze/query-filter/languages/querydsl.md#filter-context) enables you to narrow down your search results based on exact criteria. Unlike full-text searches, filters are binary (yes or no) and do not affect the relevance score. Filters run faster than queries because excluded results don't need to be scored.
 
 The following [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md) query will return blog posts only in the "Breakfast" category.
 
@@ -394,14 +398,14 @@ GET /cooking_blog/_search
 ::::{tip}
 The `.keyword` suffix accesses the unanalyzed version of a field, enabling exact, case-sensitive matching. This works in two scenarios:
 
-1. **When using dynamic mapping for text fields**. {{es}} automatically creates a `.keyword` sub-field.
-2. **When text fields are explicitly mapped with a `.keyword` sub-field**. For example, you explicitly mapped the `category` field [in an earlier step](#full-text-filter-tutorial-create-index) of this tutorial.
-
+1. When using dynamic mapping for text fields. {{es}} automatically creates a `.keyword` sub-field.
+2. When text fields are explicitly mapped with a `.keyword` sub-field. For example, you explicitly mapped the `category` field when you defined the mappings for the `cooking_blog` index.
 ::::
 
-### Search for posts within a date range [full-text-filter-tutorial-range-query]
+### Search within a date range [full-text-filter-tutorial-range-query]
 
-Users often want to find content published within a specific time frame. A [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) query finds documents that fall within numeric or date ranges.
+To find content published within a specific time frame, use a [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) query.
+It finds documents that fall within numeric or date ranges.
 
 ```console
 GET /cooking_blog/_search
@@ -422,7 +426,7 @@ GET /cooking_blog/_search
 
 ### Find exact matches [full-text-filter-tutorial-term-query]
 
-Sometimes users want to search for exact terms to eliminate ambiguity in their search results. A [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) query searches for an exact term in a field without analyzing it. Exact, case-sensitive matches on specific terms are often referred to as "keyword" searches.
+Sometimes you might want to search for exact terms to eliminate ambiguity in the search results. A [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) query searches for an exact term in a field without analyzing it. Exact, case-sensitive matches on specific terms are often referred to as "keyword" searches.
 
 In the following example, you'll search for the author "Maria Rodriguez" in the `author.keyword` field.
 
@@ -437,17 +441,16 @@ GET /cooking_blog/_search
 }
 ```
 
-1. The `term` query has zero flexibility. For example, if the `author.keyword` contains words `maria` or `maria rodriguez`, the query will have zero hits, due to case sensitivity.
+1. The `term` query has zero flexibility. For example, if the `author.keyword` contains words `maria` or `maria rodriguez`, the query will have zero hits due to case sensitivity.
 
 ::::{tip}
-Avoid using the `term` query for [`text` fields](/reference/elasticsearch/mapping-reference/text.md) because they are transformed by the analysis process.
+Avoid using the `term` query for `text` fields because they are transformed by the analysis process.
 ::::
 
 ## Combine multiple search criteria [full-text-filter-tutorial-complex-bool]
 
-A [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md) query allows you to combine multiple query clauses to create sophisticated searches. In this tutorial, it's useful when users have complex requirements for finding recipes.
-
- Create a query that addresses the following user needs:
+You can use a [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md) query to combine multiple query clauses and create sophisticated searches.
+For example, create a query that addresses the following requirements:
 
 * Must be a vegetarian recipe
 * Should contain "curry" or "spicy" in the title or description
@@ -550,12 +553,12 @@ GET /cooking_blog/_search
 }
 ```
 
-1. The title contains "Spicy" and "Curry", matching our should condition. With the default [best_fields](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md#type-best-fields) behavior, this field contributes most to the relevance score.
+1. The title contains "Spicy" and "Curry", matching the should condition. With the default [best_fields](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md#type-best-fields) behavior, this field contributes most to the relevance score.
 2. While the description also contains matching terms, only the best matching field's score is used by default.
-3. The recipe was published within the last month, satisfying our recency preference.
+3. If the recipe was published within the last month, it would satisfy the recency preference.
 4. The "Main Course" category satisfies another `should` condition.
-5. The "vegetarian" tag satisfies a `must` condition, while "curry" and "spicy" tags align with our `should` preferences.
-6. The rating of 4.6 meets our minimum rating requirement of 4.5.
+5. The "vegetarian" tag satisfies a `must` condition, while "curry" and "spicy" tags align with the `should` preferences.
+6. The rating of 4.6 meets the minimum rating requirement of 4.5.
 
 ::::
 

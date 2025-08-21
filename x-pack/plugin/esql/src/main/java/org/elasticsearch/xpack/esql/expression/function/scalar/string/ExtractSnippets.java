@@ -84,13 +84,14 @@ public class ExtractSnippets extends EsqlScalarFunction
         returnType = "keyword",
         preview = true,
         description = """
-            Extracts the most relevant snippets to return from a given input string""",
-        examples = @Example(file = "keyword", tag = "extract_snippets")
+            Extracts the most relevant snippets to return from a given input string.""",
+        examples = {
+            @Example(file = "extract-snippets-function", tag = "extract-snippets-with-field", applies_to = "stack: preview 9.2.0") }
     )
     public ExtractSnippets(
         Source source,
-        @Param(name = "field", type = { "keyword" }, description = "The input string") Expression field,
-        @Param(name = "str", type = { "keyword", "text" }, description = "The input string") Expression str,
+        @Param(name = "field", type = { "keyword", "text" }, description = "The input string") Expression field,
+        @Param(name = "str", type = { "keyword" }, description = "The input string") Expression str,
         @Param(
             optional = true,
             name = "num_snippets",
@@ -105,6 +106,7 @@ public class ExtractSnippets extends EsqlScalarFunction
         ) Expression snippetLength
     ) {
         this(source, field, str, numSnippets, snippetLength, new MatchQueryBuilder(field.sourceText(), str.sourceText()));
+
     }
 
     public ExtractSnippets(

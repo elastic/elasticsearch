@@ -184,11 +184,11 @@ setup:
               fields: [ "dense_inference", "sparse_inference" ]
               query: "distributed, RESTful, search engine"
 
-  # Semantic-only match, so max score is 1
+  # Semantic-only match, so max RRF score for rank 1 with default rank_constant (60) is 1/(60+1) = 0.01639
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._id: "2" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - close_to: { hits.hits.0._score: { value: 0.01639, error: 0.0001 } }
   - match: { hits.hits.1._id: "3" }
   - lt: { hits.hits.1._score: 1.0 }
   - match: { hits.hits.2._id: "1" }
@@ -205,11 +205,11 @@ setup:
               fields: [ "dense_inference^3", "sparse_inference" ]
               query: "distributed, RESTful, search engine"
 
-  # Semantic-only match, so max score is 1
+  # Semantic-only match with boosted dense_inference field, so max RRF score for rank 1 is still 1/(60+1) = 0.01639
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._id: "3" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - close_to: { hits.hits.0._score: { value: 0.01639, error: 0.0001 } }
   - match: { hits.hits.1._id: "2" }
   - lt: { hits.hits.1._score: 1.0 }
   - match: { hits.hits.2._id: "1" }

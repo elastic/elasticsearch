@@ -359,8 +359,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
                 // (such as dropping the retriever name and min score)
-                // Top-level weights are intentionally reset to defaults here because per-field weighting
-                // is handled in the nested structures (MMQ/inference RRF) created by generateInnerRetrievers
                 float[] weights = createDefaultWeights(fieldsInnerRetrievers);
                 rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, null, null, rankWindowSize, rankConstant, weights);
                 rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
@@ -369,7 +367,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
-
         return rewritten;
     }
 

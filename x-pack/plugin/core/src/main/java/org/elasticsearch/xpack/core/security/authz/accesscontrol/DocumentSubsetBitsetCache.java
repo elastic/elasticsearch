@@ -125,9 +125,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     private final Cache<BitsetCacheKey, BitSet> bitsetCache;
     private final Map<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByIndex;
     private final AtomicLong cacheFullWarningTime;
+    private final LongSupplier relativeNanoTimeProvider;
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
-    private final LongSupplier relativeNanoTimeProvider;
 
     public DocumentSubsetBitsetCache(Settings settings, ThreadPool threadPool) {
         this(settings, threadPool.executor(ThreadPool.Names.GENERIC));

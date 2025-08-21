@@ -977,26 +977,37 @@ public class SamlRealmTests extends SamlTestCase {
                 SamlRealmSettings.MAIL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute()
             )
         );
+        {
+            Settings settings = buildSettings("https://example.com").put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
+                attributeName
+            ).put(attributeSetting, attributeName).build();
+            final RealmConfig config = realmConfigFromGlobalSettings(settings);
 
-        Settings settings = buildSettings("https://example.com").put(
-            SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
-            attributeName
-        ).put(attributeSetting, attributeName).build();
-        final RealmConfig config = realmConfigFromGlobalSettings(settings);
-
-        var e = expectThrows(IllegalArgumentException.class, () -> config.getSetting(SamlRealmSettings.PRIVATE_ATTRIBUTES));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString(
-                "SAML Attribute ["
-                    + attributeName
-                    + "] cannot be both configured for ["
-                    + REALM_SETTINGS_PREFIX
-                    + ".private_attributes] and ["
-                    + attributeSetting
-                    + "] settings."
-            )
-        );
+            var e = expectThrows(IllegalArgumentException.class, () -> config.getSetting(SamlRealmSettings.PRIVATE_ATTRIBUTES));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString(
+                    "SAML Attribute ["
+                        + attributeName
+                        + "] cannot be both configured for ["
+                        + REALM_SETTINGS_PREFIX
+                        + ".private_attributes] and ["
+                        + attributeSetting
+                        + "] settings."
+                )
+            );
+        }
+        {
+            String otherAttributeName = randomAlphaOfLength(9);
+            Settings settings = buildSettings("https://example.com").put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.PRIVATE_ATTRIBUTES),
+                attributeName
+            ).put(attributeSetting, otherAttributeName).build();
+            final RealmConfig config = realmConfigFromGlobalSettings(settings);
+            assertThat(config.getSetting(SamlRealmSettings.PRIVATE_ATTRIBUTES), containsInAnyOrder(attributeName));
+            assertThat(config.settings().get(attributeSetting), equalTo(otherAttributeName));
+        }
     }
 
     public void testMissingPrincipalSettingThrowsSettingsException() throws Exception {

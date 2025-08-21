@@ -443,6 +443,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: definitions have primary ids which cannot change
   issue: https://github.com/elastic/elasticsearch/issues/133234
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: latest files cannot change base id
+  issue: https://github.com/elastic/elasticsearch/issues/133231
 
 # Examples:
 #

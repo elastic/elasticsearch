@@ -112,13 +112,13 @@ public class AuthenticationService {
 
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
         CustomTokenAuthenticator oauth2Authenticator = customTokenAuthenticators.stream()
-            .filter(t -> t.name().contains("oauth2") || t instanceof CustomTokenAuthenticator.Noop)
+            .filter(t -> t.name().contains("oauth2"))
             .findAny()
-            .orElseThrow();
+            .orElse(new CustomTokenAuthenticator.Noop());
         CustomTokenAuthenticator apiKeyAuthenticator = customTokenAuthenticators.stream()
-            .filter(t -> t.name().contains("api key") || t instanceof CustomTokenAuthenticator.Noop)
+            .filter(t -> t.name().contains("api key"))
             .findAny()
-            .orElseThrow();
+            .orElse(new CustomTokenAuthenticator.Noop());
         this.authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,

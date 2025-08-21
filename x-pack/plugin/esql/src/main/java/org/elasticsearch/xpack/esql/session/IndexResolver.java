@@ -92,7 +92,6 @@ public class IndexResolver {
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
-        var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             return IndexResolution.notFound(indexPattern);
@@ -143,8 +142,7 @@ public class IndexResolver {
                 );
             fields.put(name, field);
 
-            var isPartiallyUnmapped = fcs.size() < numberOfIndices;
-            if (isPartiallyUnmapped) {
+            if (fieldCapsResponse.getIndexResponses().stream().allMatch(fcir -> fcir.get().containsKey(fullName)) == false) {
                 partiallyUnmappedFields.add(fullName);
             }
         }

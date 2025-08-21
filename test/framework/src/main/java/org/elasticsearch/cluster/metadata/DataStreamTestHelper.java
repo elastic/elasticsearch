@@ -391,7 +391,7 @@ public final class DataStreamTestHelper {
                 )
                 .build(),
             DataStream.DataStreamIndices.failureIndicesBuilder(failureIndices)
-                .setRolloverOnWrite(failureStore && replicated == false && randomBoolean())
+                .setRolloverOnWrite(replicated == false && (failureIndices.isEmpty() || randomBoolean()))
                 .setAutoShardingEvent(
                     failureStore && randomBoolean()
                         ? new DataStreamAutoShardingEvent(

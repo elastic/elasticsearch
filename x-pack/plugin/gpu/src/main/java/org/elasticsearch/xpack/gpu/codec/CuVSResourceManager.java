@@ -84,7 +84,6 @@ public interface CuVSResourceManager {
         private int createdCount;
 
         ReentrantLock lock = new ReentrantLock();
-        Condition poolAvailableCondition = lock.newCondition();
         Condition enoughMemoryCondition = lock.newCondition();
 
         public PoolingCuVSResourceManager(int capacity, GPUInfoProvider gpuInfoProvider) {
@@ -115,28 +114,37 @@ public interface CuVSResourceManager {
         public ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException {
             try {
                 lock.lock();
-                ManagedCuVSResources res;
-                while ((res = getResourceFromPool()) == null) {
-                    poolAvailableCondition.await();
-                }
 
-                // Check resources availability
-                // Memory
-                long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims);
-                if (requiredMemoryInBytes > gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes()) {
-                    throw new IllegalArgumentException(
-                        Strings.format(
-                            "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%dMB]",
-                            numVectors,
-                            dims,
-                            gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes() / (1024L * 1024L)
-                        )
-                    );
-                }
-                while (requiredMemoryInBytes > gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes()) {
-                    enoughMemoryCondition.await();
-                }
+                boolean allConditionsMet = false;
+                ManagedCuVSResources res = null;
+                while (allConditionsMet == false) {
+                    res = getResourceFromPool();
+                    final boolean enoughMemory;
+                    if (res != null) {
+                        // Check resources availability
+                        // Memory
+                        long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims);
+                        if (requiredMemoryInBytes > gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes()) {
+                            throw new IllegalArgumentException(
+                                Strings.format(
+                                    "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%dMB]",
+                                    numVectors,
+                                    dims,
+                                    gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes() / (1024L * 1024L)
+                                )
+                            );
+                        }
+                        enoughMemory = requiredMemoryInBytes <= gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes();
+                    } else {
+                        enoughMemory = false;
+                    }
+                    if (enoughMemory == false) {
+                        enoughMemoryCondition.await();
+                    }
 
+                    // TODO: add enoughComputation / enoughComputationCondition here
+                    allConditionsMet = enoughMemory; // && enoughComputation
+                }
                 res.locked = true;
                 return res;
             } finally {
@@ -165,8 +173,7 @@ public interface CuVSResourceManager {
                 lock.lock();
                 assert resources.locked;
                 resources.locked = false;
-                poolAvailableCondition.signalAll();
-                enoughMemoryCondition.signalAll();
+                enoughMemoryCondition.signal();
             } finally {
                 lock.unlock();
             }

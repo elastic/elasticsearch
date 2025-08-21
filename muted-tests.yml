@@ -603,6 +603,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:change_point.Values null column}
   issue: https://github.com/elastic/elasticsearch/issues/133334
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/110_field_collapsing/field collapsing}
+  issue: https://github.com/elastic/elasticsearch/issues/133361
 
 # Examples:
 #

@@ -448,7 +448,8 @@ public class FunctionScoreQuery extends Query {
                   These scores are invalid for score based {@link org.apache.lucene.search.TopDocsCollector}s.
                   See {@link org.apache.lucene.search.TopScoreDocCollector} for details.
                  */
-                throw new ElasticsearchException("function score query returned an invalid score: " + finalScore + " for doc: " + docId);
+                throw new IllegalArgumentException("function score query returned an invalid score: "
+                    + finalScore + " for doc: " + docId + "; score must be a non-negative real number");
             }
             return finalScore;
         }

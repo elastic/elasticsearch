@@ -121,11 +121,6 @@ public class PerNodeShardSnapshotCounterTests extends ESTestCase {
                     randomAlphaOfLengthBetween(10, 20)
                 )
             );
-            // aborted assigned-queued shard
-            shards.put(
-                randomShardId(),
-                new ShardSnapshotStatus(null, SnapshotsInProgress.ShardState.ABORTED, new ShardGeneration(1L), "assigned-queued aborted")
-            );
             // assigned-queued shard
             shards.put(randomShardId(), ShardSnapshotStatus.assignedQueued(snapshotNodeId, randomFrom(new ShardGeneration(1L), null)));
 
@@ -160,7 +155,7 @@ public class PerNodeShardSnapshotCounterTests extends ESTestCase {
             assertTrue(perNodeShardSnapshotCounter.hasCapacityOnAnyNode());
         }
 
-        // Shard snapshots with states counting towards
+        // Shard snapshots with states counting towards the limit
         {
             // INIT shard
             final Map<ShardId, ShardSnapshotStatus> shards = new HashMap<>();
@@ -191,7 +186,7 @@ public class PerNodeShardSnapshotCounterTests extends ESTestCase {
             assertFalse(perNodeShardSnapshotCounter.hasCapacityOnAnyNode()); // no capacity left due to the INIT shard
 
             // Aborted shard snapshot that was previously in INIT state still count towards the limit
-            entry = entry.abort(snapshotNodeId, (ignore0, ignore1) -> {});
+            entry = entry.abort(new HashMap<>());
             assertNotNull(entry);
             snapshotsInProgress = snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(
                 ProjectId.DEFAULT,

@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -880,10 +879,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return isActive() || isAssignedQueued();
         }
 
-        public boolean isAbortedAssignedQueued() {
-            return state == ShardState.ABORTED && nodeId == null;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
@@ -1272,17 +1267,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * In the special case where this instance has not yet made any progress on any shard this method just returns
          * {@code null} since no abort is needed and the snapshot can simply be removed from the cluster state outright.
          *
+         * @param completedAssignedQueuedShards Map to accumulate assigned-queued shards that get aborted in this entry
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort(String localNodeId, BiConsumer<ShardId, ShardSnapshotStatus> abortedAssignedQueuedShardConsumer) {
+        public Entry abort(Map<ShardId, ShardSnapshotStatus> completedAssignedQueuedShards) {
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
             for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : shards.entrySet()) {
                 ShardSnapshotStatus status = shardEntry.getValue();
                 final var isAssignedQueued = status.isAssignedQueued();
-                allQueued &= (status.state() == ShardState.QUEUED && isAssignedQueued == false);
+                allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
                     if (isAssignedQueued == false) {
@@ -1293,21 +1289,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                             "aborted by snapshot deletion"
                         );
                     } else {
+                        // Record the deletion of the assigned-queued shard snapshot so that we can kick off the first QUEUED one
+                        // in later snapshots.
+                        final var old = completedAssignedQueuedShards.put(shardEntry.getKey(), status);
+                        assert old == null : old;
                         assert isClone() == false
                             : "The state queued with generation should not be possible for a clone entry [" + this + "]";
                         final String reason = "assigned-queued aborted by snapshot deletion";
                         // Assigned QUEUED transitions to ABORTED (incomplete) and is completed by a separate cluster state update
-                        status = new ShardSnapshotStatus(
-                            null, // use null nodeId to differentiate it from aborted INIT shard snapshot
-                            ShardState.ABORTED,
-                            status.generation(),
-                            reason
-                        );
-                        // Accumulate the updates needed to complete the aborted assigned-queued shard snapshots
-                        abortedAssignedQueuedShardConsumer.accept(
-                            shardEntry.getKey(),
-                            new ShardSnapshotStatus(localNodeId, ShardState.FAILED, status.generation, reason)
-                        );
+                        status = new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), reason);
                     }
                 }
                 completed &= status.state().completed();

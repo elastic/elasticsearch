@@ -745,7 +745,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             final var context = new SnapshotsService.SnapshotShardsUpdateContext(
                 batchExecutionContext,
                 /* on completion handler */ (shardSnapshotUpdateResult, newlyCompletedEntries, updatedRepositories) -> {},
-                (snapshot, shardId, statusUpdate) -> {},
                 0,
                 false
             );

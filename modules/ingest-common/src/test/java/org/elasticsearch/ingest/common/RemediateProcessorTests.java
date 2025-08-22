@@ -36,9 +36,7 @@ public class RemediateProcessorTests extends ESTestCase {
         // current metadata
         sourceAndMetadata.put("_index", currentIndex);
         sourceAndMetadata.put("_id", "test-id");
-        if (randomBoolean()) {
-            sourceAndMetadata.put("_version", 1);
-        }
+        sourceAndMetadata.put("_version", 1L);
 
         // failure wrapper
         Map<String, Object> documentWrapper = new HashMap<>();
@@ -105,6 +103,7 @@ public class RemediateProcessorTests extends ESTestCase {
         Map<String, Object> sourceAndMetadata = new HashMap<>();
         sourceAndMetadata.put("_index", "failure-index");
         sourceAndMetadata.put("error", "simulated failure");
+        sourceAndMetadata.put("_version", 1L);
         // no "document" field
 
         IngestDocument doc = new IngestDocument(sourceAndMetadata, new HashMap<>());

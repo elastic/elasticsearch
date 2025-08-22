@@ -62,6 +62,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
+    private static final float MAX_VISIT_INCREASE_RATIO = 0.1f;
+    private static final double MAX_VISIT_DECREASE_RATIO = 0.01f;
+
     protected final String field;
     protected final float providedVisitRatio;
     protected final int k;
@@ -166,79 +169,48 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             visitRatio = providedVisitRatio;
         }
 
-        // FIXME: pick a reasonable min budget and make sure visitRatio is used appropriately throughout and not pushing the budget to zero
-        int totalBudget = Math.max(100, (int) (totalDocsWVectors * visitRatio));
-
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {
             // calculate the affinity of each segment to the query vector
-            // (need information from each segment: no. of clusters, global centroid, density, parent centroids' scores, etc.)
             List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector(), costs);
+            segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
 
-            // TODO: sort segments by affinity score in descending order, and cut the long tail ?
             double[] affinityScores = segmentAffinities.stream()
                 .map(SegmentAffinity::affinityScore)
                 .mapToDouble(Double::doubleValue)
-                .toArray();
-
-            double[] filteredAffinityScores = Arrays.stream(affinityScores)
                 .filter(x -> Double.isNaN(x) == false && Double.isInfinite(x) == false)
                 .toArray();
 
-            final double averageAffinity = Arrays.stream(filteredAffinityScores).average().orElse(0.0);
-            double variance = Arrays.stream(filteredAffinityScores).map(x -> (x - averageAffinity) * (x - averageAffinity)).sum()
-                / filteredAffinityScores.length;
-            double stdDev = Math.sqrt(variance);
+            double minAffinity = Arrays.stream(affinityScores).min().orElse(Double.NaN);
+            double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
 
-            double maxAffinity;
-            double cutoffAffinity;
-            double affinityThreshold;
+            double[] normalizedAffinityScores = Arrays.stream(affinityScores)
+                .map(d -> (d - minAffinity) / (maxAffinity - minAffinity))
+                .toArray();
 
-            if (stdDev > averageAffinity) {
-                // adjust calculation when distribution is very skewed
-                double minAffinity = Arrays.stream(affinityScores).min().orElse(Double.NaN);
-                maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
-                double lowerAffinity = (minAffinity + averageAffinity) * 0.5;
-                cutoffAffinity = lowerAffinity * 0.1;
-                affinityThreshold = (minAffinity + lowerAffinity) * 0.66;
-            } else {
-                maxAffinity = averageAffinity + 50 * stdDev;
-                cutoffAffinity = averageAffinity - 50 * stdDev;
-                affinityThreshold = averageAffinity + stdDev;
-            }
-
-            float maxAdjustments = visitRatio * 1.5f;
-
-            if (Double.isNaN(maxAffinity) || Double.isNaN(averageAffinity)) {
+            if (normalizedAffinityScores.length != segmentAffinities.size()) {
                 tasks = new ArrayList<>(leafReaderContexts.size());
                 for (LeafReaderContext context : leafReaderContexts) {
-                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio, Integer.MAX_VALUE));
+                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
                 }
             } else {
                 tasks = new ArrayList<>(segmentAffinities.size());
-                double scoreVectorsSum = segmentAffinities.stream().map(segmentAffinity -> {
-                    double affinity = Double.isNaN(segmentAffinity.affinityScore) ? maxAffinity : segmentAffinity.affinityScore;
-                    affinity = Math.clamp(affinity, 0.0, maxAffinity);
-                    return affinity * segmentAffinity.numVectors;
-                }).mapToDouble(Double::doubleValue).sum();
-
+                int j = 0;
                 for (SegmentAffinity segmentAffinity : segmentAffinities) {
-                    double score = segmentAffinity.affinityScore();
-                    if (score < cutoffAffinity) {
-                        continue;
-                    }
-                    float adjustedVisitRatio = adjustVisitRatioForSegment(score, affinityThreshold, maxAdjustments, visitRatio);
+                    double normalizedAffinityScore = normalizedAffinityScores[j];
+
+                    float adjustedVisitRatio = (float) Math.clamp(
+                        (visitRatio * (MAX_VISIT_INCREASE_RATIO + normalizedAffinityScore)),
+                        visitRatio * MAX_VISIT_DECREASE_RATIO,
+                        visitRatio * (1 + MAX_VISIT_INCREASE_RATIO)
+                    );
+
                     LeafReaderContext context = segmentAffinity.context();
 
-                    // distribute the budget according to : budgetᵢ = total_budget × (affinityᵢ × |vectors|ᵢ) / ∑ (affinityⱼ × |vectors|ⱼ)
-                    int segmentBudget = (int) (totalBudget * (score * segmentAffinity.numVectors) / scoreVectorsSum);
-
-                    // TODO : should we always grant a min budget for each affine-enough segment
-                    if (segmentBudget > 0) {
-                        tasks.add(
-                            () -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedVisitRatio, Math.max(1, segmentBudget))
-                        );
+                    if (adjustedVisitRatio > 0) {
+                        tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedVisitRatio));
                     }
+                    j++;
                 }
             }
         } else {
@@ -257,21 +229,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     abstract VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi) throws IOException;
 
-    private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, float maxAdjustment, float visitRatio) {
-        // for high affinity scores, increase visited ratio
-        if (affinityScore > affinityThreshold) {
-            int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
-            return Math.min(visitRatio * adjustment, visitRatio + maxAdjustment);
-        }
-
-        // for low affinity scores, decrease visited ratio
-        if (affinityScore <= affinityThreshold) {
-            return Math.max(visitRatio * 0.5f, 0.01f);
-        }
-
-        return visitRatio;
-    }
-
     abstract float[] getQueryVector() throws IOException;
 
     private IVFVectorsReader unwrapReader(KnnVectorsReader knnVectorsReader) {
@@ -287,8 +244,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return result;
     }
 
-    private List<SegmentAffinity> calculateSegmentAffinities(List<LeafReaderContext> leafReaderContexts, float[] queryVector, int[] costs)
-        throws IOException {
+    private List<SegmentAffinity> calculateSegmentAffinities(List<LeafReaderContext> leafReaderContexts, float[] queryVector, int[] costs) {
         List<SegmentAffinity> segmentAffinities = new ArrayList<>(leafReaderContexts.size());
 
         int i = 0;
@@ -325,25 +281,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     int numCentroids = reader.getNumCentroids(fieldInfo);
                     double centroidDensity = (double) numCentroids / numVectors;
 
-                    // with larger clusters, global centroid might not be a good representative,
-                    // so we want to include "some" centroids' scores for higher quality estimate
-                    // TODO: tweak the threshold numCentroids here
-                    if (numCentroids > 64) {
-                        float[] centroidScores = reader.getCentroidsScores(
-                            fieldInfo,
-                            numCentroids,
-                            reader.getIvfCentroids(fieldInfo),
-                            queryVector,
-                            numCentroids > 128
-                        );
-                        Arrays.sort(centroidScores);
-                        float first = centroidScores[centroidScores.length - 1];
-                        float second = centroidScores[centroidScores.length - 2];
-                        centroidsScore = (centroidsScore + first + second) / 3;
-                    }
-
+                    // TODO : we may want to include some actual centroids' scores for higher quality estimate
                     double affinityScore = centroidsScore * (1 + centroidDensity);
-
                     segmentAffinities.add(new SegmentAffinity(context, affinityScore, numVectors));
                 } else {
                     segmentAffinities.add(new SegmentAffinity(context, Float.NaN, 0));
@@ -357,14 +296,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     private record SegmentAffinity(LeafReaderContext context, double affinityScore, int numVectors) {}
 
-    private TopDocs searchLeaf(
-        LeafReaderContext ctx,
-        Weight filterWeight,
-        KnnCollectorManager knnCollectorManager,
-        float visitRatio,
-        int visitingBudget
-    ) throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, visitingBudget);
+    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
+        throws IOException {
+        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
         int deduplicateCount = 0;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
@@ -384,19 +318,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    TopDocs getLeafResults(
-        LeafReaderContext ctx,
-        Weight filterWeight,
-        KnnCollectorManager knnCollectorManager,
-        float visitRatio,
-        int visitingBudget
-    ) throws IOException {
+    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
+        throws IOException {
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
 
-        KnnSearchStrategy searchStrategy = new IVFKnnSearchStrategy(visitRatio);
         if (filterWeight == null) {
-            return approximateSearch(ctx, liveDocs, visitingBudget, knnCollectorManager, searchStrategy);
+            return approximateSearch(ctx, liveDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         }
 
         Scorer scorer = filterWeight.scorer(ctx);
@@ -406,7 +334,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         BitSet acceptDocs = createBitSet(scorer.iterator(), liveDocs, reader.maxDoc());
         final int cost = acceptDocs.cardinality();
-        return approximateSearch(ctx, acceptDocs, Math.min(visitingBudget, cost + 1), knnCollectorManager, searchStrategy);
+        return approximateSearch(ctx, acceptDocs, cost + 1, knnCollectorManager, visitRatio);
     }
 
     abstract TopDocs approximateSearch(
@@ -414,7 +342,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         Bits acceptDocs,
         int visitedLimit,
         KnnCollectorManager knnCollectorManager,
-        KnnSearchStrategy searchStrategy
+        float visitRatio
     ) throws IOException;
 
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {

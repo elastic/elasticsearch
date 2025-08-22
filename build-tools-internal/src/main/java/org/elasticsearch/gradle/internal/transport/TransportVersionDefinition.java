@@ -9,11 +9,13 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
-    public static TransportVersionDefinition fromString(String filename, String contents) {
+    public static TransportVersionDefinition fromString(Path file, String contents) {
+        String filename = file.getFileName().toString();
         assert filename.endsWith(".csv");
         String name = filename.substring(0, filename.length() - 4);
         List<TransportVersionId> ids = new ArrayList<>();
@@ -23,7 +25,7 @@ record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
                 try {
                     ids.add(TransportVersionId.fromString(rawId));
                 } catch (NumberFormatException e) {
-                    throw new IllegalStateException("Failed to parse id " + rawId + " in " + filename, e);
+                    throw new IllegalStateException("Failed to parse id " + rawId + " in " + file, e);
                 }
             }
         }

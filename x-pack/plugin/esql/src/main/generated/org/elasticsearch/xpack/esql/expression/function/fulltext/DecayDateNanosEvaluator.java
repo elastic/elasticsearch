@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -63,8 +64,8 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
   public Block eval(Page page) {
     try (LongBlock valueBlock = (LongBlock) value.eval(page)) {
       try (LongBlock originBlock = (LongBlock) origin.eval(page)) {
-        try (BytesRefBlock scaleBlock = (BytesRefBlock) scale.eval(page)) {
-          try (BytesRefBlock offsetBlock = (BytesRefBlock) offset.eval(page)) {
+        try (LongBlock scaleBlock = (LongBlock) scale.eval(page)) {
+          try (LongBlock offsetBlock = (LongBlock) offset.eval(page)) {
             try (DoubleBlock decayBlock = (DoubleBlock) decay.eval(page)) {
               try (BytesRefBlock functionTypeBlock = (BytesRefBlock) functionType.eval(page)) {
                 LongVector valueVector = valueBlock.asVector();
@@ -75,11 +76,11 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
                 if (originVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
-                BytesRefVector scaleVector = scaleBlock.asVector();
+                LongVector scaleVector = scaleBlock.asVector();
                 if (scaleVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
-                BytesRefVector offsetVector = offsetBlock.asVector();
+                LongVector offsetVector = offsetBlock.asVector();
                 if (offsetVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
@@ -91,7 +92,7 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
                 if (functionTypeVector == null) {
                   return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock, offsetBlock, decayBlock, functionTypeBlock);
                 }
-                return eval(page.getPositionCount(), valueVector, originVector, scaleVector, offsetVector, decayVector, functionTypeVector).asBlock();
+                return eval(page.getPositionCount(), valueVector, originVector, scaleVector, offsetVector, decayVector, functionTypeVector);
               }
             }
           }
@@ -101,11 +102,9 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valueBlock, LongBlock originBlock,
-      BytesRefBlock scaleBlock, BytesRefBlock offsetBlock, DoubleBlock decayBlock,
+      LongBlock scaleBlock, LongBlock offsetBlock, DoubleBlock decayBlock,
       BytesRefBlock functionTypeBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      BytesRef scaleScratch = new BytesRef();
-      BytesRef offsetScratch = new BytesRef();
       BytesRef functionTypeScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
@@ -174,21 +173,29 @@ public final class DecayDateNanosEvaluator implements EvalOperator.ExpressionEva
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Decay.processDateNanos(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), originBlock.getLong(originBlock.getFirstValueIndex(p)), scaleBlock.getBytesRef(scaleBlock.getFirstValueIndex(p), scaleScratch), offsetBlock.getBytesRef(offsetBlock.getFirstValueIndex(p), offsetScratch), decayBlock.getDouble(decayBlock.getFirstValueIndex(p)), functionTypeBlock.getBytesRef(functionTypeBlock.getFirstValueIndex(p), functionTypeScratch)));
+        try {
+          result.appendDouble(Decay.processDateNanos(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), originBlock.getLong(originBlock.getFirstValueIndex(p)), scaleBlock.getLong(scaleBlock.getFirstValueIndex(p)), offsetBlock.getLong(offsetBlock.getFirstValueIndex(p)), decayBlock.getDouble(decayBlock.getFirstValueIndex(p)), functionTypeBlock.getBytesRef(functionTypeBlock.getFirstValueIndex(p), functionTypeScratch)));
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public DoubleVector eval(int positionCount, LongVector valueVector, LongVector originVector,
-      BytesRefVector scaleVector, BytesRefVector offsetVector, DoubleVector decayVector,
+  public DoubleBlock eval(int positionCount, LongVector valueVector, LongVector originVector,
+      LongVector scaleVector, LongVector offsetVector, DoubleVector decayVector,
       BytesRefVector functionTypeVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      BytesRef scaleScratch = new BytesRef();
-      BytesRef offsetScratch = new BytesRef();
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       BytesRef functionTypeScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.processDateNanos(valueVector.getLong(p), originVector.getLong(p), scaleVector.getBytesRef(p, scaleScratch), offsetVector.getBytesRef(p, offsetScratch), decayVector.getDouble(p), functionTypeVector.getBytesRef(p, functionTypeScratch)));
+        try {
+          result.appendDouble(Decay.processDateNanos(valueVector.getLong(p), originVector.getLong(p), scaleVector.getLong(p), offsetVector.getLong(p), decayVector.getDouble(p), functionTypeVector.getBytesRef(p, functionTypeScratch)));
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

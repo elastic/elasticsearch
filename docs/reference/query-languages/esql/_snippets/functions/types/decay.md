@@ -5,14 +5,10 @@
 | value | origin | scale | offset | decay | type | result |
 | --- | --- | --- | --- | --- | --- | --- |
 | cartesian_point | cartesian_point | double | double | double | keyword | double |
-| date | date | text | date_period | double | keyword | double |
-| date | date | text | text | double | keyword | double |
-| date | date | text | time_duration | double | keyword | double |
-| date_nanos | date_nanos | date_period | text | double | keyword | double |
-| date_nanos | date_nanos | keyword | text | double | keyword | double |
-| date_nanos | date_nanos | text | text | double | keyword | double |
-| date_nanos | date_nanos | time_duration | text | double | keyword | double |
+| date | date | time_duration | time_duration | double | keyword | double |
+| date_nanos | date_nanos | time_duration | time_duration | double | keyword | double |
 | double | double | double | double | double | keyword | double |
+| geo_point | geo_point | keyword | text | double | keyword | double |
 | geo_point | geo_point | text | keyword | double | keyword | double |
 | geo_point | geo_point | text | text | double | keyword | double |
 | integer | integer | integer | integer | double | keyword | double |

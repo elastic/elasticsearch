@@ -17,6 +17,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,9 +32,9 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -59,6 +60,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
  * - Spatial types (geo_point, cartesian_point)
  * - Temporal types (datetime, date_nanos)
  */
+// TODO: own test data set
 public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
@@ -68,7 +70,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     private static final Double DEFAULT_NUMERIC_OFFSET = 0.0;
     private static final BytesRef DEFAULT_GEO_POINT_OFFSET = new BytesRef("0m");
     private static final Double DEFAULT_CARTESIAN_POINT_OFFSET = 0.0;
-    private static final BytesRef DEFAULT_TEMPORAL_OFFSET = new BytesRef("0ms");
+    private static final Long DEFAULT_TEMPORAL_OFFSET = 0L;
     private static final Double DEFAULT_DECAY = 0.5;
     private static final String DEFAULT_FUNCTION = "linear";
 
@@ -101,13 +103,13 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         ) Expression origin,
         @Param(
             name = "scale",
-            type = { "double", "integer", "long", "date_period", "time_duration", "keyword", "text" },
+            type = { "double", "integer", "long", "time_duration", "keyword", "text" },
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
         // TODO: check, whether MapParam does work with implicit casting
         @Param(
             name = "offset",
-            type = { "double", "integer", "long", "date_period", "time_duration", "keyword", "text" },
+            type = { "double", "integer", "long", "time_duration", "keyword", "text" },
             description = "Distance from the origin where no decay occurs.",
             optional = true
         ) Expression offset,
@@ -175,9 +177,11 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         }
 
         DataType valueDataType = value.dataType();
+        boolean isGeoPoint = isGeoPoint(valueDataType);
+        boolean isCartesianPoint = isCartesianPoint(valueDataType);
 
         // Spatial decay
-        if (isSpatialPoint(valueDataType)) {
+        if (isGeoPoint || isCartesianPoint) {
             TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(
                 isType(origin, DataType::isSpatialPoint, sourceText(), SECOND, "spatial point")
             );
@@ -190,11 +194,17 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
                 return scaleResolution;
             }
 
-            scaleResolution = isNotNull(scale, sourceText(), THIRD).and(isType(scale, dt ->
-            // For a spatial decay on geo points the scale should be a distance unit string (e.g. "100km")
-            DataType.isString(dt) ||
-            // For a spatial decay on cartesian points the scale should be numeric (e.g. 100.0)
-                dt.isNumeric(), sourceText(), THIRD, "keyword, text or numeric"));
+            if (isGeoPoint) {
+                // Geo points: scale should be a distance unit string (e.g. "100km")
+                scaleResolution = isNotNull(scale, sourceText(), THIRD).and(
+                    isType(scale, DataType::isString, sourceText(), THIRD, "keyword or text")
+                );
+            } else {
+                // Cartesian points: scale should be numeric (e.g. 100.0)
+                scaleResolution = isNotNull(scale, sourceText(), THIRD).and(
+                    isType(scale, DataType::isNumeric, sourceText(), THIRD, "numeric")
+                );
+            }
 
             if (scaleResolution.unresolved()) {
                 return scaleResolution;
@@ -209,9 +219,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
                 return originResolution;
             }
 
-            // For a temporal decay the scale should be a time value string (e.g. "5h")
             TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(
-                isType(scale, DataType::isString, sourceText(), THIRD, "date_period or time_duration")
+                isType(scale, DataType::isTimeDuration, sourceText(), THIRD, "time_duration")
             );
             if (scaleResolution.unresolved()) {
                 return scaleResolution;
@@ -300,17 +309,26 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
         EvalOperator.ExpressionEvaluator.Factory originFactory = toEvaluator.apply(origin);
-        EvalOperator.ExpressionEvaluator.Factory scaleFactory = toEvaluator.apply(scale);
 
-        // TODO: constant and variable date
+        // Handle temporal scale conversion - fold temporal amounts to milliseconds
+        EvalOperator.ExpressionEvaluator.Factory scaleFactory;
+        if (isTimeDuration(scale.dataType())) {
+            scaleFactory = getTemporalScaleAsLong(toEvaluator);
+        } else {
+            scaleFactory = toEvaluator.apply(scale);
+        }
 
-        EvalOperator.ExpressionEvaluator.Factory offsetFactory = offset != null ? toEvaluator.apply(offset) : switch (value.dataType()) {
-            case INTEGER, LONG, DOUBLE -> EvalOperator.DoubleFactory(DEFAULT_NUMERIC_OFFSET);
-            case GEO_POINT -> EvalOperator.BytesRefFactory(DEFAULT_GEO_POINT_OFFSET);
-            case CARTESIAN_POINT -> EvalOperator.DoubleFactory(DEFAULT_CARTESIAN_POINT_OFFSET);
-            case DATETIME, DATE_NANOS -> EvalOperator.BytesRefFactory(DEFAULT_TEMPORAL_OFFSET);
-            default -> throw new UnsupportedOperationException("Unsupported data type: " + value.dataType());
-        };
+        // Handle temporal offset conversion - fold temporal amounts to milliseconds
+        EvalOperator.ExpressionEvaluator.Factory offsetFactory;
+        if (offset != null) {
+            if (isTimeDuration(offset.dataType())) {
+                offsetFactory = getTemporalOffsetAsLong(toEvaluator);
+            } else {
+                offsetFactory = toEvaluator.apply(offset);
+            }
+        } else {
+            offsetFactory = getDefaultOffset();
+        }
 
         EvalOperator.ExpressionEvaluator.Factory decayFactory = decay != null
             ? toEvaluator.apply(decay)
@@ -423,7 +441,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
         GeoPoint originGeoPoint = new GeoPoint(originPoint.getY(), originPoint.getX());
 
-        // TODO: explain rationale
         String originStr = originGeoPoint.getX() + "," + originGeoPoint.getY();
         String scaleStr = scale.utf8ToString();
         String offsetStr = offset.utf8ToString();
@@ -448,70 +465,145 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         distance = Math.max(0.0, distance - offset);
 
         return switch (functionType.utf8ToString()) {
-            // TODO: double-check against painless, if applicable
-            case "exp" -> Math.exp(-distance * Math.log(decay) / scale);
-            case "gauss" -> Math.exp(-0.5 * Math.pow(distance / (scale / Math.sqrt(-2.0 * Math.log(decay))), 2));
-            default -> { // linear
+            case "exp" -> {
+                double scaling = Math.log(decay) / scale;
+                yield Math.exp(scaling * distance);
+            }
+            case "gauss" -> {
+                double sigmaSquared = -Math.pow(scale, 2.0) / (2.0 * Math.log(decay));
+                yield Math.exp(-Math.pow(distance, 2.0) / (2.0 * sigmaSquared));
+            }
+            // linear
+            default -> {
                 double scaling = scale / (1.0 - decay);
                 yield Math.max(0.0, (scaling - distance) / scaling);
             }
         };
     }
 
-    @Evaluator(extraName = "Datetime")
-    static double processDatetime(long value, long origin, BytesRef scale, BytesRef offset, double decay, BytesRef functionType) {
+    @Evaluator(extraName = "Datetime", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
+    static double processDatetime(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
         ZonedDateTime dateTime = Instant.ofEpochMilli(value).atZone(ZoneOffset.UTC);
 
         // Convert BytesRef parameters to TemporalAmount
         // TODO: UTC correct?
-        String originStr = Instant.ofEpochMilli(origin).atZone(ZoneOffset.UTC).toString();
-        String scaleStr = temporalAmountToTimeString(EsqlDataTypeConverter.maybeParseTemporalAmount(scale.utf8ToString()));
-        String offsetStr = temporalAmountToTimeString(EsqlDataTypeConverter.maybeParseTemporalAmount(offset.utf8ToString()));
+        TemporalAmount scaleAmount = Duration.ofMillis(scale);
+        TemporalAmount offsetAmount = Duration.ofMillis(offset);
 
         return switch (functionType.utf8ToString()) {
-            case "exp" -> new ScoreScriptUtils.DecayDateExp(originStr, scaleStr, offsetStr, decay).decayDateExp(dateTime);
-            case "gauss" -> new ScoreScriptUtils.DecayDateGauss(originStr, scaleStr, offsetStr, decay).decayDateGauss(dateTime);
-            default -> new ScoreScriptUtils.DecayDateLinear(originStr, scaleStr, offsetStr, decay).decayDateLinear(dateTime);
+            case "exp" -> decayDateExp(origin, scaleAmount, offsetAmount, decay, dateTime);
+            case "gauss" -> decayDateGauss(origin, scaleAmount, offsetAmount, decay, dateTime);
+            default -> decayDateLinear(origin, scaleAmount, offsetAmount, decay, dateTime);
         };
     }
 
-    @Evaluator(extraName = "DateNanos")
-    static double processDateNanos(long value, long origin, BytesRef scale, BytesRef offset, double decay, BytesRef functionType) {
+    @Evaluator(extraName = "DateNanos", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
+    static double processDateNanos(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
         long millis = DateUtils.toMilliSeconds(value);
         ZonedDateTime dateTime = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC);
         long originMillis = DateUtils.toMilliSeconds(origin);
 
-        String originStr = Instant.ofEpochMilli(originMillis).atZone(ZoneOffset.UTC).toString();
-
-        // TODO: more elegant way?
-        TemporalAmount scaleAmount = EsqlDataTypeConverter.maybeParseTemporalAmount(scale.utf8ToString());
-        TemporalAmount offsetAmount = EsqlDataTypeConverter.maybeParseTemporalAmount(offset.utf8ToString());
-        String scaleStr = temporalAmountToTimeString(scaleAmount);
-        String offsetStr = temporalAmountToTimeString(offsetAmount);
+        // TODO: UTC correct?
+        // TODO: nanosecond precision?
+        TemporalAmount scaleAmount = Duration.ofMillis(scale);
+        TemporalAmount offsetAmount = Duration.ofMillis(offset);
 
         return switch (functionType.utf8ToString()) {
-            case "exp" -> new ScoreScriptUtils.DecayDateExp(originStr, scaleStr, offsetStr, decay).decayDateExp(dateTime);
-            case "gauss" -> new ScoreScriptUtils.DecayDateGauss(originStr, scaleStr, offsetStr, decay).decayDateGauss(dateTime);
-            default -> new ScoreScriptUtils.DecayDateLinear(originStr, scaleStr, offsetStr, decay).decayDateLinear(dateTime);
+            case "exp" -> decayDateExp(originMillis, scaleAmount, offsetAmount, decay, dateTime);
+            case "gauss" -> decayDateGauss(originMillis, scaleAmount, offsetAmount, decay, dateTime);
+            default -> decayDateLinear(originMillis, scaleAmount, offsetAmount, decay, dateTime);
         };
     }
 
-    // TODO: more elegant way?
-    private static String temporalAmountToTimeString(TemporalAmount temporalAmount) {
-        long totalMillis = temporalAmount.get(ChronoUnit.SECONDS) * 1_000 + temporalAmount.get(ChronoUnit.NANOS) / 1_000_000;
+    private static double decayDateLinear(
+        long origin,
+        TemporalAmount scale,
+        TemporalAmount offset,
+        double decay,
+        ZonedDateTime docValueDate
+    ) {
+        long docValue = docValueDate.toInstant().toEpochMilli();
+        long offsetMillis = temporalAmountToMillis(offset);
+        long scaleMillis = temporalAmountToMillis(scale);
+        double scaling = scaleMillis / (1.0 - decay);
 
-        // Convert milliseconds to a time string format that TimeValue.parseTimeValue understands
-        if (totalMillis % (24 * 60 * 60 * 1000) == 0) {
-            return (totalMillis / (24 * 60 * 60 * 1000)) + "d";
-        } else if (totalMillis % (60 * 60 * 1000) == 0) {
-            return (totalMillis / (60 * 60 * 1000)) + "h";
-        } else if (totalMillis % (60 * 1000) == 0) {
-            return (totalMillis / (60 * 1000)) + "m";
-        } else if (totalMillis % 1000 == 0) {
-            return (totalMillis / 1000) + "s";
-        } else {
-            return totalMillis + "ms";
-        }
+        long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
+        long distance = Math.max(0, diff - offsetMillis);
+        return Math.max(0.0, (scaling - distance) / scaling);
     }
 
+    private static double decayDateExp(long origin, TemporalAmount scale, TemporalAmount offset, double decay, ZonedDateTime docValueDate) {
+        long docValue = docValueDate.toInstant().toEpochMilli();
+        long offsetMillis = temporalAmountToMillis(offset);
+        long scaleMillis = temporalAmountToMillis(scale);
+        double scaling = Math.log(decay) / scaleMillis;
+
+        long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
+        long distance = Math.max(0, diff - offsetMillis);
+        return Math.exp(scaling * distance);
+    }
+
+    private static double decayDateGauss(
+        long origin,
+        TemporalAmount scale,
+        TemporalAmount offset,
+        double decay,
+        ZonedDateTime docValueDate
+    ) {
+        long docValue = docValueDate.toInstant().toEpochMilli();
+        long offsetMillis = temporalAmountToMillis(offset);
+        long scaleMillis = temporalAmountToMillis(scale);
+        double scaling = 0.5 * Math.pow(scaleMillis, 2.0) / Math.log(decay);
+
+        long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
+        long distance = Math.max(0, diff - offsetMillis);
+        return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
+    }
+
+    private static long temporalAmountToMillis(TemporalAmount temporalAmount) {
+        if (temporalAmount instanceof Duration duration) {
+            return duration.toMillis();
+        }
+
+        // TODO: double-check
+        return temporalAmount.get(ChronoUnit.SECONDS) * 1_000 + temporalAmount.get(ChronoUnit.NANOS) / 1_000_000;
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsLong(ToEvaluator toEvaluator) {
+        EvalOperator.ExpressionEvaluator.Factory scaleFactory;
+        if (scale.foldable() == false) {
+            throw new IllegalArgumentException(
+                "Function [" + sourceText() + "] has non-constant temporal scale [" + scale.sourceText() + "]."
+            );
+        }
+        Object foldedScale = scale.fold(toEvaluator.foldCtx());
+        long scaleMillis = temporalAmountToMillis((TemporalAmount) foldedScale);
+        scaleFactory = EvalOperator.LongFactory(scaleMillis);
+        return scaleFactory;
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsLong(ToEvaluator toEvaluator) {
+        EvalOperator.ExpressionEvaluator.Factory offsetFactory;
+        if (offset.foldable() == false) {
+            throw new IllegalArgumentException(
+                "Function [" + sourceText() + "] has non-constant temporal offset [" + offset.sourceText() + "]."
+            );
+        }
+        Object foldedOffset = offset.fold(toEvaluator.foldCtx());
+        long offsetMillis = temporalAmountToMillis((TemporalAmount) foldedOffset);
+        offsetFactory = EvalOperator.LongFactory(offsetMillis);
+        return offsetFactory;
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory getDefaultOffset() {
+        EvalOperator.ExpressionEvaluator.Factory offsetFactory;
+        offsetFactory = switch (value.dataType()) {
+            case INTEGER, LONG, DOUBLE -> EvalOperator.DoubleFactory(DEFAULT_NUMERIC_OFFSET);
+            case GEO_POINT -> EvalOperator.BytesRefFactory(DEFAULT_GEO_POINT_OFFSET);
+            case CARTESIAN_POINT -> EvalOperator.DoubleFactory(DEFAULT_CARTESIAN_POINT_OFFSET);
+            case DATETIME, DATE_NANOS -> EvalOperator.LongFactory(DEFAULT_TEMPORAL_OFFSET);
+            default -> throw new UnsupportedOperationException("Unsupported data type: " + value.dataType());
+        };
+        return offsetFactory;
+    }
 }

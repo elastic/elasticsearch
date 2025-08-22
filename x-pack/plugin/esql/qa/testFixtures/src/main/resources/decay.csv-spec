@@ -145,8 +145,8 @@ decay_result:double
 
 datetimeLinear1
 
-ROW value = TO_DATETIME("2023-01-01T00:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z"), scale = "24 hours"
-| EVAL decay_result = decay(value, origin, scale, "0 seconds", 0.5, "linear") 
+ROW value = TO_DATETIME("2023-01-01T00:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z")
+| EVAL decay_result = decay(value, origin, 24 hours, 0 seconds, 0.5, "linear") 
 | KEEP decay_result;
 
 decay_result:double
@@ -155,8 +155,8 @@ decay_result:double
 
 datetimeLinear2
 
-ROW value = TO_DATETIME("2023-01-01T12:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z"), scale = "24 hours"
-| EVAL decay_result = decay(value, origin, scale, "0 seconds", 0.5, "linear") 
+ROW value = TO_DATETIME("2023-01-01T12:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z")
+| EVAL decay_result = decay(value, origin, 24 hours, 0 seconds, 0.5, "linear") 
 | KEEP decay_result;
 
 decay_result:double
@@ -165,8 +165,8 @@ decay_result:double
 
 dateNanosLinear1
 
-ROW value = TO_DATE_NANOS("2023-01-01T00:00:00Z"), origin = TO_DATE_NANOS("2023-01-01T00:00:00Z"), scale = "24 hours"
-| EVAL decay_result = decay(value, origin, scale, "0 seconds", 0.5, "linear") 
+ROW value = TO_DATE_NANOS("2023-01-01T00:00:00Z"), origin = TO_DATE_NANOS("2023-01-01T00:00:00Z")
+| EVAL decay_result = decay(value, origin, 24 hours, 0 seconds, 0.5, "linear") 
 | KEEP decay_result;
 
 decay_result:double
@@ -175,8 +175,8 @@ decay_result:double
 
 dateNanosLinear2
 
-ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z"), origin = TO_DATE_NANOS("2023-01-01T00:00:00Z"), scale = "24 hours"
-| EVAL decay_result = decay(value, origin, scale, "0 seconds", 0.5, "linear") 
+ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z"), origin = TO_DATE_NANOS("2023-01-01T00:00:00Z")
+| EVAL decay_result = decay(value, origin, 24 hours, 0 seconds, 0.5, "linear") 
 | KEEP decay_result;
 
 decay_result:double

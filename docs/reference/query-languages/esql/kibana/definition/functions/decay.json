@@ -62,91 +62,7 @@
         },
         {
           "name" : "scale",
-          "type" : "text",
-          "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
-        },
-        {
-          "name" : "offset",
-          "type" : "date_period",
-          "optional" : true,
-          "description" : "Distance from the origin where no decay occurs."
-        },
-        {
-          "name" : "decay",
-          "type" : "double",
-          "optional" : true,
-          "description" : "Multiplier value returned at the scale distance from the origin."
-        },
-        {
-          "name" : "type",
-          "type" : "keyword",
-          "optional" : true,
-          "description" : "Function to use: linear, exponential or gaussian decay."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "value",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Value to calculate decayed value for."
-        },
-        {
-          "name" : "origin",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Central point from which the distances are calculated."
-        },
-        {
-          "name" : "scale",
-          "type" : "text",
-          "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
-        },
-        {
-          "name" : "offset",
-          "type" : "text",
-          "optional" : true,
-          "description" : "Distance from the origin where no decay occurs."
-        },
-        {
-          "name" : "decay",
-          "type" : "double",
-          "optional" : true,
-          "description" : "Multiplier value returned at the scale distance from the origin."
-        },
-        {
-          "name" : "type",
-          "type" : "keyword",
-          "optional" : true,
-          "description" : "Function to use: linear, exponential or gaussian decay."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "value",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Value to calculate decayed value for."
-        },
-        {
-          "name" : "origin",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Central point from which the distances are calculated."
-        },
-        {
-          "name" : "scale",
-          "type" : "text",
+          "type" : "time_duration",
           "optional" : false,
           "description" : "Distance from the origin where the function returns the decay value."
         },
@@ -188,139 +104,13 @@
         },
         {
           "name" : "scale",
-          "type" : "date_period",
-          "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
-        },
-        {
-          "name" : "offset",
-          "type" : "text",
-          "optional" : true,
-          "description" : "Distance from the origin where no decay occurs."
-        },
-        {
-          "name" : "decay",
-          "type" : "double",
-          "optional" : true,
-          "description" : "Multiplier value returned at the scale distance from the origin."
-        },
-        {
-          "name" : "type",
-          "type" : "keyword",
-          "optional" : true,
-          "description" : "Function to use: linear, exponential or gaussian decay."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "value",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Value to calculate decayed value for."
-        },
-        {
-          "name" : "origin",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Central point from which the distances are calculated."
-        },
-        {
-          "name" : "scale",
-          "type" : "keyword",
-          "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
-        },
-        {
-          "name" : "offset",
-          "type" : "text",
-          "optional" : true,
-          "description" : "Distance from the origin where no decay occurs."
-        },
-        {
-          "name" : "decay",
-          "type" : "double",
-          "optional" : true,
-          "description" : "Multiplier value returned at the scale distance from the origin."
-        },
-        {
-          "name" : "type",
-          "type" : "keyword",
-          "optional" : true,
-          "description" : "Function to use: linear, exponential or gaussian decay."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "value",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Value to calculate decayed value for."
-        },
-        {
-          "name" : "origin",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Central point from which the distances are calculated."
-        },
-        {
-          "name" : "scale",
-          "type" : "text",
-          "optional" : false,
-          "description" : "Distance from the origin where the function returns the decay value."
-        },
-        {
-          "name" : "offset",
-          "type" : "text",
-          "optional" : true,
-          "description" : "Distance from the origin where no decay occurs."
-        },
-        {
-          "name" : "decay",
-          "type" : "double",
-          "optional" : true,
-          "description" : "Multiplier value returned at the scale distance from the origin."
-        },
-        {
-          "name" : "type",
-          "type" : "keyword",
-          "optional" : true,
-          "description" : "Function to use: linear, exponential or gaussian decay."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "value",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Value to calculate decayed value for."
-        },
-        {
-          "name" : "origin",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Central point from which the distances are calculated."
-        },
-        {
-          "name" : "scale",
           "type" : "time_duration",
           "optional" : false,
           "description" : "Distance from the origin where the function returns the decay value."
         },
         {
           "name" : "offset",
-          "type" : "text",
+          "type" : "time_duration",
           "optional" : true,
           "description" : "Distance from the origin where no decay occurs."
         },
@@ -363,6 +153,48 @@
         {
           "name" : "offset",
           "type" : "double",
+          "optional" : true,
+          "description" : "Distance from the origin where no decay occurs."
+        },
+        {
+          "name" : "decay",
+          "type" : "double",
+          "optional" : true,
+          "description" : "Multiplier value returned at the scale distance from the origin."
+        },
+        {
+          "name" : "type",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Function to use: linear, exponential or gaussian decay."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Value to calculate decayed value for."
+        },
+        {
+          "name" : "origin",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Central point from which the distances are calculated."
+        },
+        {
+          "name" : "scale",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Distance from the origin where the function returns the decay value."
+        },
+        {
+          "name" : "offset",
+          "type" : "text",
           "optional" : true,
           "description" : "Distance from the origin where no decay occurs."
         },

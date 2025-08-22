@@ -23,8 +23,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAmount;
 
 import static com.carrotsearch.hppc.BitMixer.mix32;
 
@@ -285,10 +283,6 @@ public final class ScoreScriptUtils {
             long distance = Math.max(0, diff - offset);
             return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
         }
-    }
-
-    private static long temporalAmountToMillis(TemporalAmount temporalAmount) {
-        return temporalAmount.get(ChronoUnit.SECONDS) * 1_000 + temporalAmount.get(ChronoUnit.NANOS) / 1_000_000;
     }
 
 }

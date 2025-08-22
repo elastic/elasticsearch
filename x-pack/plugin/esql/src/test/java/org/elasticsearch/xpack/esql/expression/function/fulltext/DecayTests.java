@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.Period;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +49,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // GeoPoint
         testCaseSuppliers.addAll(geoPointTestCase("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
+        testCaseSuppliers.addAll(geoPointTestCaseKeywordScale("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
         testCaseSuppliers.addAll(geoPointOffsetKeywordTestCase("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
 
         // CartesianPoint
@@ -60,8 +60,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             datetimeTestCase(
                 LocalDateTime.of(2023, 1, 1, 12, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                "24 hours",
-                "0 seconds",
+                Duration.ofHours(24),
+                Duration.ofSeconds(0),
                 0.5,
                 "linear",
                 0.75
@@ -71,18 +71,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             datetimeTestCase(
                 LocalDateTime.of(2023, 1, 1, 12, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                "24 hours",
-                Period.ofDays(0),
-                0.5,
-                "linear",
-                0.75
-            )
-        );
-        testCaseSuppliers.addAll(
-            datetimeTestCase(
-                LocalDateTime.of(2023, 1, 1, 12, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                "24 hours",
+                Duration.ofHours(24),
                 Duration.ofDays(0),
                 0.5,
                 "linear",
@@ -95,44 +84,11 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         var dateTwo = LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant();
 
         testCaseSuppliers.addAll(
-            dateNanosScaleTextTestCase(
-                dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
-                dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
-                "24 hours",
-                "0 seconds",
-                0.5,
-                "linear",
-                0.75
-            )
-        );
-        testCaseSuppliers.addAll(
-            dateNanosScaleKeywordTestCase(
-                dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
-                dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
-                "24 hours",
-                "0 seconds",
-                0.5,
-                "linear",
-                0.75
-            )
-        );
-        testCaseSuppliers.addAll(
-            dateNanosTestCase(
-                dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
-                dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
-                Period.ofDays(1),
-                "0 seconds",
-                0.5,
-                "linear",
-                0.75
-            )
-        );
-        testCaseSuppliers.addAll(
             dateNanosTestCase(
                 dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
                 dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
                 Duration.ofDays(1),
-                "0 seconds",
+                Duration.ofSeconds(0),
                 0.5,
                 "linear",
                 0.75
@@ -269,6 +225,35 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
+    private static List<TestCaseSupplier> geoPointTestCaseKeywordScale(
+        String valueWkt,
+        String originWkt,
+        String scale,
+        String offset,
+        double decay,
+        String functionType,
+        double expected
+    ) {
+        return List.of(
+            new TestCaseSupplier(
+                List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.KEYWORD, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
+                        new TestCaseSupplier.TypedData(scale, DataType.KEYWORD, "scale"),
+                        new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
+                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
+                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                    ),
+                    startsWith("DecayGeoPointEvaluator["),
+                    DataType.DOUBLE,
+                    equalTo(expected)
+                )
+            )
+        );
+    }
+
     private static List<TestCaseSupplier> geoPointOffsetKeywordTestCase(
         String valueWkt,
         String originWkt,
@@ -337,65 +322,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     private static List<TestCaseSupplier> datetimeTestCase(
         long value,
         long origin,
-        String scale,
-        String offset,
-        double decay,
-        String functionType,
-        double expected
-    ) {
-        return List.of(
-            new TestCaseSupplier(
-                List.of(DataType.DATETIME, DataType.DATETIME, DataType.TEXT, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(value, DataType.DATETIME, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.DATETIME, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
-                    ),
-                    startsWith("DecayDatetimeEvaluator["),
-                    DataType.DOUBLE,
-                    equalTo(expected)
-                )
-            )
-        );
-    }
-
-    private static List<TestCaseSupplier> datetimeTestCase(
-        long value,
-        long origin,
-        String scale,
-        Period offset,
-        double decay,
-        String functionType,
-        double expected
-    ) {
-        return List.of(
-            new TestCaseSupplier(
-                List.of(DataType.DATETIME, DataType.DATETIME, DataType.TEXT, DataType.DATE_PERIOD, DataType.DOUBLE, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(value, DataType.DATETIME, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.DATETIME, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.DATE_PERIOD, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
-                    ),
-                    startsWith("DecayDatetimeEvaluator["),
-                    DataType.DOUBLE,
-                    equalTo(expected)
-                ).withoutEvaluator()
-            )
-        );
-    }
-
-    private static List<TestCaseSupplier> datetimeTestCase(
-        long value,
-        long origin,
-        String scale,
+        Duration scale,
         Duration offset,
         double decay,
         String functionType,
@@ -403,12 +330,19 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(DataType.DATETIME, DataType.DATETIME, DataType.TEXT, DataType.TIME_DURATION, DataType.DOUBLE, DataType.KEYWORD),
+                List.of(
+                    DataType.DATETIME,
+                    DataType.DATETIME,
+                    DataType.TIME_DURATION,
+                    DataType.TIME_DURATION,
+                    DataType.DOUBLE,
+                    DataType.KEYWORD
+                ),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.DATETIME, "value"),
                         new TestCaseSupplier.TypedData(origin, DataType.DATETIME, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
+                        new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale"),
                         new TestCaseSupplier.TypedData(offset, DataType.TIME_DURATION, "offset"),
                         new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
                         new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
@@ -421,111 +355,31 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static List<TestCaseSupplier> dateNanosScaleTextTestCase(
-        long value,
-        long origin,
-        String scale,
-        String offset,
-        double decay,
-        String functionType,
-        double expected
-    ) {
-        return List.of(
-            new TestCaseSupplier(
-                List.of(DataType.DATE_NANOS, DataType.DATE_NANOS, DataType.TEXT, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(value, DataType.DATE_NANOS, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.DATE_NANOS, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
-                    ),
-                    startsWith("DecayDateNanosEvaluator["),
-                    DataType.DOUBLE,
-                    equalTo(expected)
-                )
-            )
-        );
-    }
-
-    private static List<TestCaseSupplier> dateNanosScaleKeywordTestCase(
-        long value,
-        long origin,
-        String scale,
-        String offset,
-        double decay,
-        String functionType,
-        double expected
-    ) {
-        return List.of(
-            new TestCaseSupplier(
-                List.of(DataType.DATE_NANOS, DataType.DATE_NANOS, DataType.KEYWORD, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(value, DataType.DATE_NANOS, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.DATE_NANOS, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.KEYWORD, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
-                    ),
-                    startsWith("DecayDateNanosEvaluator["),
-                    DataType.DOUBLE,
-                    equalTo(expected)
-                )
-            )
-        );
-    }
-
-    private static List<TestCaseSupplier> dateNanosTestCase(
-        long value,
-        long origin,
-        Period scale,
-        String offset,
-        double decay,
-        String functionType,
-        double expected
-    ) {
-        return List.of(
-            new TestCaseSupplier(
-                List.of(DataType.DATE_NANOS, DataType.DATE_NANOS, DataType.DATE_PERIOD, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(value, DataType.DATE_NANOS, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.DATE_NANOS, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.DATE_PERIOD, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
-                    ),
-                    startsWith("DecayDateNanosEvaluator["),
-                    DataType.DOUBLE,
-                    equalTo(expected)
-                ).withoutEvaluator()
-            )
-        );
-    }
-
     private static List<TestCaseSupplier> dateNanosTestCase(
         long value,
         long origin,
         Duration scale,
-        String offset,
+        Duration offset,
         double decay,
         String functionType,
         double expected
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(DataType.DATE_NANOS, DataType.DATE_NANOS, DataType.TIME_DURATION, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
+                List.of(
+                    DataType.DATE_NANOS,
+                    DataType.DATE_NANOS,
+                    DataType.TIME_DURATION,
+                    DataType.TIME_DURATION,
+                    DataType.DOUBLE,
+                    DataType.KEYWORD
+                ),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.DATE_NANOS, "value"),
                         new TestCaseSupplier.TypedData(origin, DataType.DATE_NANOS, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
+                        new TestCaseSupplier.TypedData(offset, DataType.TIME_DURATION, "offset"),
                         new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
                         new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
                     ),

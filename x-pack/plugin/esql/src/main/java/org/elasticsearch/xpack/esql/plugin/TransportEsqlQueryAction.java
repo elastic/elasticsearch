@@ -110,7 +110,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.threadPool = threadPool;
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
-        this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(
@@ -196,7 +196,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(
                 request,

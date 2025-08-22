@@ -55,7 +55,6 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
                     + "}"
             )
         );
-
     }
 
     public void testOnlyZeroThreshold() {

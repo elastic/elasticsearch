@@ -19,7 +19,7 @@ public class BufferedMurmur3HasherTests extends ESTestCase {
     private final Murmur3Hasher hasher = new Murmur3Hasher(0);
 
     public void testAddString() {
-        String testString = randomUnicodeOfLengthBetween(10, 100);
+        String testString = randomUnicodeOfLengthBetween(0, 1024);
         bufferedHasher.addString(testString);
 
         BytesRef bytesRef = new BytesRef(testString);

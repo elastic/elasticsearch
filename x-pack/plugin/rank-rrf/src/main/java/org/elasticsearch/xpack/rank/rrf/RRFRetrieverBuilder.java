@@ -89,12 +89,35 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), RRFRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            RRFRetrieverBuilder::parseFieldsArray,
-            FIELDS_FIELD,
-            ObjectParser.ValueType.VALUE_ARRAY
-        );
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            List<String> fields = new ArrayList<>();
+            XContentParser.Token token = p.currentToken();
+            if (token == XContentParser.Token.START_ARRAY) {
+                while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        fields.add(p.text());
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        String fieldName = null;
+                        float weight = 1.0f;
+                        while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                            if (p.currentToken() == XContentParser.Token.FIELD_NAME) {
+                                String name = p.currentName();
+                                p.nextToken();
+                                if ("field".equals(name)) {
+                                    fieldName = p.text();
+                                } else if ("weight".equals(name)) {
+                                    weight = p.floatValue();
+                                }
+                            }
+                        }
+                        if (fieldName != null) {
+                            fields.add(weight == 1.0f ? fieldName : fieldName + "^" + weight);
+                        }
+                    }
+                }
+            }
+            return fields;
+        }, FIELDS_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_CONSTANT_FIELD);
@@ -106,59 +129,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }
         return PARSER.apply(parser, context);
-    }
-
-    private static List<String> parseFieldsArray(XContentParser parser, Object context) throws IOException {
-        List<String> fields = new ArrayList<>();
-        XContentParser.Token token = parser.currentToken();
-
-        // Handle both cases: when parser is at START_ARRAY and when it's already in the array
-        if (token == XContentParser.Token.START_ARRAY) {
-            token = parser.nextToken();
-        }
-
-        while (token != XContentParser.Token.END_ARRAY) {
-            if (token == XContentParser.Token.VALUE_STRING) {
-                // Handle string format: "field^weight" or "field"
-                fields.add(parser.text());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                // Handle object format: {"field": "field_name", "weight": 2.0}
-                String fieldName = null;
-                float weight = 1.0f;
-
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        String currentName = parser.currentName();
-                        token = parser.nextToken();
-
-                        if ("field".equals(currentName)) {
-                            fieldName = parser.text();
-                        } else if ("weight".equals(currentName)) {
-                            weight = parser.floatValue();
-                        } else {
-                            throw new IllegalArgumentException("Unknown field in field object: " + currentName);
-                        }
-                    }
-                }
-
-                if (fieldName == null) {
-                    throw new IllegalArgumentException("Missing 'field' property in field object");
-                }
-
-                // Convert to string format: "field^weight"
-                if (weight == 1.0f) {
-                    fields.add(fieldName);
-                } else {
-                    fields.add(fieldName + "^" + weight);
-                }
-            } else {
-                throw new IllegalArgumentException("Expected string or object in fields array, but found: " + token);
-            }
-
-            token = parser.nextToken();
-        }
-
-        return fields;
     }
 
     private final List<String> fields;
@@ -190,15 +160,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         this.query = query;
         this.rankConstant = rankConstant;
         Objects.requireNonNull(weights, "weights must not be null");
-        // For simplified syntax (fields + query), allow empty weights array since weights are handled during rewrite
-        // For explicit retriever syntax, weights must match the number of retrievers
-        if (fields == null || query == null) {
-            // Explicit retriever syntax - validate weights match retrievers
-            if (weights.length != innerRetrievers.size()) {
-                throw new IllegalArgumentException(
-                    "weights array length [" + weights.length + "] must match retrievers count [" + innerRetrievers.size() + "]"
-                );
-            }
+        if (weights.length != innerRetrievers.size()) {
+            throw new IllegalArgumentException(
+                "weights array length [" + weights.length + "] must match retrievers count [" + innerRetrievers.size() + "]"
+            );
         }
         this.weights = weights;
     }

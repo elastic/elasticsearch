@@ -415,6 +415,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    @Override
+    protected IndexVersion boostNotAllowedIndexVersion() {
+        return IndexVersions.NEW_SPARSE_VECTOR;
+    }
+
     public void testOldIndexSemanticTextDenseVectorRaisesError() throws IOException {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(b -> {

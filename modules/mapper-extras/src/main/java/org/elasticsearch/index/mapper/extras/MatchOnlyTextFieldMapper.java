@@ -249,10 +249,10 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
             if (searchExecutionContext.isSourceSynthetic()) {
                 if (isWithinMultiField) {
                     // fetch the value from parent
-                    return parentFieldValueFetcher(searchExecutionContext);
+                    return parentFieldFetcher(searchExecutionContext);
                 } else if (textFieldType.syntheticSourceDelegate().isPresent()) {
                     // otherwise, if there is a delegate field, fetch the value from it
-                    return delegateFieldValueFetcher(searchExecutionContext, textFieldType.syntheticSourceDelegate().get());
+                    return delegateFieldFetcher(searchExecutionContext, textFieldType.syntheticSourceDelegate().get());
                 } else {
                     // otherwise, fetch the value from self
                     return storedFieldFetcher(name(), syntheticSourceFallbackFieldName());
@@ -260,13 +260,13 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
             }
 
             // otherwise, synthetic source must be disabled, so fetch the value directly from _source
-            return sourceFieldValueFetcher(searchExecutionContext);
+            return sourceFieldFetcher(searchExecutionContext);
         }
 
         /**
          * Returns a function that will fetch values directly from _source.
          */
-        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> sourceFieldValueFetcher(
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> sourceFieldFetcher(
             final SearchExecutionContext searchExecutionContext
         ) {
             return context -> {
@@ -284,9 +284,9 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
         }
 
         /**
-         * Returns a function that will fetch value from a parent field.
+         * Returns a function that will fetch fields from the parent field.
          */
-        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> parentFieldValueFetcher(
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> parentFieldFetcher(
             final SearchExecutionContext searchExecutionContext
         ) {
             assert searchExecutionContext.isSourceSynthetic() : "Synthetic source should be enabled";
@@ -311,14 +311,14 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
                 return docValuesFieldFetcher(ifd);
             } else {
                 assert false : "parent field should either be stored or have doc values";
-                return sourceFieldValueFetcher(searchExecutionContext);
+                return sourceFieldFetcher(searchExecutionContext);
             }
         }
 
         /**
-         * Returns a function that will fetch values from a synthetic source delegate.
+         * Returns a function that will fetch the fields from the delegate field (ex. keyword multi field).
          */
-        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> delegateFieldValueFetcher(
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> delegateFieldFetcher(
             final SearchExecutionContext searchExecutionContext,
             final KeywordFieldMapper.KeywordFieldType keywordDelegate
         ) {
@@ -340,7 +340,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
                 );
             } else {
                 assert false : "multi field should either be stored or have doc values";
-                return sourceFieldValueFetcher(searchExecutionContext);
+                return sourceFieldFetcher(searchExecutionContext);
             }
         }
 
@@ -715,11 +715,11 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
     }
 
     private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        // match_only_text is not stored for space efficiency, except when synthetic source is enabled as synthetic source
-        // needs something to load to reconstruct source. In such cases, we *might* store this field or we *might* rely
-        // on a delegate field if one exists. Because of this uncertainty, we need multiple field loaders.
+        // we're using two field loaders here because we don't know who was responsible for storing this field to support synthetic source
+        // on one hand, if a delegate keyword field exists, then it might've stored the field. However, this is not true if said field was
+        // ignored during indexing (ex. it tripped ignore_above). Because of this uncertainty, we need multiple field loaders.
 
-        // first field loader, representing this field
+        // first field loader - to check whether the field's value was stored under this match_only_text field
         final String fieldName = fieldType().syntheticSourceFallbackFieldName();
         final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
             @Override
@@ -735,7 +735,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
         final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
 
-        // second loader, representing a delegate field, if one exists
+        // second loader - to check whether the field's value was stored by a keyword delegate field
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             // merge the two field loaders into one

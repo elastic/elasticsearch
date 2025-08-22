@@ -38,8 +38,26 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> testCaseSuppliers = new ArrayList<>();
 
-        // Int
-        testCaseSuppliers.addAll(intTestCase(5, 10, 10, 0, 0.5, "linear", 0.75));
+        // Int Linear
+        testCaseSuppliers.addAll(intTestCase(0, 0, 10, 5, 0.5, "linear", 1.0));
+        testCaseSuppliers.addAll(intTestCase(10, 0, 10, 5, 0.5, "linear", 0.75));
+        testCaseSuppliers.addAll(intTestCase(50, 5, 100, 10, 0.25, "linear", 0.7375));
+        testCaseSuppliers.addAll(intTestCase(100, 17, 156, 23, 0.123, "linear", 0.6626923076923077));
+        testCaseSuppliers.addAll(intTestCase(2500, 0, 10, 0, 0.5, "linear", 0.0));
+
+        // Int Exponential
+        testCaseSuppliers.addAll(intTestCase(0, 0, 10, 5, 0.5, "exp", 1.0));
+        testCaseSuppliers.addAll(intTestCase(10, 0, 10, 5, 0.5, "exp", 0.7071067811865475));
+        testCaseSuppliers.addAll(intTestCase(50, 5, 100, 10, 0.25, "exp", 0.6155722066724582));
+        testCaseSuppliers.addAll(intTestCase(100, 17, 156, 23, 0.123, "exp", 0.4466460570185927));
+        testCaseSuppliers.addAll(intTestCase(2500, 0, 10, 0, 0.5, "exp", 5.527147875260539E-76));
+
+        // Int Gaussian
+        testCaseSuppliers.addAll(intTestCase(0, 0, 10, 5, 0.5, "gauss", 1.0));
+        testCaseSuppliers.addAll(intTestCase(10, 0, 10, 5, 0.5, "gauss", 0.8408964152537146));
+        testCaseSuppliers.addAll(intTestCase(50, 5, 100, 10, 0.25, "gauss", 0.8438157961300179));
+        testCaseSuppliers.addAll(intTestCase(100, 17, 156, 23, 0.123, "gauss", 0.7334501109633149));
+        testCaseSuppliers.addAll(intTestCase(2500, 0, 10, 0, 0.5, "gauss", 0.0));
 
         // Long
         testCaseSuppliers.addAll(longTestCase(5L, 10L, 10L, 0L, 0.5, "linear", 0.75));

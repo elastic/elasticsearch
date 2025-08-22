@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CuVSResources;
-
 import com.nvidia.cuvs.GPUInfoProvider;
-
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
@@ -83,8 +81,8 @@ public interface CuVSResourceManager {
         static final GPUInfoProvider gpuInfoProvider = CuVSProvider.provider().gpuInfoProvider();
         static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
             MAX_RESOURCES,
-            res ->gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes(),
-            res ->gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes(),
+            res -> gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes(),
+            res -> gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes(),
             PoolingCuVSResourceManager::getGpuUtilizationPercent
         );
 
@@ -104,7 +102,7 @@ public interface CuVSResourceManager {
             GpuInfoFunction totalMemoryInBytesProvider,
             GpuInfoFunction freeMemoryInBytesProvider,
             GpuInfoFunction gpuUtilizationPercentProvider
-            ) {
+        ) {
             this.totalMemoryInBytesProvider = totalMemoryInBytesProvider;
             this.freeMemoryInBytesProvider = freeMemoryInBytesProvider;
             this.gpuUtilizationPercentProvider = gpuUtilizationPercentProvider;
@@ -193,7 +191,7 @@ public interface CuVSResourceManager {
         }
 
         private long estimateRequiredMemory(int numVectors, int dims) {
-            return (long)(GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * Float.BYTES);
+            return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * Float.BYTES);
         }
 
         private static int getGpuUtilizationPercent(CuVSResources resources) {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CuVSResources;
-
 import com.nvidia.cuvs.CuVSResourcesInfo;
 import com.nvidia.cuvs.GPUInfo;
 import com.nvidia.cuvs.GPUInfoProvider;
@@ -145,11 +144,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
         }
 
         private MockPoolingCuVSResourceManager(int capacity, List<Long> allocationList) {
-            super(
-                capacity,
-                res -> TOTAL_DEVICE_MEMORY_IN_BYTES,
-                res ->freeMemoryFunction(allocationList),
-                res -> 50);
+            super(capacity, res -> TOTAL_DEVICE_MEMORY_IN_BYTES, res -> freeMemoryFunction(allocationList), res -> 50);
             this.allocations = allocationList;
         }
 
@@ -165,8 +160,8 @@ public class CuVSResourceManagerTests extends ESTestCase {
         @Override
         public ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException {
             var res = super.acquire(numVectors, dims);
-            long memory = (long)(numVectors * dims * Float.BYTES *
-                CuVSResourceManager.PoolingCuVSResourceManager.GPU_COMPUTATION_MEMORY_FACTOR);
+            long memory = (long) (numVectors * dims * Float.BYTES
+                * CuVSResourceManager.PoolingCuVSResourceManager.GPU_COMPUTATION_MEMORY_FACTOR);
             allocations.add(memory);
             log.info("Added [{}]", memory);
             return res;

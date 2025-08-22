@@ -161,7 +161,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
                     // update the node's feature set if it has one
                     // this can happen if the master has just moved from a pre-features version to a post-features version
-                    assert Version.V_8_12_0.onOrBefore(Version.CURRENT) : "This can be removed once 8.12.0 is no longer a valid version";
                     if (Objects.equals(nodeFeatures.get(node.getId()), nodeJoinTask.features()) == false) {
                         logger.debug("updating node [{}] features {}", node.getId(), nodeJoinTask.features());
                         nodeFeatures.put(node.getId(), nodeJoinTask.features());

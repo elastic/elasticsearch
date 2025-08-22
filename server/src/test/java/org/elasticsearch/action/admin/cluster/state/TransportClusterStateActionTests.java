@@ -261,8 +261,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         for (ProjectMetadata.Builder project : projects) {
             psBuilder.putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
         }
-        return csBuilder
-            .metadata(metadata)
+        return csBuilder.metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .putCustom(ProjectStateRegistry.TYPE, psBuilder.build())
             .build();

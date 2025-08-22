@@ -321,5 +321,10 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE
+    : DEV_FUSE (fuseType=fuseMethod)? (KEY key=qualifiedName)? (GROUP group=fields)? (SCORE score=qualifiedName)? fuseOptions=commandNamedParameters
+    ;
+
+fuseMethod
+    : RRF
+    | LINEAR
     ;

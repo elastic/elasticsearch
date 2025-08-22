@@ -437,6 +437,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseMethod}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseMethod(EsqlBaseParser.FuseMethodContext ctx);
+  /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -613,6 +619,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitEntryExpression(EsqlBaseParser.EntryExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mapValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMapValue(EsqlBaseParser.MapValueContext ctx);
   /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

@@ -841,6 +841,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFuseMethod(EsqlBaseParser.FuseMethodContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFuseMethod(EsqlBaseParser.FuseMethodContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1148,6 +1160,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitEntryExpression(EsqlBaseParser.EntryExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMapValue(EsqlBaseParser.MapValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMapValue(EsqlBaseParser.MapValueContext ctx) { }
   /**
    * {@inheritDoc}
    *

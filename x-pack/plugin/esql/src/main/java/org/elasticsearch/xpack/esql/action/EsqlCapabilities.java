@@ -1305,12 +1305,6 @@ public class EsqlCapabilities {
          * Support for the RLIKE operator with a list of regexes.
          */
         RLIKE_WITH_LIST_OF_PATTERNS,
-
-        /**
-         * FUSE command
-         */
-        FUSE(Build.current().isSnapshot()),
-
         /**
          * Support improved behavior for LIKE operator when used with index fields.
          */
@@ -1355,6 +1349,11 @@ public class EsqlCapabilities {
          * Support for the options field of CATEGORIZE.
          */
         CATEGORIZE_OPTIONS,
+
+        /**
+         * FUSE command
+         */
+        FUSE_V2(Build.current().isSnapshot()),
 
         /**
          * FIRST and LAST aggregate functions.

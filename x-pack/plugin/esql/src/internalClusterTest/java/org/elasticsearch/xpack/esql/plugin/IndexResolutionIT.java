@@ -112,6 +112,9 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
     public void testDoesNotResolveClosedIndex() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
         indexRandom(true, "index-1", 10);
+        // Create index only waits for primary/indexing shard to be assigned.
+        // This is enough to index and search documents, however all shards (including replicas) must be assigned before close.
+        ensureGreen("index-1");
         assertAcked(client().admin().indices().prepareClose("index-1"));
         assertAcked(client().admin().indices().prepareCreate("index-2"));
         indexRandom(true, "index-2", 15);

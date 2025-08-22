@@ -9,7 +9,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -184,7 +183,7 @@ public class RemoteClusterSettings {
 
         static void readSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder builder) {
             builder.proxyAddress(PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .maxNumConnections(REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings))
+                .proxyNumSocketConnections(REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings))
                 .proxyServerName(SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
         }
     }
@@ -265,20 +264,19 @@ public class RemoteClusterSettings {
             builder.sniffNodePredicate(getNodePredicate(settings))
                 .sniffSeedNodes(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings))
                 .proxyAddress(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .maxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+                .sniffMaxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
         }
 
         static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
             if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
                 // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
                 String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
-                return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
+                return LinkedProjectConfig.DEFAULT_SNIFF_NODE_PREDICATE.and(
+                    (node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false"))
+                );
             }
-            return DEFAULT_NODE_PREDICATE;
+            return LinkedProjectConfig.DEFAULT_SNIFF_NODE_PREDICATE;
         }
-
-        private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-            && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
     }
 
     public static Set<String> getRemoteClusters(Settings settings) {
@@ -300,10 +298,16 @@ public class RemoteClusterSettings {
         };
     }
 
+    /**
+     * Reads all settings values to create a fully populated {@link LinkedProjectConfig} instance.
+     */
     public static LinkedProjectConfig toConfig(String clusterAlias, Settings settings) {
         return toConfigBuilder(clusterAlias, settings).build();
     }
 
+    /**
+     * Reads all settings values to create a fully populated {@link LinkedProjectConfig} instance for the given origin {@link ProjectId}.
+     */
     public static LinkedProjectConfig toConfig(ProjectId originProjectId, String clusterAlias, Settings settings) {
         return toConfigBuilder(clusterAlias, settings).originProjectId(originProjectId).build();
     }
@@ -373,7 +377,7 @@ public class RemoteClusterSettings {
         @SuppressWarnings("unchecked")
         private static boolean isConnectionEnabled(String clusterAlias, Map<Setting<?>, Object> settings) {
             final var mode = (ConnectionStrategy) settings.get(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias));
-            final var builder = LinkedProjectConfig.builder().connectionStrategy(mode);
+            final var builder = LinkedProjectConfig.buildForAlias(clusterAlias).connectionStrategy(mode);
             return switch (mode) {
                 case SNIFF -> builder.sniffSeedNodes(
                     (List<String>) settings.get(

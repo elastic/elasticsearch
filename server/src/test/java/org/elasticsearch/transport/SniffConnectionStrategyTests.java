@@ -889,7 +889,6 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     }
                 });
 
-                List<String> seedNodes = Collections.singletonList(accessibleNode.toString());
                 TransportAddress proxyAddress = accessibleNode.getAddress();
                 final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
                     profile,
@@ -904,10 +903,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         LinkedProjectConfig.buildForAlias(clusterAlias)
-                            .connectionStrategy(RemoteConnectionStrategy.ConnectionStrategy.SNIFF)
-                            .maxNumConnections(3)
+                            .sniffMaxNumConnections(3)
                             .sniffNodePredicate(n -> true)
-                            .sniffSeedNodes(seedNodes)
+                            .sniffSeedNodes(seedNodes(accessibleNode))
                             .proxyAddress(proxyAddress.toString())
                             .buildSniffConnectionStrategyConfig(),
                         localService,
@@ -1229,8 +1227,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         List<String> seedNodes
     ) {
         return LinkedProjectConfig.buildForAlias(linkedProjectAlias)
-            .connectionStrategy(RemoteConnectionStrategy.ConnectionStrategy.SNIFF)
-            .maxNumConnections(maxNumConnections)
+            .sniffMaxNumConnections(maxNumConnections)
             .sniffNodePredicate(nodePredicate)
             .sniffSeedNodes(seedNodes)
             .buildSniffConnectionStrategyConfig();

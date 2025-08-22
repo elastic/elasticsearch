@@ -9,17 +9,33 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStrategy;
 
+/**
+ * <p>Configuration for initializing {@link RemoteClusterConnection}s to linked projects.</p>
+ *
+ * <p>A {@link LinkedProjectConfig.Builder} instance is used to build up the configuration,
+ * with a concrete configuration type generated via {@link LinkedProjectConfig.Builder#build}
+ * based on the {@link RemoteConnectionStrategy.ConnectionStrategy} that was specified,
+ * or by constructing a specific configuration type via
+ * {@link LinkedProjectConfig.Builder#buildProxyConnectionStrategyConfig()} or
+ * {@link LinkedProjectConfig.Builder#buildSniffConnectionStrategyConfig()}.</p>
+ *
+ * <p>The {@link RemoteClusterSettings#toConfig(String, Settings)} and {@link RemoteClusterSettings#toConfig(ProjectId, String, Settings)}
+ * methods can be used to read {@link RemoteClusterSettings} to build a concrete {@link LinkedProjectConfig} from {@link Settings}.</p>
+ */
 public interface LinkedProjectConfig {
     ProjectId originProjectId();
 
@@ -47,6 +63,9 @@ public interface LinkedProjectConfig {
 
     RemoteConnectionStrategy buildConnectionStrategy(TransportService transportService, RemoteConnectionManager connectionManager);
 
+    /**
+     * Configuration for initializing {@link RemoteClusterConnection}s to linked projects using the {@link ProxyConnectionStrategy}.
+     */
     record ProxyConnectionStrategyConfig(
         ProjectId originProjectId,
         ProjectId linkedProjectId,
@@ -82,6 +101,9 @@ public interface LinkedProjectConfig {
         }
     }
 
+    /**
+     * Configuration for initializing {@link RemoteClusterConnection}s to linked projects using the {@link SniffConnectionStrategy}.
+     */
     record SniffConnectionStrategyConfig(
         ProjectId originProjectId,
         ProjectId linkedProjectId,
@@ -118,12 +140,21 @@ public interface LinkedProjectConfig {
         }
     }
 
-    static Builder builder() {
-        return new Builder();
-    }
+    TimeValue DEFAULT_TRANSPORT_CONNECT_TIMEOUT = TimeValue.timeValueSeconds(30);
+    Compression.Enabled DEFAULT_CONNECTION_COMPRESSION = Compression.Enabled.INDEXING_DATA;
+    Compression.Scheme DEFAULT_CONNECTION_COMPRESSION_SCHEME = Compression.Scheme.LZ4;
+    TimeValue DEFAULT_CLUSTER_PING_SCHEDULE = TimeValue.MINUS_ONE;
+    TimeValue DEFAULT_INITIAL_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
+    boolean DEFAULT_SKIP_UNAVAILABLE = true;
+    int DEFAULT_REMOTE_MAX_PENDING_CONNECTION_LISTENERS = 1000;
+    int DEFAULT_PROXY_NUM_SOCKET_CONNECTIONS = 18;
+    int DEFAULT_SNIFF_MAX_NUM_CONNECTIONS = 3;
+    List<String> DEFAULT_SNIFF_SEED_NODES = Collections.emptyList();
+    Predicate<DiscoveryNode> DEFAULT_SNIFF_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
+        && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
 
     static Builder buildForAlias(String linkedProjectAlias) {
-        return new Builder().linkedProjectAlias(linkedProjectAlias);
+        return buildForLinkedProject(ProjectId.DEFAULT, ProjectId.DEFAULT, linkedProjectAlias);
     }
 
     static Builder buildForLinkedProject(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
@@ -134,21 +165,20 @@ public interface LinkedProjectConfig {
         private ProjectId originProjectId;
         private ProjectId linkedProjectId;
         private String linkedProjectAlias;
-        private TimeValue transportConnectTimeout;
-        private Compression.Enabled connectionCompression;
-        private Compression.Scheme connectionCompressionScheme;
-        private TimeValue clusterPingSchedule;
-        private TimeValue initialConnectionTimeout;
-        private boolean skipUnavailable;
+        private TimeValue transportConnectTimeout = DEFAULT_TRANSPORT_CONNECT_TIMEOUT;
+        private Compression.Enabled connectionCompression = DEFAULT_CONNECTION_COMPRESSION;
+        private Compression.Scheme connectionCompressionScheme = DEFAULT_CONNECTION_COMPRESSION_SCHEME;
+        private TimeValue clusterPingSchedule = DEFAULT_CLUSTER_PING_SCHEDULE;
+        private TimeValue initialConnectionTimeout = DEFAULT_INITIAL_CONNECTION_TIMEOUT;
+        private boolean skipUnavailable = DEFAULT_SKIP_UNAVAILABLE;
         private ConnectionStrategy connectionStrategy;
-        private int maxNumConnections;
-        private String proxyAddress;
-        private String proxyServerName;
-        private Predicate<DiscoveryNode> sniffNodePredicate;
-        private List<String> sniffSeedNodes;
-        private int maxPendingConnectionListeners = 1000;
-
-        private Builder() {}
+        private int proxyNumSocketConnections = DEFAULT_PROXY_NUM_SOCKET_CONNECTIONS;
+        private String proxyAddress = "";
+        private String proxyServerName = "";
+        private int sniffMaxNumConnections = DEFAULT_SNIFF_MAX_NUM_CONNECTIONS;
+        private Predicate<DiscoveryNode> sniffNodePredicate = DEFAULT_SNIFF_NODE_PREDICATE;
+        private List<String> sniffSeedNodes = DEFAULT_SNIFF_SEED_NODES;
+        private int maxPendingConnectionListeners = DEFAULT_REMOTE_MAX_PENDING_CONNECTION_LISTENERS;
 
         private Builder(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
             originProjectId(originProjectId);
@@ -167,10 +197,7 @@ public interface LinkedProjectConfig {
         }
 
         public Builder linkedProjectAlias(String linkedProjectAlias) {
-            if (linkedProjectAlias == null || linkedProjectAlias.isBlank()) {
-                throw new IllegalArgumentException("linkedProjectAlias cannot be null or empty");
-            }
-            this.linkedProjectAlias = linkedProjectAlias;
+            this.linkedProjectAlias = requireNonEmpty(linkedProjectAlias, "linkedProjectAlias");
             return this;
         }
 
@@ -209,12 +236,15 @@ public interface LinkedProjectConfig {
             return this;
         }
 
-        public Builder maxNumConnections(int maxNumConnections) {
-            this.maxNumConnections = maxNumConnections;
+        public Builder proxyNumSocketConnections(int proxyNumSocketConnections) {
+            this.proxyNumSocketConnections = requireGreaterThanZero(proxyNumSocketConnections, "proxyNumSocketConnections");
             return this;
         }
 
         public Builder proxyAddress(String proxyAddress) {
+            if (Strings.hasLength(proxyAddress)) {
+                RemoteConnectionStrategy.parsePort(proxyAddress);
+            }
             this.proxyAddress = proxyAddress;
             return this;
         }
@@ -224,23 +254,31 @@ public interface LinkedProjectConfig {
             return this;
         }
 
+        public Builder sniffMaxNumConnections(int sniffMaxNumConnections) {
+            this.sniffMaxNumConnections = requireGreaterThanZero(sniffMaxNumConnections, "sniffMaxNumConnections");
+            return this;
+        }
+
         public Builder sniffNodePredicate(Predicate<DiscoveryNode> sniffNodePredicate) {
             this.sniffNodePredicate = Objects.requireNonNull(sniffNodePredicate);
             return this;
         }
 
         public Builder sniffSeedNodes(List<String> sniffSeedNodes) {
-            this.sniffSeedNodes = Objects.requireNonNull(sniffSeedNodes);
+            Objects.requireNonNull(sniffSeedNodes).forEach(RemoteConnectionStrategy::parsePort);
+            this.sniffSeedNodes = sniffSeedNodes;
             return this;
         }
 
         public Builder maxPendingConnectionListeners(int maxPendingConnectionListeners) {
-            this.maxPendingConnectionListeners = maxPendingConnectionListeners;
+            this.maxPendingConnectionListeners = requireGreaterThanZero(maxPendingConnectionListeners, "maxPendingConnectionListeners");
             return this;
         }
 
         public LinkedProjectConfig build() {
-            assert connectionStrategy != null : "ConnectionStrategy must be set";
+            if (connectionStrategy == null) {
+                throw new IllegalArgumentException("[connectionStrategy] must be set before calling build()");
+            }
             return switch (connectionStrategy) {
                 case PROXY -> buildProxyConnectionStrategyConfig();
                 case SNIFF -> buildSniffConnectionStrategyConfig();
@@ -248,7 +286,9 @@ public interface LinkedProjectConfig {
         }
 
         public ProxyConnectionStrategyConfig buildProxyConnectionStrategyConfig() {
-            assert ConnectionStrategy.PROXY.equals(connectionStrategy) : "ConnectionStrategy must be PROXY";
+            if (connectionStrategy != null && ConnectionStrategy.PROXY.equals(connectionStrategy) == false) {
+                throw new IllegalArgumentException("ConnectionStrategy must be PROXY");
+            }
             return new ProxyConnectionStrategyConfig(
                 originProjectId,
                 linkedProjectId,
@@ -260,14 +300,16 @@ public interface LinkedProjectConfig {
                 initialConnectionTimeout,
                 skipUnavailable,
                 maxPendingConnectionListeners,
-                maxNumConnections,
+                proxyNumSocketConnections,
                 proxyAddress,
                 proxyServerName
             );
         }
 
         public SniffConnectionStrategyConfig buildSniffConnectionStrategyConfig() {
-            assert ConnectionStrategy.SNIFF.equals(connectionStrategy) : "ConnectionStrategy must be SNIFF";
+            if (connectionStrategy != null && ConnectionStrategy.SNIFF.equals(connectionStrategy) == false) {
+                throw new IllegalArgumentException("ConnectionStrategy must be SNIFF");
+            }
             return new SniffConnectionStrategyConfig(
                 originProjectId,
                 linkedProjectId,
@@ -279,11 +321,25 @@ public interface LinkedProjectConfig {
                 initialConnectionTimeout,
                 skipUnavailable,
                 maxPendingConnectionListeners,
-                maxNumConnections,
+                sniffMaxNumConnections,
                 sniffNodePredicate,
                 sniffSeedNodes,
                 proxyAddress
             );
+        }
+
+        private static int requireGreaterThanZero(int value, String name) {
+            if (value <= 0) {
+                throw new IllegalArgumentException("[" + name + "] must be greater than 0");
+            }
+            return value;
+        }
+
+        private String requireNonEmpty(String value, String name) {
+            if (Objects.requireNonNull(value).isBlank()) {
+                throw new IllegalArgumentException("[" + name + "] cannot be empty");
+            }
+            return value;
         }
     }
 }

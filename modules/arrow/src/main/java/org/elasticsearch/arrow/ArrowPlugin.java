@@ -25,6 +25,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.telemetry.TelemetryProvider;
 
 import java.util.Collection;
 import java.util.List;
@@ -34,10 +35,12 @@ import java.util.function.Supplier;
 public class ArrowPlugin extends Plugin implements ActionPlugin {
 
     private Client client;
+    private TelemetryProvider telemetryProvider;
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.client = services.client();
+        this.telemetryProvider = services.telemetryProvider();
 
         return List.of(new AbstractLifecycleComponent() {
             @Override
@@ -69,6 +72,6 @@ public class ArrowPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new ArrowBulkAction(this.client, settings));
+        return List.of(new ArrowBulkAction(this.client, this.telemetryProvider, settings));
     }
 }

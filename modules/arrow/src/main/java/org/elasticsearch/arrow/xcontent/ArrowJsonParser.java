@@ -20,14 +20,27 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.DateMilliVector;
+import org.apache.arrow.vector.Decimal256Vector;
+import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.DurationVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.FloatingPointVector;
+import org.apache.arrow.vector.TimeMicroVector;
+import org.apache.arrow.vector.TimeMilliVector;
+import org.apache.arrow.vector.TimeNanoVector;
+import org.apache.arrow.vector.TimeSecVector;
 import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VariableWidthFieldVector;
 import org.apache.arrow.vector.complex.BaseListVector;
 import org.apache.arrow.vector.complex.DenseUnionVector;
+import org.apache.arrow.vector.complex.LargeListVector;
+import org.apache.arrow.vector.complex.LargeListViewVector;
 import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.complex.RunEndEncodedVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.complex.UnionVector;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
@@ -128,33 +141,149 @@ public class ArrowJsonParser extends JsonParserDelegate {
             return;
         }
 
-        switch (vector.getMinorType()) {
+        Void x = switch (vector.getMinorType()) {
+            //---- Numbers
+
             case TINYINT, SMALLINT, INT, BIGINT, UINT1, UINT2, UINT4, UINT8 -> {
                 generator.writeNumber(((BaseIntVector) vector).getValueAsLong(position));
+                yield null;
             }
 
             case FLOAT2, FLOAT4, FLOAT8 -> {
                 generator.writeNumber(((FloatingPointVector) vector).getValueAsDouble(position));
+                yield null;
             }
+
+            case DECIMAL -> {
+                var dVector = (DecimalVector) vector;
+                generator.writeNumber(dVector.getObjectNotNull(position));
+                yield null;
+            }
+
+            case DECIMAL256 -> {
+                var dVector = (Decimal256Vector) vector;
+                generator.writeNumber(dVector.getObjectNotNull(position));
+                yield null;
+            }
+
+            //---- Booleans
 
             case BIT -> {
                 generator.writeBoolean(((BitVector) vector).get(position) != 0);
+                yield null;
             }
+
+            //---- Strings
 
             case VARCHAR, LARGEVARCHAR, VIEWVARCHAR -> {
                 var bytesVector = (VariableWidthFieldVector) vector;
                 // TODO: maybe we can avoid a copy using bytesVector.getDatapointer()?
                 generator.writeString(new String(bytesVector.get(position), StandardCharsets.UTF_8));
+                yield null;
             }
+
+            //---- Binary
 
             case VARBINARY, LARGEVARBINARY, VIEWVARBINARY -> {
                 var bytesVector = (VariableWidthFieldVector) vector;
                 generator.writeBinary(bytesVector.get(position));
+                yield null;
             }
+
+            case FIXEDSIZEBINARY -> {
+                var bytesVector = (FixedSizeBinaryVector) vector;
+                generator.writeBinary(bytesVector.get(position));
+                yield null;
+            }
+
+            //----- Timestamps
+            //
+            // Timestamp values are relative to the Unix epoch in UTC, with an optional timezone.
+            // The ES date type has no timezone, so we drop this information.
+            // (TODO: define where the TZ should go, e.g. providing the name of a TZ field in the field's metadata)
+            //
+            // Seconds and millis are stored as millis, and micros and nanos as nanos, so that there's
+            // no precision loss. (FIXME: define this conversion using the ES field type)
+
+            case TIMESTAMPSEC, TIMESTAMPMICRO, TIMESTAMPSECTZ, TIMESTAMPMICROTZ -> {
+                var tsVector = (TimeStampVector) vector;
+                generator.writeNumber(tsVector.get(position) * 1000L);
+                yield null;
+            }
+
+            case TIMESTAMPMILLI, TIMESTAMPNANO, TIMESTAMPMILLITZ, TIMESTAMPNANOTZ -> {
+                var tsVector = (TimeStampVector) vector;
+                generator.writeNumber(tsVector.get(position));
+                yield null;
+            }
+
+            //---- Date
+            //
+            // Time since the epoch, in days or millis evenly divisible 86_400_000
+            // Stored as millis
+
+            case DATEDAY -> {
+                var ddVector = (DateDayVector) vector;
+                generator.writeNumber(ddVector.get(position) * 1000);
+                yield null;
+            }
+
+            case DATEMILLI -> {
+                var dmVector = (DateMilliVector) vector;
+                generator.writeNumber(dmVector.get(position));
+                yield null;
+            }
+
+            //----- Time
+            //
+            // Time since midnight, either a 32-bit or 64-bit signed integer.
+            // There is no equivalent in ES, but we still convert to millis or nanos
+            // to be consistent with timestamps.
+
+            case TIMESEC -> {
+                var tVector = (TimeSecVector) vector;
+                generator.writeNumber(tVector.get(position) * 1000);
+                yield null;
+            }
+
+            case TIMEMILLI -> {
+                var tVector = (TimeMilliVector) vector;
+                generator.writeNumber(tVector.get(position));
+                yield null;
+            }
+
+            case TIMEMICRO -> {
+                var tVector = (TimeMicroVector) vector;
+                generator.writeNumber(tVector.get(position) * 1000);
+                yield null;
+            }
+
+            case TIMENANO -> {
+                var tsVector = (TimeNanoVector) vector;
+                generator.writeNumber(tsVector.get(position));
+                yield null;
+            }
+
+            //---- Other fixed size types
+
+            case DURATION -> {
+                var dVector = (DurationVector) vector;
+                long value = DurationVector.get(dVector.getDataBuffer(), position);
+
+                value *= switch (dVector.getUnit()) {
+                    case SECOND, MICROSECOND -> 1000L;
+                    case MILLISECOND, NANOSECOND -> 1L;
+                };
+
+                generator.writeNumber(value);
+                yield null;
+            }
+
+            //---- Structured types
 
             case LIST, FIXED_SIZE_LIST, LISTVIEW -> {
                 var listVector = (BaseListVector) vector;
-                var valueVector = listVector.getChildrenFromFields().get(0);
+                var valueVector = listVector.getChildrenFromFields().getFirst();
                 int start = listVector.getElementStartIndex(position);
                 int end = listVector.getElementEndIndex(position);
 
@@ -163,23 +292,7 @@ public class ArrowJsonParser extends JsonParserDelegate {
                     writeValue(valueVector, i, generator);
                 }
                 generator.writeEndArray();
-            }
-
-            case TIMESTAMPMILLI -> {
-                var tsVector = (TimeStampVector) vector;
-                generator.writeNumber(tsVector.get(position));
-            }
-
-            case TIMEMICRO -> {
-                var tsVector = (TimeStampVector) vector;
-                // FIXME: format as string with enough decimal positions
-                generator.writeNumber(tsVector.get(position) / 1000);
-            }
-
-            case TIMENANO -> {
-                var tsVector = (TimeStampVector) vector;
-                // FIXME: format as string with enough decimal positions
-                generator.writeNumber(tsVector.get(position) / 1_000_000);
+                yield null;
             }
 
             case MAP -> {
@@ -188,8 +301,8 @@ public class ArrowJsonParser extends JsonParserDelegate {
                 // non-nullable. Also for a given entry, the "key" is non-nullable, however the "value" can be null.
 
                 var mapVector = (MapVector) vector;
-                var structVector = (StructVector) mapVector.getChildrenFromFields().get(0);
-                var kVector = structVector.getChildrenFromFields().get(0);
+                var structVector = (StructVector) mapVector.getChildrenFromFields().getFirst();
+                var kVector = structVector.getChildrenFromFields().getFirst();
                 if (STRING_TYPES.contains(kVector.getMinorType()) == false) {
                     throw new ArrowFormatException("Maps must have string keys");
                 }
@@ -207,6 +320,7 @@ public class ArrowJsonParser extends JsonParserDelegate {
                     writeValue(valueVector, i, generator);
                 }
                 generator.writeEndObject();
+                yield null;
             }
 
             case STRUCT -> {
@@ -217,6 +331,7 @@ public class ArrowJsonParser extends JsonParserDelegate {
                     writeValue(field, position, generator);
                 }
                 generator.writeEndObject();
+                yield null;
             }
 
             case DENSEUNION -> {
@@ -226,6 +341,7 @@ public class ArrowJsonParser extends JsonParserDelegate {
                 var valuePosition = unionVector.getOffset(position);
 
                 writeValue(valueVector, valuePosition, generator);
+                yield null;
             }
 
             case UNION -> { // sparse union
@@ -234,11 +350,41 @@ public class ArrowJsonParser extends JsonParserDelegate {
                 var valueVector = unionVector.getVectorByType(typeId);
 
                 writeValue(valueVector, position, generator);
+                yield null;
             }
 
-            default -> throw new JsonParseException(
+            case NULL -> {
+                // Should  have been handled at the beginning of this method,
+                // but keep it to have exhaustive coverage of enum values.
+                generator.writeNull();
+                yield null;
+            }
+
+
+            case INTERVALYEAR, INTERVALDAY, INTERVALMONTHDAYNANO, // ES doesn't have any interval types
+                 LARGELIST, LARGELISTVIEW // 64-bit vector support is incomplete
+                -> throw new JsonParseException(
                 "Arrow type [" + vector.getMinorType() + "] not supported for field [" + vector.getName() + "]"
             );
-        }
+
+            case RUNENDENCODED -> {
+                var reVector = (RunEndEncodedVector) vector;
+                // Caveat: performance could be improved. getRunEnd() does a binary search for the position
+                // in the value array, and so does isNull() at the top of this method. If run-end encoding
+                // is heavily used, we could use an optimized cursor structure that is moved forward at
+                // each iteration in the calling loop.
+                writeValue(reVector.getValuesVector(), reVector.getRunEnd(position), generator);
+                yield null;
+            }
+
+            case EXTENSIONTYPE -> {
+                writeExtensionValue(vector, position, generator);
+                yield null;
+            }
+        };
+    }
+
+    private void writeExtensionValue(ValueVector vector, int position, JsonGenerator generator) throws IOException {
+
     }
 }

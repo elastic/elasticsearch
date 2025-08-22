@@ -33,7 +33,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -55,8 +55,8 @@ public class ArrowBulkAction extends BaseRestHandler {
 
     private final IncrementalBulkService bulkHandler;
 
-    public ArrowBulkAction(Client client, Settings settings) {
-        this.bulkHandler = new IncrementalBulkService(client, new IndexingPressure(settings), MeterRegistry.NOOP);
+    public ArrowBulkAction(Client client, TelemetryProvider telemetryProvider, Settings settings) {
+        this.bulkHandler = new IncrementalBulkService(client, new IndexingPressure(settings), telemetryProvider.getMeterRegistry());
     }
 
     @Override

@@ -612,6 +612,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/127302
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/133370
 
 # Examples:
 #

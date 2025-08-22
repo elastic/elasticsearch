@@ -202,12 +202,19 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
                 final long[] values = new long[expectedCount];
+
                 return new BlockLoader.SingletonLongBuilder() {
 
                     private int count;
+                    private BlockDocValuesReader.ToDouble toDouble = null;
 
                     @Override
                     public BlockLoader.Block build() {
+                        if (toDouble != null) {
+                            return new TestBlock(
+                                Arrays.stream(values).mapToDouble(toDouble::convert).boxed().collect(Collectors.toUnmodifiableList())
+                            );
+                        }
                         return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
                     }
 
@@ -237,6 +244,11 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public BlockLoader.Builder endPositionEntry() {
                         throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void setToDouble(BlockDocValuesReader.ToDouble toDouble) {
+                        this.toDouble = toDouble;
                     }
 
                     @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.read;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 /**
@@ -22,6 +23,7 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
     private final BlockFactory blockFactory;
 
     private int count;
+    private BlockDocValuesReader.ToDouble toDouble;
 
     public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
@@ -65,7 +67,10 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public Block build() {
-        return blockFactory.newLongArrayVector(values, count, 0L).asBlock();
+        if (toDouble != null) {
+            return blockFactory.newDoubleOverLongArrayVector(values, toDouble::convert, count).asBlock();
+        }
+        return blockFactory.newLongArrayVector(values, count).asBlock();
     }
 
     @Override
@@ -79,6 +84,11 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
         System.arraycopy(values, from, this.values, count, length);
         count += length;
         return this;
+    }
+
+    @Override
+    public void setToDouble(BlockDocValuesReader.ToDouble toDouble) {
+        this.toDouble = toDouble;
     }
 
     @Override

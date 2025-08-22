@@ -237,15 +237,6 @@ public class NodeJoiningIT extends ESIntegTestCase {
             .toList();
     }
 
-    private boolean nodeExistsWithName(DiscoveryNodes nodes, String nodeName) {
-        for (DiscoveryNode node : nodes.getAllNodes()) {
-            if (node.getName().equals(nodeName)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void addJoiningNodeDisconnectedWarnLogFalseExpectation(MockLog mockLog) {
         mockLog.addExpectation(
             new MockLog.UnseenEventExpectation(

@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal.conventions;
 import groovy.util.Node;
 import nmcp.NmcpPlugin;
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
@@ -173,8 +172,7 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
-        var shadow = project.getExtensions().getByType(ShadowExtension.class);
-        shadow.component(publication);
+        publication.from(project.getComponents().getByName("shadow"));
         publication.artifact(project.getTasks().named("javadocJar"));
         publication.artifact(project.getTasks().named("sourcesJar"));
     }

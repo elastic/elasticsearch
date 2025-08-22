@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -42,8 +43,31 @@ public interface BlockLoader {
     interface ColumnAtATimeReader extends Reader {
         /**
          * Reads the values of all documents in {@code docs}.
+         *
+         * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field;
+         *                      otherwise, the guarantee is unknown. This enables optimizations for block loaders,
+         *                      treating the field as dense (every document has value) even if it is sparse in
+         *                      the index. For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out
+         *                      documents without value for field x, all target documents returned from the source operator
+         *                      will have a value for field x whether x is dense or sparse in the index.
          */
-        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException;
+        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+    }
+
+    /**
+     * An interface for readers that attempt to load all document values in a column-at-a-time fashion.
+     * <p>
+     * Unlike {@link ColumnAtATimeReader}, implementations may return {@code null} if they are unable
+     * to load the requested values, for example due to unsupported underlying data.
+     * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
+     */
+    interface OptionalColumnAtATimeReader {
+        /**
+         * Attempts to read the values of all documents in {@code docs}
+         * Returns {@code null} if unable to load the values.
+         */
+        @Nullable
+        BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -149,7 +173,7 @@ public interface BlockLoader {
      */
     class ConstantNullsReader implements AllReader {
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             return factory.constantNulls(docs.count() - offset);
         }
 
@@ -183,7 +207,7 @@ public interface BlockLoader {
             public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
                 return new ColumnAtATimeReader() {
                     @Override
-                    public Block read(BlockFactory factory, Docs docs, int offset) {
+                    public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
                         return factory.constantBytes(value, docs.count() - offset);
                     }
 
@@ -261,8 +285,8 @@ public interface BlockLoader {
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-                    return reader.read(factory, docs, offset);
+                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                    return reader.read(factory, docs, offset, nullsFiltered);
                 }
 
                 @Override
@@ -430,7 +454,7 @@ public interface BlockLoader {
         /**
          * Build a reader for reading {@link SortedDocValues}
          */
-        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
+        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
 
         /**
          * Build a reader for reading {@link SortedSetDocValues}
@@ -531,6 +555,8 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+
+        SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
     }
 
     interface SortedSetOrdinalsBuilder extends Builder {
@@ -549,6 +575,5 @@ public interface BlockLoader {
         DoubleBuilder sum();
 
         IntBuilder count();
-
     }
 }

@@ -69,6 +69,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
 
         traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        httpPost.setHeader(HttpHeaders.CONNECTION, "keep-alive");
 
         return httpPost;
     }

@@ -12,6 +12,7 @@ import org.apache.http.client.UserTokenHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.impl.DefaultConnectionReuseStrategy;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
@@ -81,6 +82,7 @@ public class HttpClient implements Closeable {
 
         };
         clientBuilder.setUserTokenHandler(userTokenHandler);
+        clientBuilder.setConnectionReuseStrategy(DefaultConnectionReuseStrategy.INSTANCE);
         // clientBuilder.disableConnectionState();
 
         /*

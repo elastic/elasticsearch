@@ -62,7 +62,7 @@ public class TsidBuilderTests extends ESTestCase {
     }
 
     public void testAddStringDimension() {
-        String stringValue = randomUnicodeOfLengthBetween(10, 100);
+        String stringValue = randomUnicodeOfLengthBetween(0, 1024);
         BytesRef bytesRef = new BytesRef(stringValue);
         byte[] utf8Bytes = stringValue.getBytes(StandardCharsets.UTF_8);
         assertEqualBuilders(

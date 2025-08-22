@@ -11,14 +11,12 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -85,18 +83,8 @@ public class NodeJoiningIT extends ESIntegTestCase {
         ensureStableCluster(3);
         String originalMasterNodeName = internalCluster().getMasterName();
         int numberOfNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName).state().getNodes().size();
-        int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName)
-            .state()
-            .nodes()
-            .getMasterNodes()
-            .size();
-        int numberOfDataNodesOriginallyInCluster = internalCluster().clusterService(originalMasterNodeName)
-            .state()
-            .nodes()
-            .getDataNodes()
-            .size();
         // Determine upfront who we want the next master to be
-        final var newMasterNodeName = nodeNames.getFirst();
+        final var newMasterNodeName = randomValueOtherThan(originalMasterNodeName, () -> randomFrom(nodeNames));
 
         // Ensure the logging is as expected
         try (var mockLog = MockLog.capture(NodeJoinExecutor.class)) {
@@ -128,14 +116,15 @@ public class NodeJoiningIT extends ESIntegTestCase {
             assertNotEquals(originalMasterNodeName, internalCluster().getMasterName());
             logger.info("New master is elected");
 
+            // Assert all nodes have accepted N into their cluster state
+            assertNewNodeIsInAllClusterStates(newNodeName);
+
             mockLog.assertAllExpectationsMatched();
 
             // Assert the new data node was added
             DiscoveryNodes discoveryNodes = internalCluster().clusterService().state().nodes();
             assertEquals(numberOfNodesOriginallyInCluster + 1, discoveryNodes.getSize());
-            assertEquals(numberOfDataNodesOriginallyInCluster + 1, discoveryNodes.getDataNodes().size());
             assertTrue(getListOfDataNodeNamesFromCluster(newMasterNodeName).contains(newNodeName));
-            assertEquals(numberOfMasterNodesOriginallyInCluster, discoveryNodes.getMasterNodes().size());
         }
     }
 
@@ -149,20 +138,10 @@ public class NodeJoiningIT extends ESIntegTestCase {
         ensureStableCluster(3);
         String masterNodeName = internalCluster().getMasterName();
 
-        long originalTerm = internalCluster().clusterService(masterNodeName).state().coordinationMetadata().term();
+        long originalTerm = getTerm(masterNodeName);
         int numberOfNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().getNodes().size();
-        int numberOfMasterNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName)
-            .state()
-            .nodes()
-            .getMasterNodes()
-            .size();
-        int numberOfDataNodesOriginallyInCluster = internalCluster().clusterService(masterNodeName).state().nodes().getDataNodes().size();
-        String[] namesOfAllNodesInOriginalCluster = internalCluster().getNodeNames();
 
-        // Ensure the logging is as expected
         try (var mockLog = MockLog.capture(NodeJoinExecutor.class, MasterService.class, ClusterApplierService.class)) {
-            SubscribableListener<Void> publishingBanRemovedListener = null;
-
             for (String nodeName : internalCluster().getNodeNames()) {
                 final var mockTransportService = MockTransportService.getInstance(nodeName);
 
@@ -175,13 +154,14 @@ public class NodeJoiningIT extends ESIntegTestCase {
 
                     // Wait until the master has stepped down before removing the publishing ban
                     // This allows the master to be re-elected
-                    publishingBanRemovedListener = ClusterServiceUtils.addTemporaryStateListener(
+                    ClusterServiceUtils.addTemporaryStateListener(
                         internalCluster().clusterService(masterNodeName),
                         clusterState -> {
                             DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
                             boolean hasMasterSteppedDown = currentMasterNode == null
                                 || currentMasterNode.getName().equals(masterNodeName) == false;
                             if (hasMasterSteppedDown) {
+                                logger.info("Master publishing ban removed");
                                 mockTransportService.addSendBehavior(Transport.Connection::sendRequest);
                             }
                             return hasMasterSteppedDown;
@@ -220,35 +200,11 @@ public class NodeJoiningIT extends ESIntegTestCase {
             logger.info("Sending node join request");
             String newNodeName = internalCluster().startDataOnlyNode();
 
-            safeAwait(publishingBanRemovedListener);
-            logger.info("Master publishing ban removed");
+            // Assert the master was re-elected
+            assertTrue(masterNodeName.equals(internalCluster().getMasterName()) && originalTerm < getTerm(masterNodeName));
 
-            // Wait until the master acknowledges its re-election. The master is only re-elected once it's publishing ban is lifted
-            SubscribableListener<Void> masterKnowsItsReElectedListener = ClusterServiceUtils.addTemporaryStateListener(
-                internalCluster().getInstance(ClusterService.class, masterNodeName),
-                clusterState -> {
-                    DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
-                    long currentTerm = clusterState.coordinationMetadata().term();
-                    return currentMasterNode != null && currentMasterNode.getName().equals(masterNodeName) && currentTerm > originalTerm;
-                }
-            );
-            safeAwait(masterKnowsItsReElectedListener);
-
-            assertEquals(masterNodeName, internalCluster().getMasterName());
-            logger.info("Master has been re-elected");
-
-            try {
-                // Await for N to be in the cluster state of all nodes
-                for (String nodeName : namesOfAllNodesInOriginalCluster) {
-                    ClusterServiceUtils.awaitClusterState(
-                        logger,
-                        clusterState -> nodeExistsWithName(clusterState.nodes(), newNodeName),
-                        internalCluster().clusterService(nodeName)
-                    );
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            // Assert all nodes have accepted N into their cluster state
+            assertNewNodeIsInAllClusterStates(newNodeName);
 
             // If the WARN log was thrown, then the connection to N was disconnected so fail the test
             mockLog.assertAllExpectationsMatched();
@@ -256,9 +212,17 @@ public class NodeJoiningIT extends ESIntegTestCase {
             // Assert the new data node was added
             DiscoveryNodes discoveryNodes = internalCluster().clusterService().state().nodes();
             assertEquals(numberOfNodesOriginallyInCluster + 1, discoveryNodes.getSize());
-            assertEquals(numberOfDataNodesOriginallyInCluster + 1, discoveryNodes.getDataNodes().size());
             assertTrue(getListOfDataNodeNamesFromCluster(masterNodeName).contains(newNodeName));
-            assertEquals(numberOfMasterNodesOriginallyInCluster, discoveryNodes.getMasterNodes().size());
+        }
+    }
+
+    private long getTerm(String masterNodeName) {
+        return internalCluster().clusterService(masterNodeName).state().coordinationMetadata().term();
+    }
+
+    private void assertNewNodeIsInAllClusterStates(String newNodeName) {
+        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
+            assertTrue(clusterService.state().nodes().getAllNodes().stream().map(DiscoveryNode::getName).toList().contains(newNodeName));
         }
     }
 
@@ -288,10 +252,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
                 "warn message with troubleshooting link",
                 "org.elasticsearch.cluster.coordination.NodeJoinExecutor",
                 Level.WARN,
-                "node-join: [*] with reason ["
-                    + ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING
-                    + "]; for troubleshooting guidance, see "
-                    + "https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster*"
+                "*"
             )
         );
     }

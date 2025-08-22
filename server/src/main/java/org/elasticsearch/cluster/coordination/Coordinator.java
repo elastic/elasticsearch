@@ -668,51 +668,57 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
             @Override
             public void onResponse(Releasable response) {
-                validateJoinRequest(
-                    joinRequest,
-                    ActionListener.runBefore(joinListener, () -> Releasables.close(response))
-                        .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l.delegateResponse((ignoredListener, e) -> {
+                SubscribableListener
+                    // Validates the join request: can the remote node deserialize our cluster state and does it respond to pings?
+                    .<Void>newForked(l -> validateJoinRequest(joinRequest, l))
 
-                            /*
-                                This prevents a corner case, explained in #ES-11449, occurring as follows:
-                                - Master M is in term T and has cluster state (T, V).
-                                - Node N tries to join the cluster.
-                                - M proposes cluster state (T, V+1) with N in the cluster.
-                                - M accepts its own proposal and commits it to disk.
-                                - M receives no responses. M doesn't know whether the state was accepted by a majority of nodes,
-                                    rejected, or did not reach any nodes.
-                                - There is a re-election and M wins. M publishes cluster state (T+1, V+2).
-                                  Since it's built from the cluster state on disk, N is still in the cluster.
-                                - Since (T, V+1) failed, a FailedToCommitClusterStateException is thrown and N's connection is dropped,
-                                    even though its inclusion in the cluster may have been committed on a majority of master nodes.
-                                - It can rejoin, but this throws a WARN log since it did not restart.
+                    // Adds the joining node to the cluster state
+                    .<Void>andThen(l -> processJoinRequest(joinRequest, l.delegateResponse((ll, e) -> {
+                        // #ES-11449
+                        if (e instanceof FailedToCommitClusterStateException) {
+                            // The commit failed (i.e. master is failing over) but this does not imply that the join has actually failed:
+                            // the next master may have already accepted the state that we just published and will therefore include the
+                            // joining node in its future states too. Thus we need to wait for the next committed state before we know the
+                            // eventual outcome, and we need to wait for that before we can release (our ref to) the connection and complete
+                            // the listener.
 
-                                The above situation occurs here when a FailedToCommitClusterStateException is thrown.
-                                When we catch this exception, we keep the connection open until the next cluster state update.
-                                N is accepted -> By waiting, we did not close the connection to N unnecessarily
-                                N is rejected -> A new cluster state is published without N in it. Closing is correct here.
-                             */
-                            if (e instanceof FailedToCommitClusterStateException) {
-                                ClusterStateListener clusterStateListener = new ClusterStateListener() {
-                                    @Override
-                                    public void clusterChanged(ClusterChangedEvent event) {
-                                        // Keep the connection open until the next committed state
-                                        if (event.state().nodes().getMasterNode() != null) {
-                                            Releasables.close(response);
-                                            // Remove this listener to avoid memory leaks
-                                            clusterService.removeListener(this);
-                                            joinListener.onResponse(null);
+                            // NB we are on the master update thread here at the end of processing the failed cluster state update, so this
+                            // all happens before any cluster state update that re-elects a master
+                            assert ThreadPool.assertCurrentThreadPool(MasterService.MASTER_UPDATE_THREAD_NAME);
+
+                            final ClusterStateListener clusterStateListener = new ClusterStateListener() {
+                                @Override
+                                public void clusterChanged(ClusterChangedEvent event) {
+                                    final var discoveryNodes = event.state().nodes();
+                                    // Keep the connection open until the next committed state
+                                    if (discoveryNodes.getMasterNode() != null) {
+                                        // Remove this listener to avoid memory leaks
+                                        clusterService.removeListener(this);
+
+                                        if (discoveryNodes.nodeExists(joinRequest.getSourceNode().getId())) {
+                                            ll.onResponse(null);
+                                        } else {
+                                            ll.onFailure(e);
                                         }
                                     }
-                                };
+                                }
+                            };
+                            clusterService.addListener(clusterStateListener);
 
-                                clusterService.addListener(clusterStateListener);
-                            } else {
-                                Releasables.close(response);
-                                joinListener.onFailure(e);
+                            // Immediate condition check in case another node is elected master
+                            if (clusterService.state().nodes().nodeExists(joinRequest.getSourceNode().getId())) {
+                                // Remove this listener to avoid memory leaks
+                                clusterService.removeListener(clusterStateListener);
+
+                                ll.onResponse(null);
                             }
-                        })))
-                );
+                        } else {
+                            ll.onFailure(e);
+                        }
+                    })))
+
+                    // Whatever the outcome, release (our ref to) the connection we just opened and notify the joining node.
+                    .addListener(ActionListener.runBefore(joinListener, () -> Releasables.close(response)));
             }
 
             @Override

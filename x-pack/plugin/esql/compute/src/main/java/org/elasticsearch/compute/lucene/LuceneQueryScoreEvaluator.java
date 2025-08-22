@@ -28,6 +28,7 @@ import java.io.IOException;
  * @see LuceneQueryScoreEvaluator
  */
 public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleVector.Builder> implements ScoreOperator.ExpressionScorer {
+
     public static final double NO_MATCH_SCORE = 0.0;
 
     LuceneQueryScoreEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {

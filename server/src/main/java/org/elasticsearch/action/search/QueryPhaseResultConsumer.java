@@ -231,6 +231,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         while ((batchedResult = batchedResults.poll()) != null) {
             topDocsStats.add(batchedResult.v1());
             consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
+            addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize);
         }
         for (QuerySearchResult result : buffer) {
             topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
@@ -392,7 +393,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return new MergeResult(
             processedShards,
             newTopDocs,
-            newAggs == null ? null : DelayableWriteable.referencing(newAggs),
+            newAggs != null ? DelayableWriteable.referencing(newAggs) : null,
             newAggs != null ? DelayableWriteable.getSerializedSize(newAggs) : 0
         );
     }

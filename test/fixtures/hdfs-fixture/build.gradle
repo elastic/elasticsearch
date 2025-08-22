@@ -83,6 +83,7 @@ dependencies {
 
   def commonExcludes = [
     [group: "org.apache.commons", module: "commons-compress"],
+    [group: "org.apache.commons", module: "commons-lang3"],
     [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-app"],
     [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-core"],
     [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-hs"],

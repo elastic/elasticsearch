@@ -42,7 +42,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
     OTLPMetricsTransportAction.MetricsRequest,
     OTLPMetricsTransportAction.MetricsResponse> {
 
-    public static final String NAME = "indices:data/write/metrics";
+    public static final String NAME = "indices:data/write/otlp/metrics";
     public static final ActionType<MetricsResponse> TYPE = new ActionType<>(NAME);
 
     private static final Logger logger = LogManager.getLogger(OTLPMetricsTransportAction.class);

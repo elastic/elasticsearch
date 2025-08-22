@@ -24,6 +24,6 @@ index-templates:
   - metrics-service_summary.60m.otel@template
   - metrics-service_summary.10m.otel@template
   - metrics-service_summary.1m.otel@template
-  - metrics-service_destination.60m@template
-  - metrics-service_destination.10m@template
-  - metrics-service_destination.1m@template
+  - metrics-service_destination.60m.otel@template
+  - metrics-service_destination.10m.otel@template
+  - metrics-service_destination.1m.otel@template

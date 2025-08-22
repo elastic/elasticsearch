@@ -104,6 +104,8 @@ public class SemanticTextHighlighter implements Highlighter {
             ? 1 // we return the best fragment by default
             : fieldContext.field.fieldOptions().numberOfFragments();
 
+        // TODO: Right now this will default to 100 if not set. If the user does not set fragmentSize for
+        // the semantic highlighter, we probably just want to return unadulterated chunks instead.
         int fragmentCharSize = fieldContext.field.fieldOptions().fragmentCharSize();
 
         List<OffsetAndScore> chunks = extractOffsetAndScores(
@@ -113,7 +115,7 @@ public class SemanticTextHighlighter implements Highlighter {
             fieldContext.hitContext.docId(),
             queries
         );
-        if (chunks.size() == 0) {
+        if (chunks.isEmpty()) {
             return null;
         }
 
@@ -170,30 +172,54 @@ public class SemanticTextHighlighter implements Highlighter {
             }
             consumedChunks[i] = true;
 
-            // Chunks smaller than the requested fragmentCharSize will be concatenated with neighboring chunks
             if (fragmentCharSize > 0 && content.length() < fragmentCharSize) {
-                StringBuilder concatenated = new StringBuilder(content);
+                var cur = chunk.offset();
+                if (cur != null) {
+                    int prevIdx = -1, nextIdx = -1;
+                    long bestPrevEnd = Long.MIN_VALUE;   // nearest previous by largest end()
+                    long bestNextStart = Long.MAX_VALUE; // nearest next by smallest start()
 
-                // Look ahead to find more chunks to concatenate
-                // TODO: Lookback to get the preceding chunk if we're at the end of the document
-                for (int nextIndex = i + 1; nextIndex < chunks.size() && concatenated.length() < fragmentCharSize; nextIndex++) {
-                    if (consumedChunks[nextIndex]) {
-                        continue;
+                    for (int j = 0; j < chunks.size(); j++) {
+                        if (j == i || consumedChunks[j]) continue;
+
+                        var cand = chunks.get(j);
+                        var off = cand.offset();
+                        if (off == null) continue;
+
+                        if (off.end() <= cur.start()) {
+                            // candidate is before current
+                            if (off.end() > bestPrevEnd) {
+                                bestPrevEnd = off.end();
+                                prevIdx = j;
+                            }
+                        } else if (off.start() >= cur.end()) {
+                            // candidate is after current
+                            if (off.start() < bestNextStart) {
+                                bestNextStart = off.start();
+                                nextIdx = j;
+                            }
+                        }
                     }
 
-                    var nextChunk = chunks.get(nextIndex);
-                    if (nextChunk.offset().start() > chunk.offset().end()) {
-                        String nextContent = offsetToContent.apply(nextChunk);
-                        if (nextContent == null) {
-                            continue;
-                        }
+                    double prevScore = (prevIdx != -1) ? chunks.get(prevIdx).score() : Double.NEGATIVE_INFINITY;
+                    double nextScore = (nextIdx != -1) ? chunks.get(nextIdx).score() : Double.NEGATIVE_INFINITY;
 
-                        concatenated.append(CHUNK_DELIMITER).append(nextContent);
-                        consumedChunks[nextIndex] = true;
+                    int pick = (nextScore > prevScore) ? nextIdx : prevIdx;
+                    if (pick != -1) {
+                        String extra = offsetToContent.apply(chunks.get(pick));
+                        int remaining = fragmentCharSize - content.length() - CHUNK_DELIMITER.length();
+                        if (extra != null) {
+                            if (pick == nextIdx) {
+                                String toAppend = extra.length() > remaining ? extra.substring(0, remaining) : extra;
+                                content = content + CHUNK_DELIMITER + toAppend;        // expand forward
+                            } else {
+                                String toPrepend = extra.length() > remaining ? extra.substring(extra.length() - remaining) : extra;
+                                content = toPrepend + CHUNK_DELIMITER + content;        // expand backward
+                            }
+                            consumedChunks[pick] = true;
+                        }
                     }
                 }
-
-                content = concatenated.toString();
             }
 
             // Truncate content if it exceeds fragmentCharSize

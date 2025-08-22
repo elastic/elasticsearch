@@ -419,51 +419,39 @@ public final class XmlProcessor extends AbstractProcessor {
 
             // Parse XPath expressions map
             Map<String, String> xpathExpressions = new HashMap<>();
-            Object xpathConfig = config.get("xpath");
+            Map<String, Object> xpathConfig = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "xpath");
             if (xpathConfig != null) {
-                if (xpathConfig instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> xpathMap = (Map<String, Object>) xpathConfig;
-                    for (Map.Entry<String, Object> entry : xpathMap.entrySet()) {
-                        if (entry.getValue() instanceof String str) {
-                            xpathExpressions.put(entry.getKey(), str);
-                        } else {
-                            throw new IllegalArgumentException(
-                                "XPath target field ["
-                                    + entry.getKey()
-                                    + "] must be a string, got ["
-                                    + entry.getValue().getClass().getSimpleName()
-                                    + "]"
-                            );
-                        }
+                for (Map.Entry<String, Object> entry : xpathConfig.entrySet()) {
+                    if (entry.getValue() instanceof String str) {
+                        xpathExpressions.put(entry.getKey(), str);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "XPath target field ["
+                                + entry.getKey()
+                                + "] must be a string, got ["
+                                + entry.getValue().getClass().getSimpleName()
+                                + "]"
+                        );
                     }
-                } else {
-                    throw new IllegalArgumentException("XPath configuration must be a map of expressions to target fields");
                 }
             }
 
             // Parse namespaces map
             Map<String, String> namespaces = new HashMap<>();
-            Object namespaceConfig = config.get("namespaces");
+            Map<String, Object> namespaceConfig = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "namespaces");
             if (namespaceConfig != null) {
-                if (namespaceConfig instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> namespaceMap = (Map<String, Object>) namespaceConfig;
-                    for (Map.Entry<String, Object> entry : namespaceMap.entrySet()) {
-                        if (entry.getValue() instanceof String str) {
-                            namespaces.put(entry.getKey(), str);
-                        } else {
-                            throw new IllegalArgumentException(
-                                "Namespace prefix ["
-                                    + entry.getKey()
-                                    + "] must have a string URI, got ["
-                                    + entry.getValue().getClass().getSimpleName()
-                                    + "]"
-                            );
-                        }
+                for (Map.Entry<String, Object> entry : namespaceConfig.entrySet()) {
+                    if (entry.getValue() instanceof String str) {
+                        namespaces.put(entry.getKey(), str);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Namespace prefix ["
+                                + entry.getKey()
+                                + "] must have a string URI, got ["
+                                + entry.getValue().getClass().getSimpleName()
+                                + "]"
+                        );
                     }
-                } else {
-                    throw new IllegalArgumentException("Namespaces configuration must be a map of prefixes to URIs");
                 }
             }
 

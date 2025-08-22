@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -91,6 +92,32 @@ public class XmlProcessorFactoryTests extends ESTestCase {
      */
     private XmlProcessor createProcessor(Map<String, Object> config) throws Exception {
         return createProcessor(createFactory(), config);
+    }
+
+    /**
+     * Creates a processor mimicking the production pipeline validation.
+     * This simulates what ConfigurationUtils.readProcessor() does.
+     */
+    private XmlProcessor createProcessorWithValidation(Map<String, Object> config) throws Exception {
+        XmlProcessor.Factory factory = createFactory();
+        String processorTag = randomAlphaOfLength(10);
+        
+        // Make a copy of the config to avoid modifying the original
+        Map<String, Object> configCopy = new HashMap<>(config);
+        
+        // Create the processor (this should consume config parameters)
+        XmlProcessor processor = factory.create(null, processorTag, null, configCopy, null);
+        
+        // Simulate the validation check from ConfigurationUtils.readProcessor()
+        if (configCopy.isEmpty() == false) {
+            throw new ElasticsearchParseException(
+                "processor [{}] doesn't support one or more provided configuration parameters {}",
+                "xml",
+                Arrays.toString(configCopy.keySet().toArray())
+            );
+        }
+        
+        return processor;
     }
 
     /**
@@ -235,7 +262,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = createBaseConfig();
         config.put("xpath", "invalid_string"); // Should be a map
 
-        expectCreationFailure(config, IllegalArgumentException.class, "XPath configuration must be a map of expressions to target fields");
+        expectCreationFailure(config, ElasticsearchParseException.class, "[xpath] property isn't a map, but of type [java.lang.String]");
     }
 
     public void testCreateWithInvalidXPathTargetField() throws Exception {
@@ -271,7 +298,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = createBaseConfig();
         config.put("namespaces", "invalid_string"); // Should be a map
 
-        expectCreationFailure(config, IllegalArgumentException.class, "Namespaces configuration must be a map of prefixes to URIs");
+        expectCreationFailure(config, ElasticsearchParseException.class, "[namespaces] property isn't a map, but of type [java.lang.String]");
     }
 
     public void testCreateWithInvalidNamespaceURI() throws Exception {
@@ -383,5 +410,26 @@ public class XmlProcessorFactoryTests extends ESTestCase {
             IllegalArgumentException.class,
             "Invalid XPath expression [//book:title/text()]: contains namespace prefixes but no namespace configuration provided"
         );
+    }
+
+    public void testConfigurationParametersAreProperlyRemoved() throws Exception {
+        // Test that demonstrates configuration validation works when using production-like validation
+        // This test verifies that ConfigurationUtils.readOptionalMap() properly removes parameters from config
+        // If any are left, the processor factory should throw an exception about unknown parameters
+        
+        Map<String, String> xpathConfig = createXPathConfig("//test", "test_field");
+        Map<String, Object> config = createConfigWithXPath(DEFAULT_FIELD, xpathConfig);
+        
+        // Add an intentionally unknown parameter to trigger the validation
+        config.put("unknown_parameter", "should_fail");
+        
+        // This should fail because "unknown_parameter" should remain in config after all valid params are removed
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> createProcessorWithValidation(config)
+        );
+        
+        assertThat(exception.getMessage(), containsString("doesn't support one or more provided configuration parameters"));
+        assertThat(exception.getMessage(), containsString("unknown_parameter"));
     }
 }

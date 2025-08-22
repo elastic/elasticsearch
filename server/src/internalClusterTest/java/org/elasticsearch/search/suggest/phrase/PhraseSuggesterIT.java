@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
@@ -49,15 +50,25 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
         // 4. NoisyChannelSpellChecker.end() throws IllegalArgumentException
         SearchRequestBuilder searchBuilder = createSuggesterSearch("text.ngrams");
 
-        assertResponse(searchBuilder, response -> {
-            assertThat(response.status(), equalTo(RestStatus.OK));
-            assertThat(response.getFailedShards(), greaterThan(0));
-            assertThat(response.getShardFailures().length, greaterThan(0));
-            for (ShardSearchFailure shardFailure : response.getShardFailures()) {
-                assertTrue(shardFailure.getCause() instanceof IllegalArgumentException);
-                assertEquals("At least one unigram is required but all tokens were ngrams", shardFailure.getCause().getMessage());
-            }
-        });
+        try {
+            assertResponse(searchBuilder, response -> {
+                // We didn't fail all shards - we get a response with failed shards
+                assertThat(response.status(), equalTo(RestStatus.OK));
+                assertThat(response.getFailedShards(), greaterThan(0));
+                assertThat(response.getShardFailures().length, greaterThan(0));
+                checkShardFailures(response.getShardFailures());
+            });
+        } catch (SearchPhaseExecutionException e) {
+            // If all shards fail, we get a SearchPhaseExecutionException
+            checkShardFailures(e.shardFailures());
+        }
+    }
+
+    private static void checkShardFailures(ShardSearchFailure[] shardFailures) {
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            assertTrue(shardFailure.getCause() instanceof IllegalArgumentException);
+            assertEquals("At least one unigram is required but all tokens were ngrams", shardFailure.getCause().getMessage());
+        }
     }
 
     private static SearchRequestBuilder createSuggesterSearch(String fieldName) {
@@ -104,7 +115,7 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+                    .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
                     .put("index.analysis.analyzer.ngram_only.tokenizer", "standard")
                     .putList("index.analysis.analyzer.ngram_only.filter", "my_shingle", "lowercase")
                     .put("index.analysis.filter.my_shingle.type", "shingle")

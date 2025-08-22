@@ -57,7 +57,8 @@ public class ProjectStateRoleMapperTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         clusterService = mock(ClusterService.class);
         disabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", false).build();

@@ -1715,4 +1715,76 @@ public class BlockHashTests extends BlockHashTestCase {
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
             : BlockHash.build(specs, blockFactory, emitBatchSize, true);
     }
+
+    public void testConstant() {
+        try (
+            var hash = new BytesRefLongBlockHash(blockFactory, 0, 1, false, randomIntBetween(1, 1000));
+            var bytesHash = new BytesRefBlockHash(0, blockFactory)
+        ) {
+            int iters = between(1, 20);
+            for (int i = 0; i < iters; i++) {
+                final BytesRefBlock bytes;
+                final LongBlock longs;
+                final boolean constantInput = randomBoolean();
+                final int positions = randomIntBetween(1, 100);
+                if (constantInput) {
+                    bytes = blockFactory.newConstantBytesRefBlockWith(new BytesRef(randomAlphaOfLength(10)), positions);
+                    if (randomBoolean()) {
+                        try (IntVector hashIds = bytesHash.add(bytes.asVector())) {
+                            assertTrue(hashIds.isConstant());
+                        }
+                    }
+                    if (randomBoolean()) {
+                        longs = blockFactory.newConstantLongBlockWith(randomNonNegativeLong(), positions);
+                    } else {
+                        long value = randomNonNegativeLong();
+                        try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
+                            for (int p = 0; p < positions; p++) {
+                                builder.appendLong(value);
+                            }
+                            longs = builder.build().asBlock();
+                        }
+                    }
+                } else {
+                    try (var builder = blockFactory.newBytesRefBlockBuilder(positions)) {
+                        for (int p = 0; p < positions; p++) {
+                            builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                        }
+                        bytes = builder.build();
+                    }
+                    try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
+                        for (int p = 0; p < positions; p++) {
+                            builder.appendLong(randomNonNegativeLong());
+                        }
+                        longs = builder.build().asBlock();
+                    }
+                }
+                try (Page page = new Page(bytes, longs)) {
+                    hash.add(page, new GroupingAggregatorFunction.AddInput() {
+                        @Override
+                        public void add(int positionOffset, IntArrayBlock groupIds) {
+                            fail("should not call IntArrayBlock");
+                        }
+
+                        @Override
+                        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                            fail("should not call IntBigArrayBlock");
+                        }
+
+                        @Override
+                        public void add(int positionOffset, IntVector groupIds) {
+                            if (constantInput) {
+                                assertTrue(groupIds.isConstant());
+                            }
+                        }
+
+                        @Override
+                        public void close() {
+
+                        }
+                    });
+                }
+            }
+        }
+    }
 }

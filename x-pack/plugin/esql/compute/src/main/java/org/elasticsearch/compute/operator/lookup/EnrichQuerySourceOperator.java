@@ -37,7 +37,7 @@ import java.io.UncheckedIOException;
  */
 public final class EnrichQuerySourceOperator extends SourceOperator {
     private final BlockFactory blockFactory;
-    private final QueryList queryList;
+    private final LookupEnrichQueryGenerator queryList;
     private int queryPosition = -1;
     private final ShardContext shardContext;
     private final IndexReader indexReader;
@@ -51,7 +51,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     public EnrichQuerySourceOperator(
         BlockFactory blockFactory,
         int maxPageSize,
-        QueryList queryList,
+        LookupEnrichQueryGenerator queryList,
         ShardContext shardContext,
         Warnings warnings
     ) {

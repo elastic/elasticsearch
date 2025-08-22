@@ -1,13 +1,11 @@
-## `CHANGE_POINT` [esql-change_point]
-
-:::{note}
-The `CHANGE_POINT` command requires a [platinum license](https://www.elastic.co/subscriptions).
-:::
-
 ```yaml {applies_to}
 serverless: preview
 stack: preview 9.1.0
 ```
+
+:::{note}
+The `CHANGE_POINT` command requires a [platinum license](https://www.elastic.co/subscriptions).
+:::
 
 `CHANGE_POINT` detects spikes, dips, and change points in a metric.
 

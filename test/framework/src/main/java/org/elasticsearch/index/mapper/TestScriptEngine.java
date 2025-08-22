@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +31,7 @@ public abstract class TestScriptEngine implements ScriptEngine {
             public Set<ScriptContext<?>> getSupportedContexts() {
                 return Set.of(context);
             }
-        }), Map.of(context.name, context), () -> 1L);
+        }), Map.of(context.name, context), () -> 1L, TestProjectResolvers.singleProject(ESTestCase.randomProjectIdOrDefault()));
     }
 
     @Override

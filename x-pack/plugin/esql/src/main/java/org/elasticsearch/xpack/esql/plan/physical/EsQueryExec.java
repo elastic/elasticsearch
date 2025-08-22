@@ -46,7 +46,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         EsQueryExec::readFrom
     );
 
-    public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
+    public static final EsField DOC_ID_FIELD = new EsField(
+        "_doc",
+        DataType.DOC_DATA_TYPE,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.NONE
+    );
     public static final List<Sort> NO_SORTS = List.of();  // only exists to mimic older serialization, but we no longer serialize sorts
 
     private final String indexPattern;

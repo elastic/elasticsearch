@@ -179,6 +179,7 @@ public class TransportSimulateTemplateAction extends TransportLocalProjectMetada
             matchingTemplate,
             temporaryIndexName,
             projectWithTemplate,
+            null, // we never match a data stream
             isDslOnlyMode,
             xContentRegistry,
             indicesService,

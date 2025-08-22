@@ -18,6 +18,7 @@ import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.ESTestCase;
@@ -88,7 +89,10 @@ public class DataGenerationHelper {
                         @Override
                         public DataSourceResponse.FieldTypeGenerator.FieldTypeInfo get() {
                             // Base set of field types
-                            var options = Arrays.stream(FieldType.values()).map(FieldType::toString).collect(Collectors.toSet());
+                            var options = Arrays.stream(FieldType.values())
+                                .filter(ft -> ft != FieldType.PASSTHROUGH)
+                                .map(FieldType::toString)
+                                .collect(Collectors.toSet());
                             // Custom types coming from specific functionality modules
 
                             if (shapesGenerated < 5) {
@@ -105,7 +109,8 @@ public class DataGenerationHelper {
                         }
                     });
                 }
-            }));
+            }))
+            .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER));
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);

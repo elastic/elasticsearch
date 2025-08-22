@@ -1,5 +1,0 @@
-pr: 131658
-summary: Fix `aggregate_metric_double` sorting and `mv_expand` issues
-area: ES|QL
-type: bug
-issues: []

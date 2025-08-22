@@ -49,8 +49,14 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
         HttpPost httpPost = new HttpPost(model.nonStreamingUri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new GoogleVertexAiEmbeddingsRequestEntity(truncationResult.input(), inputType, model.getTaskSettings()))
-                .getBytes(StandardCharsets.UTF_8)
+            Strings.toString(
+                new GoogleVertexAiEmbeddingsRequestEntity(
+                    truncationResult.input(),
+                    inputType,
+                    model.getTaskSettings(),
+                    model.getServiceSettings()
+                )
+            ).getBytes(StandardCharsets.UTF_8)
         );
 
         httpPost.setEntity(byteEntity);

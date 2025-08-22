@@ -30,7 +30,7 @@ dependencies {
   implementation 'org.ow2.asm:asm-tree:9.7.1'
 
   api "org.bouncycastle:bcpg-fips:1.0.7.1"
-  api "org.bouncycastle:bc-fips:1.0.2.5"
+  api "org.bouncycastle:bc-fips:1.0.2.6"
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"

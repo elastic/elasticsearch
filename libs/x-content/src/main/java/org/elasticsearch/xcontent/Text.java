@@ -95,9 +95,40 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     @Override
     public int stringLength() {
         if (stringLength < 0) {
-            stringLength = string().length();
+            if (hasString()) {
+                stringLength = string().length();
+            } else {
+                stringLength = countCharsUtf8(bytes());
+                if (stringLength < 0) {
+                    stringLength = string().length();
+                }
+            }
         }
         return stringLength;
+    }
+
+    private int countCharsUtf8(UTF8Bytes bytes) {
+        int count = 0;
+        int offset = bytes.offset();
+        int end = offset + bytes.length();
+        for (int i = offset; i < end; i++) {
+            byte b = bytes.bytes()[i];
+            if ((b & 0x80) == 0) {
+                count++; // 1 byte character
+            } else if ((b & 0xE0) == 0xC0) {
+                count++; // 2 byte character
+                i++; // skip next byte
+            } else if ((b & 0xF0) == 0xE0) {
+                count++; // 3 byte character
+                i += 2; // skip next two bytes
+            } else if ((b & 0xF8) == 0xF0) {
+                count += 2; // 4 byte character
+                i += 3; // skip next three bytes
+            } else {
+                return -1; // invalid UTF-8 sequence
+            }
+        }
+        return count;
     }
 
     @Override

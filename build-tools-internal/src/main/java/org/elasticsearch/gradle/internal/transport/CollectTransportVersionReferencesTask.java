@@ -61,7 +61,7 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
 
     @TaskAction
     public void checkTransportVersion() throws IOException {
-        var results = new HashSet<TransportVersionUtils.TransportVersionReference>();
+        var results = new HashSet<TransportVersionReference>();
 
         for (var cpElement : getClassPath()) {
             Path file = cpElement.toPath();
@@ -74,14 +74,14 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
         Files.writeString(outputFile, String.join("\n", results.stream().map(Object::toString).sorted().toList()));
     }
 
-    private void addNamesFromClassesDirectory(Set<TransportVersionUtils.TransportVersionReference> results, Path file) throws IOException {
-        Files.walkFileTree(file, new SimpleFileVisitor<>() {
+    private void addNamesFromClassesDirectory(Set<TransportVersionReference> results, Path basePath) throws IOException {
+        Files.walkFileTree(basePath, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 String filename = file.getFileName().toString();
                 if (filename.endsWith(CLASS_EXTENSION) && filename.endsWith(MODULE_INFO) == false) {
                     try (var inputStream = Files.newInputStream(file)) {
-                        addNamesFromClass(results, inputStream, classname(file.toString()));
+                        addNamesFromClass(results, inputStream, classname(basePath.relativize(file).toString()));
                     }
                 }
                 return FileVisitResult.CONTINUE;
@@ -89,8 +89,7 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
         });
     }
 
-    private void addNamesFromClass(Set<TransportVersionUtils.TransportVersionReference> results, InputStream classBytes, String classname)
-        throws IOException {
+    private void addNamesFromClass(Set<TransportVersionReference> results, InputStream classBytes, String classname) throws IOException {
         ClassVisitor classVisitor = new ClassVisitor(Opcodes.ASM9) {
             @Override
             public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
@@ -110,7 +109,7 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
                             if (abstractInstruction instanceof LdcInsnNode ldcInsnNode
                                 && ldcInsnNode.cst instanceof String tvName
                                 && tvName.isEmpty() == false) {
-                                results.add(new TransportVersionUtils.TransportVersionReference(tvName, location));
+                                results.add(new TransportVersionReference(tvName, location));
                             } else {
                                 // The instruction is not a LDC with a String constant (or an empty String), which is not allowed.
                                 throw new RuntimeException(

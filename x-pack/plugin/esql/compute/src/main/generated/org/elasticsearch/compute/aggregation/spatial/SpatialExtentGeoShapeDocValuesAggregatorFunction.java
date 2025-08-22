@@ -63,65 +63,69 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      IntBlock block = page.getBlock(channels.get(0));
-      IntVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    IntBlock block = page.getBlock(channels.get(0));
-    IntVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(IntVector vector) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
+    IntVector valuesVector = valuesBlock.asVector();
+    if (valuesVector == null) {
+      addRawBlock(valuesBlock, mask);
+      return;
+    }
+    addRawVector(valuesVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
+    IntVector valuesVector = valuesBlock.asVector();
+    if (valuesVector == null) {
+      addRawBlock(valuesBlock);
+      return;
+    }
+    addRawVector(valuesVector);
+  }
+
+  private void addRawVector(IntVector valuesVector) {
     // This type does not support vectors because all values are multi-valued
   }
 
-  private void addRawVector(IntVector vector, BooleanVector mask) {
+  private void addRawVector(IntVector valuesVector, BooleanVector mask) {
     // This type does not support vectors because all values are multi-valued
   }
 
-  private void addRawBlock(IntBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(IntBlock valuesBlock) {
+    for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
+      if (valuesBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
+      int start = valuesBlock.getFirstValueIndex(p);
+      int end = start + valuesBlock.getValueCount(p);
       int[] valuesArray = new int[end - start];
       for (int i = start; i < end; i++) {
-        valuesArray[i-start] = block.getInt(i);
+        valuesArray[i-start] = valuesBlock.getInt(i);
       }
       SpatialExtentGeoShapeDocValuesAggregator.combine(state, valuesArray);
     }
   }
 
-  private void addRawBlock(IntBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(IntBlock valuesBlock, BooleanVector mask) {
+    for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      if (valuesBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
+      int start = valuesBlock.getFirstValueIndex(p);
+      int end = start + valuesBlock.getValueCount(p);
       int[] valuesArray = new int[end - start];
       for (int i = start; i < end; i++) {
-        valuesArray[i-start] = block.getInt(i);
+        valuesArray[i-start] = valuesBlock.getInt(i);
       }
       SpatialExtentGeoShapeDocValuesAggregator.combine(state, valuesArray);
     }

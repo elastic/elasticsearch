@@ -113,13 +113,13 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final XPackLicenseState licenseState;
-        private final boolean isSyntheticVector;
+        private final boolean isExcludeSourceVectors;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, XPackLicenseState licenseState, boolean isSyntheticVector) {
+        public Builder(String name, IndexVersion indexCreatedVersion, XPackLicenseState licenseState, boolean isExcludeSourceVectors) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.licenseState = licenseState;
-            this.isSyntheticVector = isSyntheticVector;
+            this.isExcludeSourceVectors = isExcludeSourceVectors;
         }
 
         public Builder dimensions(int dimensions) {
@@ -141,7 +141,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean isSyntheticVectorFinal = context.isSourceSynthetic() == false && isSyntheticVector;
+            boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false && isExcludeSourceVectors;
             return new RankVectorsFieldMapper(
                 leafName(),
                 new RankVectorsFieldType(
@@ -154,7 +154,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexCreatedVersion,
                 licenseState,
-                isSyntheticVectorFinal
+                isExcludeSourceVectorsFinal
             );
         }
     }
@@ -252,7 +252,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     private final IndexVersion indexCreatedVersion;
     private final XPackLicenseState licenseState;
-    private final boolean isSyntheticVector;
+    private final boolean isExcludeSourceVectors;
 
     private RankVectorsFieldMapper(
         String simpleName,
@@ -260,12 +260,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
         BuilderParams params,
         IndexVersion indexCreatedVersion,
         XPackLicenseState licenseState,
-        boolean isSyntheticVector
+        boolean isExcludeSourceVectors
     ) {
         super(simpleName, fieldType, params);
         this.indexCreatedVersion = indexCreatedVersion;
         this.licenseState = licenseState;
-        this.isSyntheticVector = isSyntheticVector;
+        this.isExcludeSourceVectors = isExcludeSourceVectors;
     }
 
     @Override
@@ -396,7 +396,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, licenseState, isSyntheticVector).init(this);
+        return new Builder(leafName(), indexCreatedVersion, licenseState, isExcludeSourceVectors).init(this);
     }
 
     @Override
@@ -406,7 +406,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isSyntheticVector) {
+        if (isExcludeSourceVectors) {
             var syntheticField = new DocValuesSyntheticFieldLoader();
             return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorsAsList);
         }

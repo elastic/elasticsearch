@@ -232,6 +232,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.rescore.ScriptRescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.RescorerRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -825,6 +826,7 @@ public class SearchModule {
 
     private void registerRescorers(List<SearchPlugin> plugins) {
         registerRescorer(new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+        registerRescorer(new RescorerSpec<>(ScriptRescorerBuilder.NAME, ScriptRescorerBuilder::new, ScriptRescorerBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
     }
 

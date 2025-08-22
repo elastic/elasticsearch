@@ -45,7 +45,7 @@ public class RateFloatAggregator {
         return new FloatRateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(FloatRateGroupingState current, int groupId, long timestamp, float value) {
+    public static void combine(FloatRateGroupingState current, int groupId, float value, long timestamp) {
         current.append(groupId, timestamp, value);
     }
 

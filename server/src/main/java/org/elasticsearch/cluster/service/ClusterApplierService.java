@@ -469,9 +469,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 );
                 warnAboutSlowTaskIfNeeded(executionTime, source, stopWatch);
             } catch (Exception e) {
-                // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
-                // continue we will retry with the same cluster state but that might not help.
-                assert applicationMayFail();
                 timedListener.onFailure(e);
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 if (logger.isTraceEnabled()) {
@@ -492,6 +489,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                         e
                     );
                 }
+                // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
+                // continue we will retry with the same cluster state but that might not help.
+                assert applicationMayFail();
             } finally {
                 clearIsApplyingClusterState();
             }

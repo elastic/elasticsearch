@@ -16,7 +16,13 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
 /**
- * Information about a {@link Node}.
+ * All the information about a {@link Node} that is needed to recreate or modify it.
+ * <p>
+ * Generally, this will contain the longest constructor of the respective {@link Node} subclass; the non-{@link Source} arguments of that
+ * constructor are called "properties" of the node and are modified when transforming the node.
+ * <p>
+ * This allows us to perform traversals and transformations of query plans and expressions without resorting to reflection, e.g. via
+ * {@link Node#transformNodeProps(Class, Function)}, which is used e.g. in {@code QueryPlan#transformExpressionsDown}.
  * <p>
  * All the uses of this are fairly non-OO and we're looking
  * for ways to use this less and less.

@@ -411,25 +411,6 @@ setup:
   - contains: { error.root_cause.0.reason: "[linear] cannot combine [retrievers] and [query]" }
 
 ---
-"Cannot set top-level normalizer when using custom sub-retrievers":
-  - do:
-      catch: bad_request
-      search:
-        index: test-index
-        body:
-          retriever:
-            linear:
-              normalizer: "minmax"
-              retrievers:
-                - retriever:
-                    standard:
-                      query:
-                        match:
-                          keyword: "bar"
-
-  - contains: { error.root_cause.0.reason: "[linear] [normalizer] cannot be provided when [retrievers] is specified" }
-
----
 "Missing required params":
   - do:
       catch: bad_request

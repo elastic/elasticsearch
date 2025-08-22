@@ -1,4 +1,7 @@
-## `STATS` [esql-stats-by]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `STATS` processing command groups rows according to a common value
 and calculates one or more aggregated values over the grouped rows.

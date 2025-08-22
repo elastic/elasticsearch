@@ -400,6 +400,11 @@ subprojects {
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
   ext.buildDist = parent.tasks.named(buildTask)
+  tasks.named('assemble').configure {
+    dependsOn buildDist
+  }
+
+  // deprecated here for backwards compatibility of DistroTestPlugin and DistributionDownloadPlugin
   artifacts {
     'default' buildDist
   }

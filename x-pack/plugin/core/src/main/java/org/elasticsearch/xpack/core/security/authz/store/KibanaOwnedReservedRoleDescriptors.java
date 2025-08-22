@@ -174,6 +174,14 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("write", "delete", "create_index")
                     .allowRestrictedIndices(true)
                     .build(),
+                // Integrations knowledge base: Fleet creates, manages, and uses this index to store knowledge base documents to be consumed
+                // by AI assistants to support integrations
+                // assistants.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".integration_knowledge*")
+                    .privileges("read", "write", "create_index")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 // Other Fleet indices. Kibana reads and writes to these indices to manage
                 // Elastic Agents.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -518,6 +526,34 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-carbon_black_cloud.asset_vulnerability_summary-*"
                     )
                     .privileges("read", "view_index_metadata")
+                    .build(),
+                // For source indices of the Cloud Detection & Response (CDR) packages
+                // that ships a transform and has ILM policy
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-m365_defender.vulnerability-*", "logs-microsoft_defender_endpoint.vulnerability-*")
+                    .privileges(
+                        "read",
+                        "view_index_metadata",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name()
+                    )
+                    .build(),
+                // For ExtraHop and QualysGAV specific actions. Kibana reads, writes and manages this index
+                // for configured ILM policies.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*")
+                    .privileges(
+                        "manage",
+                        "create_index",
+                        "read",
+                        "index",
+                        "write",
+                        "delete",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name(),
+                        TransportIndicesAliasesAction.NAME,
+                        TransportAutoPutMappingAction.TYPE.name()
+                    )
                     .build(),
                 // For alias indices of the Cloud Detection & Response (CDR) packages that ships a
                 // transform

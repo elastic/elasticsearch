@@ -12,11 +12,8 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -42,8 +39,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.WeightedTokensUtils;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -62,7 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING;
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -94,8 +89,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
         private final IndexVersion indexVersionCreated;
-
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
+        private final Parameter<Boolean> stored;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<SparseVectorIndexOptions> indexOptions = new Parameter<>(
             SPARSE_VECTOR_INDEX_OPTIONS,
@@ -107,12 +101,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Objects::toString
         ).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
 
-        private boolean isSyntheticVector;
+        private final boolean isExcludeSourceVectors;
 
-        public Builder(String name, IndexVersion indexVersionCreated, boolean isSyntheticVector) {
+        public Builder(String name, IndexVersion indexVersionCreated, boolean isExcludeSourceVectors) {
             super(name);
+            this.stored = Parameter.boolParam("store", false, m -> toType(m).fieldType().isStored(), () -> isExcludeSourceVectors);
             this.indexVersionCreated = indexVersionCreated;
-            this.isSyntheticVector = isSyntheticVector;
+            this.isExcludeSourceVectors = isExcludeSourceVectors;
         }
 
         public Builder setStored(boolean value) {
@@ -132,19 +127,18 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 builderIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
             }
 
-            final boolean syntheticVectorFinal = context.isSourceSynthetic() == false && isSyntheticVector;
-            final boolean storedFinal = stored.getValue() || syntheticVectorFinal;
+            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && context.isSourceSynthetic() == false && stored.get();
             return new SparseVectorFieldMapper(
                 leafName(),
                 new SparseVectorFieldType(
                     indexVersionCreated,
                     context.buildFullName(leafName()),
-                    storedFinal,
+                    stored.get(),
                     meta.getValue(),
                     builderIndexOptions
                 ),
                 builderParams(this, context),
-                syntheticVectorFinal
+                isExcludeSourceVectorsFinal
             );
         }
 
@@ -206,7 +200,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         return new Builder(
             n,
             c.indexVersionCreated(),
-            INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+            INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
         );
     }, notInMultiFields(CONTENT_TYPE));
 
@@ -251,9 +245,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (isStored()) {
-                return new SparseVectorValueFetcher(name());
-            }
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -313,16 +304,17 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean isSyntheticVector;
+    private final boolean isExcludeSourceVectors;
 
     private SparseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        boolean isSyntheticVector
+        boolean isExcludeSourceVectors
     ) {
         super(simpleName, mappedFieldType, builderParams);
-        this.isSyntheticVector = isSyntheticVector;
+        assert isExcludeSourceVectors == false || fieldType().isStored();
+        this.isExcludeSourceVectors = isExcludeSourceVectors;
     }
 
     @Override
@@ -335,7 +327,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isSyntheticVector) {
+        if (isExcludeSourceVectors) {
             var syntheticField = new SparseVectorSyntheticFieldLoader(fullPath(), leafName());
             return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyAsMap);
         }
@@ -349,7 +341,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.isSyntheticVector).init(this);
+        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.isExcludeSourceVectors).init(this);
     }
 
     @Override
@@ -431,51 +423,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
         // default pruning for 9.1.0+ or 8.19.0+ is true for this index
         return (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
             || indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0));
-    }
-
-    private static class SparseVectorValueFetcher implements ValueFetcher {
-        private final String fieldName;
-        private TermVectors termVectors;
-
-        private SparseVectorValueFetcher(String fieldName) {
-            this.fieldName = fieldName;
-        }
-
-        @Override
-        public void setNextReader(LeafReaderContext context) {
-            try {
-                termVectors = context.reader().termVectors();
-            } catch (IOException exc) {
-                throw new UncheckedIOException(exc);
-            }
-        }
-
-        @Override
-        public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
-            if (termVectors == null) {
-                return List.of();
-            }
-            var terms = termVectors.get(doc, fieldName);
-            if (terms == null) {
-                return List.of();
-            }
-
-            var termsEnum = terms.iterator();
-            PostingsEnum postingsScratch = null;
-            Map<String, Float> result = new LinkedHashMap<>();
-            while (termsEnum.next() != null) {
-                postingsScratch = termsEnum.postings(postingsScratch);
-                postingsScratch.nextDoc();
-                result.put(termsEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(postingsScratch.freq()));
-                assert postingsScratch.nextDoc() == DocIdSetIterator.NO_MORE_DOCS;
-            }
-            return List.of(result);
-        }
-
-        @Override
-        public StoredFieldsSpec storedFieldsSpec() {
-            return StoredFieldsSpec.NO_REQUIREMENTS;
-        }
     }
 
     private static class SparseVectorSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {

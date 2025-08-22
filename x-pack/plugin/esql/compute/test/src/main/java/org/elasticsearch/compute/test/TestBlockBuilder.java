@@ -67,7 +67,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
         return builder.build();
     }
 
-    static TestBlockBuilder builderOf(BlockFactory blockFactory, ElementType type) {
+    public static TestBlockBuilder builderOf(BlockFactory blockFactory, ElementType type) {
         return switch (type) {
             case INT -> new TestIntBlockBuilder(blockFactory, 0);
             case LONG -> new TestLongBlockBuilder(blockFactory, 0);

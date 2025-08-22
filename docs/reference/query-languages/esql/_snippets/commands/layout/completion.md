@@ -1,4 +1,3 @@
-## `COMPLETION` [esql-completion]
 
 ```yaml {applies_to}
 serverless: preview

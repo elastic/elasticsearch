@@ -33,8 +33,16 @@ public class EndsWithStaticTests extends ESTestCase {
     public void testLuceneQuery_NonFoldableSuffix_NonTranslatable() {
         EndsWith function = new EndsWith(
             Source.EMPTY,
-            new FieldAttribute(Source.EMPTY, "field", new EsField("field", DataType.KEYWORD, Map.of(), true)),
-            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("field", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
         );
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
@@ -43,7 +51,11 @@ public class EndsWithStaticTests extends ESTestCase {
     public void testLuceneQuery_NonFoldableSuffix_Translatable() {
         EndsWith function = new EndsWith(
             Source.EMPTY,
-            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
             Literal.keyword(Source.EMPTY, "a*b?c\\")
         );
 

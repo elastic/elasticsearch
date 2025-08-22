@@ -45,7 +45,7 @@ public class RateLongAggregator {
         return new LongRateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(LongRateGroupingState current, int groupId, long timestamp, long value) {
+    public static void combine(LongRateGroupingState current, int groupId, long value, long timestamp) {
         current.append(groupId, timestamp, value);
     }
 

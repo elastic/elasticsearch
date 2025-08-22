@@ -638,6 +638,7 @@ public class Constants {
         "internal:cluster/master_history/get",
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
+        "internal:cluster/snapshot/update_snapshot_status",
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",

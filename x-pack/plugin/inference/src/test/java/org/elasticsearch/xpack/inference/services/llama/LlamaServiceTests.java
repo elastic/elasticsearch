@@ -481,9 +481,8 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         testStreamError(XContentHelper.stripWhitespace("""
             {
                   "error": {
-                      "code": "stream_error",
                       "message": "Received an error response for request from inference entity id [id].\
-             Error message: [400: Invalid value: Model 'llama3.12:3b' not found]",
+             Error message: [{\\"error\\": {\\"message\\": \\"400: Invalid value: Model 'llama3.12:3b' not found\\"}}]",
                       "type": "llama_error"
                   }
               }

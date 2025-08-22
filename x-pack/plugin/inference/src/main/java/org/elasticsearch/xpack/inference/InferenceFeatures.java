@@ -47,6 +47,7 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER = new NodeFeature("semantic_text.match_all_highlighter");
     private static final NodeFeature COHERE_V2_API = new NodeFeature("inference.cohere.v2");
     public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
+    private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -80,7 +81,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS,
                 SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX,
                 SEMANTIC_TEXT_HIGHLIGHTING_FLAT,
-                SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS
+                SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
+                SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT
             )
         );
         if (RERANK_SNIPPETS.isEnabled()) {

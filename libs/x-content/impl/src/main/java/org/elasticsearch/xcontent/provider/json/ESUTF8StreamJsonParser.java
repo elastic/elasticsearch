@@ -18,13 +18,14 @@ import com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer;
 
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.provider.OptimizedTextCapable;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
+public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements OptimizedTextCapable {
     protected int stringEnd = -1;
     protected int stringLength;
 
@@ -49,6 +50,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
      * Method that will try to get underlying UTF-8 encoded bytes of the current string token.
      * This is only a best-effort attempt; if there is some reason the bytes cannot be retrieved, this method will return null.
      */
+    @Override
     public Text getValueAsText() throws IOException {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
             if (stringEnd > 0) {
@@ -112,7 +114,8 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                         return null;
                     }
                     ptr += bytesToSkip;
-                    ++stringLength;
+                    // Code points that require 4 bytes in UTF-8 will use 2 chars in UTF-16.
+                    stringLength += (bytesToSkip == 4 ? 2 : 1);
                 }
                 default -> {
                     return null;

@@ -1891,10 +1891,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         postRecoveryComplete = subscribableListener;
         final ActionListener<Void> finalListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
         try {
-            getEngine().refresh("post_recovery");
-            // we need to refresh again to expose all operations that were index until now. Otherwise
-            // we may not expose operations that were indexed with a refresh listener that was immediately
-            // responded to in addRefreshListener. The refresh must happen under the same mutex used in addRefreshListener
+            // Some engine implementations try to acquire the engine reset write lock during refresh: in case something else is holding the
+            // engine read lock at the same time then the refresh is a no-op for those engines. Here we acquire the engine reset write lock
+            // upfront to guarantee that the next refresh will be executed because some logic (like ShardFieldStats and
+            // RefreshShardFieldStatsListener) depend on the success of this "post_recovery" refresh.
+            engineResetLock.writeLock().lock();
+            try {
+                // we need to refresh again to expose all operations that were index until now. Otherwise
+                // we may not expose operations that were indexed with a refresh listener that was immediately
+                // responded to in addRefreshListener.
+                withEngine(engine -> engine.refresh("post_recovery"));
+            } finally {
+                engineResetLock.writeLock().unlock();
+            }
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(shardId);

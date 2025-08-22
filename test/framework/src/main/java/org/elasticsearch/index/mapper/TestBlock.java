@@ -18,8 +18,10 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -198,6 +200,51 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
+                final long[] values = new long[expectedCount];
+                return new BlockLoader.SingletonLongBuilder() {
+
+                    private int count;
+
+                    @Override
+                    public BlockLoader.Block build() {
+                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonLongBuilder appendLongs(long[] newValues, int from, int length) {
+                        System.arraycopy(newValues, from, values, count, length);
+                        count += length;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonLongBuilder appendLong(long value) {
+                        values[count++] = value;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.Builder appendNull() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder beginPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder endPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
             public BlockLoader.Builder nulls(int expectedCount) {
                 return longs(expectedCount);
             }
@@ -221,7 +268,11 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
+            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(
+                SortedDocValues ordinals,
+                int expectedCount,
+                boolean isDense
+            ) {
                 class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
                     private SingletonOrdsBuilder() {
                         super(expectedCount);
@@ -230,11 +281,19 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public SingletonOrdsBuilder appendOrd(int value) {
                         try {
-                            add(ordinals.lookupOrd(value));
+                            add(BytesRef.deepCopyOf(ordinals.lookupOrd(value)));
                             return this;
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+                        for (int i = from; i < from + length; i++) {
+                            appendOrd(values[i]);
+                        }
+                        return this;
                     }
                 }
                 return new SingletonOrdsBuilder();

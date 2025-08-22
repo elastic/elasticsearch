@@ -232,19 +232,28 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
 
         public record IndicesSettingsResult(
             List<String> appliedToDataStreamOnly,
+            List<String> appliedToDataStreamAndWriteIndex,
             List<String> appliedToDataStreamAndBackingIndices,
             List<IndexSettingError> indexSettingErrors
         ) implements ToXContent, Writeable {
 
-            public static final IndicesSettingsResult EMPTY = new IndicesSettingsResult(List.of(), List.of(), List.of());
+            public static final IndicesSettingsResult EMPTY = new IndicesSettingsResult(List.of(), List.of(), List.of(), List.of());
 
             public IndicesSettingsResult(StreamInput in) throws IOException {
-                this(in.readStringCollectionAsList(), in.readStringCollectionAsList(), in.readCollectionAsList(IndexSettingError::new));
+                this(
+                    in.readStringCollectionAsList(),
+                    in.getTransportVersion().onOrAfter(TransportVersions.DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS)
+                        ? in.readStringCollectionAsList()
+                        : List.of(),
+                    in.readStringCollectionAsList(),
+                    in.readCollectionAsList(IndexSettingError::new)
+                );
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field("applied_to_data_stream_only", appliedToDataStreamOnly);
+                builder.field("applied_to_data_stream_and_write_indices", appliedToDataStreamAndWriteIndex);
                 builder.field("applied_to_data_stream_and_backing_indices", appliedToDataStreamAndBackingIndices);
                 if (indexSettingErrors.isEmpty() == false) {
                     builder.field("errors", indexSettingErrors);
@@ -255,6 +264,9 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeStringCollection(appliedToDataStreamOnly);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS)) {
+                    out.writeStringCollection(appliedToDataStreamAndWriteIndex);
+                }
                 out.writeStringCollection(appliedToDataStreamAndBackingIndices);
                 out.writeCollection(indexSettingErrors, (out1, value) -> value.writeTo(out1));
             }

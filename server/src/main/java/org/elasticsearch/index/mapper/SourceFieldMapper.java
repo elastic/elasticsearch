@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
@@ -156,6 +157,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             false,
             m -> Arrays.asList(toType(m).excludes)
         );
+        private final Parameter<List<String>> autoExcludes = new Parameter<>(
+            "auto_excludes",
+            true,
+            Collections::emptyList,
+            (n, c, o) -> c.getAutoExcludes(),
+            m -> {
+                Set<String> merge = new HashSet<>(this.autoExcludes.getValue());
+                merge.addAll(Arrays.asList(toType(m).autoExcludes));
+                return merge.stream().toList();
+            },
+            XContentBuilder::field,
+            Objects::toString
+        );
 
         private final Settings settings;
 
@@ -168,6 +182,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         public Builder(
             IndexMode indexMode,
             final Settings settings,
+            final List<String> autoExcludes,
             boolean sourceModeIsNoop,
             boolean supportsCheckForNonDefaultParams,
             boolean serializeMode
@@ -175,6 +190,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             super(Defaults.NAME);
             this.settings = settings;
             this.indexMode = indexMode;
+            this.autoExcludes.setValue(autoExcludes);
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
             this.sourceModeIsNoop = sourceModeIsNoop;
@@ -201,11 +217,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { enabled, mode, includes, excludes };
+            return new Parameter<?>[] { enabled, mode, includes, excludes, autoExcludes };
         }
 
         private boolean isDefault() {
-            return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
+            return enabled.get().value()
+                && includes.getValue().isEmpty()
+                && excludes.getValue().isEmpty()
+                && autoExcludes.getValue().isEmpty();
         }
 
         @Override
@@ -259,6 +278,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     enabled.get(),
                     includes.getValue().toArray(Strings.EMPTY_ARRAY),
                     excludes.getValue().toArray(Strings.EMPTY_ARRAY),
+                    autoExcludes.getValue().toArray(Strings.EMPTY_ARRAY),
                     serializeMode,
                     sourceModeIsNoop
                 );
@@ -329,6 +349,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         c -> new Builder(
             c.getIndexSettings().getMode(),
             c.getSettings(),
+            c.getAutoExcludes(),
             c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP),
             c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
             onOrAfterDeprecateModeVersion(c.indexVersionCreated()) == false
@@ -383,6 +404,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     private final String[] includes;
     private final String[] excludes;
+    private final String[] autoExcludes;
     private final SourceFilter sourceFilter;
 
     private SourceFieldMapper(
@@ -393,10 +415,23 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         boolean serializeMode,
         boolean sourceModeIsNoop
     ) {
+        this(mode, enabled, includes, excludes, Strings.EMPTY_ARRAY, serializeMode, sourceModeIsNoop);
+    }
+
+    private SourceFieldMapper(
+        Mode mode,
+        Explicit<Boolean> enabled,
+        String[] includes,
+        String[] excludes,
+        String[] autoExcludes,
+        boolean serializeMode,
+        boolean sourceModeIsNoop
+    ) {
         super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
         this.mode = mode;
         this.enabled = enabled;
-        this.sourceFilter = buildSourceFilter(includes, excludes);
+        this.autoExcludes = autoExcludes;
+        this.sourceFilter = buildSourceFilter(includes, excludes, autoExcludes);
         this.includes = includes;
         this.excludes = excludes;
         this.complete = stored() && sourceFilter == null;
@@ -404,11 +439,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.sourceModeIsNoop = sourceModeIsNoop;
     }
 
-    private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
-        if (CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes)) {
+    private static SourceFilter buildSourceFilter(String[] includes, String[] excludes, String[] autoExcludes) {
+        if (CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes) && CollectionUtils.isEmpty(autoExcludes)) {
             return null;
         }
-        return new SourceFilter(includes, excludes);
+        Set<String> excludesSet = new HashSet<>();
+        excludesSet.addAll(Arrays.asList(excludes));
+        excludesSet.addAll(Arrays.asList(autoExcludes));
+        return new SourceFilter(includes, excludesSet.toArray(Strings.EMPTY_ARRAY));
     }
 
     private boolean stored() {
@@ -550,7 +588,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode).init(this);
+        return new Builder(null, Settings.EMPTY, List.of(autoExcludes), sourceModeIsNoop, false, serializeMode).init(this);
     }
 
     public boolean isSynthetic() {
@@ -614,5 +652,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             default -> // others are simple:
                 destination.copyCurrentEvent(parser);
         }
+    }
+
+    // test
+    String[] getAutoExcludes() {
+        return autoExcludes;
     }
 }

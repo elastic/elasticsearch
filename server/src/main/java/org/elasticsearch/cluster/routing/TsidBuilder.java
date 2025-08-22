@@ -32,26 +32,24 @@ import java.util.List;
 public class TsidBuilder {
 
     private static final int MAX_TSID_VALUE_FIELDS = 16;
-    /**
-     * The size of the buffer used for holding the UTF-8 encoded strings before passing them to the hasher.
-     * This is primarily used for paths/keys as string dimension values are passed in as UTF-8 encoded bytes for the most part.
-     * Should be sized so that it can hold the longest UTF-8 encoded string that is expected to be used as a dimension key,
-     * to avoid re-sizing the buffer.
-     * But should also be small enough to not waste memory in case the keys are short.
-     */
-    private static final int HASH_BUFFER_SIZE = 32 * 4; // 32 characters, each character can take up to 4 bytes in UTF-8
-    private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L, HASH_BUFFER_SIZE);
+    private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
 
     private final List<Dimension> dimensions = new ArrayList<>();
+
+    public static TsidBuilder newBuilder() {
+        return new TsidBuilder();
+    }
 
     /**
      * Adds an integer dimension to the TSID.
      *
      * @param path  the path of the dimension
      * @param value the integer value of the dimension
+     * @return the TsidBuilder instance for method chaining
      */
-    public void addIntDimension(String path, int value) {
+    public TsidBuilder addIntDimension(String path, int value) {
         addDimension(path, new MurmurHash3.Hash128(1, value));
+        return this;
     }
 
     /**
@@ -59,9 +57,11 @@ public class TsidBuilder {
      *
      * @param path  the path of the dimension
      * @param value the long value of the dimension
+     * @return the TsidBuilder instance for method chaining
      */
-    public void addLongDimension(String path, long value) {
+    public TsidBuilder addLongDimension(String path, long value) {
         addDimension(path, new MurmurHash3.Hash128(1, value));
+        return this;
     }
 
     /**
@@ -69,9 +69,11 @@ public class TsidBuilder {
      *
      * @param path  the path of the dimension
      * @param value the double value of the dimension
+     * @return the TsidBuilder instance for method chaining
      */
-    public void addDoubleDimension(String path, double value) {
+    public TsidBuilder addDoubleDimension(String path, double value) {
         addDimension(path, new MurmurHash3.Hash128(2, Double.doubleToLongBits(value)));
+        return this;
     }
 
     /**
@@ -79,9 +81,11 @@ public class TsidBuilder {
      *
      * @param path  the path of the dimension
      * @param value the boolean value of the dimension
+     * @return the TsidBuilder instance for method chaining
      */
-    public void addBooleanDimension(String path, boolean value) {
+    public TsidBuilder addBooleanDimension(String path, boolean value) {
         addDimension(path, new MurmurHash3.Hash128(3, value ? 1 : 0));
+        return this;
     }
 
     /**
@@ -89,9 +93,11 @@ public class TsidBuilder {
      *
      * @param path  the path of the dimension
      * @param value the string value of the dimension
+     * @return the TsidBuilder instance for method chaining
      */
-    public void addStringDimension(String path, String value) {
+    public TsidBuilder addStringDimension(String path, String value) {
         addStringDimension(path, new BytesRef(value));
+        return this;
     }
 
     private void addStringDimension(String path, BytesRef value) {
@@ -103,9 +109,11 @@ public class TsidBuilder {
      *
      * @param path  the path of the dimension
      * @param value the UTF8Bytes value of the dimension
+     * @return the TsidBuilder instance for method chaining
      */
-    public void addStringDimension(String path, XContentString.UTF8Bytes value) {
+    public TsidBuilder addStringDimension(String path, XContentString.UTF8Bytes value) {
         addStringDimension(path, value.bytes(), value.offset(), value.length());
+        return this;
     }
 
     /**
@@ -116,12 +124,14 @@ public class TsidBuilder {
      * @param utf8Bytes the UTF-8 encoded bytes of the string value
      * @param offset the offset in the byte array where the string starts
      * @param length the length of the string in bytes
+     * @return the TsidBuilder instance for method chaining
      */
-    public void addStringDimension(String path, byte[] utf8Bytes, int offset, int length) {
+    public TsidBuilder addStringDimension(String path, byte[] utf8Bytes, int offset, int length) {
         murmur3Hasher.reset();
         murmur3Hasher.update(utf8Bytes, offset, length);
         MurmurHash3.Hash128 hash128 = murmur3Hasher.digestHash();
         addDimension(path, hash128);
+        return this;
     }
 
     /**
@@ -131,9 +141,11 @@ public class TsidBuilder {
      * @param value  the value to add
      * @param funnel the funnel that describes how to add the value
      * @param <T>    the type of the value
+     * @return the TsidBuilder instance for method chaining
      */
-    public <T> void add(T value, TsidFunnel<T> funnel) {
+    public <T> TsidBuilder add(T value, TsidFunnel<T> funnel) {
         funnel.add(value, this);
+        return this;
     }
 
     /**
@@ -144,10 +156,12 @@ public class TsidBuilder {
      * @param funnel the funnel that describes how to add the value
      * @param <T>    the type of the value
      * @param <E>    the type of exception that can be thrown
+     * @return the TsidBuilder instance for method chaining
      * @throws E if an exception occurs while adding the value
      */
-    public <T, E extends Exception> void add(T value, ThrowingTsidFunnel<T, E> funnel) throws E {
+    public <T, E extends Exception> TsidBuilder add(T value, ThrowingTsidFunnel<T, E> funnel) throws E {
         funnel.add(value, this);
+        return this;
     }
 
     private void addDimension(String path, MurmurHash3.Hash128 valueHash) {
@@ -162,12 +176,14 @@ public class TsidBuilder {
      * If the other builder is null or has no dimensions, this method does nothing.
      *
      * @param other the other TsidBuilder to add dimensions from
+     * @return this TsidBuilder instance for method chaining
      */
-    public void addAll(TsidBuilder other) {
+    public TsidBuilder addAll(TsidBuilder other) {
         if (other == null || other.dimensions.isEmpty()) {
-            return;
+            return this;
         }
         dimensions.addAll(other.dimensions);
+        return this;
     }
 
     /**
@@ -178,9 +194,7 @@ public class TsidBuilder {
      * @throws IllegalArgumentException if no dimensions have been added
      */
     public MurmurHash3.Hash128 hash() {
-        if (dimensions.isEmpty()) {
-            throw new IllegalArgumentException("Error extracting dimensions: no dimension fields found");
-        }
+        throwIfEmpty();
         Collections.sort(dimensions);
         murmur3Hasher.reset();
         for (Dimension dim : dimensions) {
@@ -212,10 +226,7 @@ public class TsidBuilder {
      * @throws IllegalArgumentException if no dimensions have been added
      */
     public BytesRef buildTsid() {
-        if (dimensions.isEmpty()) {
-            throw new IllegalArgumentException("Error extracting dimensions: source didn't contain any routing fields");
-        }
-
+        throwIfEmpty();
         int numberOfValues = Math.min(MAX_TSID_VALUE_FIELDS, dimensions.size());
         byte[] hash = new byte[4 + numberOfValues + 16];
         int index = 0;
@@ -226,7 +237,7 @@ public class TsidBuilder {
         murmur3Hasher.reset();
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2);
+            murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
         }
         ByteUtils.writeIntLE((int) murmur3Hasher.digestHash(hashBuffer).h1, hash, index);
         index += 4;
@@ -242,7 +253,7 @@ public class TsidBuilder {
             }
             MurmurHash3.Hash128 valueHash = dim.valueHash();
             murmur3Hasher.reset();
-            murmur3Hasher.addLongs(valueHash.h1, valueHash.h2);
+            murmur3Hasher.addLong(valueHash.h1 ^ valueHash.h2);
             hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
             previousPath = path;
         }
@@ -254,6 +265,12 @@ public class TsidBuilder {
         }
         index = writeHash128(murmur3Hasher.digestHash(hashBuffer), hash, index);
         return new BytesRef(hash, 0, index);
+    }
+
+    private void throwIfEmpty() {
+        if (dimensions.isEmpty()) {
+            throw new IllegalArgumentException("Dimensions are empty");
+        }
     }
 
     private static int writeHash128(MurmurHash3.Hash128 hash128, byte[] buffer, int index) {

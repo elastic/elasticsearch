@@ -15,11 +15,11 @@ import org.elasticsearch.test.ESTestCase;
 
 public class BufferedMurmur3HasherTests extends ESTestCase {
 
-    private final BufferedMurmur3Hasher bufferedHasher = new BufferedMurmur3Hasher(0);
+    private final BufferedMurmur3Hasher bufferedHasher = new BufferedMurmur3Hasher(0, randomIntBetween(32, 128));
     private final Murmur3Hasher hasher = new Murmur3Hasher(0);
 
     public void testAddString() {
-        String testString = randomUnicodeOfLengthBetween(10, 100);
+        String testString = randomUnicodeOfLengthBetween(0, 1024);
         bufferedHasher.addString(testString);
 
         BytesRef bytesRef = new BytesRef(testString);
@@ -41,14 +41,36 @@ public class BufferedMurmur3HasherTests extends ESTestCase {
         assertEquals(hasher.digestHash(), bufferedHasher.digestHash());
     }
 
+    public void testAddLongs() {
+        long value1 = randomLong();
+        long value2 = randomLong();
+        long value3 = randomLong();
+        long value4 = randomLong();
+        bufferedHasher.addLong(value1);
+        bufferedHasher.addLongs(value1, value2);
+        bufferedHasher.addLongs(value1, value2, value3, value4);
+
+        hasher.update(toBytes(value1));
+
+        hasher.update(toBytes(value1));
+        hasher.update(toBytes(value2));
+
+        hasher.update(toBytes(value1));
+        hasher.update(toBytes(value2));
+        hasher.update(toBytes(value3));
+        hasher.update(toBytes(value4));
+
+        assertEquals(hasher.digestHash(), bufferedHasher.digestHash());
+    }
+
     public void testAddTwoLongs() {
         long value1 = randomLong();
         long value2 = randomLong();
 
         bufferedHasher.addLongs(value1, value2);
 
-        hasher.update(toBytes(value1), 0, Long.BYTES);
-        hasher.update(toBytes(value2), 0, Long.BYTES);
+        hasher.update(toBytes(value1));
+        hasher.update(toBytes(value2));
 
         assertEquals(hasher.digestHash(), bufferedHasher.digestHash());
     }
@@ -61,18 +83,65 @@ public class BufferedMurmur3HasherTests extends ESTestCase {
 
         bufferedHasher.addLongs(value1, value2, value3, value4);
 
-        hasher.update(toBytes(value1), 0, Long.BYTES);
-        hasher.update(toBytes(value2), 0, Long.BYTES);
-        hasher.update(toBytes(value3), 0, Long.BYTES);
-        hasher.update(toBytes(value4), 0, Long.BYTES);
+        hasher.update(toBytes(value1));
+        hasher.update(toBytes(value2));
+        hasher.update(toBytes(value3));
+        hasher.update(toBytes(value4));
 
         assertEquals(hasher.digestHash(), bufferedHasher.digestHash());
     }
 
-    private static byte[] toBytes(int value) {
-        byte[] bytes = new byte[4];
-        ByteUtils.writeIntLE(value, bytes, 0);
-        return bytes;
+    public void testRandomAdds() {
+        int numAdds = randomIntBetween(128, 1024);
+        for (int i = 0; i < numAdds; i++) {
+            switch (randomIntBetween(0, 4)) {
+                case 0 -> {
+                    String randomString = randomUnicodeOfLengthBetween(0, 64);
+                    bufferedHasher.addString(randomString);
+                    BytesRef bytesRef = new BytesRef(randomString);
+                    hasher.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                }
+                case 1 -> {
+                    String emptyString = "";
+                    bufferedHasher.addString(emptyString);
+                    BytesRef bytesRef = new BytesRef(emptyString);
+                    hasher.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                }
+                case 2 -> {
+                    long randomLong = randomLong();
+                    bufferedHasher.addLong(randomLong);
+                    hasher.update(toBytes(randomLong));
+                }
+                case 3 -> {
+                    long randomLong1 = randomLong();
+                    long randomLong2 = randomLong();
+                    bufferedHasher.addLongs(randomLong1, randomLong2);
+                    hasher.update(toBytes(randomLong1));
+                    hasher.update(toBytes(randomLong2));
+                }
+                case 4 -> {
+                    long randomLong1 = randomLong();
+                    long randomLong2 = randomLong();
+                    long randomLong3 = randomLong();
+                    long randomLong4 = randomLong();
+                    bufferedHasher.addLongs(randomLong1, randomLong2, randomLong3, randomLong4);
+                    hasher.update(toBytes(randomLong1));
+                    hasher.update(toBytes(randomLong2));
+                    hasher.update(toBytes(randomLong3));
+                    hasher.update(toBytes(randomLong4));
+                }
+            }
+        }
+        assertEquals(hasher.digestHash(), bufferedHasher.digestHash());
+    }
+
+    public void testReset() {
+        bufferedHasher.addString(randomUnicodeOfLengthBetween(0, 1024));
+        bufferedHasher.addLong(randomLong());
+        bufferedHasher.addLongs(randomLong(), randomLong());
+        bufferedHasher.addLongs(randomLong(), randomLong(), randomLong(), randomLong());
+        bufferedHasher.reset();
+        assertEquals(new MurmurHash3.Hash128(0, 0), bufferedHasher.digestHash());
     }
 
     private byte[] toBytes(long value) {

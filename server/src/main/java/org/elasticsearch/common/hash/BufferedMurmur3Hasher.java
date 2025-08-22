@@ -13,8 +13,10 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.util.ByteUtils;
 
 /**
- * A buffered Murmur3 hasher that allows adding strings and longs efficiently.
+ * A buffered Murmur3 hasher that allows hashing strings and longs efficiently.
  * It uses a byte array buffer to reduce allocations for converting strings and longs to bytes before passing them to the hasher.
+ * The buffer also allows for more efficient execution by minimizing the number of times the underlying hasher is updated,
+ * and by maximizing the amount of data processed in each update call.
  */
 public class BufferedMurmur3Hasher extends Murmur3Hasher {
 
@@ -26,6 +28,7 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
      * But should also be small enough to not waste memory in case the keys are short.
      */
     private byte[] buffer;
+    private int pos;
 
     public BufferedMurmur3Hasher(long seed) {
         this(seed, DEFAULT_BUFFER_SIZE);
@@ -45,6 +48,18 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
         this.buffer = new byte[bufferSize];
     }
 
+    @Override
+    public MurmurHash3.Hash128 digestHash(MurmurHash3.Hash128 hash) {
+        flush();
+        return super.digestHash(hash);
+    }
+
+    @Override
+    public void reset() {
+        super.reset();
+        pos = 0;
+    }
+
     /**
      * Adds a string to the hasher.
      * The string is converted to UTF-8 and written into the buffer.
@@ -53,9 +68,10 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
      * @param value the string value to add
      */
     public void addString(String value) {
-        ensureCapacity(UnicodeUtil.maxUTF8Length(value.length()));
-        int length = UnicodeUtil.UTF16toUTF8(value, 0, value.length(), buffer);
-        update(buffer, 0, length);
+        int requiredBufferLength = UnicodeUtil.maxUTF8Length(value.length());
+        ensureCapacity(requiredBufferLength);
+        flushIfRemainingCapacityLowerThan(requiredBufferLength);
+        pos = UnicodeUtil.UTF16toUTF8(value, 0, value.length(), buffer, pos);
     }
 
     /**
@@ -65,8 +81,9 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
      * @param value the long value to add
      */
     public void addLong(long value) {
-        ByteUtils.writeLongLE(value, buffer, 0);
-        update(buffer, 0, 8);
+        flushIfRemainingCapacityLowerThan(Long.BYTES);
+        ByteUtils.writeLongLE(value, buffer, pos);
+        pos += Long.BYTES;
     }
 
     /**
@@ -77,9 +94,10 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
      * @param v2 the second long value to add
      */
     public void addLongs(long v1, long v2) {
-        ByteUtils.writeLongLE(v1, buffer, 0);
-        ByteUtils.writeLongLE(v2, buffer, 8);
-        update(buffer, 0, 16);
+        flushIfRemainingCapacityLowerThan(Long.BYTES * 2);
+        ByteUtils.writeLongLE(v1, buffer, pos);
+        ByteUtils.writeLongLE(v2, buffer, pos + 8);
+        pos += Long.BYTES * 2;
     }
 
     /**
@@ -92,16 +110,31 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
      * @param v4 the fourth long value to add
      */
     public void addLongs(long v1, long v2, long v3, long v4) {
-        ByteUtils.writeLongLE(v1, buffer, 0);
-        ByteUtils.writeLongLE(v2, buffer, 8);
-        ByteUtils.writeLongLE(v3, buffer, 16);
-        ByteUtils.writeLongLE(v4, buffer, 24);
-        update(buffer, 0, 32);
+        flushIfRemainingCapacityLowerThan(Long.BYTES * 4);
+        ByteUtils.writeLongLE(v1, buffer, pos);
+        ByteUtils.writeLongLE(v2, buffer, pos + 8);
+        ByteUtils.writeLongLE(v3, buffer, pos + 16);
+        ByteUtils.writeLongLE(v4, buffer, pos + 24);
+        pos += Long.BYTES * 4;
     }
 
     private void ensureCapacity(int requiredBufferLength) {
         if (buffer.length < requiredBufferLength) {
+            flush();
             buffer = new byte[requiredBufferLength];
+        }
+    }
+
+    private void flush() {
+        if (pos > 0) {
+            update(buffer, 0, pos);
+            pos = 0;
+        }
+    }
+
+    private void flushIfRemainingCapacityLowerThan(int requiredCapacity) {
+        if (buffer.length - pos < requiredCapacity) {
+            flush();
         }
     }
 }

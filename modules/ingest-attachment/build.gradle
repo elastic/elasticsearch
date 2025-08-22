@@ -36,7 +36,7 @@ def versions = [
   'xmlbeans' : '5.3.0', //poi-ooxml dependency: https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/
   'commonsCollections4' : '4.4',
   'commonsCompress' : '1.27.1',
-  'commonsLang3' :'3.17.0',
+  'commonsLang3' :'3.18.0',
   'commonsMath3' : '3.6.1'
 ]
 

@@ -237,7 +237,7 @@ public class TsidBuilder {
         murmur3Hasher.reset();
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            addLongs(murmur3Hasher, dim.pathHash.h1, dim.pathHash.h2);
+            addLong(murmur3Hasher, dim.pathHash.h1 ^ dim.pathHash.h2);
         }
         ByteUtils.writeIntLE((int) murmur3Hasher.digestHash(hashBuffer).h1, hash, index);
         index += 4;
@@ -253,7 +253,7 @@ public class TsidBuilder {
             }
             MurmurHash3.Hash128 valueHash = dim.valueHash();
             murmur3Hasher.reset();
-            addLongs(murmur3Hasher, valueHash.h1, valueHash.h2);
+            addLong(murmur3Hasher, valueHash.h1 ^ valueHash.h2);
             hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
             previousPath = path;
         }
@@ -322,11 +322,17 @@ public class TsidBuilder {
         murmur3Hasher.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }
 
+    private static void addLong(Murmur3Hasher murmur3Hasher, long value) {
+        byte[] bytes = new byte[8];
+        ByteUtils.writeLongLE(value, bytes, 0);
+        murmur3Hasher.update(bytes);
+    }
+
     private static void addLongs(Murmur3Hasher murmur3Hasher, long v1, long v2) {
         byte[] bytes = new byte[16];
         ByteUtils.writeLongLE(v1, bytes, 0);
         ByteUtils.writeLongLE(v2, bytes, 8);
-        murmur3Hasher.update(bytes, 0, bytes.length);
+        murmur3Hasher.update(bytes);
     }
 
     private static void addLongs(Murmur3Hasher murmur3Hasher, long v1, long v2, long v3, long v4) {
@@ -335,6 +341,6 @@ public class TsidBuilder {
         ByteUtils.writeLongLE(v2, bytes, 8);
         ByteUtils.writeLongLE(v3, bytes, 16);
         ByteUtils.writeLongLE(v4, bytes, 24);
-        murmur3Hasher.update(bytes, 0, bytes.length);
+        murmur3Hasher.update(bytes);
     }
 }

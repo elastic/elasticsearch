@@ -36,11 +36,15 @@ public class TsidBuilderTests extends ESTestCase {
             .addStringDimension("test_array", "value2");
 
         // if these change, we'll need a new index version
-        assertThat(builder.hash().toString(), equalTo("0xd4de1356065d297a2be489781e15d256"));
+        // because it means existing time series will get a new _tsid and will be routed to a different shard
+        assertThat(builder.hash().toString(), equalTo("0xd4de1356065d297a2be489781e15d256")); // used to make shard routing decisions
         BytesRef bytesRef = builder.buildTsid();
+        assertThat(bytesRef, notNullValue());
+        // 4 bytes for path hash + 1 byte per value (up to 16, only first value for arrays) + 16 bytes for hash
+        assertThat(bytesRef.length, equalTo(26));
         assertThat(
             HexFormat.of().formatHex(bytesRef.bytes, bytesRef.offset, bytesRef.length),
-            equalTo("165c438cd87487a33da856d2151e7889e42b7a295d065613ded4")
+            equalTo("bf438ddaa0a8d663fdbb56d2151e7889e42b7a295d065613ded4") // _tsid in hex format
         );
     }
 

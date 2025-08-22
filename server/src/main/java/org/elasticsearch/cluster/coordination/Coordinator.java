@@ -705,12 +705,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             };
                             clusterService.addListener(clusterStateListener);
 
-                            // Immediate condition check in case another node is elected master
-                            if (clusterService.state().nodes().nodeExists(joinRequest.getSourceNode().getId())) {
+                            // Another node was elected, and doesn't have the node in it
+                            if (clusterService.state().nodes().getMasterNode() != null
+                                && clusterService.state().nodes().nodeExists(joinRequest.getSourceNode().getId()) == false) {
                                 // Remove this listener to avoid memory leaks
                                 clusterService.removeListener(clusterStateListener);
-
-                                ll.onResponse(null);
+                                ll.onFailure(e);
                             }
                         } else {
                             ll.onFailure(e);

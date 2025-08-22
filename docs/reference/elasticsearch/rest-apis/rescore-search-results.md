@@ -1,10 +1,7 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/rescore-search-results.html
-applies_to:
-  stack: all
 ---
-
 # Rescore search results [rescore-search-results]
 
 Rescoring can help to improve precision by reordering just the top
@@ -90,6 +87,9 @@ The way the scores are combined can be controlled with the `score_mode`:
 | `min` | Take the min of the original score and the rescore query score.                                                                                                         |
 
 ### Script rescorer  [script-rescorer]
+```{applies_to}
+stack: ga 9.2
+```
 
 `script` rescorer uses a script to rescore the top documents returned
 from the previous phase. The script has access to the original score as well

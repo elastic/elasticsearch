@@ -68,9 +68,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private boolean initializeFailureStore;
 
     private Settings settings = Settings.EMPTY;
-    public static final String EMPTY_MAPPINGS = "{}";
+    public static final String EMPTY_MAPPINGS = "{\"_doc\":{}}";
 
-    private String mappings = "{\"_doc\":{}}";
+    private String mappings = EMPTY_MAPPINGS;
 
     private final Set<Alias> aliases = new HashSet<>();
 

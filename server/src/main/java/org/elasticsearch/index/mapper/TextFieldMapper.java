@@ -240,12 +240,12 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
     public static class Builder extends TextFamilyFieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
+        private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;
 
         private final IndexMode indexMode;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
-        private Parameter<Boolean> store;
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
@@ -1606,10 +1606,10 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
     }
 
     private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we
-        // need to check both this field and the delegate
+        // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we need to check both this
+        // field and the delegate
 
-        // first field loader, representing this field
+        // first field loader - to check whether the field's value was stored under this match_only_text field
         final String fieldName = fieldType().syntheticSourceFallbackFieldName();
         final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
             @Override
@@ -1620,7 +1620,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
         final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
 
-        // second loader, representing a delegate field, if one exists
+        // second loader - to check whether the field's value was stored by a keyword delegate field
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             // merge the two field loaders into one

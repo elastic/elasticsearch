@@ -625,10 +625,10 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
     }
 
     private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we
-        // need to check both this field and the delegate
+        // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we need to check both this
+        // field and the delegate
 
-        // first field loader, representing this field
+        // first field loader - to check whether the field's value was stored under this match_only_text field
         final String fieldName = fieldType().syntheticSourceFallbackFieldName();
         final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
             @Override
@@ -639,7 +639,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
 
         final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
 
-        // second loader, representing a delegate field, if one exists
+        // second loader - to check whether the field's value was stored by a keyword delegate field
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             // merge the two field loaders into one

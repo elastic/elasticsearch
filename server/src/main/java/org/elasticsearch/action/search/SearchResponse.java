@@ -508,14 +508,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @param localIndices The localIndices to be searched - null if no local indices are to be searched
          * @param remoteClusterIndices mapping of clusterAlias -> OriginalIndices for each remote cluster
          * @param ccsMinimizeRoundtrips whether minimizing roundtrips for the CCS
-         * @param skipUnavailablePredicate given a cluster alias, returns true if that cluster is skip_unavailable=true
-         *                                 and false otherwise
+         * @param skipOnFailurePredicate given a cluster alias, returns true if that cluster is marked as skippable
+         *                               and false otherwise. For a cluster to be considered as skippable, either
+         *                               we should be in CPS environment and allow_partial_results=true, or,
+         *                               skip_unavailable=true.
          */
         public Clusters(
             @Nullable OriginalIndices localIndices,
             Map<String, OriginalIndices> remoteClusterIndices,
             boolean ccsMinimizeRoundtrips,
-            Predicate<String> skipUnavailablePredicate
+            Predicate<String> skipOnFailurePredicate
         ) {
             assert remoteClusterIndices.size() > 0 : "At least one remote cluster must be passed into this Cluster constructor";
             this.total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
@@ -531,8 +533,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             for (Map.Entry<String, OriginalIndices> remote : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remote.getKey();
-                boolean skipUnavailable = skipUnavailablePredicate.test(clusterAlias);
-                Cluster c = new Cluster(clusterAlias, String.join(",", remote.getValue().indices()), skipUnavailable);
+                boolean skipOnFailure = skipOnFailurePredicate.test(clusterAlias);
+                Cluster c = new Cluster(clusterAlias, String.join(",", remote.getValue().indices()), skipOnFailure);
                 m.put(clusterAlias, c);
             }
             this.clusterInfo = m;

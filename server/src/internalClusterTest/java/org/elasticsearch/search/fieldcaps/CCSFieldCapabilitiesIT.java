@@ -26,9 +26,12 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
@@ -125,5 +128,131 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         List<FieldCapabilitiesFailure> failures = response.getFailures();
         assertThat(failures, hasSize(1));
         assertThat(failures.get(0).getIndices(), arrayContaining("remote_cluster:*"));
+    }
+
+    private void populateIndices(String localIndex, String remoteIndex, String remoteClusterAlias, boolean invertLocalRemoteMappings) {
+        final Client localClient = client(LOCAL_CLUSTER);
+        final Client remoteClient = client(remoteClusterAlias);
+
+        String[] localMappings = new String[] { "timestamp", "type=date", "field1", "type=keyword", "field3", "type=keyword" };
+        String[] remoteMappings = new String[] { "timestamp", "type=date", "field2", "type=long", "field3", "type=long" };
+
+        assertAcked(
+            localClient.admin().indices().prepareCreate(localIndex).setMapping(invertLocalRemoteMappings ? remoteMappings : localMappings)
+        );
+
+        assertAcked(
+            remoteClient.admin().indices().prepareCreate(remoteIndex).setMapping(invertLocalRemoteMappings ? localMappings : remoteMappings)
+        );
+    }
+
+    public void testIncludeIndices() {
+        String localIndex = "index-local";
+        String remoteIndex = "index-remote";
+        String remoteClusterAlias = "remote_cluster";
+        populateIndices(localIndex, remoteIndex, remoteClusterAlias, false);
+        remoteIndex = String.join(":", remoteClusterAlias, remoteIndex);
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(localIndex, remoteIndex)
+            .setFields("*")
+            .setIncludeIndices(true)
+            .get();
+
+        assertThat(response.getIndices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        assertThat(response.getField("field1").get("keyword").indices(), arrayContaining(localIndex));
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        assertThat(response.getField("field2").get("long").indices(), arrayContaining(remoteIndex));
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        // mapping conflict, therefore indices is always present for `field3`
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining(remoteIndex));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining(localIndex));
+
+    }
+
+    public void testRandomIncludeIndices() {
+        String localIndex = "index-local";
+        String remoteIndex = "index-remote";
+        String remoteClusterAlias = "remote_cluster";
+        populateIndices(localIndex, remoteIndex, remoteClusterAlias, false);
+        remoteIndex = String.join(":", remoteClusterAlias, remoteIndex);
+        boolean shouldAlwaysIncludeIndices = randomBoolean();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(localIndex, remoteIndex)
+            .setFields("*")
+            .setIncludeIndices(shouldAlwaysIncludeIndices)
+            .get();
+
+        assertThat(response.getIndices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
+        } else {
+            assertNull(response.getField("timestamp").get("date").indices());
+        }
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field1").get("keyword").indices(), arrayContaining(localIndex));
+        } else {
+            assertNull(response.getField("field1").get("keyword").indices());
+        }
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field2").get("long").indices(), arrayContaining(remoteIndex));
+        } else {
+            assertNull(response.getField("field2").get("long").indices());
+        }
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        // mapping conflict, therefore indices is always present for `field3`
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining(remoteIndex));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining(localIndex));
+    }
+
+    public void testIncludeIndicesSwapped() {
+        // exact same setup as testIncludeIndices but with mappings swapped between local and remote index
+        String localIndex = "index-local";
+        String remoteIndex = "index-remote";
+        String remoteClusterAlias = "remote_cluster";
+        populateIndices(localIndex, remoteIndex, remoteClusterAlias, true);
+        remoteIndex = String.join(":", remoteClusterAlias, remoteIndex);
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(localIndex, remoteIndex)
+            .setFields("*")
+            .setIncludeIndices(true)
+            .get();
+
+        assertThat(response.getIndices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        assertThat(response.getField("field1").get("keyword").indices(), arrayContaining(remoteIndex));
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        assertThat(response.getField("field2").get("long").indices(), arrayContaining(localIndex));
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining(localIndex));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining(remoteIndex));
     }
 }

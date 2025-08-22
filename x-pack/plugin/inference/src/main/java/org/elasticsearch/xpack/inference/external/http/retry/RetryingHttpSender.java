@@ -32,6 +32,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.external.http.HttpClient.USER_TOKEN;
 
 public class RetryingHttpSender implements RequestSender {
 
@@ -214,7 +215,7 @@ public class RetryingHttpSender implements RequestSender {
         ActionListener<InferenceServiceResults> listener
     ) {
         var context = HttpClientContext.create();
-        context.setUserToken("token");
+        context.setUserToken(USER_TOKEN);
         var retrier = new InternalRetrier(logger, request, context, hasRequestTimedOutFunction, responseHandler, listener);
         retrier.run();
     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
+import org.apache.http.client.UserTokenHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
@@ -36,6 +37,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_RESPONSE
  * Provides a wrapper around a {@link CloseableHttpAsyncClient} to move the responses to a separate thread for processing.
  */
 public class HttpClient implements Closeable {
+    public static final String USER_TOKEN = "token";
+
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
     enum Status {
@@ -71,6 +74,13 @@ public class HttpClient implements Closeable {
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
+        var userTokenHandler = new UserTokenHandler() {
+            public Object getUserToken(HttpContext context) {
+                return USER_TOKEN;
+            }
+
+        };
+        clientBuilder.setUserTokenHandler(userTokenHandler);
         // clientBuilder.disableConnectionState();
 
         /*

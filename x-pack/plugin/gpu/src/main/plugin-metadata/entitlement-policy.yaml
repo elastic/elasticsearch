@@ -1,2 +1,4 @@
 com.nvidia.cuvs:
   - load_native_libraries
+org.elasticsearch.gpu:
+  - load_native_libraries

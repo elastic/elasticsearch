@@ -59,8 +59,12 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(intTestCase(100, 17, 156, 23, 0.123, "gauss", 0.7334501109633149));
         testCaseSuppliers.addAll(intTestCase(2500, 0, 10, 0, 0.5, "gauss", 0.0));
 
-        // Long
-        testCaseSuppliers.addAll(longTestCase(5L, 10L, 10L, 0L, 0.5, "linear", 0.75));
+        // Long Linear
+        testCaseSuppliers.addAll(longTestCase(0L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(longTestCase(10L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(longTestCase(50000L, 10L, 10000000L, 200L, 0.33, "linear", 0.99666407));
+        testCaseSuppliers.addAll(longTestCase(300000L, 10L, 10000000L, 200L, 0.33, "linear", 0.97991407));
+        testCaseSuppliers.addAll(longTestCase(123456789112123L, 10L, 10000000L, 200L, 0.33, "linear", 0.0));
 
         // Double
         testCaseSuppliers.addAll(doubleTestCase(5.0, 10.0, 10.0, 0.0, 0.5, "linear", 0.75));

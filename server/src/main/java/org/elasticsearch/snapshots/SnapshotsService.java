@@ -1512,6 +1512,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         executeConsistentStateUpdate(repository, repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private SnapshotDeletionsInProgress.Entry newDelete = null;
+            private SnapshotDeletionsInProgress.Entry previousDeleteToStart = null;
 
             private boolean reusedExistingDelete = false;
 
@@ -1654,8 +1655,28 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     }).filter(Objects::nonNull).toList()
                 );
                 if (snapshotIdsRequiringCleanup.isEmpty()) {
-                    // We only saw snapshots that could be removed from the cluster state right away, no need to update the deletions
-                    return SnapshotsServiceUtils.updateWithSnapshots(currentState, updatedSnapshots, null);
+                    if (updatedSnapshots.forRepo(projectId, repositoryName).isEmpty()) {
+                        // The last snapshot deleted may have only assigned-queued shard snapshots. Hence, this deletion requires
+                        // no clean up, i.e. no finalization. In this case, must check whether there is any deletion previously WAITING
+                        // due to this snapshot and is now ready to run.
+                        SnapshotDeletionsInProgress updateDeletions = null;
+                        for (var entry : deletionsInProgress.getEntries()) {
+                            if (projectId.equals(entry.projectId()) && repositoryName.equals(entry.repository())) {
+                                if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
+                                    break;
+                                } else if (entry.state() == SnapshotDeletionsInProgress.State.WAITING) {
+                                    previousDeleteToStart = entry.started();
+                                    updateDeletions = deletionsInProgress.withRemovedEntry(entry.uuid())
+                                        .withAddedEntry(previousDeleteToStart);
+                                    break;
+                                }
+                            }
+                        }
+                        return SnapshotsServiceUtils.updateWithSnapshots(currentState, updatedSnapshots, updateDeletions);
+                    } else {
+                        // We only saw snapshots that could be removed from the cluster state right away, no need to update the deletions
+                        return SnapshotsServiceUtils.updateWithSnapshots(currentState, updatedSnapshots, null);
+                    }
                 }
                 // add the snapshot deletion to the cluster state
                 final SnapshotDeletionsInProgress.Entry replacedEntry = deletionsInProgress.getEntries()
@@ -1735,6 +1756,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     addDeleteListener(newDelete.uuid(), listener);
                 }
                 if (newDelete != null) {
+                    assert previousDeleteToStart == null : previousDeleteToStart;
                     if (reusedExistingDelete) {
                         return;
                     }
@@ -1752,6 +1774,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         for (SnapshotsInProgress.Entry completedSnapshot : completedWithCleanup) {
                             endSnapshot(completedSnapshot, newState.metadata(), repositoryData);
                         }
+                    }
+                } else if (previousDeleteToStart != null) {
+                    assert previousDeleteToStart.state() == SnapshotDeletionsInProgress.State.STARTED : previousDeleteToStart;
+                    if (tryEnterRepoLoop(projectId, repositoryName)) {
+                        deleteSnapshotsFromRepository(
+                            previousDeleteToStart,
+                            repositoryData,
+                            newState.nodes().getMaxDataNodeCompatibleIndexVersion()
+                        );
+                    } else {
+                        logger.trace("Delete [{}] could not execute directly and was queued", previousDeleteToStart);
                     }
                 }
             }

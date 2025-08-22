@@ -62,8 +62,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
-    private static final float MAX_VISIT_INCREASE_RATIO = 0.1f;
-    private static final double MAX_VISIT_DECREASE_RATIO = 0.01f;
+    private static final float MAX_VISIT_INCREASE_RATIO = 0.3f;
+    private static final double MAX_VISIT_DECREASE_RATIO = 0.03f;
 
     protected final String field;
     protected final float providedVisitRatio;
@@ -204,17 +204,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 for (SegmentAffinity segmentAffinity : segmentAffinities) {
                     double normalizedAffinityScore = normalizedAffinityScores[j];
 
-                    float adjustedVisitRatio = (float) Math.clamp(
-                        (visitRatio * (MAX_VISIT_INCREASE_RATIO + normalizedAffinityScore)),
-                        visitRatio * MAX_VISIT_DECREASE_RATIO,
-                        visitRatio * (1 + MAX_VISIT_INCREASE_RATIO)
+                    float adjustedVisitRatio = adjustVisitRatioForSegment(
+                        normalizedAffinityScore,
+                        normalizedAffinityScores[normalizedAffinityScores.length / 2],
+                        visitRatio
                     );
 
-                    LeafReaderContext context = segmentAffinity.context();
-
-                    if (adjustedVisitRatio > 0) {
-                        tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedVisitRatio));
-                    }
+                    tasks.add(() -> searchLeaf(segmentAffinity.context(), filterWeight, knnCollectorManager, adjustedVisitRatio));
                     j++;
                 }
             }
@@ -230,6 +226,22 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return new MatchNoDocsQuery();
         }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
+    }
+
+    private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, float visitRatio) {
+        // for high affinity scores, increase visited ratio
+        float maxAdjustment = visitRatio * 1.5f;
+        if (affinityScore > affinityThreshold) {
+            int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
+            return Math.min(visitRatio * adjustment, visitRatio * 1.5f);
+        }
+
+        // for low affinity scores, decrease visited ratio
+        if (affinityScore <= affinityThreshold) {
+            return Math.max(visitRatio * 0.5f, 0.01f);
+        }
+
+        return visitRatio;
     }
 
     abstract VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi) throws IOException;

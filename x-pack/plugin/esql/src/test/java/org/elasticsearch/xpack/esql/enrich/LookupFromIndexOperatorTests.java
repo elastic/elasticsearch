@@ -37,8 +37,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
@@ -56,6 +56,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -84,7 +85,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
-public class LookupFromIndexOperatorTests extends OperatorTestCase {
+public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private static final int LOOKUP_SIZE = 1000;
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
@@ -304,7 +305,10 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void assertEmptyStatus(Map<String, Object> map) {
-        assumeFalse("not yet standardized", true);
+    protected MapMatcher extendStatusMatcher(MapMatcher mapMatcher, List<Page> input, List<Page> output) {
+        var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
+
+        return mapMatcher.entry("total_rows", totalInputRows).entry("pages_emitted", output.size()).entry("rows_emitted", totalOutputRows);
     }
 }

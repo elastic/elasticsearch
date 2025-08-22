@@ -188,7 +188,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 .map(d -> (d - minAffinity) / (maxAffinity - minAffinity))
                 .toArray();
 
-            if (normalizedAffinityScores.length != segmentAffinities.size()) {
+            // TODO : enable affinity optimization for filtered case
+            if (filterWeight != null || normalizedAffinityScores.length != segmentAffinities.size()) {
                 tasks = new ArrayList<>(leafReaderContexts.size());
                 for (LeafReaderContext context : leafReaderContexts) {
                     tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));

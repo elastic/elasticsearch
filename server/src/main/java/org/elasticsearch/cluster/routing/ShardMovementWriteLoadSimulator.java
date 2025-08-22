@@ -19,6 +19,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -30,11 +31,14 @@ public class ShardMovementWriteLoadSimulator {
     private final Map<String, NodeUsageStatsForThreadPools> originalNodeUsageStatsForThreadPools;
     private final ObjectDoubleMap<String> simulatedNodeWriteLoadDeltas;
     private final Map<ShardId, Double> writeLoadsPerShard;
+    // A map of nodeId to a boolean indicate whether it has seen a shard moving away from it
+    private final Map<String, Boolean> hasSeenMovedAwayShardMap;
 
     public ShardMovementWriteLoadSimulator(RoutingAllocation routingAllocation) {
         this.originalNodeUsageStatsForThreadPools = routingAllocation.clusterInfo().getNodeUsageStatsForThreadPools();
         this.writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
         this.simulatedNodeWriteLoadDeltas = new ObjectDoubleHashMap<>();
+        this.hasSeenMovedAwayShardMap = new HashMap<>();
     }
 
     public void simulateShardStarted(ShardRouting shardRouting) {
@@ -46,6 +50,7 @@ public class ShardMovementWriteLoadSimulator {
                 // This is a shard being relocated
                 simulatedNodeWriteLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
                 simulatedNodeWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
+                hasSeenMovedAwayShardMap.put(shardRouting.relocatingNodeId(), true);
             } else {
                 // This is a new shard starting, it's unlikely we'll have a write-load value for a new
                 // shard, but we may be able to estimate if the new shard is created as part of a datastream
@@ -69,7 +74,11 @@ public class ShardMovementWriteLoadSimulator {
                     Maps.copyMapWithAddedOrReplacedEntry(
                         entry.getValue().threadPoolUsageStatsMap(),
                         ThreadPool.Names.WRITE,
-                        replaceWritePoolStats(entry.getValue(), simulatedNodeWriteLoadDeltas.get(entry.getKey()))
+                        replaceWritePoolStats(
+                            entry.getValue(),
+                            simulatedNodeWriteLoadDeltas.get(entry.getKey()),
+                            hasSeenMovedAwayShardMap.getOrDefault(entry.getKey(), false)
+                        )
                     )
                 );
                 adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), adjustedValue);
@@ -82,7 +91,8 @@ public class ShardMovementWriteLoadSimulator {
 
     private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(
         NodeUsageStatsForThreadPools value,
-        double writeLoadDelta
+        double writeLoadDelta,
+        boolean hasSeenMovedAwayShard
     ) {
         final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
             .get(ThreadPool.Names.WRITE);
@@ -93,7 +103,7 @@ public class ShardMovementWriteLoadSimulator {
                 (float) writeLoadDelta,
                 writeThreadPoolStats.totalThreadPoolThreads()
             ),
-            adjustThreadPoolQueueLatencyWithShardMovements(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), (float) writeLoadDelta)
+            adjustThreadPoolQueueLatencyWithShardMovements(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), hasSeenMovedAwayShard)
         );
     }
 
@@ -118,21 +128,16 @@ public class ShardMovementWriteLoadSimulator {
     }
 
     /**
-     * Adjust the max thread pool queue latency by accounting for the write load change due to shard movements
+     * Adjust the max thread pool queue latency by accounting for whether shard has moved away from the node.
      * @param maxThreadPoolQueueLatencyMillis The current max thread pool queue latency.
-     * @param shardWriteLoadDelta The write load change due to shard movements. Negative values indicate shards moving away.
-     *                            Positive values indicate shards moving onto the node.
+     * @param hasSeenMovedAwayShard Whether the node has seen a shard move away from it.
      * @return The new adjusted max thread pool queue latency.
      */
-    public static long adjustThreadPoolQueueLatencyWithShardMovements(long maxThreadPoolQueueLatencyMillis, float shardWriteLoadDelta) {
+    public static long adjustThreadPoolQueueLatencyWithShardMovements(long maxThreadPoolQueueLatencyMillis, boolean hasSeenMovedAwayShard) {
         // Intentionally keep it simple by reducing queue latency to zero if we move any shard off the node.
-        // This means the node is no longer hot-spotting (with respect to queue latency) once a shard moves away.
+        // This means the node is considered as no longer hot-spotting (with respect to queue latency) once a shard moves away.
         // The next ClusterInfo will come in up-to 30 seconds later, and we will see the actual impact of the
         // shard movement and repeat the process. We keep the queue latency unchanged if shard moves onto the node.
-        if (shardWriteLoadDelta < 0) {
-            return 0L;
-        } else {
-            return maxThreadPoolQueueLatencyMillis;
-        }
+        return hasSeenMovedAwayShard ? 0L : maxThreadPoolQueueLatencyMillis;
     }
 }

@@ -33,7 +33,7 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
 
     public void testEmptyHistogram() {
         ExponentialHistogram emptyHistogram = ExponentialHistogram.empty();
-        assertSerializedHistogram(ExponentialHistogram.empty(), "{\"scale\":" + emptyHistogram.scale() + "}");
+        assertThat(toJson(emptyHistogram), equalTo("{\"scale\":" + emptyHistogram.scale() + "}"));
     }
 
     public void testFullHistogram() {
@@ -44,14 +44,16 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
         histo.tryAddBucket(10, 5, false);
         histo.tryAddBucket(-11, 10, true);
         histo.tryAddBucket(11, 20, true);
-        assertSerializedHistogram(
-            histo,
-            "{"
-                + "\"scale\":7,"
-                + "\"zero\":{\"count\":42,\"threshold\":0.1234},"
-                + "\"positive\":{\"indices\":[-11,11],\"counts\":[10,20]},"
-                + "\"negative\":{\"indices\":[-10,10],\"counts\":[15,5]}"
-                + "}"
+        assertThat(
+            toJson(histo),
+            equalTo(
+                "{"
+                    + "\"scale\":7,"
+                    + "\"zero\":{\"count\":42,\"threshold\":0.1234},"
+                    + "\"positive\":{\"indices\":[-11,11],\"counts\":[10,20]},"
+                    + "\"negative\":{\"indices\":[-10,10],\"counts\":[15,5]}"
+                    + "}"
+            )
         );
 
     }
@@ -60,14 +62,14 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
         FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(10);
         histo.setZeroBucket(new ZeroBucket(5.0, 0));
         histo.resetBuckets(3);
-        assertSerializedHistogram(histo, "{\"scale\":3,\"zero\":{\"threshold\":5.0}}");
+        assertThat(toJson(histo), equalTo("{\"scale\":3,\"zero\":{\"threshold\":5.0}}"));
     }
 
     public void testOnlyZeroCount() {
         FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(10);
         histo.setZeroBucket(new ZeroBucket(0.0, 7));
         histo.resetBuckets(2);
-        assertSerializedHistogram(histo, "{\"scale\":2,\"zero\":{\"count\":7}}");
+        assertThat(toJson(histo), equalTo("{\"scale\":2,\"zero\":{\"count\":7}}"));
     }
 
     public void testOnlyPositiveBuckets() {
@@ -75,7 +77,7 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
         histo.resetBuckets(4);
         histo.tryAddBucket(-1, 3, true);
         histo.tryAddBucket(2, 5, true);
-        assertSerializedHistogram(histo, "{\"scale\":4,\"positive\":{\"indices\":[-1,2],\"counts\":[3,5]}}");
+        assertThat(toJson(histo), equalTo("{\"scale\":4,\"positive\":{\"indices\":[-1,2],\"counts\":[3,5]}}"));
     }
 
     public void testOnlyNegativeBuckets() {
@@ -83,13 +85,13 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
         histo.resetBuckets(5);
         histo.tryAddBucket(-1, 4, false);
         histo.tryAddBucket(2, 6, false);
-        assertSerializedHistogram(histo, "{\"scale\":5,\"negative\":{\"indices\":[-1,2],\"counts\":[4,6]}}");
+        assertThat(toJson(histo), equalTo("{\"scale\":5,\"negative\":{\"indices\":[-1,2],\"counts\":[4,6]}}"));
     }
 
-    private static void assertSerializedHistogram(ExponentialHistogram histo, String expectedJson) {
+    private static String toJson(ExponentialHistogram histo) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             ExponentialHistogramXContent.serialize(builder, histo);
-            assertThat(Strings.toString(builder), equalTo(expectedJson));
+            return Strings.toString(builder);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

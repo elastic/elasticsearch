@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CuVSResources;
-
 import com.nvidia.cuvs.GPUInfoProvider;
-
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
@@ -84,7 +82,7 @@ public interface CuVSResourceManager {
         private int createdCount;
 
         ReentrantLock lock = new ReentrantLock();
-        Condition enoughMemoryCondition = lock.newCondition();
+        Condition enoughResourcesCondition = lock.newCondition();
 
         public PoolingCuVSResourceManager(int capacity, GPUInfoProvider gpuInfoProvider) {
             if (capacity < 1 || capacity > MAX_RESOURCES) {
@@ -110,6 +108,17 @@ public interface CuVSResourceManager {
             return null;
         }
 
+        private int numLockedResources() {
+            int lockedResources = 0;
+            for (int i = 0; i < createdCount; ++i) {
+                var res = pool[i];
+                if (res.locked) {
+                    lockedResources++;
+                }
+            }
+            return lockedResources;
+        }
+
         @Override
         public ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException {
             try {
@@ -119,10 +128,14 @@ public interface CuVSResourceManager {
                 ManagedCuVSResources res = null;
                 while (allConditionsMet == false) {
                     res = getResourceFromPool();
+
                     final boolean enoughMemory;
                     if (res != null) {
+                        // If no resource in the pool is locked, short circuit to avoid livelock
+                        if (numLockedResources() == 0) {
+                            break;
+                        }
                         // Check resources availability
-                        // Memory
                         long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims);
                         if (requiredMemoryInBytes > gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes()) {
                             throw new IllegalArgumentException(
@@ -138,12 +151,11 @@ public interface CuVSResourceManager {
                     } else {
                         enoughMemory = false;
                     }
-                    if (enoughMemory == false) {
-                        enoughMemoryCondition.await();
-                    }
-
                     // TODO: add enoughComputation / enoughComputationCondition here
                     allConditionsMet = enoughMemory; // && enoughComputation
+                    if (allConditionsMet == false) {
+                        enoughResourcesCondition.await();
+                    }
                 }
                 res.locked = true;
                 return res;
@@ -153,7 +165,7 @@ public interface CuVSResourceManager {
         }
 
         private long estimateRequiredMemory(int numVectors, int dims) {
-            return (long)(GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * Float.BYTES);
+            return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * Float.BYTES);
         }
 
         // visible for testing
@@ -164,7 +176,7 @@ public interface CuVSResourceManager {
         @Override
         public void finishedComputation(ManagedCuVSResources resources) {
             // currently does nothing, but could allow acquire to return possibly blocked resources
-            // something like enoughComputationCondition.signalAll()?
+            // enoughResourcesCondition.signalAll()
         }
 
         @Override
@@ -173,7 +185,7 @@ public interface CuVSResourceManager {
                 lock.lock();
                 assert resources.locked;
                 resources.locked = false;
-                enoughMemoryCondition.signalAll();
+                enoughResourcesCondition.signalAll();
             } finally {
                 lock.unlock();
             }

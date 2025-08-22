@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.SubstringNoLengthEvaluator;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -106,7 +105,7 @@ public final class EvalMapper {
                 implements
                     ExpressionEvaluator {
 
-                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SubstringNoLengthEvaluator.class);
+                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanLogicExpressionEvaluator.class);
 
                 @Override
                 public Block eval(Page page) {

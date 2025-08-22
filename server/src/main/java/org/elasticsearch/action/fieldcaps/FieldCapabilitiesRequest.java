@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.CrossProjectResolvableRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -42,11 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends LegacyActionRequest
-    implements
-        CrossProjectResolvableRequest,
-        IndicesRequest.Replaceable,
-        ToXContentObject {
+public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.CrossProjectResolvable, ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 

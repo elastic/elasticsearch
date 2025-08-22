@@ -10,9 +10,12 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -64,6 +67,22 @@ public interface IndicesRequest {
         }
     }
 
+    interface CrossProjectResolvable extends Replaceable {
+        @Override
+        default boolean allowsRemoteIndices() {
+            return true;
+        }
+
+        void setRewrittenExpressions(List<IndicesRequest.RewrittenExpression> rewrittenExpressions);
+
+        @Nullable
+        List<IndicesRequest.RewrittenExpression> getRewrittenExpressions();
+
+        default boolean crossProjectModeEnabled() {
+            return getRewrittenExpressions() != null;
+        }
+    }
+
     /**
      * For use cases where a Request instance cannot implement Replaceable due to not supporting wildcards
      * and only supporting a single index at a time, this is an alternative interface that the
@@ -90,5 +109,28 @@ public interface IndicesRequest {
          * remote cluster requests,
          */
         Collection<ShardId> shards();
+    }
+
+    /**
+     * Used to track a mapping from original expression (potentially flat) to canonical CCS expressions.
+     */
+    record RewrittenExpression(
+        String original,
+        List<CanonicalExpression> canonicalExpressions,
+        List<Exception> originResolutionExceptions
+    ) {
+        public RewrittenExpression(String original, List<CanonicalExpression> canonicalExpressions) {
+            this(original, canonicalExpressions, List.of());
+        }
+    }
+
+    record CanonicalExpression(String expression) {
+        public boolean isQualified() {
+            return RemoteClusterAware.isRemoteIndexName(expression);
+        }
+
+        public boolean isUnqualified() {
+            return false == isQualified();
+        }
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.CrossProjectResolvableRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -17,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -490,7 +490,7 @@ public class AuthorizationService {
             }));
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-            final CrossProjectTargetResolver.ResolvedProjects resolvedProjects = request instanceof CrossProjectResolvableRequest
+            final CrossProjectTargetResolver.ResolvedProjects resolvedProjects = request instanceof IndicesRequest.CrossProjectResolvable
                 ? crossProjectTargetResolver.resolve(securityContext)
                 : CrossProjectTargetResolver.ResolvedProjects.VOID;
             assert projectMetadata != null;

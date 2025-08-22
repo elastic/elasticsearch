@@ -37,6 +37,7 @@ toc:
   - file: index-settings/index.md
     children:
         - file: index-settings/serverless.md
+        - file: index-settings/bbq.md
         - file: index-settings/index-modules.md
         - file: index-settings/shard-allocation.md
           children:
@@ -56,6 +57,7 @@ toc:
           children:
             - file: index-settings/preloading-data-into-file-system-cache.md
         - file: index-settings/time-series.md
+        - file: index-settings/source.md
         - file: index-settings/translog.md
         - file: index-settings/pressure.md
         - file: index-settings/path.md

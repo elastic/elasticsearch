@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.CrossProjectResolvableRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -54,11 +53,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends LegacyActionRequest
-    implements
-        CrossProjectResolvableRequest,
-        IndicesRequest.Replaceable,
-        Rewriteable<SearchRequest> {
+public class SearchRequest extends LegacyActionRequest implements IndicesRequest.CrossProjectResolvable, Rewriteable<SearchRequest> {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 

@@ -229,8 +229,8 @@ public abstract class RemoteClusterAware {
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
         List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
-            RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
+            RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
+            RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,

@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -2389,6 +2390,13 @@ public class AnalyzerTests extends ESTestCase {
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_hamming(byte_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+        }
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
@@ -2421,6 +2429,9 @@ public class AnalyzerTests extends ESTestCase {
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkNoDenseVectorFailsSimilarityFunction("v_l2_norm([0, 1, 2], 0.342)");
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_hamming([0, 1, 2], 0.342)");
+        }
     }
 
     private void checkNoDenseVectorFailsSimilarityFunction(String similarityFunction) {
@@ -2432,8 +2443,36 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testMagnitudePlanWithDenseVectorImplicitCasting() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | eval scalar = v_magnitude([1, 2, 3])
+            """), "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("scalar", alias.name());
+        var scalar = as(alias.child(), Magnitude.class);
+        var child = as(scalar.field(), Literal.class);
+        assertThat(child.dataType(), is(DENSE_VECTOR));
+        assertThat(child.value(), equalTo(List.of(1.0f, 2.0f, 3.0f)));
+    }
+
+    public void testNoDenseVectorFailsForMagnitude() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
+        var query = String.format(Locale.ROOT, "row a = 1 |  eval scalar = v_magnitude(0.342)");
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
+        assertThat(
+            error.getMessage(),
+            containsString("first argument of [v_magnitude(0.342)] must be [dense_vector], found value [0.342] type [double]")
+        );
+    }
+
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));

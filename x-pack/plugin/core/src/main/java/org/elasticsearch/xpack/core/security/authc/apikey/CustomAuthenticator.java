@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.user.User;
 
 /**
  * An extension point to provide a custom token authenticator implementation. For example, a custom API key or a custom OAuth2 token implementation.

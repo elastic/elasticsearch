@@ -33,14 +33,13 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     // - if an encondedHistogram value is null, min/max/sum/count must be null too
     // - if an encondedHistogram value is non-null, sum and count must not be null, but min/max may be (for empty histograms)
     private final BytesRefBlock encodedHistograms;
-    private final LongBlock valuesCounts;
-    //TODO: add DoubleBlocks for sum/min/max
+    private final AggregateMetricDoubleBlock aggregateMetrics;
 
-    public ExponentialHistogramArrayBlock(BytesRefBlock encodedHistograms, LongBlock valuesCounts) {
+    public ExponentialHistogramArrayBlock(BytesRefBlock encodedHistograms, AggregateMetricDoubleBlock aggregateMetrics) {
         this.encodedHistograms = encodedHistograms;
-        this.valuesCounts = valuesCounts;
+        this.aggregateMetrics = aggregateMetrics;
         int positionCount = encodedHistograms.getPositionCount();
-        for (Block b : List.of(encodedHistograms, valuesCounts)) {
+        for (Block b : List.of(encodedHistograms, aggregateMetrics)) {
             if (b.getPositionCount() != positionCount) {
                 assert false : "expected positionCount=" + positionCount + " but was " + b;
                 throw new IllegalArgumentException("expected positionCount=" + positionCount + " but was " + b);
@@ -66,7 +65,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     }
 
     private List<Block> subBlocks() {
-        return List.of(encodedHistograms, valuesCounts);
+        return List.of(encodedHistograms, aggregateMetrics);
     }
 
     @Override
@@ -144,16 +143,16 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     @Override
     public Block filter(int... positions) {
         BytesRefBlock filteredHistograms = null;
-        LongBlock filteredValueCounts = null;
+        AggregateMetricDoubleBlock filteredAggregateMetrics = null;
         boolean success = false;
         try {
             filteredHistograms = encodedHistograms.filter(positions);
-            filteredValueCounts = valuesCounts.filter(positions);
+            filteredAggregateMetrics = aggregateMetrics.filter(positions);
             success = true;
-            return new ExponentialHistogramArrayBlock(filteredHistograms, filteredValueCounts);
+            return new ExponentialHistogramArrayBlock(filteredHistograms, filteredAggregateMetrics);
         } finally {
             if (success == false) {
-                Releasables.close(filteredHistograms, filteredValueCounts);
+                Releasables.close(filteredHistograms, filteredAggregateMetrics);
             }
         }
     }
@@ -161,16 +160,16 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     @Override
     public Block keepMask(BooleanVector mask) {
         BytesRefBlock filteredHistograms = null;
-        LongBlock filteredValueCounts = null;
+        AggregateMetricDoubleBlock filteredAggregateMetrics = null;
         boolean success = false;
         try {
             filteredHistograms = encodedHistograms.keepMask(mask);
-            filteredValueCounts = valuesCounts.keepMask(mask);
+            filteredAggregateMetrics = aggregateMetrics.keepMask(mask);
             success = true;
-            return new ExponentialHistogramArrayBlock(filteredHistograms, filteredValueCounts);
+            return new ExponentialHistogramArrayBlock(filteredHistograms, filteredAggregateMetrics);
         } finally {
             if (success == false) {
-                Releasables.close(filteredHistograms, filteredValueCounts);
+                Releasables.close(filteredHistograms, filteredAggregateMetrics);
             }
         }
     }
@@ -190,24 +189,24 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     @Override
     public Block expand() {
         BytesRefBlock expandedHistograms = null;
-        LongBlock expandedValueCounts = null;
+        AggregateMetricDoubleBlock expandedAggregateMetrics = null;
         boolean success = false;
         try {
             expandedHistograms = encodedHistograms.expand();
-            expandedValueCounts = valuesCounts.expand();
+            expandedAggregateMetrics = aggregateMetrics.expand();
             success = true;
 
             if (expandedHistograms == encodedHistograms) {
                 // No values to expand, return original block
-                Releasables.close(expandedHistograms, expandedValueCounts);
+                Releasables.close(expandedHistograms, expandedAggregateMetrics);
                 this.incRef();
                 return this;
             } else {
-                return new ExponentialHistogramArrayBlock(expandedHistograms, expandedValueCounts);
+                return new ExponentialHistogramArrayBlock(expandedHistograms, expandedAggregateMetrics);
             }
         } finally {
             if (success == false) {
-                Releasables.close(expandedHistograms, expandedValueCounts);
+                Releasables.close(expandedHistograms, expandedAggregateMetrics);
             }
         }
     }
@@ -215,12 +214,12 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         encodedHistograms.writeTo(out);
-        valuesCounts.writeTo(out);
+        aggregateMetrics.writeTo(out);
     }
 
     public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput in) throws IOException {
         BytesRefBlock encodedHistograms = BytesRefBlock.readFrom(in);
-        LongBlock valuesCounts = LongBlock.readFrom(in);
+        AggregateMetricDoubleBlock valuesCounts = AggregateMetricDoubleArrayBlock.readFrom(in);
         return new ExponentialHistogramArrayBlock(encodedHistograms, valuesCounts);
     }
 
@@ -233,9 +232,14 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         return bytes;
     }
 
-    void copyInto(BytesRefBlock.Builder encodedHistogramsBuilder, LongBlock.Builder valuesCountsBuilder, int beginInclusive, int endExclusive) {
+    void copyInto(
+        BytesRefBlock.Builder encodedHistogramsBuilder,
+        AggregateMetricDoubleBlockBuilder aggregateMetrics,
+        int beginInclusive,
+        int endExclusive
+    ) {
         encodedHistogramsBuilder.copyFrom(this.encodedHistograms, beginInclusive, endExclusive);
-        valuesCountsBuilder.copyFrom(this.valuesCounts, beginInclusive, endExclusive);
+        aggregateMetrics.copyFrom(this.aggregateMetrics, beginInclusive, endExclusive);
     }
 
     private class BlockBackedHistogram implements ExponentialHistogram {

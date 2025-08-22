@@ -218,7 +218,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         }
     }
 
-    public static Block readFrom(StreamInput in) throws IOException {
+    public static AggregateMetricDoubleArrayBlock readFrom(StreamInput in) throws IOException {
         boolean success = false;
         DoubleBlock minBlock = null;
         DoubleBlock maxBlock = null;

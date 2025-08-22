@@ -16,7 +16,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 public class ExponentialHistogramBlockBuilder implements BlockLoader.ExponentialHistogramBuilder, Block.Builder {
 
     private final BytesRefBlock.Builder encodedHistogramsBuilder;
-    private final LongBlock.Builder valuesCountsBuilder;
+    private final AggregateMetricDoubleBlockBuilder aggregateMetricsBuilder;
 
     private final BytesRef tempScratch;
 
@@ -24,19 +24,19 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
 
     ExponentialHistogramBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         BytesRefBlock.Builder histos = null;
-        LongBlock.Builder valueCounts = null;
+        AggregateMetricDoubleBlockBuilder aggregateMetrics = null;
         boolean success = false;
         try {
             histos = blockFactory.newBytesRefBlockBuilder(estimatedSize);
-            valueCounts = blockFactory.newLongBlockBuilder(estimatedSize);
+            aggregateMetrics = blockFactory.newAggregateMetricDoubleBlockBuilder(estimatedSize);
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(histos, valueCounts);
+                Releasables.close(histos, aggregateMetrics);
             }
         }
         this.encodedHistogramsBuilder = histos;
-        this.valuesCountsBuilder = valueCounts;
+        this.aggregateMetricsBuilder = aggregateMetrics;
         this.tempScratch = new BytesRef(new byte[256], 0, 256);
     }
 
@@ -47,7 +47,12 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
         } else {
             encodedHistogramsBuilder.appendBytesRef(ExponentialHistogramArrayBlock.encode(value, tempScratch));
             long totalValueCount = value.zeroBucket().count() + value.negativeBuckets().valueCount() + value.positiveBuckets().valueCount();
-            valuesCountsBuilder.appendLong(totalValueCount);
+            //TODO: make aggregate metric double support long values for count?
+            aggregateMetricsBuilder.count().appendInt((int) totalValueCount);
+            //TODO: implement sum/min/max
+            aggregateMetricsBuilder.sum().appendNull();
+            aggregateMetricsBuilder.min().appendNull();
+            aggregateMetricsBuilder.max().appendNull();
         }
         return this;
     }
@@ -56,37 +61,37 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
     public ExponentialHistogramBlock build() {
         boolean success = false;
         BytesRefBlock encodedHistos;
-        LongBlock valueCounts;
+        AggregateMetricDoubleBlock aggregateMetrics;
         try {
             encodedHistos = encodedHistogramsBuilder.build();
-            valueCounts = valuesCountsBuilder.build();
+            aggregateMetrics = aggregateMetricsBuilder.build();
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(encodedHistogramsBuilder, valuesCountsBuilder);
+                Releasables.close(encodedHistogramsBuilder, aggregateMetricsBuilder);
             }
         }
-        return new ExponentialHistogramArrayBlock(encodedHistos, valueCounts);
+        return new ExponentialHistogramArrayBlock(encodedHistos, aggregateMetrics);
     }
 
     @Override
     public ExponentialHistogramBlockBuilder appendNull() {
         encodedHistogramsBuilder.appendNull();
-        valuesCountsBuilder.appendNull();
+        aggregateMetricsBuilder.appendNull();
         return this;
     }
 
     @Override
     public ExponentialHistogramBlockBuilder beginPositionEntry() {
         encodedHistogramsBuilder.beginPositionEntry();
-        valuesCountsBuilder.beginPositionEntry();
+        aggregateMetricsBuilder.beginPositionEntry();
         return this;
     }
 
     @Override
     public ExponentialHistogramBlockBuilder endPositionEntry() {
         encodedHistogramsBuilder.endPositionEntry();
-        valuesCountsBuilder.endPositionEntry();
+        aggregateMetricsBuilder.endPositionEntry();
         return this;
     }
 
@@ -98,7 +103,7 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
             }
         } else {
             ExponentialHistogramArrayBlock histoBlock = (ExponentialHistogramArrayBlock) block;
-            histoBlock.copyInto(encodedHistogramsBuilder, valuesCountsBuilder, beginInclusive, endExclusive);
+            histoBlock.copyInto(encodedHistogramsBuilder, aggregateMetricsBuilder, beginInclusive, endExclusive);
         }
         return this;
     }
@@ -111,14 +116,14 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
 
     @Override
     public long estimatedBytes() {
-        return encodedHistogramsBuilder.estimatedBytes() + valuesCountsBuilder.estimatedBytes();
+        return encodedHistogramsBuilder.estimatedBytes() + aggregateMetricsBuilder.estimatedBytes();
     }
 
     @Override
     public void close() {
         if (closed == false) {
             closed = true;
-            Releasables.close(encodedHistogramsBuilder, valuesCountsBuilder);
+            Releasables.close(encodedHistogramsBuilder, aggregateMetricsBuilder);
         }
     }
 }

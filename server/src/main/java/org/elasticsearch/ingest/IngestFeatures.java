@@ -16,6 +16,8 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 public class IngestFeatures implements FeatureSpecification {
+    private static final NodeFeature SIMULATE_INGEST_400_ON_FAILURE = new NodeFeature("simulate.ingest.400_on_failure", true);
+
     @Override
     public Set<NodeFeature> getFeatures() {
         if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
@@ -23,5 +25,10 @@ public class IngestFeatures implements FeatureSpecification {
         } else {
             return Set.of();
         }
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(SIMULATE_INGEST_400_ON_FAILURE);
     }
 }

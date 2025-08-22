@@ -1,5 +1,0 @@
-pr: 133401
-summary: Fix projects state registry filtering in `GetClusterState` API
-area: Infra/Core
-type: bug
-issues: []

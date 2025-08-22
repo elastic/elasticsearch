@@ -25,28 +25,46 @@ public class ExponentialHistogramUtils {
 
     /**
      * Estimates the sum of all values of a histogram just based on the populated buckets.
+     * Will never return NaN, but might return +/-Infinity if the histogram is too big.
      *
      * @param negativeBuckets the negative buckets of the histogram
      * @param positiveBuckets the positive buckets of the histogram
-     * @return the estimated sum of all values in the histogram, guaranteed to be zero if there are no buckets
+     * @return the estimated sum of all values in the histogram, guaranteed to be zero if there are no buckets.
      */
     public static double estimateSum(BucketIterator negativeBuckets, BucketIterator positiveBuckets) {
+        assert negativeBuckets.scale() == positiveBuckets.scale();
         double sum = 0.0;
-        while (negativeBuckets.hasNext()) {
+        while (negativeBuckets.hasNext() || positiveBuckets.hasNext()) {
+            long negativeIndex = negativeBuckets.hasNext() ? negativeBuckets.peekIndex() : Long.MAX_VALUE;
+            long positiveIndex = positiveBuckets.hasNext() ? positiveBuckets.peekIndex() : Long.MAX_VALUE;
+
             double bucketMidPoint = ExponentialScaleUtils.getPointOfLeastRelativeError(
-                negativeBuckets.peekIndex(),
-                negativeBuckets.scale()
-            );
-            sum += -bucketMidPoint * negativeBuckets.peekCount();
-            negativeBuckets.advance();
-        }
-        while (positiveBuckets.hasNext()) {
-            double bucketMidPoint = ExponentialScaleUtils.getPointOfLeastRelativeError(
-                positiveBuckets.peekIndex(),
+                Math.min(negativeIndex, positiveIndex),
                 positiveBuckets.scale()
             );
-            sum += bucketMidPoint * positiveBuckets.peekCount();
-            positiveBuckets.advance();
+
+            long countWithSign;
+            if (negativeIndex == positiveIndex) {
+                countWithSign = positiveBuckets.peekCount() - negativeBuckets.peekCount();
+                positiveBuckets.advance();
+                negativeBuckets.advance();
+            } else if (negativeIndex < positiveIndex){
+                countWithSign = -negativeBuckets.peekCount();
+                negativeBuckets.advance();
+            }  else { // positiveIndex > negativeIndex
+                countWithSign = positiveBuckets.peekCount();
+                positiveBuckets.advance();
+            }
+            if (countWithSign != 0) {
+                double toAdd = bucketMidPoint * countWithSign;
+                if (Double.isFinite(toAdd)) {
+                    sum += toAdd;
+                } else {
+                    // Avoid NaN in case we end up with e.g. -Infinity+Infinity
+                    // we consider the bucket with the bigger index the winner for the sign
+                    sum = toAdd;
+                }
+            }
         }
         return sum;
     }

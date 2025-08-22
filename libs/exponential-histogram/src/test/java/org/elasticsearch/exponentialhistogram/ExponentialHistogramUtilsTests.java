@@ -22,6 +22,7 @@
 package org.elasticsearch.exponentialhistogram;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase {
 
@@ -54,5 +55,32 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
 
             assertThat(estimatedAverage, closeTo(correctAverage, allowedError));
         }
+    }
+
+    public void testInfinityHandling() {
+        FixedCapacityExponentialHistogram morePositiveValues = createAutoReleasedHistogram(100);
+        morePositiveValues.resetBuckets(0);
+        morePositiveValues.tryAddBucket(1999, 1,false);
+        morePositiveValues.tryAddBucket(2000, 2, false);
+        morePositiveValues.tryAddBucket(1999, 2,true);
+        morePositiveValues.tryAddBucket(2000, 2,true);
+
+        double sum = ExponentialHistogramUtils.estimateSum(
+            morePositiveValues.negativeBuckets().iterator(),
+            morePositiveValues.positiveBuckets().iterator()
+        );
+        assertThat(sum, equalTo(Double.POSITIVE_INFINITY));
+        FixedCapacityExponentialHistogram moreNegativeValues = createAutoReleasedHistogram(100);
+        moreNegativeValues.resetBuckets(0);
+        moreNegativeValues.tryAddBucket(1999, 2,false);
+        moreNegativeValues.tryAddBucket(2000, 2, false);
+        moreNegativeValues.tryAddBucket(1999, 1,true);
+        moreNegativeValues.tryAddBucket(2000, 2,true);
+
+        sum = ExponentialHistogramUtils.estimateSum(
+            moreNegativeValues.negativeBuckets().iterator(),
+            moreNegativeValues.positiveBuckets().iterator()
+        );
+        assertThat(sum, equalTo(Double.NEGATIVE_INFINITY));
     }
 }

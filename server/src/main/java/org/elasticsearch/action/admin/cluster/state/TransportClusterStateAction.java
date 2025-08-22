@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -47,6 +49,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -255,6 +258,19 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
                 // If there are no requested indices, then we want all the metadata, except for customs that aren't exposed via the API
                 mdBuilder = Metadata.builder(currentState.metadata());
                 mdBuilder.removeCustomIf(notApi);
+
+                if (request.multiproject() == false) {
+                    ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(currentState);
+                    if (projectStateRegistry.size() > 1) {
+                        throw new Metadata.MultiProjectPendingException("There are multiple projects " + projectStateRegistry.knownProjects());
+                    }
+                    var reservedStateMetadata = new HashMap<>(currentState.metadata().reservedStateMetadata());
+                    var singleProjectReservedStateMetadata = projectStateRegistry.reservedStateMetadata(projectResolver.getProjectId());
+                    singleProjectReservedStateMetadata.forEach((key, value) ->
+                        reservedStateMetadata.merge(key, value, this::mergeReservedStateMetadata));
+
+                    mdBuilder.put(reservedStateMetadata);
+                }
             }
 
             for (ProjectMetadata project : currentState.metadata().projects().values()) {
@@ -308,4 +324,23 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
         return new ClusterStateResponse(currentState.getClusterName(), builder.build(), false);
     }
 
+    private ReservedStateMetadata mergeReservedStateMetadata(ReservedStateMetadata metadata1, ReservedStateMetadata metadata2) {
+        ReservedStateMetadata.Builder builder = ReservedStateMetadata.builder(metadata1.namespace())
+            .version(Math.max(metadata1.version(), metadata2.version()));
+
+        for (ReservedStateHandlerMetadata handler : metadata1.handlers().values()) {
+            builder.putHandler(handler);
+        }
+        for (ReservedStateHandlerMetadata handler : metadata2.handlers().values()) {
+            builder.putHandler(handler);
+        }
+
+        if (metadata2.errorMetadata() != null) {
+            builder.errorMetadata(metadata2.errorMetadata());
+        } else if (metadata1.errorMetadata() != null) {
+            builder.errorMetadata(metadata1.errorMetadata());
+        }
+
+        return builder.build();
+    }
 }

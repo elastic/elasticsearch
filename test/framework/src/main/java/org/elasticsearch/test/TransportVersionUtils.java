@@ -40,7 +40,7 @@ public class TransportVersionUtils {
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion() {
-        return VersionUtils.randomFrom(random(), allReleasedVersions(), TransportVersion::fromId);
+        return VersionUtils.randomFrom(random(), allReleasedVersions());
     }
 
     /** Returns a random {@link TransportVersion} from all available versions without the ignore set */
@@ -50,7 +50,7 @@ public class TransportVersionUtils {
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion(Random random) {
-        return VersionUtils.randomFrom(random, allReleasedVersions(), TransportVersion::fromId);
+        return VersionUtils.randomFrom(random, allReleasedVersions());
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
@@ -77,7 +77,7 @@ public class TransportVersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return VersionUtils.randomFrom(random, versions, TransportVersion::fromId);
+        return VersionUtils.randomFrom(random, versions);
     }
 
     public static TransportVersion getPreviousVersion() {

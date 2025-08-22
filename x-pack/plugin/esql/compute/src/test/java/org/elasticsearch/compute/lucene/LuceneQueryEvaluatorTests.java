@@ -207,6 +207,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                         new ValuesSourceReaderOperator.FieldInfo(
                             FIELD,
                             ElementType.BYTES_REF,
+                            false,
                             unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
                         )
                     ),
@@ -279,6 +280,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             List.of(searchContext),
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
+            DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,

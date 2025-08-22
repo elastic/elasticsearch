@@ -12,7 +12,6 @@ package org.elasticsearch.search.TelemetryMetrics;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +22,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,8 +34,6 @@ import static org.elasticsearch.rest.action.search.SearchResponseMetrics.TOOK_DU
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_search_metrics2";
@@ -115,7 +111,9 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             2,
             (respNum, response) -> {
                 if (respNum <= 2) {
-                    List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+                    List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+                        TOOK_DURATION_TOTAL_HISTOGRAM_NAME
+                    );
                     assertEquals(1, measurements.size());
                 }
                 resetMeter();

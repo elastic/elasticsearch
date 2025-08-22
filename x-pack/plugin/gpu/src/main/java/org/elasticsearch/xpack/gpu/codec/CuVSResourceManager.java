@@ -110,6 +110,17 @@ public interface CuVSResourceManager {
             return null;
         }
 
+        private int numLockedResources() {
+            int lockedResources = 0;
+            for (int i = 0; i < createdCount; ++i) {
+                var res = pool[i];
+                if (res.locked) {
+                    lockedResources++;
+                }
+            }
+            return lockedResources;
+        }
+
         @Override
         public ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException {
             try {
@@ -119,6 +130,10 @@ public interface CuVSResourceManager {
                 ManagedCuVSResources res = null;
                 while (allConditionsMet == false) {
                     res = getResourceFromPool();
+                    // If no resource in the pool is locked, short circuit to avoid livelock
+                    if (numLockedResources() == 0) {
+                        break;
+                    }
                     final boolean enoughMemory;
                     if (res != null) {
                         // Check resources availability

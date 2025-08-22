@@ -45,6 +45,9 @@ public final class VectorWritables {
         if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
             entries.add(Magnitude.ENTRY);
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(Hamming.ENTRY);
+        }
 
         return Collections.unmodifiableList(entries);
     }

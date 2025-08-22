@@ -392,12 +392,9 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
             ).errorMatches("has a total value count exceeding the allowed maximum value of " + Long.MAX_VALUE),
 
             // Non-Zero sum for empty histogram
-            exampleMalformedValue(
-                b -> b.startObject()
-                    .field("scale", 0)
-                    .field("sum", 42.0)
-                    .endObject()
-            ).errorMatches("sum field must be zero if the histogram is empty, but got 42.0")
+            exampleMalformedValue(b -> b.startObject().field("scale", 0).field("sum", 42.0).endObject()).errorMatches(
+                "sum field must be zero if the histogram is empty, but got 42.0"
+            )
         );
     }
 

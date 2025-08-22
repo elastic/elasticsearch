@@ -12,9 +12,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -23,10 +25,9 @@ import java.util.function.Function;
 public class UpdateSettingsStep extends AsyncActionStep {
     public static final String NAME = "update-settings";
 
-    private static final Function<IndexMetadata, String> DEFAULT_TARGET_INDEX_NAME_SUPPLIER = indexMetadata -> indexMetadata.getIndex()
-        .getName();
+    private static final BiFunction<String, LifecycleExecutionState, String> DEFAULT_TARGET_INDEX_NAME_SUPPLIER = (index, state) -> index;
 
-    private final Function<IndexMetadata, String> targetIndexNameSupplier;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
     private final Function<IndexMetadata, Settings> settingsSupplier;
 
     /**
@@ -44,7 +45,7 @@ public class UpdateSettingsStep extends AsyncActionStep {
         StepKey key,
         StepKey nextStepKey,
         Client client,
-        Function<IndexMetadata, String> targetIndexNameSupplier,
+        BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier,
         Function<IndexMetadata, Settings> settingsSupplier
     ) {
         super(key, nextStepKey, client);
@@ -64,7 +65,7 @@ public class UpdateSettingsStep extends AsyncActionStep {
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        String indexName = targetIndexNameSupplier.apply(indexMetadata);
+        String indexName = targetIndexNameSupplier.apply(indexMetadata.getIndex().getName(), indexMetadata.getLifecycleExecutionState());
         Settings settings = settingsSupplier.apply(indexMetadata);
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE)
             .settings(settings);

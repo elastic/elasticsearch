@@ -33,7 +33,6 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
             blockFactory().newDoubleBlockBuilder(max - min + 1),
             null,
             b -> b.appendDouble(NO_MATCH_SCORE),
-            (b, s, d, lr, q) -> b.appendDouble(s.score()),
             null
         );
     }

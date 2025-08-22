@@ -51,9 +51,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -99,7 +99,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyFieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
 
@@ -107,18 +107,16 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
         private final TextParams.Analyzers analyzers;
         private final boolean storedFieldInBinaryFormat;
-        private final boolean isWithinMultiField;
-
-        private boolean isSyntheticSourceEnabled;
 
         public Builder(
             String name,
             IndexVersion indexCreatedVersion,
             IndexAnalyzers indexAnalyzers,
             boolean storedFieldInBinaryFormat,
+            boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name);
+            super(name, isSyntheticSourceEnabled, isWithinMultiField);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
@@ -127,7 +125,6 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
                 indexCreatedVersion
             );
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
-            this.isWithinMultiField = isWithinMultiField;
         }
 
         @Override
@@ -164,8 +161,6 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
-            this.isSyntheticSourceEnabled = context.isSourceSynthetic();
-
             BuilderParams builderParams = builderParams(this, context);
             MatchOnlyTextFieldType tft = buildFieldType(context, builderParams.multiFields());
             return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams, this);
@@ -186,11 +181,12 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
             c.indexVersionCreated(),
             c.getIndexAnalyzers(),
             isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated()),
+            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
             c.isWithinMultiField()
         )
     );
 
-    public static class MatchOnlyTextFieldType extends StringFieldType {
+    public static class MatchOnlyTextFieldType extends TextFamilyFieldType {
 
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
@@ -662,7 +658,14 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, storedFieldInBinaryFormat, isWithinMultiField).init(this);
+        return new Builder(
+            leafName(),
+            indexCreatedVersion,
+            indexAnalyzers,
+            storedFieldInBinaryFormat,
+            isSyntheticSourceEnabled,
+            isWithinMultiField
+        ).init(this);
     }
 
     @Override

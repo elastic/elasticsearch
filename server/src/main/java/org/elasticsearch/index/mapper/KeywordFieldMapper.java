@@ -546,7 +546,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
-    public static final class KeywordFieldType extends StringFieldType {
+    public static final class KeywordFieldType extends TextFamilyFieldMapper.TextFamilyFieldType {
 
         private final int ignoreAbove;
         private final String nullValue;

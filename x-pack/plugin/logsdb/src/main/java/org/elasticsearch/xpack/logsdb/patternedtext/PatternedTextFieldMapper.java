@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -55,15 +56,12 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyFieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final TextParams.Analyzers analyzers;
-        private final boolean isWithinMultiField;
-
-        private boolean isSyntheticSourceEnabled;
 
         public Builder(String name, MappingParserContext context) {
             this(
@@ -71,6 +69,7 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
                 context.indexVersionCreated(),
                 context.getIndexSettings(),
                 context.getIndexAnalyzers(),
+                SourceFieldMapper.isSynthetic(context.getIndexSettings()),
                 context.isWithinMultiField()
             );
         }
@@ -80,9 +79,10 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
             IndexVersion indexCreatedVersion,
             IndexSettings indexSettings,
             IndexAnalyzers indexAnalyzers,
+            boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name);
+            super(name, isSyntheticSourceEnabled, isWithinMultiField);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
             this.analyzers = new TextParams.Analyzers(
@@ -91,7 +91,6 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
                 m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
             );
-            this.isWithinMultiField = isWithinMultiField;
         }
 
         @Override
@@ -108,16 +107,14 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
                 context.buildFullName(leafName()),
                 tsi,
                 indexAnalyzer,
+                meta.getValue(),
                 context.isSourceSynthetic(),
-                isWithinMultiField,
-                meta.getValue()
+                isWithinMultiField
             );
         }
 
         @Override
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
-            this.isSyntheticSourceEnabled = context.isSourceSynthetic();
-
             PatternedTextFieldType patternedTextFieldType = buildFieldType(context);
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
@@ -177,7 +174,8 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers, isWithinMultiField).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers, isSyntheticSourceEnabled, isWithinMultiField)
+            .init(this);
     }
 
     @Override

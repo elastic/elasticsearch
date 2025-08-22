@@ -287,7 +287,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
                 now,
                 templateSettings,
                 mappings,
-                ImmutableOpenMap.builder()
+                ImmutableOpenMap.builder()::put
             );
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);

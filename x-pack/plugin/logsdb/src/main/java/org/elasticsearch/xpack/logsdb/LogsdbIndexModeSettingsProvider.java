@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
@@ -100,7 +100,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final Instant resolvedAt,
         Settings settings,
         final List<CompressedXContent> combinedTemplateMappings,
-        final ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+        final BiConsumer<String, Map<String, String>> extraCustomMetadata
     ) {
         Settings.Builder settingsBuilder = null;
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;

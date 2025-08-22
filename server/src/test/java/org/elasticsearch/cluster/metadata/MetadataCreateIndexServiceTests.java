@@ -777,7 +777,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                    BiConsumer<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
                 }
@@ -828,7 +828,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                    BiConsumer<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "override").build();
                 }
@@ -871,7 +871,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                    BiConsumer<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
                 }
@@ -915,7 +915,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                    BiConsumer<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
                 }
@@ -959,7 +959,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                    BiConsumer<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
                 }

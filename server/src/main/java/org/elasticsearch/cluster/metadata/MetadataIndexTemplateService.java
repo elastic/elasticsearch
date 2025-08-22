@@ -800,7 +800,7 @@ public class MetadataIndexTemplateService {
                 now,
                 combinedSettings,
                 combinedMappings,
-                customMetadataBuilder
+                customMetadataBuilder::put
             );
             MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
             finalSettings.put(newAdditionalSettings);

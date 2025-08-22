@@ -137,7 +137,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now(),
             settings,
             mapping == null ? List.of() : List.of(new CompressedXContent(mapping)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         return builder().put(result).build();
     }
@@ -156,7 +156,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -176,7 +176,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -196,7 +196,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build(),
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -216,7 +216,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build(),
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -236,7 +236,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -252,7 +252,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -268,7 +268,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -284,7 +284,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -300,7 +300,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -316,7 +316,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -336,7 +336,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -353,7 +353,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -369,7 +369,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertTrue(beforeSettings.isEmpty());
@@ -384,7 +384,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertIndexMode(afterSettings, IndexMode.LOGSDB.getName());
@@ -399,7 +399,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         assertTrue(laterSettings.isEmpty());
@@ -658,7 +658,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(0));
         assertThat(newMapperServiceCounter.get(), equalTo(1));
@@ -672,7 +672,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(1));
         assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
@@ -686,7 +686,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(1));
         assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
@@ -700,7 +700,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(3));
         assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
@@ -729,7 +729,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertTrue(result.isEmpty());
     }
@@ -755,7 +755,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(0));
 
@@ -776,7 +776,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(4));
         assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
@@ -792,7 +792,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.toString()).build(),
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(0));
     }
@@ -1187,7 +1187,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now(),
             settings,
             List.of(new CompressedXContent(mappings)),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
 
         Settings result = builder().put(additionalIndexSettings).build();

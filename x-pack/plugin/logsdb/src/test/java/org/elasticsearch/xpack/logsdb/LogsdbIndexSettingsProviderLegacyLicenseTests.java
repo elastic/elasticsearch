@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -73,7 +72,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
@@ -91,7 +90,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(0));
     }
@@ -108,7 +107,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
                 null,
                 settings,
                 List.of(),
-                ImmutableOpenMap.builder()
+                (k, v) -> {}
             );
             assertThat(result.size(), equalTo(0));
         }
@@ -122,7 +121,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
                 null,
                 settings,
                 List.of(),
-                ImmutableOpenMap.builder()
+                (k, v) -> {}
             );
             assertThat(result.size(), equalTo(0));
         }
@@ -140,7 +139,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(0));
     }
@@ -180,7 +179,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             settings,
             List.of(),
-            ImmutableOpenMap.builder()
+            (k, v) -> {}
         );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));

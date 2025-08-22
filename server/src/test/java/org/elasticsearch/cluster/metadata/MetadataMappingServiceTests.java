@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -30,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -149,13 +149,14 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor(
             new IndexSettingProviders(Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings onUpdateMappings(
+                public void onUpdateMappings(
                     IndexMetadata indexMetadata,
-                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata,
-                    DocumentMapper documentMapper
+                    DocumentMapper documentMapper,
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> extraCustomMetadata
                 ) {
-                    extraCustomMetadata.put("foo", Map.of("bar", "baz"));
-                    return Settings.builder().put("index.mapping.total_fields.limit", 42).build();
+                    additionalSettings.put("index.mapping.total_fields.limit", 42);
+                    extraCustomMetadata.accept("foo", Map.of("bar", "baz"));
                 }
             }))
         );

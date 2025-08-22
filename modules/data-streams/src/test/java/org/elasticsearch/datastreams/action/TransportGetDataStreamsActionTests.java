@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -503,7 +503,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                    BiConsumer<String, Map<String, String>> extraCustomMetadata
                 ) {
                     return Settings.builder().put("index.mode", IndexMode.LOOKUP).build();
                 }

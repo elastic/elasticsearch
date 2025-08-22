@@ -207,7 +207,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 Instant.now(),
                 settings,
                 List.of(),
-                ImmutableOpenMap.builder()
+                ImmutableOpenMap.builder()::put
             );
             var rawMode = addlSettinsg.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {

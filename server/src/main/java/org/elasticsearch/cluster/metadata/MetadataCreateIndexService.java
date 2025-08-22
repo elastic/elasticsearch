@@ -1163,7 +1163,7 @@ public class MetadataCreateIndexService {
                     resolvedAt,
                     templateAndRequestSettings,
                     combinedTemplateMappings,
-                    customMetadataBuilder
+                    customMetadataBuilder::put
                 );
                 validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
                 additionalIndexSettings.put(newAdditionalSettings);

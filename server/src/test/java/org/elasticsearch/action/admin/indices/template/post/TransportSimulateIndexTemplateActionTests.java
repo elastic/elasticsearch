@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -26,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,7 +71,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 Instant resolvedAt,
                 Settings allSettings,
                 List<CompressedXContent> combinedTemplateMappings,
-                ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                BiConsumer<String, Map<String, String>> extraCustomMetadata
             ) {
                 return Settings.builder().put("test-setting", 0).build();
             }
@@ -85,7 +85,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
                 List<CompressedXContent> combinedTemplateMappings,
-                ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                BiConsumer<String, Map<String, String>> extraCustomMetadata
             ) {
                 return Settings.builder().put("test-setting-2", 10).build();
             }

@@ -1178,6 +1178,11 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
             return this;
         }
 
+        public <T> Builder put(Setting<T> setting, T value) {
+            map.put(setting.getKey(), value);
+            return this;
+        }
+
         /**
          * Sets all the provided settings including secure settings
          */

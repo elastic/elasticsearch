@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -39,6 +38,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -66,7 +66,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+        BiConsumer<String, Map<String, String>> extraCustomMetadata
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);

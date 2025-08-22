@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -34,6 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -226,14 +226,14 @@ public class DataTier {
 
         @Override
         public Settings getAdditionalIndexSettings(
-            String indexName,
-            @Nullable String dataStreamName,
-            IndexMode templateIndexMode,
-            ProjectMetadata projectMetadata,
-            Instant resolvedAt,
-            Settings indexTemplateAndCreateRequestSettings,
-            List<CompressedXContent> combinedTemplateMappings,
-            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+                String indexName,
+                @Nullable String dataStreamName,
+                IndexMode templateIndexMode,
+                ProjectMetadata projectMetadata,
+                Instant resolvedAt,
+                Settings indexTemplateAndCreateRequestSettings,
+                List<CompressedXContent> combinedTemplateMappings,
+                BiConsumer<String, Map<String, String>> extraCustomMetadata
         ) {
             Set<String> settings = indexTemplateAndCreateRequestSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {

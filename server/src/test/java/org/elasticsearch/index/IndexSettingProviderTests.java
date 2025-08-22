@@ -10,7 +10,6 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -21,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 public class IndexSettingProviderTests extends ESSingleNodeTestCase {
 
@@ -95,7 +95,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+            BiConsumer<String, Map<String, String>> extraCustomMetadata
         ) {
             if (enabled.get()) {
                 var builder = Settings.builder().put("index.refresh_interval", intervalValue);

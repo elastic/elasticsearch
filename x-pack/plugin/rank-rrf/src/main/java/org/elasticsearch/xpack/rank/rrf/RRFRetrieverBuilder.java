@@ -25,7 +25,6 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -89,35 +88,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), RRFRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            List<String> fields = new ArrayList<>();
-            XContentParser.Token token = p.currentToken();
-            if (token == XContentParser.Token.START_ARRAY) {
-                while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        fields.add(p.text());
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        String fieldName = null;
-                        float weight = 1.0f;
-                        while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                            if (p.currentToken() == XContentParser.Token.FIELD_NAME) {
-                                String name = p.currentName();
-                                p.nextToken();
-                                if ("field".equals(name)) {
-                                    fieldName = p.text();
-                                } else if ("weight".equals(name)) {
-                                    weight = p.floatValue();
-                                }
-                            }
-                        }
-                        if (fieldName != null) {
-                            fields.add(weight == 1.0f ? fieldName : fieldName + "^" + weight);
-                        }
-                    }
-                }
-            }
-            return fields;
-        }, FIELDS_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FIELDS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_CONSTANT_FIELD);

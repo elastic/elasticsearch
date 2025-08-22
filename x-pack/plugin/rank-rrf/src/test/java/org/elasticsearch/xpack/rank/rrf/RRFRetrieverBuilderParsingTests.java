@@ -432,46 +432,37 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
     }
 
     public void testSimplifiedFieldSyntaxVariations() throws IOException {
-        // Test parsing succeeds with various field syntax variations (validation happens during rewrite, not parsing)
+        // Test parsing succeeds with various field^weight syntax variations (validation happens during rewrite, not parsing)
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
 
-        // Test 1: Pure object-based syntax
+        // Test all field syntax variations
         String restContent1 = """
             {
               "retriever": {
                 "rrf": {
-                  "fields": [
-                    {"field": "name", "weight": 2.0},
-                    {"field": "description", "weight": 1.0}
-                  ],
+                  "fields": ["name^2", "description^1"],
                   "query": "test"
                 }
               }
             }
             """;
 
-        // Test 2: Mixed syntax (object-based + plain strings)
         String restContent2 = """
             {
               "retriever": {
                 "rrf": {
-                  "fields": [
-                    {"field": "name", "weight": 3.0},
-                    "description",
-                    {"field": "category", "weight": 0.5}
-                  ],
+                  "fields": ["name^3", "description", "category^0.5"],
                   "query": "test"
                 }
               }
             }
             """;
 
-        // Test 3: Field^weight syntax
         String restContent3 = """
             {
               "retriever": {
                 "rrf": {
-                  "fields": ["name^2", "description^0.5"],
+                  "fields": ["name", "description"],
                   "query": "test"
                 }
               }

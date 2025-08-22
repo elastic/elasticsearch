@@ -154,8 +154,9 @@ public class OperationRouting {
                     indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
                 }
             } else {
-                for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    set.add(indexRoutingTable.shard(i));
+                Iterator<IndexShardRoutingTable> iterator = allSearchAddressableShards(projectState, index);
+                while (iterator.hasNext()) {
+                    set.add(iterator.next());
                 }
             }
         }

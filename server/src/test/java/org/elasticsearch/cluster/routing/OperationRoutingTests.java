@@ -519,6 +519,13 @@ public class OperationRoutingTests extends ESTestCase {
         assertEquals(shardCount, initialSearchShards.size());
         assertEquals(0, initialSearchShards.get(0).shardId().id());
 
+        // We are testing a case when there is routing configuration but not for the index in question.
+        // Actual routing behavior is tested in IndexRoutingTests.
+        var initialSearchShardsWithRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount, initialSearchShardsWithRouting.size());
+        assertEquals(0, initialSearchShardsWithRouting.get(0).shardId().id());
+
         var initialWriteableShards = clusterService.operationRouting()
             .allWritableShards(clusterService.state().projectState(projectId), indexName);
         assertEquals(0, initialWriteableShards.next().shardId().id());
@@ -551,6 +558,11 @@ public class OperationRoutingTests extends ESTestCase {
         assertEquals(shardCount, searchShardsWithOneShardHandoff.size());
         assertEquals(0, searchShardsWithOneShardHandoff.get(0).shardId().id());
 
+        var searchShardsWithOneShardHandoffAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount, searchShardsWithOneShardHandoffAndRouting.size());
+        assertEquals(0, searchShardsWithOneShardHandoffAndRouting.get(0).shardId().id());
+
         var writeableShardsWithOneShardHandoff = clusterService.operationRouting()
             .allWritableShards(clusterService.state().projectState(projectId), indexName);
         assertEquals(0, writeableShardsWithOneShardHandoff.next().shardId().id());
@@ -581,6 +593,12 @@ public class OperationRoutingTests extends ESTestCase {
         assertEquals(0, searchShardsWithOneShardSplit.get(0).shardId().id());
         assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardSplit.get(1).shardId().id());
 
+        var searchShardsWithOneShardSplitAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardSplitAndRouting.size());
+        assertEquals(0, searchShardsWithOneShardSplitAndRouting.get(0).shardId().id());
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardSplitAndRouting.get(1).shardId().id());
+
         var writeableShardsWithOneShardSplit = clusterService.operationRouting()
             .allWritableShards(clusterService.state().projectState(projectId), indexName);
         assertEquals(0, writeableShardsWithOneShardSplit.next().shardId().id());
@@ -610,6 +628,12 @@ public class OperationRoutingTests extends ESTestCase {
         assertEquals(shardCount + 1, searchShardsWithOneShardDone.size());
         assertEquals(0, searchShardsWithOneShardDone.get(0).shardId().id());
         assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardDone.get(1).shardId().id());
+
+        var searchShardsWithOneShardDoneAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardDoneAndRouting.size());
+        assertEquals(0, searchShardsWithOneShardDoneAndRouting.get(0).shardId().id());
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardDoneAndRouting.get(1).shardId().id());
 
         var writeableShardsWithOneShardDone = clusterService.operationRouting()
             .allWritableShards(clusterService.state().projectState(projectId), indexName);

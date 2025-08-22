@@ -110,7 +110,7 @@ RUN <%= retry.loop(package_manager,
           "      ${package_manager} update && \n" +
           "      ${package_manager} upgrade && \n" +
           "      ${package_manager} add --no-cache \n" +
-          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd && \n" +
+          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd wget && \n" +
           "      rm -rf /var/cache/apk/* "
      ) %>
 
@@ -162,7 +162,7 @@ RUN printf "\\n" | jdk/bin/keytool -importkeystore \
   -deststorepass passwordcacert \
   -deststoretype BCFKS \
   -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
-  -providerpath lib/bc-fips-1.0.2.5.jar \
+  -providerpath lib/bc-fips-1.0.2.6.jar \
   -destprovidername BCFIPS
 
 

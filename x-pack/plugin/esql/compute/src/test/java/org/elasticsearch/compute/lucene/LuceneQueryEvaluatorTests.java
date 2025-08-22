@@ -206,6 +206,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                         new ValuesSourceReaderOperator.FieldInfo(
                             FIELD,
                             ElementType.BYTES_REF,
+                            false,
                             unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
                         )
                     ),

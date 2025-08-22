@@ -105,7 +105,9 @@ public final class EvalMapper {
                 implements
                     ExpressionEvaluator {
 
-                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanLogicExpressionEvaluator.class);
+                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(
+                    BooleanLogicExpressionEvaluator.class
+                );
 
                 @Override
                 public Block eval(Page page) {

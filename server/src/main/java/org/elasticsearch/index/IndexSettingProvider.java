@@ -31,7 +31,8 @@ import java.util.function.BiConsumer;
  */
 public interface IndexSettingProvider {
     /**
-     * Allows to provide default index {@link Settings} and custom index metadata for the given index on index creation and template validation.
+     * Allows to provide default index {@link Settings} and custom index metadata for the given index
+     * on index creation and template validation.
      *
      * @param indexName                             The name of the new index being created
      * @param dataStreamName                        The name of the data stream if the index being created is part of a data stream

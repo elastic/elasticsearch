@@ -47,9 +47,50 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         super(state, rawVectorsReader);
     }
 
+    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
+        return new CentroidIterator() {
+            CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
+                ? centroidIterator.nextPostingListOffsetAndLength()
+                : null;
+
+            {
+                // prefetch the first one
+                if (nextOffsetAndLength != null) {
+                    prefetch(nextOffsetAndLength);
+                }
+            }
+
+            void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
+                postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
+            }
+
+            @Override
+            public boolean hasNext() {
+                return nextOffsetAndLength != null;
+            }
+
+            @Override
+            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
+                CentroidOffsetAndLength offsetAndLength = nextOffsetAndLength;
+                if (centroidIterator.hasNext()) {
+                    nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
+                    prefetch(nextOffsetAndLength);
+                } else {
+                    nextOffsetAndLength = null;  // indicate we reached the end
+                }
+                return offsetAndLength;
+            }
+        };
+    }
+
     @Override
-    CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
-        throws IOException {
+    CentroidIterator getCentroidIterator(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] targetQuery,
+        IndexInput postingListSlice
+    ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -71,8 +112,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
         centroids.seek(0L);
         int numParents = centroids.readVInt();
+        CentroidIterator centroidIterator;
         if (numParents > 0) {
-            return getCentroidIteratorWithParents(
+            centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,
                 numParents,
@@ -82,8 +124,18 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 queryParams,
                 globalCentroidDp
             );
+        } else {
+            centroidIterator = getCentroidIteratorNoParent(
+                fieldInfo,
+                centroids,
+                numCentroids,
+                scorer,
+                quantized,
+                queryParams,
+                globalCentroidDp
+            );
         }
-        return getCentroidIteratorNoParent(fieldInfo, centroids, numCentroids, scorer, quantized, queryParams, globalCentroidDp);
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(
@@ -115,10 +167,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             }
 
             @Override
-            public long nextPostingListOffset() throws IOException {
+            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
-                centroids.seek(offset + (long) Long.BYTES * centroidOrdinal);
-                return centroids.readLong();
+                centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
+                long postingListOffset = centroids.readLong();
+                long postingListLength = centroids.readLong();
+                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
             }
         };
     }
@@ -185,11 +239,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             }
 
             @Override
-            public long nextPostingListOffset() throws IOException {
+            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
                 updateQueue(); // add one children if available so the queue remains fully populated
-                centroids.seek(childrenFileOffsets + (long) Long.BYTES * centroidOrdinal);
-                return centroids.readLong();
+                centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
+                long postingListOffset = centroids.readLong();
+                long postingListLength = centroids.readLong();
+                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
             }
 
             private void updateQueue() throws IOException {
@@ -326,12 +382,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final float[] centroid;
         long slicePos;
         OptimizedScalarQuantizer.QuantizationResult queryCorrections;
-        DocIdsWriter docIdsWriter = new DocIdsWriter();
 
         final float[] scratch;
         final int[] quantizationScratch;
         final byte[] quantizedQueryScratch;
         final OptimizedScalarQuantizer quantizer;
+        final DocIdsWriter idsWriter = new DocIdsWriter();
         final float[] correctiveValues = new float[3];
         final long quantizedVectorByteSize;
 
@@ -369,7 +425,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             vectors = indexInput.readVInt();
             // read the doc ids
             assert vectors <= docIdsScratch.length;
-            docIdsWriter.readInts(indexInput, vectors, docIdsScratch);
+            idsWriter.readInts(indexInput, vectors, docIdsScratch);
+            // reconstitute from the deltas
+            int sum = 0;
+            for (int i = 0; i < vectors; i++) {
+                sum += docIdsScratch[i];
+                docIdsScratch[i] = sum;
+            }
             slicePos = indexInput.getFilePointer();
             return vectors;
         }
@@ -446,6 +508,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             int scoredDocs = 0;
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
+
             for (; i < limit; i += BULK_SIZE) {
                 final int docsToBulkScore = acceptDocs == null ? BULK_SIZE : docToBulkScore(docIdsScratch, i, acceptDocs);
                 if (docsToBulkScore == 0) {

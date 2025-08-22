@@ -462,7 +462,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * the reduce completes.
      */
     private static long estimateRamBytesUsedForReduce(long size) {
-        return Math.round(1.5d * size - size);
+        return Math.round(1.5d * size);
     }
 
     private void consume(QuerySearchResult result, Runnable next) {

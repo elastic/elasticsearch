@@ -221,11 +221,6 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     }
 
     @Override
-    public boolean allowsRemoteIndices() {
-        return true;
-    }
-
-    @Override
     public boolean includeDataStreams() {
         return true;
     }

@@ -21,7 +21,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
-import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -45,22 +44,15 @@ public class IndexAbstractionResolver {
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
         Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
-        BiPredicate<String, IndexComponentSelector> isAuthorized
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
+        boolean includeDataStreams
     ) {
         // TODO handle exclusions
         // TODO consolidate with `resolveIndexAbstractions` somehow, maybe?
         List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> finalRewrittenExpressions = new ArrayList<>();
         for (IndicesRequest.CrossProjectResolvable.RewrittenExpression rewrittenExpression : rewrittenExpressions) {
-            // qualified original expression, nothing to rewrite (TODO handle origin)
-            if (RemoteClusterAware.isRemoteIndexName(rewrittenExpression.original())) {
-                logger.info("Skipping rewriting of qualified expression [{}] for origin", rewrittenExpression.original());
-                finalRewrittenExpressions.add(rewrittenExpression);
-                continue;
-            }
             // no expressions targeting origin, also nothing to rewrite
-            if (rewrittenExpression.canonicalExpressions()
-                .stream()
-                .noneMatch(IndicesRequest.CrossProjectResolvable.CanonicalExpression::isUnqualified)) {
+            if (false == rewrittenExpression.hasCanonicalExpressionForOrigin()) {
                 logger.info(
                     "Skipping rewriting of qualified expression [{}] because there are no origin expressions",
                     rewrittenExpression.original()
@@ -94,32 +86,19 @@ public class IndexAbstractionResolver {
                             indicesOptions,
                             projectMetadata,
                             indexNameExpressionResolver,
-                            true
+                            includeDataStreams
                         )) {
                         resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                     }
                 }
-                if (resolvedIndices.isEmpty()) {
-                    // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                    if (indicesOptions.allowNoIndices() == false) {
-                        // TODO gotta do something here
-                    }
-                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, Set.of()));
-                } else {
-                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
-                }
+                finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
             } else {
                 Set<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
 
-                // TODO this is probably not right?
-                if (indicesOptions.ignoreUnavailable() == false) {
-                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
-                } else if (isAuthorized.test(indexAbstraction, selector)) {
-                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
-                } else {
-                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, Set.of()));
-                }
+                // TODO not quite right: we need to record if we didn't have access for the fan-out action to throw
+                boolean authorized = isAuthorized.test(indexAbstraction, selector);
+                finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, authorized ? resolvedIndices : Set.of()));
             }
         }
         assert finalRewrittenExpressions.size() == rewrittenExpressions.size()

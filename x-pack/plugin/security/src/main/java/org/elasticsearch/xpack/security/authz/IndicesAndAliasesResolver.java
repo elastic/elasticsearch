@@ -467,7 +467,8 @@ public class IndicesAndAliasesResolver {
                             indicesOptions,
                             projectMetadata,
                             authorizedIndices::all,
-                            authorizedIndices::check
+                            authorizedIndices::check,
+                            indicesRequest.includeDataStreams()
                         );
                     crossProjectResolvableRequest.setRewrittenExpressions(rewrittenExpressions);
                     // empty case by calling replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);

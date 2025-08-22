@@ -152,11 +152,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.source = source;
     }
 
-    @Override
-    public boolean allowsRemoteIndices() {
-        return true;
-    }
-
     /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.

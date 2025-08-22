@@ -122,6 +122,14 @@ public interface IndicesRequest {
         public RewrittenExpression(String original, List<CanonicalExpression> canonicalExpressions) {
             this(original, canonicalExpressions, List.of());
         }
+
+        public boolean originalExpressionQualified() {
+            return RemoteClusterAware.isRemoteIndexName(original);
+        }
+
+        public boolean hasCanonicalExpressionForOrigin() {
+            return canonicalExpressions().stream().anyMatch(IndicesRequest.CrossProjectResolvable.CanonicalExpression::isUnqualified);
+        }
     }
 
     record CanonicalExpression(String expression) {

@@ -472,8 +472,7 @@ public class EsqlFunctionRegistry {
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bi(QueryString::new), "qstr"),
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
-                def(Score.class, uni(Score::new), "score"),
-            } };
+                def(Score.class, uni(Score::new), "score"), } };
 
     }
 

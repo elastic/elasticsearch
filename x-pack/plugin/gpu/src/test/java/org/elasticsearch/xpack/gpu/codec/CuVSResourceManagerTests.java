@@ -145,7 +145,11 @@ public class CuVSResourceManagerTests extends ESTestCase {
         }
 
         private MockPoolingCuVSResourceManager(int capacity, List<Long> allocationList) {
-            super(capacity, new MockGPUInfoProvider(() -> freeMemoryFunction(allocationList)));
+            super(
+                capacity,
+                res -> TOTAL_DEVICE_MEMORY_IN_BYTES,
+                res ->freeMemoryFunction(allocationList),
+                res -> 50);
             this.allocations = allocationList;
         }
 

@@ -16,6 +16,7 @@ import com.nvidia.cuvs.spi.CuVSProvider;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 
+import java.lang.foreign.Arena;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.locks.Condition;
@@ -65,6 +66,11 @@ public interface CuVSResourceManager {
         return PoolingCuVSResourceManager.INSTANCE;
     }
 
+    @FunctionalInterface
+    interface GpuInfoFunction {
+        long get(CuVSResources resources);
+    }
+
     /**
      * A manager that maintains a pool of resources.
      */
@@ -72,27 +78,43 @@ public interface CuVSResourceManager {
 
         /** A multiplier on input data to account for intermediate and output data size required while processing it */
         static final double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
+        static final int GPU_UTILIZATION_MAX_PERCENT = 80;
         static final int MAX_RESOURCES = 2;
+        static final GPUInfoProvider gpuInfoProvider = CuVSProvider.provider().gpuInfoProvider();
         static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
             MAX_RESOURCES,
-            CuVSProvider.provider().gpuInfoProvider()
+            res ->gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes(),
+            res ->gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes(),
+            PoolingCuVSResourceManager::getGpuUtilizationPercent
         );
 
         private final ManagedCuVSResources[] pool;
         private final int capacity;
-        private final GPUInfoProvider gpuInfoProvider;
         private int createdCount;
 
-        ReentrantLock lock = new ReentrantLock();
-        Condition enoughMemoryCondition = lock.newCondition();
+        private final GpuInfoFunction totalMemoryInBytesProvider;
+        private final GpuInfoFunction freeMemoryInBytesProvider;
+        private final GpuInfoFunction gpuUtilizationPercentProvider;
 
-        public PoolingCuVSResourceManager(int capacity, GPUInfoProvider gpuInfoProvider) {
+        ReentrantLock lock = new ReentrantLock();
+        Condition enoughResourcesCondition = lock.newCondition();
+
+        public PoolingCuVSResourceManager(
+            int capacity,
+            GpuInfoFunction totalMemoryInBytesProvider,
+            GpuInfoFunction freeMemoryInBytesProvider,
+            GpuInfoFunction gpuUtilizationPercentProvider
+            ) {
+            this.totalMemoryInBytesProvider = totalMemoryInBytesProvider;
+            this.freeMemoryInBytesProvider = freeMemoryInBytesProvider;
+            this.gpuUtilizationPercentProvider = gpuUtilizationPercentProvider;
             if (capacity < 1 || capacity > MAX_RESOURCES) {
                 throw new IllegalArgumentException("Resource count must be between 1 and " + MAX_RESOURCES);
             }
             this.capacity = capacity;
-            this.gpuInfoProvider = gpuInfoProvider;
             this.pool = new ManagedCuVSResources[MAX_RESOURCES];
+
+            NVML.nvmlInit_v2();
         }
 
         private ManagedCuVSResources getResourceFromPool() {
@@ -130,35 +152,38 @@ public interface CuVSResourceManager {
                 ManagedCuVSResources res = null;
                 while (allConditionsMet == false) {
                     res = getResourceFromPool();
-                    // If no resource in the pool is locked, short circuit to avoid livelock
-                    if (numLockedResources() == 0) {
-                        break;
-                    }
+
                     final boolean enoughMemory;
+                    final boolean enoughComputation;
                     if (res != null) {
+                        // If no resource in the pool is locked, short circuit to avoid livelock
+                        if (numLockedResources() == 0) {
+                            break;
+                        }
+
                         // Check resources availability
-                        // Memory
                         long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims);
-                        if (requiredMemoryInBytes > gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes()) {
+                        if (requiredMemoryInBytes > totalMemoryInBytesProvider.get(res)) {
                             throw new IllegalArgumentException(
                                 Strings.format(
                                     "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%dMB]",
                                     numVectors,
                                     dims,
-                                    gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes() / (1024L * 1024L)
+                                    totalMemoryInBytesProvider.get(res) / (1024L * 1024L)
                                 )
                             );
                         }
-                        enoughMemory = requiredMemoryInBytes <= gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes();
+                        enoughMemory = requiredMemoryInBytes <= freeMemoryInBytesProvider.get(res);
+                        enoughComputation = gpuUtilizationPercentProvider.get(res) < GPU_UTILIZATION_MAX_PERCENT;
                     } else {
                         enoughMemory = false;
-                    }
-                    if (enoughMemory == false) {
-                        enoughMemoryCondition.await();
+                        enoughComputation = false;
                     }
 
-                    // TODO: add enoughComputation / enoughComputationCondition here
-                    allConditionsMet = enoughMemory; // && enoughComputation
+                    allConditionsMet = enoughMemory && enoughComputation;
+                    if (allConditionsMet == false) {
+                        enoughResourcesCondition.await();
+                    }
                 }
                 res.locked = true;
                 return res;
@@ -171,6 +196,15 @@ public interface CuVSResourceManager {
             return (long)(GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * Float.BYTES);
         }
 
+        private static int getGpuUtilizationPercent(CuVSResources resources) {
+            try (var localArena = Arena.ofConfined()) {
+                var deviceHandle = NVML.nvmlDeviceGetHandleByIndex_v2(resources.deviceId());
+                var nvmlUtilizationPtr = localArena.allocate(NVML.nvmlUtilization_t.layout());
+                NVML.nvmlDeviceGetUtilizationRates(deviceHandle, nvmlUtilizationPtr);
+                return NVML.nvmlUtilization_t.gpu(nvmlUtilizationPtr);
+            }
+        }
+
         // visible for testing
         protected CuVSResources createNew() {
             return GPUSupport.cuVSResourcesOrNull(true);
@@ -178,8 +212,8 @@ public interface CuVSResourceManager {
 
         @Override
         public void finishedComputation(ManagedCuVSResources resources) {
-            // currently does nothing, but could allow acquire to return possibly blocked resources
-            // something like enoughComputationCondition.signalAll()?
+            // Allow acquire to return possibly blocked resources
+            enoughResourcesCondition.signalAll();
         }
 
         @Override
@@ -188,7 +222,7 @@ public interface CuVSResourceManager {
                 lock.lock();
                 assert resources.locked;
                 resources.locked = false;
-                enoughMemoryCondition.signalAll();
+                enoughResourcesCondition.signalAll();
             } finally {
                 lock.unlock();
             }
@@ -201,6 +235,7 @@ public interface CuVSResourceManager {
                 assert res != null;
                 res.delegate.close();
             }
+            NVML.nvmlShutdown();
         }
     }
 

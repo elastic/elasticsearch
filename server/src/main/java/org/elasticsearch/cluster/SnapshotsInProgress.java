@@ -879,10 +879,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return isActive() || isAssignedQueued();
         }
 
-        public boolean isAbortedAssignedQueued() {
-            return state == ShardState.ABORTED && nodeId == null;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
@@ -1283,6 +1279,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 ShardSnapshotStatus status = shardEntry.getValue();
                 final var isAssignedQueued = status.isAssignedQueued();
                 allQueued &= status.state() == ShardState.QUEUED;
+                final ShardId shardId = shardEntry.getKey();
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
                     if (isAssignedQueued == false) {
@@ -1293,18 +1290,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                             "aborted by snapshot deletion"
                         );
                     } else {
-                        // Record the deleted assigned-queued shard snapshot so that we can reassign to the first QUEUED one
-                        // in later snapshots.
-                        final var old = completedAssignedQueuedShards.put(shardEntry.getKey(), new Tuple<>(snapshot(), status));
-                        assert old == null : old;
-                        assert isClone() == false
-                            : "The state queued with generation should not be possible for a clone entry [" + this + "]";
                         final String reason = "assigned-queued aborted by snapshot deletion";
                         status = new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), reason);
+                        // Record the failure so that we may start the first QUEUED one in later snapshots.
+                        final var old = completedAssignedQueuedShards.put(shardId, new Tuple<>(snapshot(), status));
+                        assert old == null : shardId + " has unexpected old entry " + old + " conflicting with " + this;
                     }
                 }
                 completed &= status.state().completed();
-                shardsBuilder.put(shardEntry.getKey(), status);
+                shardsBuilder.put(shardId, status);
             }
             if (allQueued) {
                 return null;

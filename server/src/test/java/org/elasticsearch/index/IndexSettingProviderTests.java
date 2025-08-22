@@ -87,7 +87,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void getAdditionalIndexSettings(
+        public void onCreateIndex(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,

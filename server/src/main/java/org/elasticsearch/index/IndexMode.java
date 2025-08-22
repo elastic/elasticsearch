@@ -616,7 +616,7 @@ public enum IndexMode {
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
         @Override
-        public void getAdditionalIndexSettings(
+        public void onCreateIndex(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,

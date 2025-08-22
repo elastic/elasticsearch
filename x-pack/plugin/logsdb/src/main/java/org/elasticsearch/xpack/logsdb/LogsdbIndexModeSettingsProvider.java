@@ -92,7 +92,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public void getAdditionalIndexSettings(
+    public void onCreateIndex(
         final String indexName,
         final String dataStreamName,
         IndexMode templateIndexMode,

@@ -58,7 +58,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public void getAdditionalIndexSettings(
+    public void onCreateIndex(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,

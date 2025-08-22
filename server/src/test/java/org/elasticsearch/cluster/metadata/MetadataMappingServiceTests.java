@@ -151,7 +151,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor(
             new IndexSettingProviders(Set.of(new IndexSettingProvider() {
                 @Override
-                public void getAdditionalIndexSettings(
+                public void onCreateIndex(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,

@@ -49,7 +49,7 @@ public interface IndexSettingProvider {
      *                                              {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
      *                                              can be added
      */
-    void getAdditionalIndexSettings(
+    void onCreateIndex(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,

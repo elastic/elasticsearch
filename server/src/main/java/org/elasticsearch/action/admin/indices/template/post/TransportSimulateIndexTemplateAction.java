@@ -279,7 +279,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
             Settings.Builder builder = Settings.builder();
-            provider.getAdditionalIndexSettings(
+            provider.onCreateIndex(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
                 simulatedProject.retrieveIndexModeFromTemplate(template),

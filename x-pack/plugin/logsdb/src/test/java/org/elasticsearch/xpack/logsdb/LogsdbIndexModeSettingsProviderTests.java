@@ -129,7 +129,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
         }, IndexVersion::current, () -> version, true, true);
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
             DATA_STREAM_NAME,
             IndexMode.LOGSDB,
@@ -151,7 +151,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -174,7 +174,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             "logs-apache-production",
             null,
             null,
@@ -197,7 +197,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -220,7 +220,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -243,7 +243,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs",
             null,
@@ -262,7 +262,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testWithoutLogsComponentTemplate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -281,7 +281,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testWithLogsComponentTemplate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -300,7 +300,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testWithMultipleComponentTemplates() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -319,7 +319,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testWithCustomComponentTemplatesOnly() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -338,7 +338,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testNonMatchingTemplateIndexPattern() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -361,7 +361,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "LOGS-apache-production",
             null,
@@ -381,7 +381,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
 
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production-eu",
             null,
@@ -400,7 +400,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testBeforeAndAfterSettingUpdate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(false);
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -418,7 +418,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         provider.updateClusterIndexModeLogsdbEnabled(true);
 
         settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -436,7 +436,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         provider.updateClusterIndexModeLogsdbEnabled(false);
 
         settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             null,
             "logs-apache-production",
             null,
@@ -698,7 +698,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .build();
 
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -715,7 +715,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
         logsdbLicenseService.setSyntheticSourceFallback(true);
         settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -732,7 +732,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(2));
 
         settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -749,7 +749,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(3));
 
         settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.LOGSDB,
@@ -781,7 +781,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         Settings settings = builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .build();
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 2),
             DATA_STREAM_NAME,
             null,
@@ -810,7 +810,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             1
         );
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -834,7 +834,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -853,7 +853,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
 
         settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -1251,7 +1251,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             true
         );
         Settings.Builder settingsBuilder = builder();
-        provider.getAdditionalIndexSettings(
+        provider.onCreateIndex(
             DataStream.getDefaultBackingIndexName(systemIndex, 0),
             systemIndex,
             IndexMode.LOGSDB,

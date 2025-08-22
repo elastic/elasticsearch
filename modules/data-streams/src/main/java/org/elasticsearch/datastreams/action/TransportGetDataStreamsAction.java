@@ -199,7 +199,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
         for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
             Settings.Builder builder = Settings.builder();
-            provider.getAdditionalIndexSettings(
+            provider.onCreateIndex(
                 MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
                 dataStream.getName(),
                 indexMode,

@@ -347,7 +347,7 @@ public class EnrichPolicyResolver {
     }
 
     private void failIfSkipUnavailableFalse(Exception e, String cluster, ActionListener<LookupResponse> lookupListener) {
-        if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster)) {
+        if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster).orElse(true)) {
             lookupListener.onResponse(new LookupResponse(e));
         } else {
             lookupListener.onFailure(e);
@@ -465,7 +465,7 @@ public class EnrichPolicyResolver {
     protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {
         remoteClusterService.maybeEnsureConnectedAndGetConnection(
             cluster,
-            remoteClusterService.isSkipUnavailable(cluster) == false,
+            remoteClusterService.isSkipUnavailable(cluster).orElse(true) == false,
             listener
         );
     }

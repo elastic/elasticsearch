@@ -34,7 +34,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -75,7 +74,6 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -179,6 +177,11 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
+                assert ThreadPool.assertCurrentThreadPool(
+                    ThreadPool.Names.SEARCH,
+                    ThreadPool.Names.SEARCH_COORDINATION,
+                    ThreadPool.Names.SYSTEM_READ
+                );
                 SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
                     .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
                     .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
@@ -199,11 +202,9 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
-            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-            ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
+            ThreadPool.Names.SYSTEM_READ
         );
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
@@ -429,7 +430,10 @@ public class EsqlSession {
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
-        VerificationException error = new VerificationException(message);
+        skipClusterOrError(clusterAlias, executionInfo, new VerificationException(message));
+    }
+
+    private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, ElasticsearchException error) {
         // If we can, skip the cluster and mark it as such
         if (executionInfo.shouldSkipOnFailure(clusterAlias)) {
             EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, error);
@@ -529,11 +533,7 @@ public class EsqlSession {
             String clusterAlias = cluster.getClusterAlias();
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
-                skipClusterOrError(
-                    clusterAlias,
-                    executionInfo,
-                    "lookup index [" + index + "] is not available " + EsqlCCSUtils.inClusterName(clusterAlias)
-                );
+                skipClusterOrError(clusterAlias, executionInfo, findFailure(lookupIndexResolution.failures(), index, clusterAlias));
             }
         });
 
@@ -541,6 +541,19 @@ public class EsqlSession {
             index,
             checkSingleIndex(index, executionInfo, lookupIndexResolution, clustersWithResolvedIndices.values())
         );
+    }
+
+    private ElasticsearchException findFailure(Map<String, List<FieldCapabilitiesFailure>> failures, String index, String clusterAlias) {
+        if (failures.containsKey(clusterAlias)) {
+            var exc = failures.get(clusterAlias).stream().findFirst().map(FieldCapabilitiesFailure::getException);
+            if (exc.isPresent()) {
+                return new VerificationException(
+                    "lookup failed " + EsqlCCSUtils.inClusterName(clusterAlias) + " for index [" + index + "]",
+                    ExceptionsHelper.unwrapCause(exc.get())
+                );
+            }
+        }
+        return new VerificationException("lookup index [" + index + "] is not available " + EsqlCCSUtils.inClusterName(clusterAlias));
     }
 
     /**

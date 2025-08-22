@@ -370,8 +370,8 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         );
 
         // Check that the error message contains the XPath expression and indicates it's invalid
-        assertThat(exception.getMessage(), containsString("Invalid XPath expression [invalid xpath ][]:"));
-        assertThat(exception.getMessage(), containsString("javax.xml.transform.TransformerException"));
+        assertThat(exception.getMessage(), containsString("Invalid XPath expression [invalid xpath ][]"));
+        assertThat(exception.getCause().getMessage(), containsString("javax.xml.transform.TransformerException"));
     }
 
     public void testCreateWithXPathUsingNamespacesWithoutConfiguration() throws Exception {

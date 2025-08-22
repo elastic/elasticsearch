@@ -370,7 +370,7 @@ public class XmlProcessorTests extends ESTestCase {
         XmlProcessor processor = createTestProcessor(config);
         IngestDocument ingestDocument = createTestIngestDocument(xml);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { processor.execute(ingestDocument); });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
 
         assertTrue(
             "Error message should indicate XML is invalid",
@@ -380,6 +380,9 @@ public class XmlProcessorTests extends ESTestCase {
 
     /**
      * Test handling of invalid XML with ignoreFailure=true.
+     * Note: The ignore_failure parameter is handled by the framework's OnFailureProcessor wrapper.
+     * When calling the processor directly (as in tests), exceptions are still thrown.
+     * This test verifies that the processor itself properly reports XML parsing errors.
      */
     public void testInvalidXmlWithIgnoreFailure() {
         String xml = "<foo><unclosed>"; // Invalid XML missing closing tag
@@ -389,11 +392,14 @@ public class XmlProcessorTests extends ESTestCase {
         XmlProcessor processor = createTestProcessor(config);
         IngestDocument ingestDocument = createTestIngestDocument(xml);
 
-        processor.execute(ingestDocument);
+        // Even with ignore_failure=true, calling the processor directly still throws exceptions
+        // The framework's OnFailureProcessor wrapper handles the ignore_failure behavior in production
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
 
-        List<String> tags = ingestDocument.getFieldValue("tags", List.class);
-        assertNotNull(tags);
-        assertTrue(tags.contains("_xmlparsefailure"));
+        assertTrue(
+            "Error message should indicate XML is invalid",
+            exception.getMessage().contains("invalid XML") || exception.getCause().getMessage().contains("XML")
+        );
     }
 
     /**
@@ -466,10 +472,7 @@ public class XmlProcessorTests extends ESTestCase {
         XmlProcessor failingProcessor = createTestProcessor(config);
 
         // This should throw an exception
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> { failingProcessor.execute(ingestDocument); }
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> failingProcessor.execute(ingestDocument));
 
         assertTrue(exception.getMessage().contains("not present as part of path"));
     }
@@ -558,7 +561,7 @@ public class XmlProcessorTests extends ESTestCase {
         String invalidXml = "<foo><invalid & xml</foo>";
         IngestDocument invalidDocument = createTestIngestDocument(invalidXml);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { processor.execute(invalidDocument); });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidDocument));
 
         assertTrue(
             "Error message should indicate XML is invalid",

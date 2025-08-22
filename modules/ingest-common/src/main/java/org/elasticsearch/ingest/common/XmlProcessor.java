@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -18,6 +19,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,6 +32,8 @@ import java.util.regex.Pattern;
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
@@ -39,13 +43,14 @@ import javax.xml.xpath.XPathFactory;
 /**
  * Processor that parses XML documents and converts them to JSON objects using a single-pass streaming approach.
  *
- * Features:
- * - XML to JSON conversion with configurable structure options
- * - XPath extraction with namespace support
- * - Configurable options: force_array, force_content, remove_namespaces, to_lower
- * - Strict parsing mode for XML validation
- * - Empty value filtering with remove_empty_values option
- * - Logstash-compatible error handling and behavior
+ * Features:<ul>
+ *  <li>XML to JSON conversion with configurable structure options
+ *  <li>XPath extraction with namespace support
+ *  <li>Configurable options: force_array, force_content, remove_namespaces, to_lower
+ *  <li>Strict parsing mode for XML validation
+ *  <li>Empty value filtering with remove_empty_values option
+ *  <li>Logstash-compatible error handling and behavior
+ * </ul>
  */
 public final class XmlProcessor extends AbstractProcessor {
 
@@ -54,14 +59,13 @@ public final class XmlProcessor extends AbstractProcessor {
     private static final XPathFactory XPATH_FACTORY = XPathFactory.newInstance();
 
     // Pre-compiled pattern to detect namespace prefixes
-    private static final Pattern NAMESPACE_PATTERN = Pattern.compile(".*\\b[a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*.*");
+    private static final Pattern NAMESPACE_PATTERN = Pattern.compile("\\b[a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*");
 
     // Pre-configured SAX parser factories for secure XML parsing
-    private static final javax.xml.parsers.SAXParserFactory SAX_PARSER_FACTORY = createSecureSaxParserFactory();
-    private static final javax.xml.parsers.SAXParserFactory SAX_PARSER_FACTORY_NS = createSecureSaxParserFactoryNamespaceAware();
-    private static final javax.xml.parsers.SAXParserFactory SAX_PARSER_FACTORY_STRICT = createSecureSaxParserFactoryStrict();
-    private static final javax.xml.parsers.SAXParserFactory SAX_PARSER_FACTORY_NS_STRICT =
-        createSecureSaxParserFactoryNamespaceAwareStrict();
+    private static final SAXParserFactory SAX_PARSER_FACTORY = createSecureSaxParserFactory();
+    private static final SAXParserFactory SAX_PARSER_FACTORY_NS = createSecureSaxParserFactoryNamespaceAware();
+    private static final SAXParserFactory SAX_PARSER_FACTORY_STRICT = createSecureSaxParserFactoryStrict();
+    private static final SAXParserFactory SAX_PARSER_FACTORY_NS_STRICT = createSecureSaxParserFactoryNamespaceAwareStrict();
 
     // Pre-configured document builder factory for DOM creation
     private static final DocumentBuilderFactory DOM_FACTORY = createSecureDocumentBuilderFactory();
@@ -69,7 +73,6 @@ public final class XmlProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final boolean ignoreMissing;
-    private final boolean ignoreFailure;
     private final boolean toLower;
     private final boolean removeEmptyValues;
     private final boolean storeXml;
@@ -87,7 +90,6 @@ public final class XmlProcessor extends AbstractProcessor {
         String field,
         String targetField,
         boolean ignoreMissing,
-        boolean ignoreFailure,
         boolean toLower,
         boolean removeEmptyValues,
         boolean storeXml,
@@ -102,7 +104,6 @@ public final class XmlProcessor extends AbstractProcessor {
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
-        this.ignoreFailure = ignoreFailure;
         this.toLower = toLower;
         this.removeEmptyValues = removeEmptyValues;
         this.storeXml = storeXml;
@@ -168,16 +169,13 @@ public final class XmlProcessor extends AbstractProcessor {
         Object fieldValue = document.getFieldValue(field, Object.class, ignoreMissing);
 
         if (fieldValue == null) {
-            if (ignoreMissing || ignoreFailure) {
+            if (ignoreMissing) {
                 return document;
             }
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse XML");
         }
 
         if (fieldValue instanceof String == false) {
-            if (ignoreFailure) {
-                return document;
-            }
             throw new IllegalArgumentException("field [" + field + "] is not a string, cannot parse XML");
         }
 
@@ -188,12 +186,7 @@ public final class XmlProcessor extends AbstractProcessor {
                 parseXmlAndXPath(document, xmlString.trim());
             }
         } catch (Exception e) {
-            if (ignoreFailure) {
-                // Add failure tag similar to Logstash behavior
-                document.appendFieldValue("tags", "_xmlparsefailure");
-                return document;
-            }
-            throw new IllegalArgumentException("field [" + field + "] contains invalid XML: " + e.getMessage(), e);
+            throw new IllegalArgumentException("field [" + field + "] contains invalid XML", e);
         }
 
         return document;
@@ -208,11 +201,12 @@ public final class XmlProcessor extends AbstractProcessor {
      * Determines if a value should be considered empty for filtering purposes.
      * Used by the remove_empty_values feature to filter out empty content.
      *
-     * Considers empty:
-     * - null values
-     * - empty or whitespace-only strings
-     * - empty Maps
-     * - empty Lists
+     * Considers empty:<ul>
+     *  <li>null values
+     *  <li>empty or whitespace-only strings
+     *  <li>empty Maps
+     *  <li>empty Lists
+     * </ul>
      *
      * @param value the value to check
      * @return true if the value should be considered empty
@@ -221,25 +215,26 @@ public final class XmlProcessor extends AbstractProcessor {
         if (value == null) {
             return true;
         }
-        if (value instanceof String) {
-            return ((String) value).trim().isEmpty();
+        if (value instanceof String string) {
+            return string.isBlank();
         }
-        if (value instanceof Map) {
-            return ((Map<?, ?>) value).isEmpty();
+        if (value instanceof Map<?, ?> map) {
+            return map.isEmpty();
         }
-        if (value instanceof List) {
-            return ((List<?>) value).isEmpty();
+        if (value instanceof List<?> list) {
+            return list.isEmpty();
         }
         return false;
     }
 
     /**
      * Extract the text value from a DOM node for XPath result processing.
-     * Handles different node types appropriately:
-     * - TEXT_NODE and CDATA_SECTION_NODE: returns node value directly
-     * - ATTRIBUTE_NODE: returns attribute value
-     * - ELEMENT_NODE: returns text content (concatenated text of all descendants)
-     * - Other node types: returns text content as fallback
+     * Handles different node types appropriately:<ul>
+     *  <li>TEXT_NODE and CDATA_SECTION_NODE: returns node value directly
+     *  <li>ATTRIBUTE_NODE: returns attribute value
+     *  <li>ELEMENT_NODE: returns text content (concatenated text of all descendants)
+     *  <li>Other node types: returns text content as fallback
+     * </ul>
      *
      * @param node the DOM node to extract text from
      * @return the text content of the node, or null if node is null
@@ -249,25 +244,21 @@ public final class XmlProcessor extends AbstractProcessor {
             return null;
         }
 
-        switch (node.getNodeType()) {
-            case Node.ATTRIBUTE_NODE:
-            case Node.CDATA_SECTION_NODE:
-            case Node.TEXT_NODE:
-                return node.getNodeValue();
-            case Node.ELEMENT_NODE:
-            default:
-                return node.getTextContent();
-        }
+        return switch (node.getNodeType()) {
+            case Node.ATTRIBUTE_NODE, Node.CDATA_SECTION_NODE, Node.TEXT_NODE -> node.getNodeValue();
+            default -> node.getTextContent();
+        };
     }
 
     /**
      * Applies force_array logic to ensure all fields are arrays when enabled.
      *
-     * Behavior:
-     * - If force_array is false: returns content unchanged
-     * - If force_array is true and content is already a List: returns content unchanged
-     * - If force_array is true and content is not a List: wraps content in a new ArrayList
-     * - Handles null content appropriately (wraps null in array if force_array is true)
+     * Behavior:<ul>
+     *  <li>If force_array is false: returns content unchanged
+     *  <li>If force_array is true and content is already a List: returns content unchanged
+     *  <li>If force_array is true and content is not a List: wraps content in a new ArrayList
+     *  <li>Handles null content appropriately (wraps null in array if force_array is true)
+     * </ul>
      *
      * @param elementName the name of the element (for context, not used in current implementation)
      * @param content the content to potentially wrap in an array
@@ -285,51 +276,40 @@ public final class XmlProcessor extends AbstractProcessor {
     /**
      * Evaluates precompiled XPath expressions against a DOM document and adds results to the ingest document.
      *
-     * Features:
-     * - Uses precompiled XPath expressions for optimal performance
-     * - Extracts text values from matched nodes (elements, attributes, text nodes)
-     * - Single matches stored as strings, multiple matches as string arrays
-     * - Respects ignoreFailure setting for XPath evaluation errors
+     * Features:<ul>
+     *  <li>Uses precompiled XPath expressions for optimal performance
+     *  <li>Extracts text values from matched nodes (elements, attributes, text nodes)
+     *  <li>Single matches stored as strings, multiple matches as string arrays
+     * </ul>
      *
-     * @param document the ingest document to add XPath results to
-     * @param doc the DOM document to evaluate XPath expressions against
-     * @throws Exception if XPath processing fails and ignoreFailure is false
+     * @param ingestDocument the ingest document to add XPath results to
+     * @param xmlDocument the DOM document to evaluate XPath expressions against
+     * @throws XPathExpressionException if XPath processing fails
      */
-    private void processXPathExpressionsFromDom(IngestDocument document, Document doc) throws Exception {
+    private void processXPathExpressionsFromDom(IngestDocument ingestDocument, Document xmlDocument) throws XPathExpressionException {
         // Use precompiled XPath expressions for optimal performance
         for (Map.Entry<String, XPathExpression> entry : compiledXPathExpressions.entrySet()) {
             String targetFieldName = entry.getKey();
             XPathExpression compiledExpression = entry.getValue();
+            Object result = compiledExpression.evaluate(xmlDocument, XPathConstants.NODESET);
 
-            try {
-                Object result = compiledExpression.evaluate(doc, XPathConstants.NODESET);
+            if (result instanceof NodeList nodeList) {
+                List<String> values = new ArrayList<>();
 
-                if (result instanceof NodeList) {
-                    NodeList nodeList = (NodeList) result;
-                    List<String> values = new ArrayList<>();
-
-                    for (int i = 0; i < nodeList.getLength(); i++) {
-                        Node node = nodeList.item(i);
-                        String value = getNodeValue(node);
-                        if (value != null && value.trim().isEmpty() == false) {
-                            values.add(value);
-                        }
-                    }
-
-                    if (values.isEmpty() == false) {
-                        if (values.size() == 1) {
-                            document.setFieldValue(targetFieldName, values.get(0));
-                        } else {
-                            document.setFieldValue(targetFieldName, values);
-                        }
+                for (int i = 0; i < nodeList.getLength(); i++) {
+                    Node node = nodeList.item(i);
+                    String value = getNodeValue(node);
+                    if (Strings.hasText(value)) {
+                        values.add(value);
                     }
                 }
-            } catch (XPathExpressionException e) {
-                if (ignoreFailure == false) {
-                    throw new IllegalArgumentException(
-                        "XPath evaluation failed for target field [" + targetFieldName + "]: " + e.getMessage(),
-                        e
-                    );
+
+                if (values.isEmpty() == false) {
+                    if (values.size() == 1) {
+                        ingestDocument.setFieldValue(targetFieldName, values.get(0));
+                    } else {
+                        ingestDocument.setFieldValue(targetFieldName, values);
+                    }
                 }
             }
         }
@@ -398,7 +378,7 @@ public final class XmlProcessor extends AbstractProcessor {
             String targetFieldName = entry.getValue();
 
             // Validate namespace prefixes if no namespaces are configured
-            if (hasNamespaces == false && NAMESPACE_PATTERN.matcher(xpathExpression).matches()) {
+            if (hasNamespaces == false && NAMESPACE_PATTERN.matcher(xpathExpression).find()) {
                 throw new IllegalArgumentException(
                     "Invalid XPath expression ["
                         + xpathExpression
@@ -410,7 +390,7 @@ public final class XmlProcessor extends AbstractProcessor {
                 XPathExpression compiledExpression = xpath.compile(xpathExpression);
                 compiled.put(targetFieldName, compiledExpression);
             } catch (XPathExpressionException e) {
-                throw new IllegalArgumentException("Invalid XPath expression [" + xpathExpression + "]: " + e.getMessage(), e);
+                throw new IllegalArgumentException("Invalid XPath expression [" + xpathExpression + "]", e);
             }
         }
 
@@ -430,7 +410,6 @@ public final class XmlProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_failure", false);
             boolean toLower = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "to_lower", false);
             boolean removeEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "remove_empty_values", false);
             boolean storeXml = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "store_xml", true);
@@ -446,8 +425,8 @@ public final class XmlProcessor extends AbstractProcessor {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> xpathMap = (Map<String, Object>) xpathConfig;
                     for (Map.Entry<String, Object> entry : xpathMap.entrySet()) {
-                        if (entry.getValue() instanceof String) {
-                            xpathExpressions.put(entry.getKey(), (String) entry.getValue());
+                        if (entry.getValue() instanceof String str) {
+                            xpathExpressions.put(entry.getKey(), str);
                         } else {
                             throw new IllegalArgumentException(
                                 "XPath target field ["
@@ -471,8 +450,8 @@ public final class XmlProcessor extends AbstractProcessor {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> namespaceMap = (Map<String, Object>) namespaceConfig;
                     for (Map.Entry<String, Object> entry : namespaceMap.entrySet()) {
-                        if (entry.getValue() instanceof String) {
-                            namespaces.put(entry.getKey(), (String) entry.getValue());
+                        if (entry.getValue() instanceof String str) {
+                            namespaces.put(entry.getKey(), str);
                         } else {
                             throw new IllegalArgumentException(
                                 "Namespace prefix ["
@@ -497,7 +476,6 @@ public final class XmlProcessor extends AbstractProcessor {
                 field,
                 targetField,
                 ignoreMissing,
-                ignoreFailure,
                 toLower,
                 removeEmptyValues,
                 storeXml,
@@ -520,7 +498,7 @@ public final class XmlProcessor extends AbstractProcessor {
      * @throws Exception if XML parsing fails
      */
     private void parseXmlAndXPath(IngestDocument document, String xmlString) throws Exception {
-        if (xmlString == null || xmlString.trim().isEmpty()) {
+        if (Strings.hasText(xmlString) == false) {
             return;
         }
 
@@ -528,9 +506,9 @@ public final class XmlProcessor extends AbstractProcessor {
         boolean needsDom = xpathExpressions.isEmpty() == false;
 
         // Use the appropriate pre-configured SAX parser factory
-        javax.xml.parsers.SAXParserFactory factory = selectSaxParserFactory();
+        SAXParserFactory factory = selectSaxParserFactory();
 
-        javax.xml.parsers.SAXParser parser = factory.newSAXParser();
+        SAXParser parser = factory.newSAXParser();
 
         // Configure error handler for strict mode
         if (isStrict()) {
@@ -555,7 +533,7 @@ public final class XmlProcessor extends AbstractProcessor {
         // Use enhanced handler that can build DOM during streaming when needed
         XmlStreamingWithDomHandler handler = new XmlStreamingWithDomHandler(needsDom);
 
-        parser.parse(new java.io.ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
+        parser.parse(new ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
 
         // Store structured result if needed
         if (storeXml) {
@@ -568,9 +546,8 @@ public final class XmlProcessor extends AbstractProcessor {
         // Process XPath expressions if DOM was built during streaming
         if (needsDom) {
             Document domDocument = handler.getDomDocument();
-            if (domDocument != null) {
-                processXPathExpressionsFromDom(document, domDocument);
-            }
+            assert domDocument != null : "DOM document should not be null when XPath processing is needed";
+            processXPathExpressionsFromDom(document, domDocument);
         }
     }
 
@@ -579,11 +556,20 @@ public final class XmlProcessor extends AbstractProcessor {
      * Handles XML-to-JSON conversion with support for all processor configuration options.
      */
     private class XmlStreamingWithDomHandler extends org.xml.sax.helpers.DefaultHandler {
+
+        /**
+         * Record to encapsulate the parsing state for each XML element level.
+         * Maintains the 1:1:1:1 relationship between element data, name, text content, and repeated elements.
+         */
+        private record ElementParsingState(
+            Map<String, Object> element,
+            String elementName,
+            StringBuilder textContent,
+            Map<String, List<Object>> repeatedElements
+        ) {}
+
         // Streaming parser state (for structured output)
-        private final java.util.Deque<Map<String, Object>> elementStack = new java.util.ArrayDeque<>();
-        private final java.util.Deque<String> elementNameStack = new java.util.ArrayDeque<>();
-        private final java.util.Deque<StringBuilder> textStack = new java.util.ArrayDeque<>();
-        private final java.util.Deque<Map<String, List<Object>>> repeatedElementsStack = new java.util.ArrayDeque<>();
+        private final java.util.Deque<ElementParsingState> elementStack = new java.util.ArrayDeque<>();
         private Object rootResult = null;
 
         // DOM building state (for XPath processing when needed)
@@ -631,10 +617,7 @@ public final class XmlProcessor extends AbstractProcessor {
                 }
             }
 
-            elementStack.push(element);
-            elementNameStack.push(elementName);
-            textStack.push(new StringBuilder());
-            repeatedElementsStack.push(repeatedElements);
+            elementStack.push(new ElementParsingState(element, elementName, new StringBuilder(), repeatedElements));
 
             // Build DOM element simultaneously if needed
             if (buildDom && domDocument != null) {
@@ -673,14 +656,14 @@ public final class XmlProcessor extends AbstractProcessor {
         @Override
         public void characters(char[] ch, int start, int length) throws org.xml.sax.SAXException {
             // Add to structured output text accumulator
-            if (textStack.isEmpty() == false) {
-                textStack.peek().append(ch, start, length);
+            if (elementStack.isEmpty() == false) {
+                elementStack.peek().textContent().append(ch, start, length);
             }
 
             // Add to DOM text node if needed
             if (buildDom && domElementStack.isEmpty() == false) {
                 String text = new String(ch, start, length);
-                if (text.trim().isEmpty() == false || removeEmptyValues == false) {
+                if (text.isBlank() == false || removeEmptyValues == false) {
                     org.w3c.dom.Text textNode = domDocument.createTextNode(text);
                     domElementStack.peek().appendChild(textNode);
                 }
@@ -694,10 +677,11 @@ public final class XmlProcessor extends AbstractProcessor {
                 return;
             }
 
-            Map<String, Object> element = elementStack.pop();
-            String elementName = elementNameStack.pop();
-            StringBuilder textContent = textStack.pop();
-            Map<String, List<Object>> repeatedElements = repeatedElementsStack.pop();
+            ElementParsingState currentState = elementStack.pop();
+            Map<String, Object> element = currentState.element();
+            String elementName = currentState.elementName();
+            StringBuilder textContent = currentState.textContent();
+            Map<String, List<Object>> repeatedElements = currentState.repeatedElements();
 
             // Add repeated elements as arrays
             for (Map.Entry<String, List<Object>> entry : repeatedElements.entrySet()) {
@@ -708,8 +692,9 @@ public final class XmlProcessor extends AbstractProcessor {
             }
 
             // Process text content and determine final element structure
-            String trimmedText = textContent.toString().trim();
-            boolean hasText = trimmedText.isEmpty() == false;
+            String textContentString = textContent.toString();
+            String trimmedText = textContentString.trim();
+            boolean hasText = textContentString.isBlank() == false;
             boolean hasChildren = element.size() > 0;
 
             Object elementValue;
@@ -757,8 +742,9 @@ public final class XmlProcessor extends AbstractProcessor {
             } else {
                 // Add to parent element
                 if (elementValue != null) {
-                    Map<String, Object> parentElement = elementStack.peek();
-                    Map<String, List<Object>> parentRepeatedElements = repeatedElementsStack.peek();
+                    ElementParsingState parentState = elementStack.peek();
+                    Map<String, Object> parentElement = parentState.element();
+                    Map<String, List<Object>> parentRepeatedElements = parentState.repeatedElements();
 
                     if (parentElement.containsKey(elementName) || parentRepeatedElements.containsKey(elementName)) {
                         // Handle repeated elements
@@ -833,8 +819,8 @@ public final class XmlProcessor extends AbstractProcessor {
      * Creates a secure, pre-configured SAX parser factory for XML parsing.
      * This factory is configured to prevent XXE attacks with SAX-specific features.
      */
-    private static javax.xml.parsers.SAXParserFactory createSecureSaxParserFactory() {
-        javax.xml.parsers.SAXParserFactory factory = javax.xml.parsers.SAXParserFactory.newInstance();
+    private static SAXParserFactory createSecureSaxParserFactory() {
+        SAXParserFactory factory = SAXParserFactory.newInstance();
         factory.setValidating(false);
 
         // Configure SAX-specific security features to prevent XXE attacks
@@ -845,7 +831,8 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         } catch (Exception e) {
-            // If features cannot be set, continue with default settings
+            // Security features are critical - fail if they cannot be set
+            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
         }
 
         return factory;
@@ -855,8 +842,8 @@ public final class XmlProcessor extends AbstractProcessor {
      * Creates a secure, pre-configured namespace-aware SAX parser factory for XML parsing.
      * This factory is configured to prevent XXE attacks and has namespace awareness enabled.
      */
-    private static javax.xml.parsers.SAXParserFactory createSecureSaxParserFactoryNamespaceAware() {
-        javax.xml.parsers.SAXParserFactory factory = javax.xml.parsers.SAXParserFactory.newInstance();
+    private static SAXParserFactory createSecureSaxParserFactoryNamespaceAware() {
+        SAXParserFactory factory = SAXParserFactory.newInstance();
         factory.setValidating(false);
         factory.setNamespaceAware(true);
 
@@ -868,7 +855,8 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         } catch (Exception e) {
-            // If features cannot be set, continue with default settings
+            // Security features are critical - fail if they cannot be set
+            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
         }
 
         return factory;
@@ -878,8 +866,8 @@ public final class XmlProcessor extends AbstractProcessor {
      * Creates a secure, pre-configured SAX parser factory for strict XML parsing.
      * This factory is configured to prevent XXE attacks and has strict validation enabled.
      */
-    private static javax.xml.parsers.SAXParserFactory createSecureSaxParserFactoryStrict() {
-        javax.xml.parsers.SAXParserFactory factory = javax.xml.parsers.SAXParserFactory.newInstance();
+    private static SAXParserFactory createSecureSaxParserFactoryStrict() {
+        SAXParserFactory factory = SAXParserFactory.newInstance();
         factory.setValidating(false);
 
         // Configure SAX-specific security features to prevent XXE attacks
@@ -889,11 +877,16 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        } catch (Exception e) {
+            // Security features are critical - fail if they cannot be set
+            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
+        }
 
-            // Enable strict parsing features
+        // Try to enable strict parsing features (optional - may not be supported)
+        try {
             factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
         } catch (Exception e) {
-            // If features cannot be set, continue with default settings
+            // Strict parsing features are optional - continue without them if not supported
         }
 
         return factory;
@@ -903,8 +896,8 @@ public final class XmlProcessor extends AbstractProcessor {
      * Creates a secure, pre-configured namespace-aware SAX parser factory for strict XML parsing.
      * This factory is configured to prevent XXE attacks, has namespace awareness enabled, and strict validation.
      */
-    private static javax.xml.parsers.SAXParserFactory createSecureSaxParserFactoryNamespaceAwareStrict() {
-        javax.xml.parsers.SAXParserFactory factory = javax.xml.parsers.SAXParserFactory.newInstance();
+    private static SAXParserFactory createSecureSaxParserFactoryNamespaceAwareStrict() {
+        SAXParserFactory factory = SAXParserFactory.newInstance();
         factory.setValidating(false);
         factory.setNamespaceAware(true);
 
@@ -915,11 +908,16 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        } catch (Exception e) {
+            // Security features are critical - fail if they cannot be set
+            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
+        }
 
-            // Enable strict parsing features
+        // Try to enable strict parsing features (optional - may not be supported)
+        try {
             factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
         } catch (Exception e) {
-            // If features cannot be set, continue with default settings
+            // Strict parsing features are optional - continue without them if not supported
         }
 
         return factory;
@@ -945,15 +943,16 @@ public final class XmlProcessor extends AbstractProcessor {
     /**
      * Selects the appropriate pre-configured SAX parser factory based on processor configuration.
      *
-     * Factory selection matrix:
-     * - Regular parsing, no namespaces: SAX_PARSER_FACTORY
-     * - Regular parsing, with namespaces: SAX_PARSER_FACTORY_NS
-     * - Strict parsing, no namespaces: SAX_PARSER_FACTORY_STRICT
-     * - Strict parsing, with namespaces: SAX_PARSER_FACTORY_NS_STRICT
+     * Factory selection matrix:<ul>
+     *  <li>Regular parsing, no namespaces: SAX_PARSER_FACTORY
+     *  <li>Regular parsing, with namespaces: SAX_PARSER_FACTORY_NS
+     *  <li>Strict parsing, no namespaces: SAX_PARSER_FACTORY_STRICT
+     *  <li>Strict parsing, with namespaces: SAX_PARSER_FACTORY_NS_STRICT
+     * </ul>
      *
      * @return the appropriate SAX parser factory for the current configuration
      */
-    private javax.xml.parsers.SAXParserFactory selectSaxParserFactory() {
+    private SAXParserFactory selectSaxParserFactory() {
         boolean needsNamespaceAware = hasNamespaces() || removeNamespaces;
         if (isStrict()) {
             return needsNamespaceAware ? SAX_PARSER_FACTORY_NS_STRICT : SAX_PARSER_FACTORY_STRICT;

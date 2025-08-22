@@ -38,8 +38,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAmount;
 import java.util.Arrays;
 import java.util.List;
 
@@ -60,7 +58,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
  * - Spatial types (geo_point, cartesian_point)
  * - Temporal types (datetime, date_nanos)
  */
-// TODO: own test data set
 public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
@@ -81,7 +78,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     private final Expression decay;
     private final Expression type;
 
-    // TODO: is this "numeric" (do we need more data types for numbers)?
     @FunctionInfo(
         returnType = "double",
         preview = true,
@@ -106,7 +102,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             type = { "double", "integer", "long", "time_duration", "keyword", "text" },
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
-        // TODO: check, whether MapParam does work with implicit casting
         @Param(
             name = "offset",
             type = { "double", "integer", "long", "time_duration", "keyword", "text" },
@@ -313,7 +308,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         // Handle temporal scale conversion - fold temporal amounts to milliseconds
         EvalOperator.ExpressionEvaluator.Factory scaleFactory;
         if (isTimeDuration(scale.dataType())) {
-            scaleFactory = getTemporalScaleAsLong(toEvaluator);
+            scaleFactory = getTemporalScaleAsMillis(toEvaluator);
         } else {
             scaleFactory = toEvaluator.apply(scale);
         }
@@ -322,7 +317,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         EvalOperator.ExpressionEvaluator.Factory offsetFactory;
         if (offset != null) {
             if (isTimeDuration(offset.dataType())) {
-                offsetFactory = getTemporalOffsetAsLong(toEvaluator);
+                offsetFactory = getTemporalOffsetAsMillis(toEvaluator);
             } else {
                 offsetFactory = toEvaluator.apply(offset);
             }
@@ -485,10 +480,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     static double processDatetime(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
         ZonedDateTime dateTime = Instant.ofEpochMilli(value).atZone(ZoneOffset.UTC);
 
-        // Convert BytesRef parameters to TemporalAmount
-        // TODO: UTC correct?
-        TemporalAmount scaleAmount = Duration.ofMillis(scale);
-        TemporalAmount offsetAmount = Duration.ofMillis(offset);
+        Duration scaleAmount = Duration.ofMillis(scale);
+        Duration offsetAmount = Duration.ofMillis(offset);
 
         return switch (functionType.utf8ToString()) {
             case "exp" -> decayDateExp(origin, scaleAmount, offsetAmount, decay, dateTime);
@@ -500,13 +493,13 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     @Evaluator(extraName = "DateNanos", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
     static double processDateNanos(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
         long millis = DateUtils.toMilliSeconds(value);
+        // TODO: UTC correct?
         ZonedDateTime dateTime = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC);
         long originMillis = DateUtils.toMilliSeconds(origin);
 
-        // TODO: UTC correct?
         // TODO: nanosecond precision?
-        TemporalAmount scaleAmount = Duration.ofMillis(scale);
-        TemporalAmount offsetAmount = Duration.ofMillis(offset);
+        Duration scaleAmount = Duration.ofMillis(scale);
+        Duration offsetAmount = Duration.ofMillis(offset);
 
         return switch (functionType.utf8ToString()) {
             case "exp" -> decayDateExp(originMillis, scaleAmount, offsetAmount, decay, dateTime);
@@ -517,14 +510,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
     private static double decayDateLinear(
         long origin,
-        TemporalAmount scale,
-        TemporalAmount offset,
+        Duration scale,
+        Duration offset,
         double decay,
         ZonedDateTime docValueDate
     ) {
         long docValue = docValueDate.toInstant().toEpochMilli();
-        long offsetMillis = temporalAmountToMillis(offset);
-        long scaleMillis = temporalAmountToMillis(scale);
+        long offsetMillis = offset.toMillis();
+        long scaleMillis = scale.toMillis();
         double scaling = scaleMillis / (1.0 - decay);
 
         long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
@@ -532,10 +525,10 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         return Math.max(0.0, (scaling - distance) / scaling);
     }
 
-    private static double decayDateExp(long origin, TemporalAmount scale, TemporalAmount offset, double decay, ZonedDateTime docValueDate) {
+    private static double decayDateExp(long origin, Duration scale, Duration offset, double decay, ZonedDateTime docValueDate) {
         long docValue = docValueDate.toInstant().toEpochMilli();
-        long offsetMillis = temporalAmountToMillis(offset);
-        long scaleMillis = temporalAmountToMillis(scale);
+        long offsetMillis = offset.toMillis();
+        long scaleMillis = scale.toMillis();
         double scaling = Math.log(decay) / scaleMillis;
 
         long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
@@ -545,14 +538,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
     private static double decayDateGauss(
         long origin,
-        TemporalAmount scale,
-        TemporalAmount offset,
+        Duration scale,
+        Duration offset,
         double decay,
         ZonedDateTime docValueDate
     ) {
         long docValue = docValueDate.toInstant().toEpochMilli();
-        long offsetMillis = temporalAmountToMillis(offset);
-        long scaleMillis = temporalAmountToMillis(scale);
+        long offsetMillis = offset.toMillis();
+        long scaleMillis = scale.toMillis();
         double scaling = 0.5 * Math.pow(scaleMillis, 2.0) / Math.log(decay);
 
         long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
@@ -560,16 +553,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
     }
 
-    private static long temporalAmountToMillis(TemporalAmount temporalAmount) {
-        if (temporalAmount instanceof Duration duration) {
-            return duration.toMillis();
-        }
-
-        // TODO: double-check
-        return temporalAmount.get(ChronoUnit.SECONDS) * 1_000 + temporalAmount.get(ChronoUnit.NANOS) / 1_000_000;
-    }
-
-    private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsLong(ToEvaluator toEvaluator) {
+    private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsMillis(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory scaleFactory;
         if (scale.foldable() == false) {
             throw new IllegalArgumentException(
@@ -577,12 +561,12 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             );
         }
         Object foldedScale = scale.fold(toEvaluator.foldCtx());
-        long scaleMillis = temporalAmountToMillis((TemporalAmount) foldedScale);
+        long scaleMillis = ((Duration) foldedScale).toMillis();
         scaleFactory = EvalOperator.LongFactory(scaleMillis);
         return scaleFactory;
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsLong(ToEvaluator toEvaluator) {
+    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsMillis(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory offsetFactory;
         if (offset.foldable() == false) {
             throw new IllegalArgumentException(
@@ -590,7 +574,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             );
         }
         Object foldedOffset = offset.fold(toEvaluator.foldCtx());
-        long offsetMillis = temporalAmountToMillis((TemporalAmount) foldedOffset);
+        long offsetMillis = ((Duration) foldedOffset).toMillis();
         offsetFactory = EvalOperator.LongFactory(offsetMillis);
         return offsetFactory;
     }

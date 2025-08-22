@@ -266,7 +266,6 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                     scoreBuilder,
                     ctx,
                     LuceneQueryEvaluator.this::appendNoMatch,
-                    (builder, scorer1, docId, ctc, query) -> LuceneQueryEvaluator.this.appendMatch(builder, scorer1),
                     weight.getQuery()
                 )
             ) {
@@ -322,11 +321,6 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         }
     }
 
-    @FunctionalInterface
-    public interface MatchAppender<T, U, E extends Exception> {
-        void accept(T t, U u, int docId, LeafReaderContext leafReaderContext, Query query) throws E;
-    }
-
     /**
      * Collects matching information for dense range of doc ids. This assumes that
      * doc ids are sent to {@link LeafCollector#collect(int)} in ascending order
@@ -337,27 +331,17 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         private final int max;
         private final LeafReaderContext leafReaderContext;
         private final Consumer<U> appendNoMatch;
-        private final MatchAppender<U, Scorable, IOException> appendMatch;
         private final Query query;
 
         private Scorable scorer;
         int next;
 
-        DenseCollector(
-            int min,
-            int max,
-            U scoreBuilder,
-            LeafReaderContext leafReaderContext,
-            Consumer<U> appendNoMatch,
-            MatchAppender<U, Scorable, IOException> appendMatch,
-            Query query
-        ) {
+        DenseCollector(int min, int max, U scoreBuilder, LeafReaderContext leafReaderContext, Consumer<U> appendNoMatch, Query query) {
             this.scoreBuilder = scoreBuilder;
             this.max = max;
             next = min;
             this.leafReaderContext = leafReaderContext;
             this.appendNoMatch = appendNoMatch;
-            this.appendMatch = appendMatch;
             this.query = query;
         }
 
@@ -371,7 +355,6 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
             while (next++ < doc) {
                 appendNoMatch.accept(scoreBuilder);
             }
-            appendMatch.accept(scoreBuilder, scorer, doc, leafReaderContext, query);
         }
 
         public Block build() {

@@ -108,7 +108,8 @@ public enum FieldType {
             case "wildcard" -> FieldType.WILDCARD;
             case "passthrough" -> FieldType.PASSTHROUGH;
             case "match_only_text" -> FieldType.MATCH_ONLY_TEXT;
-            default -> throw new IllegalArgumentException("Unknown field type: " + name);
+            // Custom types will fail to parse and will return null
+            default -> null;
         };
     }
 

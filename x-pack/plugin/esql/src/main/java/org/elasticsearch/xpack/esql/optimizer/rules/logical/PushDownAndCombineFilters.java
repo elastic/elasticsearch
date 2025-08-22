@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -48,9 +48,14 @@ import java.util.function.Predicate;
  *
  * Also combines adjacent filters using a logical {@code AND}.
  */
-public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {
+public final class PushDownAndCombineFilters extends OptimizerRules.ParameterizedOptimizerRule<Filter, LogicalOptimizerContext> {
+
+    public PushDownAndCombineFilters() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
+
     @Override
-    protected LogicalPlan rule(Filter filter) {
+    protected LogicalPlan rule(Filter filter, LogicalOptimizerContext ctx) {
         LogicalPlan plan = filter;
         LogicalPlan child = filter.child();
         Expression condition = filter.condition();
@@ -103,7 +108,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             // TODO: could we do better here about pushing down filters for inlinestats?
             // See also https://github.com/elastic/elasticsearch/issues/127497
             // Push down past INLINESTATS if the condition is on the groupings
-            return pushDownPastJoin(filter, join);
+            return pushDownPastJoin(filter, join, ctx.foldCtx());
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;
@@ -130,7 +135,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         return new ScopedFilter(rest, leftFilters, rightFilters);
     }
 
-    private static LogicalPlan pushDownPastJoin(Filter filter, Join join) {
+    private static LogicalPlan pushDownPastJoin(Filter filter, Join join, FoldContext foldCtx) {
         LogicalPlan plan = filter;
         // pushdown only through LEFT joins
         // TODO: generalize this for other join types
@@ -155,8 +160,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                 optimizationApplied = true;
             }
             // push the right scoped filter down to the right child
-            if (scoped.rightFilters().isEmpty() == false && (join.right() instanceof Filter == false)) {
-                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters());
+            // We don't want to execute this rule more than once per join, so we check if we
+            // already pushed some filters to the right, and we only apply the rule if join.candidateRightHandFilters() is not empty
+            if (scoped.rightFilters().isEmpty() == false && join.candidateRightHandFilters().isEmpty()) {
+                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters(), foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
                     join = join.withCandidateRightHandFilters(rightPushableFilters);
                     optimizationApplied = true;
@@ -195,24 +202,24 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
     /**
      * Builds the right pushable filters for the given expressions.
      */
-    private static List<Expression> buildRightPushableFilters(List<Expression> expressions) {
-        return expressions.stream().filter(x -> isRightPushableFilter(x)).toList();
+    private static List<Expression> buildRightPushableFilters(List<Expression> expressions, FoldContext foldCtx) {
+        return expressions.stream().filter(x -> isRightPushableFilter(x, foldCtx)).toList();
     }
 
     /**
      * Determines if the given expression can be pushed down to the right side of a join.
      * A filter is right pushable if the filter's predicate evaluates to false or null when all fields are set to null
      */
-    private static boolean isRightPushableFilter(Expression filter) {
+    private static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
         // traverse the filter tree
         // replace any reference to an attribute with a null literal
-        Expression nullifiedFilter = filter.transformUp(Attribute.class, r -> new Literal(r.source(), null, DataType.NULL));
+        Expression nullifiedFilter = filter.transformUp(Attribute.class, r -> new Literal(r.source(), null, r.dataType()));
         // try to fold the filter
         // check if the folded filter evaluates to false or null, if yes return true
         // pushable WHERE field > 1 (evaluates to null), WHERE field is NOT NULL (evaluates to false)
-        // not pushable WHERE field is NULL (evaluates to true), WHERE coalesce(field, 10) = 10 (evaluates to true)
+        // not pushable WHERE field is NULL (evaluates to true), WHERE coalesce(field, 10) == 10 (evaluates to true)
         if (nullifiedFilter.foldable()) {
-            Object folded = nullifiedFilter.fold(FoldContext.small());
+            Object folded = nullifiedFilter.fold(foldCtx);
             return folded == null || Boolean.FALSE.equals(folded);
         }
         return false;

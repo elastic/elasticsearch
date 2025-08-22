@@ -200,22 +200,47 @@ POST my-image-index/_search
 
 ## Knn query inside a nested query [knn-query-with-nested-query]
 
-`knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn.md#nested-knn-search):
+The `knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn.md#nested-knn-search):
 
-* kNN search over nested dense_vectors diversifies the top results over the top-level document
+* kNN search over nested `dense_vector`s diversifies the top results over the top-level document
 * `filter` both over the top-level document metadata and `nested` is supported and acts as a pre-filter
 
-::::{note}
-To ensure correct results: each individual filter must be either over
-the top-level metadata or `nested` metadata. However, a single knn query
-supports multiple filters, where some filters can be over the top-level
-metadata and some over nested.
-::::
+To ensure correct results: each individual filter must be either over:
 
+- Top-level metadata
+- `nested` metadata {applies_to}`stack: ga 9.2`
+  :::{note}
+  A single knn query supports multiple filters, where some filters can be over the top-level metadata and some over nested.
+  :::
 
-Below is a sample query with filter over nested metadata.
-For scoring parents' documents,  this query only considers vectors that
-have "paragraph.language" set to "EN".
+### Basic nested knn search
+
+This query performs a basic nested knn search:
+
+```json
+{
+  "query" : {
+    "nested" : {
+      "path" : "paragraph",
+        "query" : {
+          "knn": {
+            "query_vector": [0.45, 0.50],
+            "field": "paragraph.vector"
+        }
+      }
+    }
+  }
+}
+```
+
+### Filter over nested metadata
+
+```{applies_to}
+stack: ga 9.2
+```
+
+This query filters over nested metadata. For scoring parent documents, this query only considers vectors that
+have "paragraph.language" set to "EN":
 
 ```json
 {
@@ -238,10 +263,11 @@ have "paragraph.language" set to "EN".
 }
 ```
 
-Below is a sample query with two filters: one over nested metadata
-and another over the top level metadata. For scoring parents' documents,
+### Multiple filters (nested and top-level metadata)
+
+This query uses multiple filters: one over nested metadata and another over the top level metadata. For scoring parent documents,
 this query only considers vectors whose parent's title contain "essay"
-word and have "paragraph.language" set to "EN".
+word and have "paragraph.language" set to "EN":
 
 ```json
 {

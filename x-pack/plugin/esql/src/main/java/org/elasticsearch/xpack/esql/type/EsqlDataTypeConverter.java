@@ -719,7 +719,7 @@ public class EsqlDataTypeConverter {
 
     public static String exponentialHistogramToString(ExponentialHistogram histo) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            ExponentialHistogramXContent.write(builder, histo);
+            ExponentialHistogramXContent.serialize(builder, histo);
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new IllegalStateException("error rendering exponential histogram", e);

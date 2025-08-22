@@ -18,13 +18,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKETS_COUNTS_FIELD;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKETS_INDICES_FIELD;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.NEGATIVE_BUCKETS_FIELD;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.POSITIVE_BUCKETS_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKET_COUNTS_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKET_INDICES_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.NEGATIVE_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.POSITIVE_FIELD;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.SCALE_FIELD;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_BUCKET_FIELD;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_COUNT_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_FIELD;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD;
 
 public class JsonBackedExponentialHistogram implements ExponentialHistogram {
@@ -66,7 +66,7 @@ public class JsonBackedExponentialHistogram implements ExponentialHistogram {
                 return null;
             }
             int scale = ((Number) data.get(SCALE_FIELD)).intValue();
-            Map<?, ?> zero = (Map<?, ?>) data.get(ZERO_BUCKET_FIELD);
+            Map<?, ?> zero = (Map<?, ?>) data.get(ZERO_FIELD);
             if (zero != null) {
                 Number threshold = (Number) zero.get(ZERO_THRESHOLD_FIELD);
                 Number count = (Number) zero.get(ZERO_COUNT_FIELD);
@@ -74,15 +74,15 @@ public class JsonBackedExponentialHistogram implements ExponentialHistogram {
                     threshold == null ? 0.0 : threshold.doubleValue(),
                     count == null ? 0 :count.longValue());
             }
-            Map<?,Object> negative = (Map<?,Object>) data.get(NEGATIVE_BUCKETS_FIELD);
+            Map<?,Object> negative = (Map<?,Object>) data.get(NEGATIVE_FIELD);
             if (negative != null) {
-                negativeIndices = (List<? extends Number>) negative.getOrDefault(BUCKETS_INDICES_FIELD, List.of());
-                negativeCounts = (List<? extends Number>) negative.getOrDefault(BUCKETS_COUNTS_FIELD, List.of());
+                negativeIndices = (List<? extends Number>) negative.getOrDefault(BUCKET_INDICES_FIELD, List.of());
+                negativeCounts = (List<? extends Number>) negative.getOrDefault(BUCKET_COUNTS_FIELD, List.of());
             }
-            Map<?,Object> positive = (Map<?,Object>) data.get(POSITIVE_BUCKETS_FIELD);
+            Map<?,Object> positive = (Map<?,Object>) data.get(POSITIVE_FIELD);
             if (positive != null) {
-                positiveIndices = (List<? extends Number>) positive.getOrDefault(BUCKETS_INDICES_FIELD, List.of());
-                positiveCounts = (List<? extends Number>) positive.getOrDefault(BUCKETS_COUNTS_FIELD, List.of());
+                positiveIndices = (List<? extends Number>) positive.getOrDefault(BUCKET_INDICES_FIELD, List.of());
+                positiveCounts = (List<? extends Number>) positive.getOrDefault(BUCKET_COUNTS_FIELD, List.of());
             }
             return new JsonBackedExponentialHistogram(
                 scale, zeroBucket, negativeIndices, negativeCounts, positiveIndices, positiveCounts
@@ -91,6 +91,12 @@ public class JsonBackedExponentialHistogram implements ExponentialHistogram {
             throw new RuntimeException("Failed to parse ExponentialHistogram from JSON", e);
         }
     }
+
+    @Override
+    public long ramBytesUsed() {
+        throw new UnsupportedOperationException();
+    }
+
     private class SerializedBuckets implements ExponentialHistogram.Buckets {
         private final List<? extends Number> indices;
         private final List<? extends Number> counts;

@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -335,7 +336,7 @@ public class TestBlock implements BlockLoader.Block {
                     public BlockLoader.ExponentialHistogramBuilder append(ExponentialHistogram value) {
                         //TODO: clean up the copying here?
                         int numBuckets = value.negativeBuckets().bucketCount() + value.positiveBuckets().bucketCount();
-                        add(ExponentialHistogram.merge(numBuckets, value));
+                        add(ExponentialHistogram.merge(numBuckets, ExponentialHistogramCircuitBreaker.noop(), value));
                         return this;
                     }
                 }

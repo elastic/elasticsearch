@@ -179,7 +179,7 @@ synthetic_source text with ignored multi-field and multiple values in the same d
         body:
           query:
             match_phrase:
-              foo: potato
+              foo: this value is
 
   - match: { hits.total.value: 1 }
   # the order will be the same since text fields currently don't take offsets into account
@@ -224,7 +224,7 @@ synthetic_source text with ignored multi-field and multiple values in the same d
         body:
           query:
             match_phrase:
-              foo: potato
+              foo: this value is
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.foo.0: "This value is short" }

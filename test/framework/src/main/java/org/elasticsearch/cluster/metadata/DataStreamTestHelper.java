@@ -184,7 +184,11 @@ public final class DataStreamTestHelper {
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
             .setDataStreamOptions(dataStreamOptions)
-            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(failureStores)
+                    .setRolloverOnWrite((replicated == false) && (failureStores.isEmpty()))
+                    .build()
+            )
             .build();
     }
 

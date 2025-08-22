@@ -154,19 +154,16 @@ public class NodeJoiningIT extends ESIntegTestCase {
 
                     // Wait until the master has stepped down before removing the publishing ban
                     // This allows the master to be re-elected
-                    ClusterServiceUtils.addTemporaryStateListener(
-                        internalCluster().clusterService(masterNodeName),
-                        clusterState -> {
-                            DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
-                            boolean hasMasterSteppedDown = currentMasterNode == null
-                                || currentMasterNode.getName().equals(masterNodeName) == false;
-                            if (hasMasterSteppedDown) {
-                                logger.info("Master publishing ban removed");
-                                mockTransportService.addSendBehavior(Transport.Connection::sendRequest);
-                            }
-                            return hasMasterSteppedDown;
+                    ClusterServiceUtils.addTemporaryStateListener(internalCluster().clusterService(masterNodeName), clusterState -> {
+                        DiscoveryNode currentMasterNode = clusterState.nodes().getMasterNode();
+                        boolean hasMasterSteppedDown = currentMasterNode == null
+                            || currentMasterNode.getName().equals(masterNodeName) == false;
+                        if (hasMasterSteppedDown) {
+                            logger.info("Master publishing ban removed");
+                            mockTransportService.addSendBehavior(Transport.Connection::sendRequest);
                         }
-                    );
+                        return hasMasterSteppedDown;
+                    });
 
                 } else {
                     // This disables pre-voting on all nodes except the master, forcing it to win the election

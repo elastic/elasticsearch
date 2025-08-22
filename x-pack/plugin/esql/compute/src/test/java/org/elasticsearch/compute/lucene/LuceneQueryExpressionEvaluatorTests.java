@@ -29,6 +29,7 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
             blockFactory().newBooleanBlockBuilder(max - min + 1),
             null,
             b -> b.appendBoolean(false),
+            (b, s) -> b.appendBoolean(true),
             null
         );
     }

@@ -17,6 +17,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -266,6 +267,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                     scoreBuilder,
                     ctx,
                     LuceneQueryEvaluator.this::appendNoMatch,
+                    LuceneQueryEvaluator.this::appendMatch,
                     weight.getQuery()
                 )
             ) {
@@ -331,17 +333,27 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         private final int max;
         private final LeafReaderContext leafReaderContext;
         private final Consumer<U> appendNoMatch;
+        private final CheckedBiConsumer<U, Scorable, IOException> appendMatch;
         private final Query query;
 
         private Scorable scorer;
         int next;
 
-        DenseCollector(int min, int max, U scoreBuilder, LeafReaderContext leafReaderContext, Consumer<U> appendNoMatch, Query query) {
+        DenseCollector(
+            int min,
+            int max,
+            U scoreBuilder,
+            LeafReaderContext leafReaderContext,
+            Consumer<U> appendNoMatch,
+            CheckedBiConsumer<U, Scorable, IOException> appendMatch,
+            Query query
+        ) {
             this.scoreBuilder = scoreBuilder;
             this.max = max;
             next = min;
             this.leafReaderContext = leafReaderContext;
             this.appendNoMatch = appendNoMatch;
+            this.appendMatch = appendMatch;
             this.query = query;
         }
 
@@ -355,6 +367,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
             while (next++ < doc) {
                 appendNoMatch.accept(scoreBuilder);
             }
+            appendMatch.accept(scoreBuilder, scorer);
         }
 
         public Block build() {

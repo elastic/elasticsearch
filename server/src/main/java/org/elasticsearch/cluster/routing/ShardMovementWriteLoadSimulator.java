@@ -19,8 +19,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Simulates the impact to each node's write-load in response to the movement of individual
@@ -31,14 +32,14 @@ public class ShardMovementWriteLoadSimulator {
     private final Map<String, NodeUsageStatsForThreadPools> originalNodeUsageStatsForThreadPools;
     private final ObjectDoubleMap<String> simulatedNodeWriteLoadDeltas;
     private final Map<ShardId, Double> writeLoadsPerShard;
-    // A map of nodeId to a boolean indicate whether it has seen a shard moving away from it
-    private final Map<String, Boolean> hasSeenMovedAwayShardMap;
+    // The set to track whether a node has seen a shard move away from it
+    private final Set<String> nodesWithMovedAwayShard;
 
     public ShardMovementWriteLoadSimulator(RoutingAllocation routingAllocation) {
         this.originalNodeUsageStatsForThreadPools = routingAllocation.clusterInfo().getNodeUsageStatsForThreadPools();
         this.writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
         this.simulatedNodeWriteLoadDeltas = new ObjectDoubleHashMap<>();
-        this.hasSeenMovedAwayShardMap = new HashMap<>();
+        this.nodesWithMovedAwayShard = new HashSet<>();
     }
 
     public void simulateShardStarted(ShardRouting shardRouting) {
@@ -50,7 +51,7 @@ public class ShardMovementWriteLoadSimulator {
                 // This is a shard being relocated
                 simulatedNodeWriteLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
                 simulatedNodeWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
-                hasSeenMovedAwayShardMap.put(shardRouting.relocatingNodeId(), true);
+                nodesWithMovedAwayShard.add(shardRouting.relocatingNodeId());
             } else {
                 // This is a new shard starting, it's unlikely we'll have a write-load value for a new
                 // shard, but we may be able to estimate if the new shard is created as part of a datastream
@@ -77,7 +78,7 @@ public class ShardMovementWriteLoadSimulator {
                         replaceWritePoolStats(
                             entry.getValue(),
                             simulatedNodeWriteLoadDeltas.get(entry.getKey()),
-                            hasSeenMovedAwayShardMap.getOrDefault(entry.getKey(), false)
+                            nodesWithMovedAwayShard.contains(entry.getKey())
                         )
                     )
                 );

@@ -84,8 +84,8 @@ class SampleIntAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return stripWeights(driverContext, state.toBlock(driverContext.blockFactory(), selected));
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return stripWeights(ctx.driverContext(), state.toBlock(ctx.blockFactory(), selected));
     }
 
     private static Block stripWeights(DriverContext driverContext, Block block) {

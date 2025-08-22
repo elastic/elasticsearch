@@ -422,8 +422,8 @@ public class DocsV3SupportTests extends ESTestCase {
             super(source, List.of(field));
         }
 
-        public static Map<List<DataType>, DataType> signatures() {
-            return Map.of(List.of(DataType.KEYWORD), DataType.LONG);
+        public static Map<List<DocsV3Support.Param>, DataType> signatures() {
+            return Map.of(List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of())), DataType.LONG);
         }
 
         @Override

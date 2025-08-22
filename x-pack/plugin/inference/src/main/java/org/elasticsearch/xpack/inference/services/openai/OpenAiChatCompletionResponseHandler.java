@@ -20,7 +20,7 @@ public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
         super(requestType, parseFunction, true);
     }
 
-    protected OpenAiChatCompletionResponseHandler(
+    public OpenAiChatCompletionResponseHandler(
         String requestType,
         ResponseParser parseFunction,
         Function<HttpResult, ErrorResponse> errorParseFunction

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -207,6 +208,10 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
         );
 
+        @FixForMultiProject(
+            description = "CCR may not be in scope for multi-project though we haven't made the decision explicitly yet. See also ES-12139"
+        )
+        final ProjectId projectId = ProjectId.DEFAULT;
         final BiConsumer<ClusterState, Metadata.Builder> updater;
         if (remoteDataStream == null) {
             // If the index we're following is not part of a data stream, start the
@@ -229,8 +234,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     // There was no specified name, use the original data stream name.
                     localDataStreamName = remoteDataStream.getName();
                 }
-                final DataStream localDataStream = mdBuilder.dataStreamMetadata().dataStreams().get(localDataStreamName);
-                final Index followerIndex = mdBuilder.get(followerIndexName).getIndex();
+                final ProjectMetadata.Builder projectBuilder = mdBuilder.getProject(projectId);
+                final DataStream localDataStream = projectBuilder.dataStream(localDataStreamName);
+                final Index followerIndex = projectBuilder.get(followerIndexName).getIndex();
                 assert followerIndex != null : "expected followerIndex " + followerIndexName + " to exist in the state, but it did not";
 
                 final DataStream updatedDataStream = updateLocalDataStream(
@@ -239,13 +245,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     localDataStreamName,
                     remoteDataStream
                 );
-                mdBuilder.put(updatedDataStream);
+                projectBuilder.put(updatedDataStream);
             };
         }
-        @FixForMultiProject(
-            description = "CCR may not be in scope for multi-project though we haven't made the decision explicitly yet. See also ES-12139"
-        )
-        final ProjectId projectId = ProjectId.DEFAULT;
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
             .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(projectId, restoreRequest, l, updater)));
     }

@@ -11,13 +11,9 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -32,12 +28,9 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
-
 public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeAction<PutPipelineRequest> {
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/put");
     private final IngestService ingestService;
-    private final OriginSettingClient client;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -46,8 +39,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         TransportService transportService,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
-        IngestService ingestService,
-        NodeClient client
+        IngestService ingestService
     ) {
         super(
             TYPE.name(),
@@ -58,9 +50,6 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
             PutPipelineRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        // This client is only used to perform an internal implementation detail,
-        // so uses an internal origin context rather than the user context
-        this.client = new OriginSettingClient(client, INGEST_ORIGIN);
         this.ingestService = ingestService;
         this.projectResolver = projectResolver;
     }
@@ -68,12 +57,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     @Override
     protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        ingestService.putPipeline(projectResolver.getProjectId(), request, listener, (nodeListener) -> {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-            nodesInfoRequest.clear();
-            nodesInfoRequest.addMetric(NodesInfoMetrics.Metric.INGEST.metricName());
-            client.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
-        });
+        ingestService.putPipeline(projectResolver.getProjectId(), request, listener);
     }
 
     @Override

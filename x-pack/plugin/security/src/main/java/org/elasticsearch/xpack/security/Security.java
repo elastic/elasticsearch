@@ -16,8 +16,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -30,7 +28,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -61,11 +58,9 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -112,7 +107,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -224,7 +219,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -419,8 +413,6 @@ import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.support.SecurityMigrationExecutor;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
@@ -449,7 +441,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -486,8 +477,6 @@ public class Security extends Plugin
         PersistentTaskPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
-
-    private static final int MAX_SECURITY_MIGRATION_RETRY_COUNT = 10;
 
     // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE = LicensedFeature.momentaryLenient(
@@ -628,7 +617,6 @@ public class Security extends Plugin
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
 
-    private final SetOnce<PersistentTasksService> persistentTasksService = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
@@ -640,13 +628,8 @@ public class Security extends Plugin
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
-    private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
 
-    // Node local retry count for migration jobs that's checked only on the master node to make sure
-    // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
-    // restart or master node change.
-    private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
-
+    private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
@@ -675,7 +658,7 @@ public class Security extends Plugin
 
     private void ensureNoRemoteClusterCredentialsOnDisabledSecurity(Settings settings) {
         assert false == enabled;
-        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
+        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
             settings
         ).map(Setting::getKey).sorted().toList();
         if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
@@ -796,23 +779,7 @@ public class Security extends Plugin
 
         systemIndices.init(client, featureService, clusterService, projectResolver);
 
-        this.securityMigrationExecutor.set(
-            new SecurityMigrationExecutor(
-                SecurityMigrationTaskParams.TASK_NAME,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                systemIndices.getMainIndexManager(),
-                client,
-                SecurityMigrations.MIGRATIONS_BY_VERSION
-            )
-        );
-        this.persistentTasksService.set(persistentTasksService);
-
-        systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
-            // Only consider applying migrations if it's the master node and the security index exists
-            if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(projectId, newState);
-            }
-        });
+        this.migrationManager.set(new SecurityMigrations.Manager(clusterService, persistentTasksService, systemIndices));
 
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
@@ -1037,6 +1004,7 @@ public class Security extends Plugin
         );
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
+            clusterService,
             roleProviders,
             privilegeStore,
             threadPool.getThreadContext(),
@@ -1360,57 +1328,6 @@ public class Security extends Plugin
             return false;
         }
         return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
-    }
-
-    @FixForMultiProject
-    // TODO : The migration task needs to be project aware
-    private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
-        // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
-        if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
-            submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
-            return;
-        }
-
-        Map.Entry<Integer, SecurityMigrations.SecurityMigration> nextMigration = SecurityMigrations.MIGRATIONS_BY_VERSION.higherEntry(
-            newState.migrationsVersion
-        );
-
-        // Check if next migration that has not been applied is eligible to run on the current cluster
-        if (nextMigration == null
-            || systemIndices.getMainIndexManager().getProject(projectId).isEligibleSecurityMigration(nextMigration.getValue()) == false) {
-            // Reset retry counter if all eligible migrations have been applied successfully
-            nodeLocalMigrationRetryCount.set(0);
-        } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
-            logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
-        } else if (systemIndices.getMainIndexManager().getProject(projectId).isReadyForSecurityMigration(nextMigration.getValue())) {
-            submitPersistentMigrationTask(newState.migrationsVersion);
-        }
-    }
-
-    private void submitPersistentMigrationTask(int migrationsVersion) {
-        submitPersistentMigrationTask(migrationsVersion, true);
-    }
-
-    private void submitPersistentMigrationTask(int migrationsVersion, boolean securityMigrationNeeded) {
-        nodeLocalMigrationRetryCount.incrementAndGet();
-        persistentTasksService.get()
-            .sendStartRequest(
-                SecurityMigrationTaskParams.TASK_NAME,
-                SecurityMigrationTaskParams.TASK_NAME,
-                new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
-                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
-                ActionListener.wrap((response) -> {
-                    logger.debug("Security migration task submitted");
-                }, (exception) -> {
-                    // Do nothing if the task is already in progress
-                    if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
-                        // Do not count ResourceAlreadyExistsException as failure
-                        nodeLocalMigrationRetryCount.decrementAndGet();
-                    } else {
-                        logger.warn("Submit security migration task failed: " + exception.getCause());
-                    }
-                })
-            );
     }
 
     private static Executor buildRoleBuildingExecutor(ThreadPool threadPool, Settings settings) {
@@ -2558,7 +2475,8 @@ public class Security extends Plugin
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
+        final SecurityMigrations.Manager manager = this.migrationManager.get();
+        return manager == null ? List.of() : List.of(manager.getPersistentTasksExecutor(client, threadPool));
     }
 
     List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {

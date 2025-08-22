@@ -99,6 +99,8 @@ import static org.junit.Assert.assertTrue;
  * and partially re-written to satisfy the above requirements.
  */
 public abstract class DocsV3Support {
+    public record Param(DataType dataType, List<FunctionAppliesTo> appliesTo) {}
+
     private static final Logger logger = LogManager.getLogger(DocsV3Support.class);
 
     private static final String DOCS_WARNING_JSON =
@@ -372,7 +374,7 @@ public abstract class DocsV3Support {
     protected final String category;
     protected final String name;
     protected final FunctionDefinition definition;
-    protected final Supplier<Map<List<DataType>, DataType>> signatures;
+    protected final Supplier<Map<List<Param>, DataType>> signatures;
     protected final Callbacks callbacks;
     private final LicenseRequirementChecker licenseChecker;
 
@@ -380,7 +382,7 @@ public abstract class DocsV3Support {
         String category,
         String name,
         Class<?> testClass,
-        Supplier<Map<List<DataType>, DataType>> signatures,
+        Supplier<Map<List<Param>, DataType>> signatures,
         Callbacks callbacks
     ) {
         this(category, name, null, testClass, signatures, callbacks);
@@ -391,7 +393,7 @@ public abstract class DocsV3Support {
         String name,
         FunctionDefinition definition,
         Class<?> testClass,
-        Supplier<Map<List<DataType>, DataType>> signatures,
+        Supplier<Map<List<Param>, DataType>> signatures,
         Callbacks callbacks
     ) {
         this.category = category;
@@ -571,7 +573,7 @@ public abstract class DocsV3Support {
             String name,
             Class<?> testClass,
             FunctionDefinition definition,
-            Supplier<Map<List<DataType>, DataType>> signatures,
+            Supplier<Map<List<Param>, DataType>> signatures,
             Callbacks callbacks
         ) {
             super("functions", name, definition, testClass, signatures, callbacks);
@@ -662,10 +664,27 @@ public abstract class DocsV3Support {
             writeToTempSnippetsDir("functionNamedParams", rendered.toString());
         }
 
-        private String makeAppliesToText(FunctionAppliesTo[] functionAppliesTos, boolean preview) {
+        /**
+         * Build the {@code {applies_to}} annotation for the docs to tell users which version of
+         * Elasticsearch first supported this function/operator/signature.
+         * @param functionAppliesTos The version information for stateful Elasticsearch
+         * @param preview Is this tech preview? Effectively just generates the
+         *                {@code serverless: preview} annotation if true and nothing if false.
+         * @param oneLine Should we generate a single line variant of the {@code {applies_to}}
+         *                annotation compatible with tables (true) or the more readable
+         *                multi-line variant (false)?
+         * @return Text of the {@code {applies_to}} annotation
+         */
+        private static String makeAppliesToText(List<FunctionAppliesTo> functionAppliesTos, boolean preview, boolean oneLine) {
             StringBuilder appliesToText = new StringBuilder();
-            if (functionAppliesTos.length > 0) {
-                appliesToText.append("```{applies_to}\n");
+            if (false == functionAppliesTos.isEmpty()) {
+                if (oneLine) {
+                    appliesToText.append(" {applies_to}");
+                    appliesToText.append("`");
+                } else {
+                    appliesToText.append("```");
+                    appliesToText.append("{applies_to}\n");
+                }
                 StringBuilder stackEntries = new StringBuilder();
 
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
@@ -680,15 +699,21 @@ public abstract class DocsV3Support {
 
                 // Add the stack entries
                 if (stackEntries.isEmpty() == false) {
-                    appliesToText.append("stack: ").append(stackEntries).append("\n");
+                    appliesToText.append("stack: ").append(stackEntries);
+                    if (false == oneLine) {
+                        appliesToText.append('\n');
+                    }
                 }
 
                 // Only specify serverless if it's preview, using the preview boolean (GA is the default)
                 if (preview) {
-                    appliesToText.append("serverless: preview\n");
+                    appliesToText.append("serverless: preview");
+                    if (false == oneLine) {
+                        appliesToText.append('\n');
+                    }
                 }
 
-                appliesToText.append("```\n");
+                appliesToText.append(oneLine ? "`" : "```\n");
             }
             return appliesToText.toString();
         }
@@ -711,7 +736,7 @@ public abstract class DocsV3Support {
                     .replace("$NAME$", name)
                     .replace("$CATEGORY$", category)
                     .replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT))
-                    .replace("$APPLIES_TO$", makeAppliesToText(info.appliesTo(), info.preview()))
+                    .replace("$APPLIES_TO$", makeAppliesToText(Arrays.asList(info.appliesTo()), info.preview(), false))
             );
             for (String section : new String[] { "parameters", "description", "types" }) {
                 rendered.append(addInclude(section));
@@ -755,7 +780,7 @@ public abstract class DocsV3Support {
             String name,
             Class<?> testClass,
             OperatorConfig op,
-            Supplier<Map<List<DataType>, DataType>> signatures,
+            Supplier<Map<List<Param>, DataType>> signatures,
             Callbacks callbacks
         ) {
             super("operators", name, testClass, signatures, callbacks);
@@ -888,7 +913,9 @@ public abstract class DocsV3Support {
                     if (mapParamInfo != null) {
                         args.add(mapParam(mapParamInfo));
                     } else {
-                        Param paramInfo = params[i].getAnnotation(Param.class);
+                        org.elasticsearch.xpack.esql.expression.function.Param paramInfo = params[i].getAnnotation(
+                            org.elasticsearch.xpack.esql.expression.function.Param.class
+                        );
                         args.add(paramInfo != null ? param(paramInfo, false) : paramWithoutAnnotation(params[i].getName()));
                     }
                 }
@@ -956,7 +983,7 @@ public abstract class DocsV3Support {
             Class<?> testClass,
             LogicalPlan command,
             List<EsqlFunctionRegistry.ArgSignature> args,
-            Supplier<Map<List<DataType>, DataType>> signatures,
+            Supplier<Map<List<Param>, DataType>> signatures,
             Callbacks callbacks
         ) {
             super("commands", name, testClass, signatures, callbacks);
@@ -1016,12 +1043,12 @@ public abstract class DocsV3Support {
             }
 
             Map<String, List<String>> compactedTable = new TreeMap<>();
-            for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) {
+            for (Map.Entry<List<DocsV3Support.Param>, DataType> sig : this.signatures.get().entrySet()) {
                 if (shouldHideSignature(sig.getKey(), sig.getValue())) {
                     continue;
                 }
-                String mainType = sig.getKey().getFirst().esNameIfPossible();
-                String secondaryType = sig.getKey().get(1).esNameIfPossible();
+                String mainType = sig.getKey().getFirst().dataType().esNameIfPossible();
+                String secondaryType = sig.getKey().get(1).dataType().esNameIfPossible();
                 List<String> secondaryTypes = compactedTable.computeIfAbsent(mainType, (k) -> new ArrayList<>());
                 secondaryTypes.add(secondaryType);
             }
@@ -1079,7 +1106,7 @@ public abstract class DocsV3Support {
         }
 
         List<String> table = new ArrayList<>();
-        for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) { // TODO flip to using sortedSignatures
+        for (Map.Entry<List<DocsV3Support.Param>, DataType> sig : this.signatures.get().entrySet()) { // TODO flip to using sortedSignatures
             if (shouldHideSignature(sig.getKey(), sig.getValue())) {
                 continue;
             }
@@ -1104,18 +1131,21 @@ public abstract class DocsV3Support {
 
     private static String getTypeRow(
         List<EsqlFunctionRegistry.ArgSignature> args,
-        Map.Entry<List<DataType>, DataType> sig,
+        Map.Entry<List<Param>, DataType> sig,
         List<String> argNames,
         boolean showResultColumn
     ) {
         StringBuilder b = new StringBuilder("| ");
         for (int i = 0; i < sig.getKey().size(); i++) {
-            DataType argType = sig.getKey().get(i);
+            Param param = sig.getKey().get(i);
             EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
             if (argSignature.mapArg()) {
                 b.append("named parameters");
             } else {
-                b.append(argType.esNameIfPossible());
+                b.append(param.dataType().esNameIfPossible());
+                if (param.appliesTo() != null) {
+                    b.append(FunctionDocsSupport.makeAppliesToText(param.appliesTo(), false, true));
+                }
             }
             b.append(" | ");
         }
@@ -1274,7 +1304,7 @@ public abstract class DocsV3Support {
                 builder.endObject();
             } else {
                 int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
-                for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
+                for (Map.Entry<List<DocsV3Support.Param>, DataType> sig : sortedSignatures()) {
                     if (variadic && sig.getKey().size() > args.size()) {
                         // For variadic functions we test much longer signatures, let’s just stop at the last one
                         continue;
@@ -1302,7 +1332,7 @@ public abstract class DocsV3Support {
                                     .collect(Collectors.joining(", "))
                             );
                         } else {
-                            builder.field("type", sig.getKey().get(i).esNameIfPossible());
+                            builder.field("type", sig.getKey().get(i).dataType().esNameIfPossible());
                         }
                         builder.field("optional", arg.optional());
                         String cleanedParamDesc = removeAppliesToBlocks(arg.description());
@@ -1310,7 +1340,7 @@ public abstract class DocsV3Support {
                         builder.endObject();
                     }
                     builder.endArray();
-                    license = licenseChecker.invoke(sig.getKey());
+                    license = licenseChecker.invoke(sig.getKey().stream().map(Param::dataType).toList());
                     if (license != null && license != License.OperationMode.BASIC) {
                         builder.field("license", license.toString());
                     }
@@ -1358,8 +1388,8 @@ public abstract class DocsV3Support {
         return content.replaceAll("\\s*\\{applies_to\\}`[^`]*`\\s*", "");
     }
 
-    private List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {
-        List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures.get().entrySet());
+    private List<Map.Entry<List<DocsV3Support.Param>, DataType>> sortedSignatures() {
+        List<Map.Entry<List<DocsV3Support.Param>, DataType>> sortedSignatures = new ArrayList<>(signatures.get().entrySet());
         sortedSignatures.sort((lhs, rhs) -> {
             int maxlen = Math.max(lhs.getKey().size(), rhs.getKey().size());
             for (int i = 0; i < maxlen; i++) {
@@ -1369,7 +1399,7 @@ public abstract class DocsV3Support {
                 if (rhs.getKey().size() <= i) {
                     return 1;
                 }
-                int c = lhs.getKey().get(i).esNameIfPossible().compareTo(rhs.getKey().get(i).esNameIfPossible());
+                int c = lhs.getKey().get(i).dataType().esNameIfPossible().compareTo(rhs.getKey().get(i).dataType().esNameIfPossible());
                 if (c != 0) {
                     return c;
                 }

@@ -1,0 +1,5 @@
+pr: 133369
+summary: Take date `date_nanos` implicit casting out of snapshot
+area: ES|QL
+type: enhancement
+issues: []

@@ -29,10 +29,17 @@ public class UpdateSettingsStep extends AsyncActionStep {
     private final Function<IndexMetadata, String> targetIndexNameSupplier;
     private final Function<IndexMetadata, Settings> settingsSupplier;
 
+    /**
+     * Use this constructor when you want to update the index that ILM runs on with <i>constant</i> settings.
+     */
     public UpdateSettingsStep(StepKey key, StepKey nextStepKey, Client client, Settings settings) {
         this(key, nextStepKey, client, DEFAULT_TARGET_INDEX_NAME_SUPPLIER, indexMetadata -> settings);
     }
 
+    /**
+     * Use this constructor when you want to update an index other than the one ILM runs on, and/or when you have non-constant settings
+     * (i.e., settings that depend on the index metadata).
+     */
     public UpdateSettingsStep(
         StepKey key,
         StepKey nextStepKey,

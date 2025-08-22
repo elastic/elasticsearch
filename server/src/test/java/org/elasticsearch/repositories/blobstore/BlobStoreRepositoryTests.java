@@ -39,11 +39,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -60,6 +63,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -69,14 +73,17 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 
 import java.io.IOException;
+import java.lang.management.MemoryMXBean;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -103,6 +110,11 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+
+import org.mockito.Mockito;
+
+import java.lang.management.MemoryUsage;
 
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.
@@ -162,12 +174,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         List<SnapshotId> snapshotIds = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
             .getSnapshotIds()
             .stream()
-            .sorted((s1, s2) -> s1.getName().compareTo(s2.getName()))
+            .sorted(Comparator.comparing(SnapshotId::getName))
             .toList();
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
 
-    public void testReadAndWriteSnapshotsThroughIndexFile() throws Exception {
+    public void testReadAndWriteSnapshotsThroughIndexFile() {
         final BlobStoreRepository repository = setupRepo();
         final long pendingGeneration = repository.metadata.pendingGeneration();
         // write to and read from a index file with no entries
@@ -176,8 +188,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         writeIndexGen(repository, emptyData, emptyData.getGenId());
         RepositoryData repoData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
         assertEquals(repoData, emptyData);
-        assertEquals(repoData.getIndices().size(), 0);
-        assertEquals(repoData.getSnapshotIds().size(), 0);
+        assertEquals(0, repoData.getIndices().size());
+        assertEquals(0, repoData.getSnapshotIds().size());
         assertEquals(pendingGeneration + 1L, repoData.getGenId());
 
         // write to and read from an index file with snapshots but no indices
@@ -193,7 +205,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     public void testIndexGenerationalFiles() throws Exception {
         final BlobStoreRepository repository = setupRepo();
-        assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), RepositoryData.EMPTY);
+        assertEquals(RepositoryData.EMPTY, ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository));
 
         final long pendingGeneration = repository.metadata.pendingGeneration();
 
@@ -377,7 +389,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testRepositoryDataDetails() throws Exception {
+    public void testRepositoryDataDetails() {
         final BlobStoreRepository repository = setupRepo();
         final String repositoryName = repository.getMetadata().name();
 
@@ -631,57 +643,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testShardBlobsToDelete() {
-        final var repo = setupRepo();
-        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
-            final var expectedShardGenerations = ShardGenerations.builder();
-            final var expectedBlobsToDelete = new HashSet<String>();
-
-            final var countDownLatch = new CountDownLatch(1);
-            int blobCount = 0;
-            try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                for (int index = between(0, 1000); index > 0; index--) {
-                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
-                    for (int shard = between(1, 30); shard > 0; shard--) {
-                        final var shardId = shard;
-                        final var shardGeneration = new ShardGeneration(randomUUID());
-                        expectedShardGenerations.put(indexId, shard, shardGeneration);
-                        final var blobsToDelete = randomList(
-                            100,
-                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
-                                "",
-                                METADATA_BLOB_NAME_SUFFIX
-                            )
-                        );
-                        blobCount += blobsToDelete.size();
-                        final var indexPath = repo.basePath()
-                            .add("indices")
-                            .add(indexId.getId())
-                            .add(Integer.toString(shard))
-                            .buildAsString();
-                        for (final var blobToDelete : blobsToDelete) {
-                            expectedBlobsToDelete.add(indexPath + blobToDelete);
-                        }
-
-                        repo.threadPool()
-                            .generic()
-                            .execute(
-                                ActionRunnable.run(
-                                    refs.acquireListener(),
-                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
-                                )
-                            );
-                    }
-                }
-            }
-            safeAwait(countDownLatch);
-            assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
-            shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
-            assertThat(expectedBlobsToDelete, empty());
-            assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
-        }
-    }
-
     public void testUuidCreationLogging() {
         final var repo = setupRepo();
         final var repoMetadata = repo.getMetadata();
@@ -797,5 +758,234 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 "Generated new repository UUID*"
             )
         );
+    }
+
+    // =============== Shard Blobs to Delete Tests =================
+
+    private MemoryMXBean mockBean;
+    private final int ONE_GIGABYTE_IN_BYTES = 1024 * 1024 * 1024;
+
+    public void testShardBlobsToDeleteWithHeapSpace() {
+        final var repo = setupRepo();
+        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
+            final var expectedShardGenerations = ShardGenerations.builder();
+            final var expectedBlobsToDelete = new HashSet<String>();
+
+            final var countDownLatch = new CountDownLatch(1);
+            int blobCount = 0;
+            try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
+                for (int index = between(0, 1000); index > 0; index--) {
+                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
+                    for (int shard = between(1, 30); shard > 0; shard--) {
+                        final var shardId = shard;
+                        final var shardGeneration = new ShardGeneration(randomUUID());
+                        expectedShardGenerations.put(indexId, shard, shardGeneration);
+                        final var blobsToDelete = randomList(
+                            100,
+                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
+                                "",
+                                METADATA_BLOB_NAME_SUFFIX
+                            )
+                        );
+                        blobCount += blobsToDelete.size();
+                        final var indexPath = repo.basePath()
+                            .add("indices")
+                            .add(indexId.getId())
+                            .add(Integer.toString(shard))
+                            .buildAsString();
+                        for (final var blobToDelete : blobsToDelete) {
+                            expectedBlobsToDelete.add(indexPath + blobToDelete);
+                        }
+
+                        repo.threadPool()
+                            .generic()
+                            .execute(
+                                ActionRunnable.run(
+                                    refs.acquireListener(),
+                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
+                                )
+                            );
+                    }
+                }
+            }
+            safeAwait(countDownLatch);
+            assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
+            shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
+            assertThat(expectedBlobsToDelete, empty());
+            assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
+        }
+    }
+
+    public void testShardBlobsToDeleteWithOutHeapSpace() {
+        // If the max heap isn't initialised then this is represented by MemoryUsage.getMax() == -1
+        setUpMemoryMXBeanMock(-1L, 0);
+        final var repo = setupRepo();
+        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
+            final var expectedShardGenerations = ShardGenerations.builder();
+            final var expectedBlobsToDelete = new HashSet<String>();
+
+            final var countDownLatch = new CountDownLatch(1);
+            int blobCount = 0;
+            try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
+                for (int index = between(0, 1000); index > 0; index--) {
+                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
+                    for (int shard = between(1, 30); shard > 0; shard--) {
+                        final var shardId = shard;
+                        final var shardGeneration = new ShardGeneration(randomUUID());
+                        expectedShardGenerations.put(indexId, shard, shardGeneration);
+                        final var blobsToDelete = randomList(
+                            100,
+                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
+                                "",
+                                METADATA_BLOB_NAME_SUFFIX
+                            )
+                        );
+                        blobCount += blobsToDelete.size();
+                        final var indexPath = repo.basePath()
+                            .add("indices")
+                            .add(indexId.getId())
+                            .add(Integer.toString(shard))
+                            .buildAsString();
+                        for (final var blobToDelete : blobsToDelete) {
+                            expectedBlobsToDelete.add(indexPath + blobToDelete);
+                        }
+
+                        repo.threadPool()
+                            .generic()
+                            .execute(
+                                ActionRunnable.run(
+                                    refs.acquireListener(),
+                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
+                                )
+                            );
+                    }
+                }
+            }
+            safeAwait(countDownLatch);
+            assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
+            shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
+            assertThat(expectedBlobsToDelete, empty());
+            assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
+        }
+    }
+
+    // #116379
+    public void testCalculateMaximumShardDeleteResultsSizeWithUndefinedHeap() {
+        // If the max heap isn't initialised then this is represented by MemoryUsage.getMax() == -1
+        setUpMemoryMXBeanMock(-1L, 0);
+        TestBlobStoreRepository testBlobStoreRepository = generateTestBlockStoreRepository();
+
+        try (var shardBlobsToDelete = testBlobStoreRepository.new TestShardBlobsToDelete()) {
+            assertEquals(8, shardBlobsToDelete.calculateMaximumShardDeleteResultsSize());
+        }
+    }
+
+    public void testCalculateMaximumShardDeleteResultsSizeWithRemainingUsableHeapExceeding2GB() {
+        long maxHeapSizeInGB = randomLongBetween(8, 100);
+        // We never want to exceed 25% of the total heap space
+        // Therefore we need an 8GB difference since ((maxHeap - usedHeap > 8GB) / 4) > 2GB
+        long usedHeapSizeInGB = randomLongBetween(0, maxHeapSizeInGB - 8);
+        setUpMemoryMXBeanMock(maxHeapSizeInGB * ONE_GIGABYTE_IN_BYTES, usedHeapSizeInGB * ONE_GIGABYTE_IN_BYTES);
+        TestBlobStoreRepository testBlobStoreRepository = generateTestBlockStoreRepository();
+
+        try (var shardBlobsToDelete = testBlobStoreRepository.new TestShardBlobsToDelete()) {
+            assertEquals(Integer.MAX_VALUE, shardBlobsToDelete.calculateMaximumShardDeleteResultsSize());
+        }
+    }
+
+    public void testCalculateMaximumShardDeleteResultsSizeWithRemainingUsableHeapLessThan2GB() {
+        long TWO_GIGABYTE_IN_BYTES = 2L * ONE_GIGABYTE_IN_BYTES;
+        long heapUsage = randomLongBetween(0, TWO_GIGABYTE_IN_BYTES);
+        setUpMemoryMXBeanMock(TWO_GIGABYTE_IN_BYTES, heapUsage);
+        TestBlobStoreRepository testBlobStoreRepository = generateTestBlockStoreRepository();
+
+        try (var shardBlobsToDelete = testBlobStoreRepository.new TestShardBlobsToDelete()) {
+            assertEquals(TWO_GIGABYTE_IN_BYTES - heapUsage, shardBlobsToDelete.calculateMaximumShardDeleteResultsSize());
+        }
+    }
+
+    public void testCalculateMaximumShardDeleteResultsSizeWithNoHeapLeft() {
+        long heapUsage = (long) randomIntBetween(0, 100) * ONE_GIGABYTE_IN_BYTES;
+        setUpMemoryMXBeanMock(heapUsage, heapUsage);
+        TestBlobStoreRepository testBlobStoreRepository = generateTestBlockStoreRepository();
+
+        try (var shardBlobsToDelete = testBlobStoreRepository.new TestShardBlobsToDelete()) {
+            assertEquals(0, shardBlobsToDelete.calculateMaximumShardDeleteResultsSize());
+        }
+    }
+
+    public void testShardBlobsToDeleteGetBlobPathsWithNoHeapMemory() {
+        // If the max heap isn't initialised then this is represented by MemoryUsage.getMax() == -1
+        setUpMemoryMXBeanMock(-1L, 0);
+        TestBlobStoreRepository testBlobStoreRepository = generateTestBlockStoreRepository();
+
+        try (var shardBlobsToDelete = testBlobStoreRepository.new TestShardBlobsToDelete()) {
+            assertFalse(shardBlobsToDelete.getBlobPaths().hasNext());
+        }
+    }
+
+    public void testShardBlobsToDeleteSizeInBytesWithNoHeapMemory() {
+        // If the max heap isn't initialised then this is represented by MemoryUsage.getMax() == -1
+        setUpMemoryMXBeanMock(-1L, 0);
+        TestBlobStoreRepository testBlobStoreRepository = generateTestBlockStoreRepository();
+
+        try (var shardBlobsToDelete = testBlobStoreRepository.new TestShardBlobsToDelete()) {
+            assertEquals(0, shardBlobsToDelete.sizeInBytes());
+        }
+    }
+
+    private void setUpMemoryMXBeanMock(long maxHeap, long usedHeap) {
+        mockBean = Mockito.mock(MemoryMXBean.class);
+        MemoryUsage mockUsage = Mockito.mock(MemoryUsage.class);
+        Mockito.when(mockBean.getHeapMemoryUsage()).thenReturn(mockUsage);
+
+        Mockito.when(mockUsage.getMax()).thenReturn(maxHeap);
+        Mockito.when(mockUsage.getUsed()).thenReturn(usedHeap);
+    }
+
+    private TestBlobStoreRepository generateTestBlockStoreRepository() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
+
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
+        return new TestBlobStoreRepository(
+            projectId,
+            repositoryMetadata,
+            new NamedXContentRegistry(List.of()),
+            clusterService,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            mock(RecoverySettings.class),
+            BlobPath.EMPTY,
+            SnapshotMetrics.NOOP
+        );
+    }
+
+    // This class is used to test ShardBlobsToDelete by overriding the MemoryMXBean
+    private class TestBlobStoreRepository extends BlobStoreRepository {
+        protected TestBlobStoreRepository(ProjectId projectId, RepositoryMetadata metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings, BlobPath basePath, SnapshotMetrics snapshotMetrics) {
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
+        }
+
+        @Override
+        protected BlobStore createBlobStore() {
+            return null;
+        }
+
+        class TestShardBlobsToDelete extends ShardBlobsToDelete {
+            TestShardBlobsToDelete() {
+                super();
+            }
+
+            @Override
+            protected MemoryMXBean getMemoryMXBean() {
+                return mockBean;
+            }
+
+            @Override
+            int calculateMaximumShardDeleteResultsSize() {
+                return super.calculateMaximumShardDeleteResultsSize();
+            }
+        }
     }
 }

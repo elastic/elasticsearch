@@ -33,6 +33,7 @@ public class BytesStreamOutput extends BytesStream {
     @Nullable
     protected ByteArray bytes;
     protected int count;
+    protected int maximumSize;
 
     /**
      * Create a non recycling {@link BytesStreamOutput} with an initial capacity of 0.
@@ -54,10 +55,15 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     protected BytesStreamOutput(int expectedSize, BigArrays bigArrays) {
+        this(expectedSize, bigArrays, Integer.MAX_VALUE);
+    }
+
+    protected BytesStreamOutput(int expectedSize, BigArrays bigArrays, int maximumSize) {
         this.bigArrays = bigArrays;
         if (expectedSize != 0) {
             this.bytes = bigArrays.newByteArray(expectedSize, false);
         }
+        this.maximumSize = maximumSize;
     }
 
     @Override
@@ -171,8 +177,10 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     protected void ensureCapacity(long offset) {
-        if (offset > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
+        if (offset > this.maximumSize) {
+            throw new IllegalArgumentException(
+                String.format(getClass().getSimpleName() + " has exceeded it's max size of " + this.maximumSize)
+            );
         }
         if (bytes == null) {
             this.bytes = bigArrays.newByteArray(BigArrays.overSize(offset, PageCacheRecycler.PAGE_SIZE_IN_BYTES, 1), false);

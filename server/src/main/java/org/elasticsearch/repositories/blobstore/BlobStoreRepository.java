@@ -151,6 +151,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1471,12 +1474,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // ---------------------------------------------------------------------------------------------------------------------------------
         // Cleaning up dangling blobs
 
-        private void cleanupUnlinkedShardLevelBlobs(ActionListener<Void> listener) {
-            final Iterator<String> filesToDelete = resolveFilesToDelete();
+        void cleanupUnlinkedShardLevelBlobs(ActionListener<Void> listener) {
+            final Iterator<String> filesToDelete;
+            try {
+                filesToDelete = resolveFilesToDelete();
+            } catch (Exception e) {
+                logger.warn(() -> format("%s Failed to resolve files to delete during snapshot delete", snapshotIds), e);
+                listener.onFailure(e);
+                return;
+            }
+
             if (filesToDelete.hasNext() == false) {
                 listener.onResponse(null);
                 return;
             }
+
             snapshotExecutor.execute(ActionRunnable.wrap(listener, l -> {
                 try {
                     deleteFromContainer(OperationPurpose.SNAPSHOT_DATA, blobContainer(), filesToDelete);
@@ -1678,26 +1690,69 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          *     need no further synchronization.
          * </p>
          */
-        // If the size of this continues to be a problem even after compression, consider either a hard limit on its size (preferring leaked
-        // blobs over an OOME on the master) or else offloading it to disk or to the repository itself.
-        private final BytesStreamOutput shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays);
+        private final BytesStreamOutput shardDeleteResults;
 
         private int resultCount = 0;
 
-        private final StreamOutput compressed = new OutputStreamStreamOutput(
-            new BufferedOutputStream(
-                new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
-                DeflateCompressor.BUFFER_SIZE
-            )
-        );
+        private final StreamOutput compressed;
 
         private final ArrayList<Closeable> resources = new ArrayList<>();
 
         private final ShardGenerations.Builder shardGenerationsBuilder = ShardGenerations.builder();
 
         ShardBlobsToDelete() {
-            resources.add(compressed);
-            resources.add(LeakTracker.wrap((Releasable) shardDeleteResults));
+            int maxSizeOfShardDeleteResults = calculateMaximumShardDeleteResultsSize();
+
+            if (maxSizeOfShardDeleteResults > 0) {
+                this.shardDeleteResults = new ReleasableBytesStreamOutput(
+                    bigArrays,
+                    maxSizeOfShardDeleteResults
+                );
+                this.compressed = new OutputStreamStreamOutput(
+                    new BufferedOutputStream(
+                        new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
+                        DeflateCompressor.BUFFER_SIZE
+                    )
+                );
+                resources.add(compressed);
+                resources.add(LeakTracker.wrap((Releasable) shardDeleteResults));
+            } else {
+                this.shardDeleteResults = null;
+                this.compressed = null;
+            }
+
+        }
+
+        MemoryMXBean getMemoryMXBean() {
+            return ManagementFactory.getMemoryMXBean();
+        }
+
+        /**
+         * Calculates the maximum size of the shardDeleteResults BytesStreamOutput
+         * The size should at most be 2GB, but less for smaller nodes, and no more than 25% of the total remaining heap space
+         * @return The maximum number of bytes the shardDeleteResults BytesStreamOutput can consume in the heap
+         */
+        int calculateMaximumShardDeleteResultsSize() {
+            MemoryMXBean memoryBean = getMemoryMXBean();
+            MemoryUsage heapUsage = memoryBean.getHeapMemoryUsage();
+
+            long heapUsageInBytes = heapUsage.getUsed();
+            long maxHeapUsageInBytes = heapUsage.getMax();
+
+            // Undefined heap
+            if (maxHeapUsageInBytes == -1) {
+                // A tiny amount of bytes to allow resources.close() to succeed
+                return 8;
+            }
+
+            long heapSpaceLeftInBytes = maxHeapUsageInBytes - heapUsageInBytes;
+            double maxPercentageHeapSpaceAllocation = 0.25;
+            long heapSpaceLeftToBeUtilisedInBytes = (long) Math.floor(heapSpaceLeftInBytes * maxPercentageHeapSpaceAllocation);
+            if (heapSpaceLeftToBeUtilisedInBytes > Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            } else {
+                return (int) heapSpaceLeftInBytes;
+            }
         }
 
         synchronized void addShardDeleteResult(
@@ -1706,6 +1761,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ShardGeneration newGeneration,
             Collection<String> blobsToDelete
         ) {
+            if (compressed == null) {
+                // No output stream: skip writing, but still update generations
+                shardGenerationsBuilder.put(indexId, shardId, newGeneration);
+                return;
+            }
             try {
                 shardGenerationsBuilder.put(indexId, shardId, newGeneration);
                 new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
@@ -1714,6 +1774,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 assert false : e; // no IO actually happens here
                 throw new UncheckedIOException(e);
             }
+            // TODO - Catch the out of memory error
         }
 
         public ShardGenerations getUpdatedShardGenerations() {
@@ -1721,6 +1782,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         public Iterator<String> getBlobPaths() {
+            if (compressed == null || shardDeleteResults == null) {
+                // No output stream: nothing to return
+                return Collections.emptyIterator();
+            }
             final StreamInput input;
             try {
                 compressed.close();
@@ -1750,6 +1815,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         @Override
         public void close() {
+            if (resources.isEmpty()) {
+                return;
+            }
             try {
                 IOUtils.close(resources);
             } catch (IOException e) {
@@ -1760,7 +1828,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // exposed for tests
         int sizeInBytes() {
-            return shardDeleteResults.size();
+            return shardDeleteResults == null ? 0 : shardDeleteResults.size();
         }
     }
 

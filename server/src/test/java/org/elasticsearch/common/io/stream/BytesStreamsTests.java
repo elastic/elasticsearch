@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
@@ -63,7 +64,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testSingleByte() throws Exception {
+    public void testSingleByte() {
         TestStreamOutput out = new TestStreamOutput();
         assertEquals(0, out.size());
 
@@ -78,7 +79,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testSingleShortPage() throws Exception {
+    public void testSingleShortPage() {
         TestStreamOutput out = new TestStreamOutput();
 
         int expectedSize = 10;
@@ -95,7 +96,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testIllegalBulkWrite() throws Exception {
+    public void testIllegalBulkWrite() {
         TestStreamOutput out = new TestStreamOutput();
 
         // bulk-write with wrong args
@@ -138,7 +139,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testSingleFullPageBulkWriteWithOffset() throws Exception {
+    public void testSingleFullPageBulkWriteWithOffset() {
         TestStreamOutput out = new TestStreamOutput();
 
         int initialOffset = 10;
@@ -157,7 +158,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testSingleFullPageBulkWriteWithOffsetCrossover() throws Exception {
+    public void testSingleFullPageBulkWriteWithOffsetCrossover() {
         TestStreamOutput out = new TestStreamOutput();
 
         int initialOffset = 10;
@@ -176,7 +177,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testSingleFullPage() throws Exception {
+    public void testSingleFullPage() {
         TestStreamOutput out = new TestStreamOutput();
 
         int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
@@ -193,7 +194,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testOneFullOneShortPage() throws Exception {
+    public void testOneFullOneShortPage() {
         TestStreamOutput out = new TestStreamOutput();
 
         int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE + 10;
@@ -210,7 +211,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testTwoFullOneShortPage() throws Exception {
+    public void testTwoFullOneShortPage() {
         TestStreamOutput out = new TestStreamOutput();
 
         int expectedSize = (PageCacheRecycler.BYTE_PAGE_SIZE * 2) + 1;
@@ -227,8 +228,9 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    public void testSeek() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+    public void testSeek() {
+        int maximumSize = randomIntBetween(0, Integer.MAX_VALUE);
+        BytesStreamOutput out = new BytesStreamOutput(0, BigArrays.NON_RECYCLING_INSTANCE, maximumSize);
 
         int position = 0;
         assertEquals(position, out.position());
@@ -241,13 +243,14 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(position, BytesReference.toBytes(out.bytes()).length);
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> out.seek(Integer.MAX_VALUE + 1L));
-        assertEquals("BytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
+        assertEquals("BytesStreamOutput has exceeded it's max size of " + maximumSize, iae.getMessage());
 
         out.close();
     }
 
-    public void testSkip() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+    public void testSkip() {
+        int maximumSize = randomIntBetween(0, Integer.MAX_VALUE);
+        BytesStreamOutput out = new BytesStreamOutput(0, BigArrays.NON_RECYCLING_INSTANCE, maximumSize);
 
         int position = 0;
         assertEquals(position, out.position());
@@ -256,8 +259,8 @@ public class BytesStreamsTests extends ESTestCase {
         out.skip(forward);
         assertEquals(position + forward, out.position());
 
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> out.skip(Integer.MAX_VALUE - 50));
-        assertEquals("BytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> out.skip(maximumSize - 50));
+        assertEquals("BytesStreamOutput has exceeded it's max size of " + maximumSize, iae.getMessage());
 
         out.close();
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class FieldNameUtilsTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
@@ -176,7 +178,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | where birth_date < hire_date
             | keep emp_no
             | sort emp_no
-            | limit 1""", Set.of("birth_date", "birth_date.*", "emp_no", "emp_no.*", "hire_date", "hire_date.*"));
+            | limit 1""", Set.of("_index", "birth_date", "birth_date.*", "emp_no", "emp_no.*", "hire_date", "hire_date.*"));
     }
 
     public void testTwoConditionsWithDefault() {

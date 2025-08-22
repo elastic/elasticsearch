@@ -49,29 +49,36 @@ b:integer | x:integer
 ;
 
 dropAllColumns
-from employees | keep height | drop height | eval x = 1;
+from languages | keep language_code | drop language_code | eval x = 1;
 
 x:integer
+1
+1
+1
+1
 ;
 
 dropAllColumns_WithLimit
 from employees | keep height | drop height | eval x = 1 | limit 3;
 
 x:integer
+1
+1
+1
 ;
 
 dropAllColumns_WithCount
-from employees | keep height | drop height | eval x = 1 | stats c=count(x);
+from languages | keep language_code | drop language_code | eval x = 1 | stats c=count(x);
 
 c:long
-0
+4
 ;
 
 dropAllColumns_WithStats
-from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
+from languages | keep language_code | drop language_code | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
 
 c:l|mi:i|s:l
-0  |null|null
+4  |1   |4
 ;
 
 

@@ -213,9 +213,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop salary
             """);
 
-        var relation = as(plan, LocalRelation.class);
-        assertThat(relation.output(), is(empty()));
-        assertThat(relation.supplier().get(), emptyArray());
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.expressions(), is(empty()));
+        var limit = as(project.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
     }
 
     public void testEmptyProjectionInStat() {
@@ -224,7 +225,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | stats c = count(salary)
             | drop c
             """);
-
+        // TODO Wrong! It should return an empty row, not an empty result
         var relation = as(plan, LocalRelation.class);
         assertThat(relation.output(), is(empty()));
         assertThat(relation.supplier().get(), emptyArray());

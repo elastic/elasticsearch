@@ -108,6 +108,13 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(geoPointTestCase("POINT (180.0 90.0)", "POINT (1 1)", "10000km", "10km", 0.33, "linear", 0.33761373954395957));
         testCaseSuppliers.addAll(geoPointTestCase("POINT (-180.0 -90.0)", "POINT (1 1)", "10000km", "10km", 0.33, "linear", 0.32271359885955425));
 
+        // GeoPoint Exponential
+        testCaseSuppliers.addAll(geoPointTestCase("POINT (1.0 1.0)", "POINT (1 1)", "10000km", "10km", 0.33, "exp", 1.0));
+        testCaseSuppliers.addAll(geoPointTestCase("POINT (0 0)", "POINT (1 1)", "10000km", "10km", 0.33, "exp", 0.983807518295976));
+        testCaseSuppliers.addAll(geoPointTestCase("POINT (12.3 45.6)", "POINT (1 1)", "10000km", "10km", 0.33, "exp", 0.5699412181941212 ));
+        testCaseSuppliers.addAll(geoPointTestCase("POINT (180.0 90.0)", "POINT (1 1)", "10000km", "10km", 0.33, "exp", 0.3341838411351592));
+        testCaseSuppliers.addAll(geoPointTestCase("POINT (-180.0 -90.0)", "POINT (1 1)", "10000km", "10km", 0.33, "exp", 0.32604509444656576));
+
         // GeoPoint offset & scale as keywords
         testCaseSuppliers.addAll(geoPointTestCaseKeywordScale("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
         testCaseSuppliers.addAll(geoPointOffsetKeywordTestCase("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));

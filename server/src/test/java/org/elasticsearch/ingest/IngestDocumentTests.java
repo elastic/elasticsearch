@@ -185,9 +185,7 @@ public class IngestDocumentTests extends ESTestCase {
      * @throws Exception Any exception thrown from the provided consumer
      */
     private void doWithRandomAccessPattern(Consumer<IngestDocument> action) throws Exception {
-        // doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), action);
-        // doWithAccessPattern(CLASSIC, action);
-        doWithAccessPattern(FLEXIBLE, action);
+        doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), action);
     }
 
     public void testSimpleGetFieldValue() throws Exception {

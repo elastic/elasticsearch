@@ -39,7 +39,8 @@ public class RankRRFFeatures implements FeatureSpecification {
             LinearRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
             RRFRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
             RRFRetrieverBuilder.WEIGHTED_SUPPORT,
-            LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER
+            LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER,
+            LinearRetrieverBuilder.MULTI_INDEX_SIMPLIFIED_FORMAT_SUPPORT
         );
     }
 }

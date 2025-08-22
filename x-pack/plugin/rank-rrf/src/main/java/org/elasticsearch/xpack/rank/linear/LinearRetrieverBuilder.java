@@ -58,6 +58,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature(
         "linear_retriever.multi_fields_query_format_support"
     );
+    public static final NodeFeature MULTI_INDEX_SIMPLIFIED_FORMAT_SUPPORT = new NodeFeature(
+        "linear_retriever.multi_index_simplified_format_support"
+    );
 
     public static final NodeFeature LINEAR_RETRIEVER_MINSCORE_FIX = new NodeFeature("linear_retriever_minscore_fix");
     public static final String NAME = "linear";
@@ -318,11 +321,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (resolvedIndices != null && query != null) {
             // Using the multi-fields query format
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
-            if (localIndicesMetadata.size() > 1) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying multiple indices"
-                );
-            } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
                 throw new IllegalArgumentException(
                     "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying remote indices"
                 );

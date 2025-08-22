@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -279,7 +278,8 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         Settings.Builder additionalSettings = Settings.builder();
         Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
-            Settings result = provider.getAdditionalIndexSettings(
+            Settings.Builder builder = Settings.builder();
+            provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
                 simulatedProject.retrieveIndexModeFromTemplate(template),
@@ -287,8 +287,10 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
                 now,
                 templateSettings,
                 mappings,
-                ImmutableOpenMap.builder()::put
+                builder,
+                (k, v) -> {}
             );
+            Settings result = builder.build();
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);

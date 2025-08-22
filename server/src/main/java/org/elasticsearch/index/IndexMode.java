@@ -616,7 +616,7 @@ public enum IndexMode {
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
         @Override
-        public Settings getAdditionalIndexSettings(
+        public void getAdditionalIndexSettings(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
@@ -624,7 +624,8 @@ public enum IndexMode {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            BiConsumer<String, Map<String, String>> extraCustomMetadata
+            Settings.Builder additionalSettings,
+            BiConsumer<String, Map<String, String>> additionalCustomMetadata
         ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {
@@ -634,9 +635,7 @@ public enum IndexMode {
                 }
             }
             if (indexMode == LOOKUP) {
-                return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
-            } else {
-                return Settings.EMPTY;
+                additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
             }
         }
     }

@@ -495,7 +495,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void getAdditionalIndexSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -503,9 +503,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    BiConsumer<String, Map<String, String>> extraCustomMetadata
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("index.mode", IndexMode.LOOKUP).build();
+                    additionalSettings.put("index.mode", IndexMode.LOOKUP);
                 }
             })),
             null

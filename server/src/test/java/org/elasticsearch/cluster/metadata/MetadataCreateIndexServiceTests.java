@@ -769,7 +769,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void getAdditionalIndexSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -777,9 +777,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    BiConsumer<String, Map<String, String>> extraCustomMetadata
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("request_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -820,7 +821,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void getAdditionalIndexSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -828,9 +829,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    BiConsumer<String, Map<String, String>> extraCustomMetadata
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "override").build();
+                    additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "override");
                 }
 
                 @Override
@@ -863,7 +865,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void getAdditionalIndexSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -871,9 +873,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    BiConsumer<String, Map<String, String>> extraCustomMetadata
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("request_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -906,8 +909,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
-                @Override
-                public Settings getAdditionalIndexSettings(
+                public void getAdditionalIndexSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -915,9 +917,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    BiConsumer<String, Map<String, String>> extraCustomMetadata
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -951,7 +954,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void getAdditionalIndexSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -959,9 +962,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    BiConsumer<String, Map<String, String>> extraCustomMetadata
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override

@@ -58,7 +58,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public Settings getAdditionalIndexSettings(
+    public void getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -66,7 +66,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        BiConsumer<String, Map<String, String>> extraCustomMetadata
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
@@ -89,7 +90,6 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             }
             if (indexMode != null) {
                 if (indexMode == IndexMode.TIME_SERIES) {
-                    Settings.Builder builder = Settings.builder();
                     TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
                     TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
                     final Instant start;
@@ -117,8 +117,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         }
                     }
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
-                    builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                    builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
+                    additionalSettings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
+                    additionalSettings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
@@ -128,15 +128,12 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             combinedTemplateMappings
                         );
                         if (routingPaths.isEmpty() == false) {
-                            builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
+                            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
                     }
-                    return builder.build();
                 }
             }
         }
-
-        return Settings.EMPTY;
     }
 
     /**

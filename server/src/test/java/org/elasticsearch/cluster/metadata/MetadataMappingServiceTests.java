@@ -153,10 +153,10 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
                     IndexMetadata indexMetadata,
                     DocumentMapper documentMapper,
                     Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> extraCustomMetadata
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
                     additionalSettings.put("index.mapping.total_fields.limit", 42);
-                    extraCustomMetadata.accept("foo", Map.of("bar", "baz"));
+                    additionalCustomMetadata.accept("foo", Map.of("bar", "baz"));
                 }
             }))
         );

@@ -63,7 +63,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         // Create a setting provider that sets the test-setting to 0
         Set<IndexSettingProvider> indexSettingsProviders = Set.of(new IndexSettingProvider() {
             @Override
-            public Settings getAdditionalIndexSettings(
+            public void getAdditionalIndexSettings(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
@@ -71,13 +71,14 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 Instant resolvedAt,
                 Settings allSettings,
                 List<CompressedXContent> combinedTemplateMappings,
-                BiConsumer<String, Map<String, String>> extraCustomMetadata
+                Settings.Builder additionalSettings,
+                BiConsumer<String, Map<String, String>> additionalCustomMetadata
             ) {
-                return Settings.builder().put("test-setting", 0).build();
+                additionalSettings.put("test-setting", 0);
             }
         }, new IndexSettingProvider() {
             @Override
-            public Settings getAdditionalIndexSettings(
+            public void getAdditionalIndexSettings(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
@@ -85,9 +86,10 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
                 List<CompressedXContent> combinedTemplateMappings,
-                BiConsumer<String, Map<String, String>> extraCustomMetadata
+                Settings.Builder additionalSettings,
+                BiConsumer<String, Map<String, String>> additionalCustomMetadata
             ) {
-                return Settings.builder().put("test-setting-2", 10).build();
+                additionalSettings.put("test-setting-2", 10);
             }
 
             @Override

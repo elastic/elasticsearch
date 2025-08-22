@@ -26,13 +26,12 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * An {@link IndexSettingProvider} is a provider for index level settings that can be set
+ * An {@link IndexSettingProvider} is a provider for index level settings and custom index metadata that can be set
  * explicitly as a default value (so they show up as "set" for newly created indices)
  */
 public interface IndexSettingProvider {
     /**
-     * Returns explicitly set default index {@link Settings} for the given index. This should not
-     * return null.
+     * Allows to provide default index {@link Settings} and custom index metadata for the given index on index creation and template validation.
      *
      * @param indexName                             The name of the new index being created
      * @param dataStreamName                        The name of the data stream if the index being created is part of a data stream
@@ -44,9 +43,12 @@ public interface IndexSettingProvider {
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
      *                                              defined on the create index request
      * @param combinedTemplateMappings              All the mappings resolved from the template that matches
-     * @param extraCustomMetadata                   A builder for custom metadata that can be used to add custom index metadata
+     * @param additionalSettings                    A settings builder to which additional settings can be added
+     * @param additionalCustomMetadata              A consumer to which additional
+     *                                              {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
+     *                                              can be added
      */
-    default Settings getAdditionalIndexSettings(
+    default void getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -54,24 +56,26 @@ public interface IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        BiConsumer<String, Map<String, String>> extraCustomMetadata
-    ) {
-        return Settings.EMPTY;
-    }
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
+    ) {}
 
     /**
      * Called when the mappings for an index are updated, before the new index metadata is created.
      * This method can be used to update index settings based on the new mappings.
      *
-     * @param indexMetadata          the index metadata for the index being updated
-     * @param customMetadataConsumer allows to apply additional custom index metadata
-     * @param documentMapper         the document mapper containing the updated mappings
+     * @param indexMetadata            The index metadata for the index being updated
+     * @param documentMapper           The document mapper containing the updated mappings
+     * @param additionalSettings       A settings builder to which additional settings can be added
+     * @param additionalCustomMetadata A consumer to which additional
+     *                                 {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
+     *                                 can be added
      */
     default void onUpdateMappings(
         IndexMetadata indexMetadata,
         DocumentMapper documentMapper,
         Settings.Builder additionalSettings,
-        BiConsumer<String, Map<String, String>> customMetadataConsumer
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
     ) {}
 
     /**

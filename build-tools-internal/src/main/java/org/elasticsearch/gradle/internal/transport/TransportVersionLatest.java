@@ -9,14 +9,17 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import java.nio.file.Path;
+
 record TransportVersionLatest(String branch, String name, TransportVersionId id) {
-    public static TransportVersionLatest fromString(String filename, String contents) {
+    public static TransportVersionLatest fromString(Path file, String contents) {
+        String filename = file.getFileName().toString();
         assert filename.endsWith(".csv");
         String branch = filename.substring(0, filename.length() - 4);
 
         String[] parts = contents.split(",");
         if (parts.length != 2) {
-            throw new IllegalStateException("Invalid transport version latest file [" + filename + "]: " + contents);
+            throw new IllegalStateException("Invalid transport version latest file [" + file + "]: " + contents);
         }
 
         return new TransportVersionLatest(branch, parts[0], TransportVersionId.fromString(parts[1]));

@@ -508,13 +508,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         };
     }
 
-    private static double decayDateLinear(
-        long origin,
-        Duration scale,
-        Duration offset,
-        double decay,
-        ZonedDateTime docValueDate
-    ) {
+    private static double decayDateLinear(long origin, Duration scale, Duration offset, double decay, ZonedDateTime docValueDate) {
         long docValue = docValueDate.toInstant().toEpochMilli();
         long offsetMillis = offset.toMillis();
         long scaleMillis = scale.toMillis();
@@ -536,13 +530,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         return Math.exp(scaling * distance);
     }
 
-    private static double decayDateGauss(
-        long origin,
-        Duration scale,
-        Duration offset,
-        double decay,
-        ZonedDateTime docValueDate
-    ) {
+    private static double decayDateGauss(long origin, Duration scale, Duration offset, double decay, ZonedDateTime docValueDate) {
         long docValue = docValueDate.toInstant().toEpochMilli();
         long offsetMillis = offset.toMillis();
         long scaleMillis = scale.toMillis();

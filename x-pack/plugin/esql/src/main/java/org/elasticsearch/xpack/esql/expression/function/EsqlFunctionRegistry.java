@@ -934,7 +934,7 @@ public class EsqlFunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for multi-arg/n-ary function.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
+    protected <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> { return ctorRef.build(source, children); };
         return def(function, builder, names);
     }
@@ -1107,8 +1107,6 @@ public class EsqlFunctionRegistry {
         };
         return def(function, builder, names);
     }
-
-    // TODO: ternary variadic builder
 
     /**
      * Build a {@linkplain FunctionDefinition} for a no-argument function that is configuration aware.

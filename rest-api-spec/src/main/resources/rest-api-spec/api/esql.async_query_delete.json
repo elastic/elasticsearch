@@ -2,7 +2,7 @@
   "esql.async_query_delete": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/esql-async-query-delete-api.html",
-      "description": "Delete an async query request given its ID."
+      "description": "Delete an async ES|QL query"
     },
     "stability": "stable",
     "visibility": "public",

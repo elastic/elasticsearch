@@ -2,7 +2,7 @@
   "eql.get_status": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/eql-search-api.html",
-      "description": "Returns the status of a previously submitted async or stored Event Query Language (EQL) search"
+      "description": "Get the async EQL status"
     },
     "stability": "stable",
     "visibility": "public",

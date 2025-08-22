@@ -2,7 +2,7 @@
   "inference.sparse_embedding": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/post-inference-api.html",
-      "description": "Perform sparse embedding inference"
+      "description": "Perform sparse embedding inference on the service"
     },
     "stability": "stable",
     "visibility": "public",

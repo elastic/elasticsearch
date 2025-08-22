@@ -2,7 +2,7 @@
   "connector.list": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-connector-api.html",
-      "description": "Lists all connectors."
+      "description": "Get all connectors"
     },
     "stability": "experimental",
     "visibility": "public",

@@ -2,7 +2,7 @@
   "inference.stream_completion": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/post-stream-inference-api.html",
-      "description": "Perform streaming completion inference"
+      "description": "Perform streaming inference"
     },
     "stability": "stable",
     "visibility": "public",

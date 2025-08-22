@@ -2,7 +2,7 @@
   "search_application.post_behavioral_analytics_event": {
     "documentation": {
       "url": "http://todo.com/tbd",
-      "description": "Creates a behavioral analytics event for existing collection."
+      "description": "Create a behavioral analytics collection event"
     },
     "stability": "experimental",
     "visibility": "public",

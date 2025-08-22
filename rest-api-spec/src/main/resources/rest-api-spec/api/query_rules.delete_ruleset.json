@@ -2,7 +2,7 @@
   "query_rules.delete_ruleset": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-query-ruleset.html",
-      "description": "Deletes a query ruleset."
+      "description": "Delete a query ruleset"
     },
     "stability": "stable",
     "visibility": "public",

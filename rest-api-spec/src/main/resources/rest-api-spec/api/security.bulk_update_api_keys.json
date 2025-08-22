@@ -2,7 +2,7 @@
   "security.bulk_update_api_keys": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-bulk-update-api-keys.html",
-      "description": "Updates the attributes of multiple existing API keys."
+      "description": "Bulk update API keys"
     },
     "stability": "stable",
     "visibility": "public",

@@ -123,6 +123,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnr
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -3755,7 +3756,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankFieldsInvalidTypes() {
-        List<String> invalidFieldNames = List.of("date", "date_nanos", "ip", "version", "dense_vector");
+        List<String> invalidFieldNames = DENSE_VECTOR_FEATURE_FLAG.isEnabled()
+            ? List.of("date", "date_nanos", "ip", "version", "dense_vector")
+            : List.of("date", "date_nanos", "ip", "version");
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);

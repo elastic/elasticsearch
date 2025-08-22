@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Releasable;
@@ -62,6 +63,39 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     @Override
     public SingletonOrdinalsBuilder endPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");
+    }
+
+    private BytesRefBlock tryBuildConstantBlock() {
+        if (minOrd != maxOrd) {
+            return null;
+        }
+        for (int ord : ords) {
+            if (ord == -1) {
+                return null;
+            }
+        }
+        final BytesRef v;
+        try {
+            v = BytesRef.deepCopyOf(docValues.lookupOrd(minOrd));
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to lookup ordinals", e);
+        }
+        BytesRefVector bytes = null;
+        IntVector ordinals = null;
+        boolean success = false;
+        try {
+            bytes = blockFactory.newConstantBytesRefVector(v, 1);
+            ordinals = blockFactory.newConstantIntVector(0, ords.length);
+            // Ideally, we would return a ConstantBytesRefVector, but we return an ordinal constant block instead
+            // to ensure ordinal optimizations are applied when constant optimization is not available.
+            final var result = new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(bytes, ordinals);
+            }
+        }
     }
 
     BytesRefBlock buildOrdinal() {
@@ -172,6 +206,10 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
 
     @Override
     public BytesRefBlock build() {
+        var constantBlock = tryBuildConstantBlock();
+        if (constantBlock != null) {
+            return constantBlock;
+        }
         return shouldBuildOrdinalsBlock() ? buildOrdinal() : buildRegularBlock();
     }
 

@@ -323,6 +323,46 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, result, 0f);
     }
 
+    public void testSquareDistanceBulk() {
+        int vectorSize = randomIntBetween(1, 2048);
+        float[] query = generateRandomVector(vectorSize);
+        float[] v0 = generateRandomVector(vectorSize);
+        float[] v1 = generateRandomVector(vectorSize);
+        float[] v2 = generateRandomVector(vectorSize);
+        float[] v3 = generateRandomVector(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, panamaDistances);
+        assertArrayEquals(expectedDistances, panamaDistances, 1e-3f);
+    }
+
+    public void testSoarDistanceBulk() {
+        int vectorSize = randomIntBetween(1, 2048);
+        float deltaEps = 1e-3f * vectorSize;
+        float[] query = generateRandomVector(vectorSize);
+        float[] v0 = generateRandomVector(vectorSize);
+        float[] v1 = generateRandomVector(vectorSize);
+        float[] v2 = generateRandomVector(vectorSize);
+        float[] v3 = generateRandomVector(vectorSize);
+        float[] diff = generateRandomVector(vectorSize);
+        float soarLambda = random().nextFloat();
+        float rnorm = random().nextFloat();
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, panamaDistances);
+        assertArrayEquals(expectedDistances, panamaDistances, deltaEps);
+    }
+
+    private float[] generateRandomVector(int size) {
+        float[] vector = new float[size];
+        for (int i = 0; i < size; ++i) {
+            vector[i] = random().nextFloat();
+        }
+        return vector;
+    }
+
     void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {
         int iterations = atLeast(50);
         for (int i = 0; i < iterations; i++) {

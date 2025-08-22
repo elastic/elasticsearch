@@ -615,7 +615,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return a data stream if the write request points to a data stream, or {@code null} if it does not
      */
     private static DataStream getRedirectTargetCandidate(DocWriteRequest<?> docWriteRequest, ProjectMetadata project) {
-        // PRTODO: We could check for cluster feature here instead
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
         IndexAbstraction ia = project.getIndicesLookup().get(docWriteRequest.index());
         return DataStream.resolveDataStream(ia, project);

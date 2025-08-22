@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.vectors;
 
+import com.carrotsearch.hppc.IntHashSet;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -115,7 +117,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             filterWeight = null;
         }
         // we request numCands as we are using it as an approximation measure
-        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(numCands, indexSearcher);
+        // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
+        // TODO move the logic for automatically adjusting percentages/nprobe to the query, so we can only pass
+        // 2k to the collector.
+        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.max(Math.round(2f * k), numCands), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
@@ -135,12 +140,23 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager) throws IOException {
         TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager);
-        if (ctx.docBase > 0) {
-            for (ScoreDoc scoreDoc : results.scoreDocs) {
-                scoreDoc.doc += ctx.docBase;
+        IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
+        int deduplicateCount = 0;
+        for (ScoreDoc scoreDoc : results.scoreDocs) {
+            if (dedup.add(scoreDoc.doc)) {
+                deduplicateCount++;
             }
         }
-        return results;
+        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[deduplicateCount];
+        dedup.clear();
+        int index = 0;
+        for (ScoreDoc scoreDoc : results.scoreDocs) {
+            if (dedup.add(scoreDoc.doc)) {
+                scoreDoc.doc += ctx.docBase;
+                deduplicatedScoreDocs[index++] = scoreDoc;
+            }
+        }
+        return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
     TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager) throws IOException {

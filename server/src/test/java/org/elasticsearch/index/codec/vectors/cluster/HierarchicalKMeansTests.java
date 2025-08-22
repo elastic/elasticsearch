@@ -36,7 +36,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int[] assignments = result.assignments();
         int[] soarAssignments = result.soarAssignments();
 
-        assertEquals(Math.min(nClusters, nVectors), centroids.length, 8);
+        assertEquals(Math.min(nClusters, nVectors), centroids.length, 10);
         assertEquals(nVectors, assignments.length);
 
         for (int assignment : assignments) {
@@ -73,5 +73,64 @@ public class HierarchicalKMeansTests extends ESTestCase {
             vectors.add(vector);
         }
         return FloatVectorValues.fromFloats(vectors, nDims);
+    }
+
+    public void testFewDifferentValues() throws IOException {
+        int nVectors = random().nextInt(100, 1000);
+        int targetSize = random().nextInt(4, 64);
+        int dims = random().nextInt(2, 20);
+        int diffValues = randomIntBetween(1, 5);
+        float[][] values = new float[diffValues][dims];
+        for (int i = 0; i < diffValues; i++) {
+            for (int j = 0; j < dims; j++) {
+                values[i][j] = random().nextFloat();
+            }
+        }
+        List<float[]> vectorList = new ArrayList<>(nVectors);
+        for (int i = 0; i < nVectors; i++) {
+            vectorList.add(values[random().nextInt(diffValues)]);
+        }
+        FloatVectorValues vectors = FloatVectorValues.fromFloats(vectorList, dims);
+
+        HierarchicalKMeans hkmeans = new HierarchicalKMeans(
+            dims,
+            random().nextInt(1, 100),
+            random().nextInt(Math.min(nVectors, 100), nVectors + 1),
+            random().nextInt(2, 512),
+            random().nextFloat(0.5f, 1.5f)
+        );
+
+        KMeansResult result = hkmeans.cluster(vectors, targetSize);
+
+        float[][] centroids = result.centroids();
+        int[] assignments = result.assignments();
+        int[] soarAssignments = result.soarAssignments();
+
+        int[] counts = new int[centroids.length];
+        for (int i = 0; i < assignments.length; i++) {
+            counts[assignments[i]]++;
+        }
+        int totalCount = 0;
+        for (int count : counts) {
+            totalCount += count;
+            assertTrue(count > 0);
+        }
+        assertEquals(nVectors, totalCount);
+
+        assertEquals(nVectors, assignments.length);
+
+        for (int assignment : assignments) {
+            assertTrue(assignment >= 0 && assignment < centroids.length);
+        }
+        if (centroids.length > 1 && centroids.length < nVectors) {
+            assertEquals(nVectors, soarAssignments.length);
+            // verify no duplicates exist
+            for (int i = 0; i < assignments.length; i++) {
+                assertTrue(soarAssignments[i] >= 0 && soarAssignments[i] < centroids.length);
+                assertNotEquals(assignments[i], soarAssignments[i]);
+            }
+        } else {
+            assertEquals(0, soarAssignments.length);
+        }
     }
 }

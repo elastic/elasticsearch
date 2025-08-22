@@ -58,6 +58,12 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         if (setNodes) {
             clusterBuilder.nodes(2);
         }
+        // We need to disable ILM history based on a setting, to avoid errors in Serverless where the setting is not available.
+        boolean disableILMHistory = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.disable_ilm_history", "true"));
+        if (disableILMHistory) {
+            // disable ILM history, since it disturbs tests
+            clusterBuilder.setting("indices.lifecycle.history_index_enabled", "false");
+        }
         return clusterBuilder.build();
     }
 

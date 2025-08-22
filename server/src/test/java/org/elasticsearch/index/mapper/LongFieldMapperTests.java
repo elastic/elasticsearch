@@ -162,4 +162,9 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
             }
         };
     }
+
+    protected boolean supportsBulkBlockReading() {
+        return true;
+    }
+
 }

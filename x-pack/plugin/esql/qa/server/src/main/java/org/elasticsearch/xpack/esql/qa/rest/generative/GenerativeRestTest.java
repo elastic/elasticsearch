@@ -160,7 +160,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         );
         if (outputValidation.success() == false) {
             for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                if (allowedError.matcher(outputValidation.errorMessage()).matches()) {
+                if (isAllowedError(outputValidation.errorMessage(), allowedError)) {
                     return outputValidation;
                 }
             }
@@ -171,11 +171,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (allowedError.matcher(query.exception().getMessage()).matches()) {
+            if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
+    }
+
+    /**
+     * Long lines in exceptions can be split across several lines. When a newline is inserted, the end of the current line and the beginning
+     * of the new line are marked with a backslash {@code \}; the new line will also have whitespace before the backslash for aligning.
+     */
+    private static final Pattern ERROR_MESSAGE_LINE_BREAK = Pattern.compile("\\\\\n\\s*\\\\");
+
+    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return allowedPattern.matcher(errorWithoutLineBreaks).matches();
     }
 
     @SuppressWarnings("unchecked")

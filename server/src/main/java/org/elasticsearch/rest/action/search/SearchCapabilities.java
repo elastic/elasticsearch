@@ -58,6 +58,7 @@ public final class SearchCapabilities {
     private static final String SYNTHETIC_VECTORS_SETTING = "synthetic_vectors_setting";
     private static final String UPDATE_FIELD_TO_BBQ_DISK = "update_field_to_bbq_disk";
     private static final String KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY = "knn_filter_on_nested_fields";
+    private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -84,6 +85,7 @@ public final class SearchCapabilities {
         capabilities.add(FIELD_EXISTS_QUERY_FOR_TEXT_FIELDS_NO_INDEX_OR_DV);
         capabilities.add(UPDATE_FIELD_TO_BBQ_DISK);
         capabilities.add(KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY);
+        capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         if (SYNTHETIC_VECTORS) {
             capabilities.add(SYNTHETIC_VECTORS_SETTING);
         }

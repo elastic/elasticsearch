@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -60,7 +61,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap(AzureRepository.TYPE, (projectId, metadata) -> {
             AzureStorageService storageService = azureStoreService.get();
@@ -73,7 +75,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                repositoriesMetrics
+                repositoriesMetrics,
+                snapshotMetrics
             );
         });
     }

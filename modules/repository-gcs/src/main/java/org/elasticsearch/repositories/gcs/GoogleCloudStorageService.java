@@ -364,25 +364,24 @@ public class GoogleCloudStorageService {
                 // Skip project clients that have no credentials configured. This should not happen in serverless.
                 // But it is safer to skip them and is also a more consistent behaviour with the cases when
                 // project secrets are not present.
-                final var clientSettings = allClientSettings.entrySet()
+                final var clientSettingsWithCredentials = allClientSettings.entrySet()
                     .stream()
                     .filter(entry -> entry.getValue().getCredential() != null)
                     .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
-                if (allClientSettings.size() != clientSettings.size()) {
-                    logger.warn(
-                        "Project [{}] has [{}] GCS client settings, but [{}] is usable due to missing credentials for clients {}",
-                        project.id(),
-                        allClientSettings.size(),
-                        clientSettings.size(),
-                        Sets.difference(allClientSettings.keySet(), clientSettings.keySet())
-                    );
-                }
-
                 // TODO: If performance is an issue, we may consider comparing just the relevant project secrets for new or updated clients
                 // and avoid building the clientSettings
-                if (newOrUpdated(project.id(), clientSettings)) {
-                    updatedPerProjectClients.put(project.id(), new PerProjectClientsHolder(clientSettings));
+                if (newOrUpdated(project.id(), clientSettingsWithCredentials)) {
+                    if (allClientSettings.size() != clientSettingsWithCredentials.size()) {
+                        logger.warn(
+                            "Project [{}] has [{}] GCS client settings, but [{}] is usable due to missing credentials for clients {}",
+                            project.id(),
+                            allClientSettings.size(),
+                            clientSettingsWithCredentials.size(),
+                            Sets.difference(allClientSettings.keySet(), clientSettingsWithCredentials.keySet())
+                        );
+                    }
+                    updatedPerProjectClients.put(project.id(), new PerProjectClientsHolder(clientSettingsWithCredentials));
                 }
             }
 

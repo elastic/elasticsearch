@@ -3,4 +3,5 @@
 * [`DATE_FORMAT`](../../functions-operators/date-time-functions.md#esql-date_format)
 * [`DATE_PARSE`](../../functions-operators/date-time-functions.md#esql-date_parse)
 * [`DATE_TRUNC`](../../functions-operators/date-time-functions.md#esql-date_trunc)
+* [`DAY_NAME`](../../functions-operators/date-time-functions.md#esql-day_name)
 * [`NOW`](../../functions-operators/date-time-functions.md#esql-now)

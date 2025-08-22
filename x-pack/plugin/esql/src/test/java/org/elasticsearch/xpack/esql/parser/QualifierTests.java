@@ -217,7 +217,8 @@ public class QualifierTests extends AbstractStatementParserTests {
         assertQualifiedAttributeInExpressions(sourceQuery + "SORT [qualified].[field]/[qualified].[field]", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(
             sourceQuery
-                + "SORT [qualified].[field] ASC, [qualified].[field] DESC, [qualified].[field] NULLS FIRST, [qualified ]. [`field` ] NULLS LAST",
+                + "SORT [qualified].[field] ASC, [qualified].[field] DESC, "
+                + "[qualified].[field] NULLS FIRST, [qualified ]. [`field` ] NULLS LAST",
             "qualified",
             "field",
             4
@@ -232,7 +233,8 @@ public class QualifierTests extends AbstractStatementParserTests {
         );
         assertQualifiedAttributeInExpressions(
             sourceQuery
-                + "STATS avg(x) WHERE [qualified].[field], count(y) WHERE [ qualified] . [field] != [qualified].[field] BY [qualified].[field]",
+                + "STATS avg(x) WHERE [qualified].[field], "
+                + "count(y) WHERE [ qualified] . [field] != [qualified].[field] BY [qualified].[field]",
             "qualified",
             "field",
             5

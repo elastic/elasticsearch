@@ -279,3 +279,55 @@ setup:
         negative:
           indices: [0, 1]
           counts: [1, 5]
+
+---
+"Positive infinity sum":
+  - do:
+      index:
+        index: test_exponential_histogram
+        id: "1"
+        refresh: true
+        body:
+          my_histo:
+            scale: 0
+            positive:
+              indices: [2000]
+              counts: [1]
+
+  - do:
+      get:
+        index: test_exponential_histogram
+        id: "1"
+  - match:
+      _source.my_histo:
+        scale: 0
+        sum: Infinity
+        positive:
+          indices: [2000]
+          counts: [1]
+
+---
+"negative infinity sum":
+  - do:
+      index:
+        index: test_exponential_histogram
+        id: "1"
+        refresh: true
+        body:
+          my_histo:
+            scale: 0
+            negative:
+              indices: [2000]
+              counts: [1]
+
+  - do:
+      get:
+        index: test_exponential_histogram
+        id: "1"
+  - match:
+      _source.my_histo:
+        scale: 0
+        sum: -Infinity
+        negative:
+          indices: [2000]
+          counts: [1]

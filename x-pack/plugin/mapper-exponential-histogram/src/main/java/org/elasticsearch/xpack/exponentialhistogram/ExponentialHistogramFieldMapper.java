@@ -304,9 +304,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                         );
                     }
                 } else if (fieldName.equals(SUM_FIELD.getPreferredName())) {
-                    token = subParser.nextToken();
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                    sum = subParser.doubleValue();
+                    sum = parseDoubleAllowingInfinity(subParser);
                 } else if (fieldName.equals(ZERO_FIELD.getPreferredName())) {
                     zeroBucket = parseZeroBucket(subParser);
                 } else if (fieldName.equals(POSITIVE_FIELD.getPreferredName())) {
@@ -405,6 +403,24 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    private double parseDoubleAllowingInfinity(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        boolean isValidNumber = token == XContentParser.Token.VALUE_NUMBER;
+        if (token == XContentParser.Token.VALUE_STRING) {
+            String text = parser.text();
+            if (text.equals("-Infinity") || text.equals("Infinity")) {
+                isValidNumber = true;
+            }
+        }
+        if (isValidNumber) {
+            return parser.doubleValue();
+        }
+        throw new DocumentParsingException(
+            parser.getTokenLocation(),
+            "error parsing field [" + fullPath() + "], expected a number but got " + token
+        );
     }
 
     private static long getTotalValueCount(

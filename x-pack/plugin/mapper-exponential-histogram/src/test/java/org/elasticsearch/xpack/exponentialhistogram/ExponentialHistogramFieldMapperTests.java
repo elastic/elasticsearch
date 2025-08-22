@@ -129,7 +129,9 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 Map.of("indices", negativeIndices, "counts", negativeCounts)
             )
         );
-        if (randomBoolean() && (positiveIndices.isEmpty() == false || negativeIndices.isEmpty() == false)) {
+        if ((positiveIndices.isEmpty() == false || negativeIndices.isEmpty() == false)) {
+            // we always add the sum field to avoid numeric problems with the estimation due to random buckets
+            // sum generation is tested in the yaml tests
             result.put("sum", randomDoubleBetween(-1000, 1000, true));
         }
         return result;

@@ -273,7 +273,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx, UnresolvedAttribute defaultValue) {
-        // TODO: Disallow qualifier + param (for now)
         if (ctx == null) {
             return defaultValue;
         }
@@ -331,7 +330,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public NamedExpression visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext qualifiedCtx) {
-        // TODO: Disallow qualifier + param (for now)
         if (qualifiedCtx == null) {
             return null;
         }
@@ -498,7 +496,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             result = new UnresolvedAttribute(src, qualifier, Strings.collectionToDelimitedString(objects, ""), null);
 
             if (qualifier != null && qualifier.contains(WILDCARD)) {
-                // TODO: much more rigorous check for unallowed characters in the qualifier
                 throw qualifiersUnsupportedInPatterns(src, ((UnresolvedAttribute) result).qualifiedName());
             }
         }

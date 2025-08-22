@@ -13,8 +13,6 @@ joinCommand
 joinTarget
     // Cannot use UNQUOTED_IDENTIFIER for the qualifier because the lexer will confuse it with an UNQUOTED_SOURCE; would
     // require pushing a mode to the lexer to disambiguate.
-    // TODO: UNQUOTED_SOURCE should be restricted further (no keywords, only simple chars) - and we should have reserved
-    // characters for internal usage, and it must be a subset of UNQUOTED_IDENTIFIER.
     : {this.isDevVersion()}? index=indexPattern AS? qualifier=UNQUOTED_SOURCE
     | index=indexPattern
     ;

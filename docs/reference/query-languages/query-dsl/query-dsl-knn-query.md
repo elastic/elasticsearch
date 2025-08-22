@@ -265,6 +265,10 @@ have "paragraph.language" set to "EN":
 
 ### Multiple filters (nested and top-level metadata)
 
+```{applies_to}
+stack: ga 9.2
+```
+
 This query uses multiple filters: one over nested metadata and another over the top level metadata. For scoring parent documents,
 this query only considers vectors whose parent's title contain "essay"
 word and have "paragraph.language" set to "EN":

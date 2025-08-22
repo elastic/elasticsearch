@@ -334,7 +334,7 @@ public class TestBlock implements BlockLoader.Block {
 
                     @Override
                     public BlockLoader.ExponentialHistogramBuilder append(ExponentialHistogram value) {
-                        //TODO: clean up the copying here?
+                        // TODO: clean up the copying here?
                         int numBuckets = value.negativeBuckets().bucketCount() + value.positiveBuckets().bucketCount();
                         add(ExponentialHistogram.merge(numBuckets, ExponentialHistogramCircuitBreaker.noop(), value));
                         return this;

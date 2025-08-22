@@ -34,7 +34,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     // - if an encondedHistogram value is non-null, sum and count must not be null, but min/max may be (for empty histograms)
     private final BytesRefBlock encodedHistograms;
     private final LongBlock valuesCounts;
-    //TODO: add DoubleBlocks for sum/min/max
+    // TODO: add DoubleBlocks for sum/min/max
 
     public ExponentialHistogramArrayBlock(BytesRefBlock encodedHistograms, LongBlock valuesCounts) {
         this.encodedHistograms = encodedHistograms;
@@ -233,7 +233,12 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         return bytes;
     }
 
-    void copyInto(BytesRefBlock.Builder encodedHistogramsBuilder, LongBlock.Builder valuesCountsBuilder, int beginInclusive, int endExclusive) {
+    void copyInto(
+        BytesRefBlock.Builder encodedHistogramsBuilder,
+        LongBlock.Builder valuesCountsBuilder,
+        int beginInclusive,
+        int endExclusive
+    ) {
         encodedHistogramsBuilder.copyFrom(this.encodedHistograms, beginInclusive, endExclusive);
         valuesCountsBuilder.copyFrom(this.valuesCounts, beginInclusive, endExclusive);
     }
@@ -264,16 +269,16 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         private final ByteBuffer data;
 
         private BlockBackedHistogram(BytesRef bytes) {
-            data = ByteBuffer.wrap(bytes.bytes, 0, bytes.offset+ bytes.length).order(ByteOrder.LITTLE_ENDIAN);
-            scale = data.get(bytes.offset+SCALE_OFFSET);
-            long zeroCount = data.getLong(bytes.offset+ZERO_COUNT_OFFSET);
-            double zeroThreshold = data.getDouble(bytes.offset+ZERO_THRESHOLD_OFFSET);
+            data = ByteBuffer.wrap(bytes.bytes, 0, bytes.offset + bytes.length).order(ByteOrder.LITTLE_ENDIAN);
+            scale = data.get(bytes.offset + SCALE_OFFSET);
+            long zeroCount = data.getLong(bytes.offset + ZERO_COUNT_OFFSET);
+            double zeroThreshold = data.getDouble(bytes.offset + ZERO_THRESHOLD_OFFSET);
             zeroBucket = new ZeroBucket(zeroThreshold, zeroCount);
-            int negativeBucketCount = data.getInt(bytes.offset+NEGATIVE_BUCKET_COUNT_OFFSET);
+            int negativeBucketCount = data.getInt(bytes.offset + NEGATIVE_BUCKET_COUNT_OFFSET);
             int negativeBucketsLength = negativeBucketCount * BUCKET_STRIDE;
 
-            negativeBuckets = new Buckets(bytes.offset+BUCKETS_ARRAY_START_OFFSET, negativeBucketsLength);
-            int positiveBucketsStart = bytes.offset+BUCKETS_ARRAY_START_OFFSET + negativeBucketsLength;
+            negativeBuckets = new Buckets(bytes.offset + BUCKETS_ARRAY_START_OFFSET, negativeBucketsLength);
+            int positiveBucketsStart = bytes.offset + BUCKETS_ARRAY_START_OFFSET + negativeBucketsLength;
             int positiveBucketsLength = data.limit() - positiveBucketsStart;
             positiveBuckets = new Buckets(positiveBucketsStart, positiveBucketsLength);
         }
@@ -341,7 +346,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
         @Override
         public long ramBytesUsed() {
-            //TODO: implement for shallow size
+            // TODO: implement for shallow size
             return 0L;
         }
 

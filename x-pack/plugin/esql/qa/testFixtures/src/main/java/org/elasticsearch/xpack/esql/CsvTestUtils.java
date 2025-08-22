@@ -55,7 +55,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
@@ -141,7 +140,7 @@ public final class CsvTestUtils {
                         return;
                     }
                     stringValue = mvStrings[0];
-                } else if (stringValue.matches(".*"+COMMA_ESCAPING_REGEX+".*")) {// multi-value field
+                } else if (stringValue.matches(".*" + COMMA_ESCAPING_REGEX + ".*")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
                     String[] arrayOfValues = stringValue.split(COMMA_ESCAPING_REGEX, -1);
@@ -493,10 +492,7 @@ public final class CsvTestUtils {
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
-        EXPONENTIAL_HISTOGRAM(
-            x -> x == null ? null : JsonBackedExponentialHistogram.createFromJson(x),
-            ExponentialHistogram.class
-        ),
+        EXPONENTIAL_HISTOGRAM(x -> x == null ? null : JsonBackedExponentialHistogram.createFromJson(x), ExponentialHistogram.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {

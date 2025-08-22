@@ -21,5 +21,6 @@ module org.elasticsearch.exponentialhistogram {
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
     requires org.elasticsearch.base;
+
     exports org.elasticsearch.exponentialhistogram;
 }

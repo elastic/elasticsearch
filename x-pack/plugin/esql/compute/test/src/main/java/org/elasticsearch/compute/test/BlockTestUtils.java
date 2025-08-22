@@ -63,7 +63,8 @@ public class BlockTestUtils {
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
             case AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException("can't make random values for aggregate_metric_double");
-            case EXPONENTIAL_HISTOGRAM -> throw new IllegalArgumentException("can't make random values for exponential_histogram"); //TODO: implement
+            case EXPONENTIAL_HISTOGRAM -> throw new IllegalArgumentException("can't make random values for exponential_histogram"); // TODO:
+                                                                                                                                    // implement
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }

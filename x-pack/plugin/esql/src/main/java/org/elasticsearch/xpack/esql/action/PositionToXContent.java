@@ -164,7 +164,7 @@ public abstract class PositionToXContent {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    //TODO: shouldn't this be a subobject instead of a string?
+                    // TODO: shouldn't this be a subobject instead of a string?
                     return builder.value(exponentialHistogramBlockToString((ExponentialHistogramBlock) block, valueIndex));
                 }
             };

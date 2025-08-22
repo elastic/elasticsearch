@@ -15,10 +15,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockFactory {

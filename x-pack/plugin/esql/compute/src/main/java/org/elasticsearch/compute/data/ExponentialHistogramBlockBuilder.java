@@ -93,7 +93,7 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
     @Override
     public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {
-            for (int i= beginInclusive; i < endExclusive; i++) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
                 appendNull();
             }
         } else {
@@ -105,7 +105,7 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
 
     @Override
     public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
-        //TODO: does this need implementation?
+        // TODO: does this need implementation?
         return this;
     }
 

@@ -30,7 +30,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXConten
 public class JsonBackedExponentialHistogram implements ExponentialHistogram {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    static  {
+    static {
         MAPPER.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
     }
 
@@ -40,12 +40,14 @@ public class JsonBackedExponentialHistogram implements ExponentialHistogram {
     private final SerializedBuckets positive;
     private final SerializedBuckets negative;
 
-    private JsonBackedExponentialHistogram(int scale, ZeroBucket zeroBucket,
-                                          List<? extends Number> negativeIndices,
-                                          List<? extends Number> negativeCounts,
-                                          List<? extends Number> positiveIndices,
-                                            List<? extends Number> positiveCounts)
-    {
+    private JsonBackedExponentialHistogram(
+        int scale,
+        ZeroBucket zeroBucket,
+        List<? extends Number> negativeIndices,
+        List<? extends Number> negativeCounts,
+        List<? extends Number> positiveIndices,
+        List<? extends Number> positiveCounts
+    ) {
         this.scale = scale;
         this.zeroBucket = zeroBucket;
         this.positive = new SerializedBuckets(negativeIndices, negativeCounts);
@@ -61,7 +63,7 @@ public class JsonBackedExponentialHistogram implements ExponentialHistogram {
             List<? extends Number> positiveIndices = List.of();
             List<? extends Number> positiveCounts = List.of();
 
-            Map<?,?> data = MAPPER.readValue(json, Map.class);
+            Map<?, ?> data = MAPPER.readValue(json, Map.class);
             if (data == null) {
                 return null;
             }
@@ -70,23 +72,19 @@ public class JsonBackedExponentialHistogram implements ExponentialHistogram {
             if (zero != null) {
                 Number threshold = (Number) zero.get(ZERO_THRESHOLD_FIELD);
                 Number count = (Number) zero.get(ZERO_COUNT_FIELD);
-                zeroBucket = new ZeroBucket(
-                    threshold == null ? 0.0 : threshold.doubleValue(),
-                    count == null ? 0 :count.longValue());
+                zeroBucket = new ZeroBucket(threshold == null ? 0.0 : threshold.doubleValue(), count == null ? 0 : count.longValue());
             }
-            Map<?,Object> negative = (Map<?,Object>) data.get(NEGATIVE_FIELD);
+            Map<?, Object> negative = (Map<?, Object>) data.get(NEGATIVE_FIELD);
             if (negative != null) {
                 negativeIndices = (List<? extends Number>) negative.getOrDefault(BUCKET_INDICES_FIELD, List.of());
                 negativeCounts = (List<? extends Number>) negative.getOrDefault(BUCKET_COUNTS_FIELD, List.of());
             }
-            Map<?,Object> positive = (Map<?,Object>) data.get(POSITIVE_FIELD);
+            Map<?, Object> positive = (Map<?, Object>) data.get(POSITIVE_FIELD);
             if (positive != null) {
                 positiveIndices = (List<? extends Number>) positive.getOrDefault(BUCKET_INDICES_FIELD, List.of());
                 positiveCounts = (List<? extends Number>) positive.getOrDefault(BUCKET_COUNTS_FIELD, List.of());
             }
-            return new JsonBackedExponentialHistogram(
-                scale, zeroBucket, negativeIndices, negativeCounts, positiveIndices, positiveCounts
-            );
+            return new JsonBackedExponentialHistogram(scale, zeroBucket, negativeIndices, negativeCounts, positiveIndices, positiveCounts);
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse ExponentialHistogram from JSON", e);
         }
@@ -116,7 +114,7 @@ public class JsonBackedExponentialHistogram implements ExponentialHistogram {
             if (indices.isEmpty()) {
                 return OptionalLong.empty();
             } else {
-                return  OptionalLong.of(indices.get(indices.size() - 1).longValue());
+                return OptionalLong.of(indices.get(indices.size() - 1).longValue());
             }
         }
 

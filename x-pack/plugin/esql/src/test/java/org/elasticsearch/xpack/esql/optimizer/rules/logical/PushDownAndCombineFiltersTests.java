@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -70,6 +69,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.mockito.Mockito.mock;
 
 public class PushDownAndCombineFiltersTests extends ESTestCase {
@@ -81,11 +81,11 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
 
-        Filter fa = new Filter(Source.EMPTY, relation, conditionA);
-        Filter fb = new Filter(Source.EMPTY, fa, conditionB);
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        Filter fb = new Filter(EMPTY, fa, conditionB);
 
         assertEquals(
-            new Filter(Source.EMPTY, relation, new And(Source.EMPTY, conditionA, conditionB)),
+            new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
             new PushDownAndCombineFilters().apply(fb, optimizerContext)
         );
     }
@@ -95,11 +95,11 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         RLike conditionA = rlike(getFieldAttribute("a"), "foo");
         WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
 
-        Filter fa = new Filter(Source.EMPTY, relation, conditionA);
-        Filter fb = new Filter(Source.EMPTY, fa, conditionB);
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        Filter fb = new Filter(EMPTY, fa, conditionB);
 
         assertEquals(
-            new Filter(Source.EMPTY, relation, new And(Source.EMPTY, conditionA, conditionB)),
+            new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
             new PushDownAndCombineFilters().apply(fb, optimizerContext)
         );
     }
@@ -109,16 +109,13 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
 
-        Filter fa = new Filter(Source.EMPTY, relation, conditionA);
+        Filter fa = new Filter(EMPTY, relation, conditionA);
         List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
-        EsqlProject keep = new EsqlProject(Source.EMPTY, fa, projections);
-        Filter fb = new Filter(Source.EMPTY, keep, conditionB);
+        EsqlProject keep = new EsqlProject(EMPTY, fa, projections);
+        Filter fb = new Filter(EMPTY, keep, conditionB);
 
-        Filter combinedFilter = new Filter(Source.EMPTY, relation, new And(Source.EMPTY, conditionA, conditionB));
-        assertEquals(
-            new EsqlProject(Source.EMPTY, combinedFilter, projections),
-            new PushDownAndCombineFilters().apply(fb, optimizerContext)
-        );
+        Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb, optimizerContext));
     }
 
     public void testPushDownFilterPastRenamingProject() {
@@ -126,15 +123,15 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         FieldAttribute b = getFieldAttribute("b");
         EsRelation relation = relation(List.of(a, b));
 
-        Alias aRenamed = new Alias(Source.EMPTY, "a_renamed", a);
-        Alias aRenamedTwice = new Alias(Source.EMPTY, "a_renamed_twice", aRenamed.toAttribute());
-        Alias bRenamed = new Alias(Source.EMPTY, "b_renamed", b);
+        Alias aRenamed = new Alias(EMPTY, "a_renamed", a);
+        Alias aRenamedTwice = new Alias(EMPTY, "a_renamed_twice", aRenamed.toAttribute());
+        Alias bRenamed = new Alias(EMPTY, "b_renamed", b);
 
-        Project project = new Project(Source.EMPTY, relation, List.of(aRenamed, aRenamedTwice, bRenamed));
+        Project project = new Project(EMPTY, relation, List.of(aRenamed, aRenamedTwice, bRenamed));
 
         GreaterThan aRenamedTwiceGreaterThanOne = greaterThanOf(aRenamedTwice.toAttribute(), ONE);
         LessThan bRenamedLessThanTwo = lessThanOf(bRenamed.toAttribute(), TWO);
-        Filter filter = new Filter(Source.EMPTY, project, Predicates.combineAnd(List.of(aRenamedTwiceGreaterThanOne, bRenamedLessThanTwo)));
+        Filter filter = new Filter(EMPTY, project, Predicates.combineAnd(List.of(aRenamedTwiceGreaterThanOne, bRenamedLessThanTwo)));
 
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
 
@@ -155,11 +152,11 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         FieldAttribute b = getFieldAttribute("b");
         EsRelation relation = relation(List.of(a, b));
 
-        Alias aRenamed = new Alias(Source.EMPTY, "a_renamed", a);
-        Alias aRenamedTwice = new Alias(Source.EMPTY, "a_renamed_twice", aRenamed.toAttribute());
-        Alias bRenamed = new Alias(Source.EMPTY, "b_renamed", b);
-        Alias aSquared = new Alias(Source.EMPTY, "a_squared", new Pow(Source.EMPTY, a, TWO));
-        Eval eval = new Eval(Source.EMPTY, relation, List.of(aRenamed, aRenamedTwice, aSquared, bRenamed));
+        Alias aRenamed = new Alias(EMPTY, "a_renamed", a);
+        Alias aRenamedTwice = new Alias(EMPTY, "a_renamed_twice", aRenamed.toAttribute());
+        Alias bRenamed = new Alias(EMPTY, "b_renamed", b);
+        Alias aSquared = new Alias(EMPTY, "a_squared", new Pow(EMPTY, a, TWO));
+        Eval eval = new Eval(EMPTY, relation, List.of(aRenamed, aRenamedTwice, aSquared, bRenamed));
 
         // We'll construct a Filter after the Eval that has conditions that can or cannot be pushed before the Eval.
         List<Expression> pushableConditionsBefore = List.of(
@@ -207,7 +204,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
                     }
                 }
 
-                Filter filter = new Filter(Source.EMPTY, eval, Predicates.combineAnd(conditions));
+                Filter filter = new Filter(EMPTY, eval, Predicates.combineAnd(conditions));
 
                 LogicalPlan plan = new PushDownAndCombineFilters().apply(filter, optimizerContext);
 
@@ -235,16 +232,13 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         RLike conditionA = rlike(getFieldAttribute("a"), "foo");
         WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
 
-        Filter fa = new Filter(Source.EMPTY, relation, conditionA);
+        Filter fa = new Filter(EMPTY, relation, conditionA);
         List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
-        EsqlProject keep = new EsqlProject(Source.EMPTY, fa, projections);
-        Filter fb = new Filter(Source.EMPTY, keep, conditionB);
+        EsqlProject keep = new EsqlProject(EMPTY, fa, projections);
+        Filter fb = new Filter(EMPTY, keep, conditionB);
 
-        Filter combinedFilter = new Filter(Source.EMPTY, relation, new And(Source.EMPTY, conditionA, conditionB));
-        assertEquals(
-            new EsqlProject(Source.EMPTY, combinedFilter, projections),
-            new PushDownAndCombineFilters().apply(fb, optimizerContext)
-        );
+        Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb, optimizerContext));
     }
 
     // from ... | where a > 1 | stats count(1) by b | where count(1) >= 3 and b < 2
@@ -254,19 +248,19 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         EsRelation relation = relation();
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
-        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(Source.EMPTY, ONE), THREE);
+        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE), THREE);
 
-        Filter fa = new Filter(Source.EMPTY, relation, conditionA);
+        Filter fa = new Filter(EMPTY, relation, conditionA);
         // invalid aggregate but that's fine cause its properties are not used by this rule
-        Aggregate aggregate = new Aggregate(Source.EMPTY, fa, singletonList(getFieldAttribute("b")), emptyList());
-        Filter fb = new Filter(Source.EMPTY, aggregate, new And(Source.EMPTY, aggregateCondition, conditionB));
+        Aggregate aggregate = new Aggregate(EMPTY, fa, singletonList(getFieldAttribute("b")), emptyList());
+        Filter fb = new Filter(EMPTY, aggregate, new And(EMPTY, aggregateCondition, conditionB));
 
         // expected
         Filter expected = new Filter(
-            Source.EMPTY,
+            EMPTY,
             new Aggregate(
-                Source.EMPTY,
-                new Filter(Source.EMPTY, relation, new And(Source.EMPTY, conditionA, conditionB)),
+                EMPTY,
+                new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
                 singletonList(getFieldAttribute("b")),
                 emptyList()
             ),
@@ -286,25 +280,25 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         EsRelation relation = relation(List.of(a, b));
 
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
-        Filter filterA = new Filter(Source.EMPTY, relation, conditionA);
+        Filter filterA = new Filter(EMPTY, relation, conditionA);
 
         Completion completion = completion(filterA);
 
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
         Match conditionCompletion = new Match(
-            Source.EMPTY,
+            EMPTY,
             completion.targetField(),
             randomLiteral(DataType.TEXT),
             mock(Expression.class),
             mock(QueryBuilder.class)
         );
-        Filter filterB = new Filter(Source.EMPTY, completion, new And(Source.EMPTY, conditionB, conditionCompletion));
+        Filter filterB = new Filter(EMPTY, completion, new And(EMPTY, conditionB, conditionCompletion));
 
         LogicalPlan expectedOptimizedPlan = new Filter(
-            Source.EMPTY,
+            EMPTY,
             new Completion(
-                Source.EMPTY,
-                new Filter(Source.EMPTY, relation, new And(Source.EMPTY, conditionA, conditionB)),
+                EMPTY,
+                new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
                 completion.inferenceId(),
                 completion.prompt(),
                 completion.targetField()
@@ -323,20 +317,20 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         EsRelation relation = relation(List.of(a, b));
 
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
-        Filter filterA = new Filter(Source.EMPTY, relation, conditionA);
+        Filter filterA = new Filter(EMPTY, relation, conditionA);
 
         Rerank rerank = rerank(filterA);
 
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
         GreaterThan scoreCondition = greaterThanOf(rerank.scoreAttribute(), ONE);
 
-        Filter filterB = new Filter(Source.EMPTY, rerank, new And(Source.EMPTY, conditionB, scoreCondition));
+        Filter filterB = new Filter(EMPTY, rerank, new And(EMPTY, conditionB, scoreCondition));
 
         LogicalPlan expectedOptimizedPlan = new Filter(
-            Source.EMPTY,
+            EMPTY,
             new Rerank(
-                Source.EMPTY,
-                new Filter(Source.EMPTY, relation, new And(Source.EMPTY, conditionA, conditionB)),
+                EMPTY,
+                new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
                 rerank.inferenceId(),
                 rerank.queryText(),
                 rerank.rerankFields(),
@@ -350,7 +344,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
     private static Completion completion(LogicalPlan child) {
         return new Completion(
-            Source.EMPTY,
+            EMPTY,
             child,
             randomLiteral(DataType.KEYWORD),
             randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
@@ -360,11 +354,11 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
     private static Rerank rerank(LogicalPlan child) {
         return new Rerank(
-            Source.EMPTY,
+            EMPTY,
             child,
             randomLiteral(DataType.KEYWORD),
             randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
-            randomList(1, 10, () -> new Alias(Source.EMPTY, randomIdentifier(), randomLiteral(DataType.KEYWORD))),
+            randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(DataType.KEYWORD))),
             referenceAttribute(randomBoolean() ? MetadataAttribute.SCORE : randomIdentifier(), DataType.DOUBLE)
         );
     }
@@ -374,17 +368,17 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
     }
 
     private static EsRelation relation(List<Attribute> fieldAttributes) {
-        return new EsRelation(Source.EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), fieldAttributes);
+        return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), fieldAttributes);
     }
 
-    public void testPushDownFilterPastLeftJoin_Pushable() {
+    public void testPushDownFilterPastLeftJoinWithPushable() {
         Join join = createLeftJoin();
         EsRelation left = (EsRelation) join.left();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         // Pushable filter
         Expression pushableCondition = greaterThanOf(c, ONE);
-        Filter filter = new Filter(Source.EMPTY, join, pushableCondition);
+        Filter filter = new Filter(EMPTY, join, pushableCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
         // The filter should still be on top
         Filter topFilter = as(optimized, Filter.class);
@@ -395,13 +389,13 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(pushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
     }
 
-    public void testPushDownFilterPastLeftJoin_NonPushable() {
+    public void testPushDownFilterPastLeftJoinWithNonPushable() {
         Join join = createLeftJoin();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         // Non-pushable filter
-        Expression nonPushableCondition = new IsNull(Source.EMPTY, c);
-        Filter filter = new Filter(Source.EMPTY, join, nonPushableCondition);
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
+        Filter filter = new Filter(EMPTY, join, nonPushableCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
         // No optimization should be applied, the plan should be the same
         assertEquals(filter, optimized);
@@ -410,17 +404,17 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertTrue(innerJoin.candidateRightHandFilters().isEmpty());
     }
 
-    public void testPushDownFilterPastLeftJoin_PartiallyPushableAnd() {
+    public void testPushDownFilterPastLeftJoinWithPartiallyPushableAnd() {
         Join join = createLeftJoin();
         EsRelation left = (EsRelation) join.left();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         Expression pushableCondition = greaterThanOf(c, ONE);
-        Expression nonPushableCondition = new IsNull(Source.EMPTY, c);
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
 
         // Partially pushable filter
-        Expression partialCondition = new And(Source.EMPTY, pushableCondition, nonPushableCondition);
-        Filter filter = new Filter(Source.EMPTY, join, partialCondition);
+        Expression partialCondition = new And(EMPTY, pushableCondition, nonPushableCondition);
+        Filter filter = new Filter(EMPTY, join, partialCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
         Filter topFilter = as(optimized, Filter.class);
         // The top filter condition should be the original one
@@ -432,16 +426,16 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(pushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
     }
 
-    public void testPushDownFilterPastLeftJoin_Or() {
+    public void testPushDownFilterPastLeftJoinWithOr() {
         Join join = createLeftJoin();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         Expression pushableCondition = greaterThanOf(c, ONE);
-        Expression nonPushableCondition = new IsNull(Source.EMPTY, c);
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
 
         // OR of pushable and non-pushable filter
-        Expression orCondition = new Or(Source.EMPTY, pushableCondition, nonPushableCondition);
-        Filter filter = new Filter(Source.EMPTY, join, orCondition);
+        Expression orCondition = new Or(EMPTY, pushableCondition, nonPushableCondition);
+        Filter filter = new Filter(EMPTY, join, orCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
         // No optimization should be applied, the plan should be the same
         assertEquals(filter, optimized);
@@ -450,15 +444,15 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertTrue(innerJoin.candidateRightHandFilters().isEmpty());
     }
 
-    public void testPushDownFilterPastLeftJoin_NotPushable() {
+    public void testPushDownFilterPastLeftJoinWithNotPushable() {
         Join join = createLeftJoin();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         Expression pushableCondition = greaterThanOf(c, ONE);
 
         // NOT pushable filter
-        Expression notPushableCondition = new Not(Source.EMPTY, pushableCondition);
-        Filter filter = new Filter(Source.EMPTY, join, notPushableCondition);
+        Expression notPushableCondition = new Not(EMPTY, pushableCondition);
+        Filter filter = new Filter(EMPTY, join, notPushableCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
         Filter topFilter = as(optimized, Filter.class);
         assertEquals(notPushableCondition, topFilter.condition());
@@ -467,15 +461,15 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(notPushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
     }
 
-    public void testPushDownFilterPastLeftJoin_NotNonPushable() {
+    public void testPushDownFilterPastLeftJoinWithNotNonPushable() {
         Join join = createLeftJoin();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
-        Expression nonPushableCondition = new IsNull(Source.EMPTY, c);
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
 
         // NOT non-pushable filter
-        Expression notNonPushableCondition = new Not(Source.EMPTY, nonPushableCondition);
-        Filter filter = new Filter(Source.EMPTY, join, notNonPushableCondition);
+        Expression notNonPushableCondition = new Not(EMPTY, nonPushableCondition);
+        Filter filter = new Filter(EMPTY, join, notNonPushableCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
         Filter topFilter = as(optimized, Filter.class);
         assertEquals(notNonPushableCondition, topFilter.condition());
@@ -484,7 +478,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(notNonPushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
     }
 
-    public void testPushDownFilterPastLeftJoin_ComplexMix() {
+    public void testPushDownFilterPastLeftJoinWithComplexMix() {
         // Setup
         FieldAttribute a = getFieldAttribute("a");
         FieldAttribute c = getFieldAttribute("c");
@@ -495,33 +489,29 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         EsRelation left = relation(List.of(a, getFieldAttribute("b")));
         EsRelation right = relation(List.of(c, d, e, f, g));
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(a), List.of(c));
-        Join join = new Join(Source.EMPTY, left, right, joinConfig);
+        Join join = new Join(EMPTY, left, right, joinConfig);
 
         // Predicates
         Expression p1 = greaterThanOf(c, ONE);                                  // pushable
-        Expression p2 = new Not(Source.EMPTY, new IsNull(Source.EMPTY, d));     // pushable (d IS NOT NULL)
+        Expression p2 = new Not(EMPTY, new IsNull(EMPTY, d));     // pushable (d IS NOT NULL)
         Expression p3 = lessThanOf(e, THREE);                                   // pushable
         Expression p4 = rlike(f, "pat");                                   // pushable
-        Expression p5 = new Not(Source.EMPTY, new IsNull(Source.EMPTY, g));     // pushable (g IS NOT NULL)
+        Expression p5 = new Not(EMPTY, new IsNull(EMPTY, g));     // pushable (g IS NOT NULL)
         Expression p6 = greaterThanOf(c, TWO);                                  // pushable
         Expression p7 = lessThanOf(d, FOUR);                                    // pushable
         Expression p8 = greaterThanOf(e, FIVE);                                 // pushable
 
-        Expression np1 = new IsNull(Source.EMPTY, c);                           // non-pushable (c IS NULL)
-        Expression np2 = new Equals(Source.EMPTY, new Coalesce(Source.EMPTY, d, List.of(SIX)), SIX); // non-pushable
+        Expression np1 = new IsNull(EMPTY, c);                           // non-pushable (c IS NULL)
+        Expression np2 = new Equals(EMPTY, new Coalesce(EMPTY, d, List.of(SIX)), SIX); // non-pushable
 
         // Build a complex condition
         // np2 AND ((p1 AND p2 AND p3 AND p4 AND p5) AND (np1 OR (p6 AND p7) OR (p8 AND np2))) AND p1 AND p6
         Expression pushableBranch = Predicates.combineAnd(List.of(p1, p2, p3, p4, p5));
-        Expression nonPushableBranch = new Or(
-            Source.EMPTY,
-            np1,
-            new Or(Source.EMPTY, new And(Source.EMPTY, p6, p7), new And(Source.EMPTY, p8, np2))
-        );
-        Expression complexCondition = new And(Source.EMPTY, pushableBranch, nonPushableBranch);
+        Expression nonPushableBranch = new Or(EMPTY, np1, new Or(EMPTY, new And(EMPTY, p6, p7), new And(EMPTY, p8, np2)));
+        Expression complexCondition = new And(EMPTY, pushableBranch, nonPushableBranch);
         complexCondition = Predicates.combineAnd(List.of(np2, complexCondition, p1, p6));
 
-        Filter filter = new Filter(Source.EMPTY, join, complexCondition);
+        Filter filter = new Filter(EMPTY, join, complexCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
 
         // The top filter with the original condition should remain, but the structure of the AND tree might have changed.
@@ -546,6 +536,6 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         EsRelation right = relation(List.of(c));
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(a), List.of(c));
-        return new Join(Source.EMPTY, left, right, joinConfig);
+        return new Join(EMPTY, left, right, joinConfig);
     }
 }

@@ -431,6 +431,66 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         }
     }
 
+    public void testSimplifiedFieldSyntaxVariations() throws IOException {
+        // Test parsing succeeds with various field syntax variations (validation happens during rewrite, not parsing)
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test 1: Pure object-based syntax
+        String restContent1 = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": [
+                    {"field": "name", "weight": 2.0},
+                    {"field": "description", "weight": 1.0}
+                  ],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        // Test 2: Mixed syntax (object-based + plain strings)
+        String restContent2 = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": [
+                    {"field": "name", "weight": 3.0},
+                    "description",
+                    {"field": "category", "weight": 0.5}
+                  ],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        // Test 3: Field^weight syntax
+        String restContent3 = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["name^2", "description^0.5"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        // All three should parse successfully
+        for (String restContent : List.of(restContent1, restContent2, restContent3)) {
+            try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+                assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+
+                RRFRetrieverBuilder rrfRetrieverBuilder = (RRFRetrieverBuilder) source.retriever();
+                // Should parse successfully - validation happens during rewrite phase
+                assertNotNull(rrfRetrieverBuilder);
+            }
+        }
+    }
+
     private void expectParsingException(String restContent, String expectedMessageFragment) throws IOException {
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
         try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {

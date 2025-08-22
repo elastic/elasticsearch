@@ -213,14 +213,9 @@ public class RetryingHttpSender implements RequestSender {
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var retrier = new InternalRetrier(
-            logger,
-            request,
-            HttpClientContext.create(),
-            hasRequestTimedOutFunction,
-            responseHandler,
-            listener
-        );
+        var context = HttpClientContext.create();
+        context.setUserToken("token");
+        var retrier = new InternalRetrier(logger, request, context, hasRequestTimedOutFunction, responseHandler, listener);
         retrier.run();
     }
 

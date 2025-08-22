@@ -71,7 +71,7 @@ public class HttpClient implements Closeable {
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
-        clientBuilder.disableConnectionState();
+        // clientBuilder.disableConnectionState();
 
         /*
           By default, if a keep-alive header is not returned by the server then the connection will be kept alive

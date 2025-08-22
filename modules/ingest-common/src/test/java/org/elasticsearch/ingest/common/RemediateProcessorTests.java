@@ -118,6 +118,7 @@ public class RemediateProcessorTests extends ESTestCase {
         Map<String, Object> sourceAndMetadata = new HashMap<>();
         sourceAndMetadata.put("_index", "failure-index");
         sourceAndMetadata.put("error", "simulated failure");
+        sourceAndMetadata.put("_version", 1L);
         sourceAndMetadata.put("document", Map.of("index", "orig-index")); // missing "source"
 
         IngestDocument doc = new IngestDocument(sourceAndMetadata, new HashMap<>());

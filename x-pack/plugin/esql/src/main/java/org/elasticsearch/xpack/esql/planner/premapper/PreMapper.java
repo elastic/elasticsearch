@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.planner.premapper;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -43,6 +43,7 @@ public class PreMapper {
     private void queryRewrite(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
         // see https://github.com/elastic/elasticsearch/issues/133312
         // ThreadedActionListener might be removed if above issue is resolved
-        QueryBuilderResolver.resolveQueryBuilders(plan, services, new ThreadedActionListener<>(searchExecutor, listener));
+        SubscribableListener.<LogicalPlan>newForked(l -> QueryBuilderResolver.resolveQueryBuilders(plan, services, l))
+            .addListener(listener, searchExecutor, null);
     }
 }

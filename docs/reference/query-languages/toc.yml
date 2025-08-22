@@ -2,6 +2,7 @@ toc:
   - file: index.md
   - file: querydsl.md
     children:
+      - file: query-dsl/full-text-filter-tutorial.md
       - file: query-dsl/query-filter-context.md
       - file: query-dsl/compound-queries.md
         children:

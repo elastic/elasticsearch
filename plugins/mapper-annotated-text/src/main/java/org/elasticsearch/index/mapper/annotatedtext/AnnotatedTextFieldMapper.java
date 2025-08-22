@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
@@ -81,7 +82,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         );
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyFieldMapper.Builder {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
@@ -92,27 +93,31 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final TextParams.Analyzers analyzers;
-        private final boolean isWithinMultiField;
         private final Parameter<Boolean> store;
 
-        private boolean isSyntheticSourceEnabled;
-
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
-            super(name);
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            IndexAnalyzers indexAnalyzers,
+            boolean isSyntheticSourceEnabled,
+            boolean isWithinMultiField
+        ) {
+            super(name, isSyntheticSourceEnabled, isWithinMultiField);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.isWithinMultiField = isWithinMultiField;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> builder(m).analyzers.getIndexAnalyzer(),
                 m -> builder(m).analyzers.positionIncrementGap.getValue(),
                 indexCreatedVersion
             );
-            this.store = Parameter.storeParam(m -> builder(m).store.getValue(), () -> {
-                if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
-                    return false;
-                }
-                return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-            });
+            this.store = Parameter.storeParam(m -> builder(m).store.getValue(), this::storeDefault);
+        }
+
+        private boolean storeDefault() {
+            if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
+                return false;
+            }
+            return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
         }
 
         @Override
@@ -162,7 +167,6 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
                 }
             }
             BuilderParams builderParams = builderParams(this, context);
-            this.isSyntheticSourceEnabled = context.isSourceSynthetic();
             return new AnnotatedTextFieldMapper(
                 leafName(),
                 fieldType,
@@ -174,7 +178,13 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.isWithinMultiField())
+        (n, c) -> new Builder(
+            n,
+            c.indexVersionCreated(),
+            c.getIndexAnalyzers(),
+            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
+            c.isWithinMultiField()
+        )
     );
 
     /**
@@ -591,7 +601,13 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers, isWithinMultiField).init(this);
+        return new Builder(
+            leafName(),
+            builder.indexCreatedVersion,
+            builder.analyzers.indexAnalyzers,
+            isSyntheticSourceEnabled,
+            isWithinMultiField
+        ).init(this);
     }
 
     @Override

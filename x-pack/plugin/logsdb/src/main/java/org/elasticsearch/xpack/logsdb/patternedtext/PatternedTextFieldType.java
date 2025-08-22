@@ -67,13 +67,13 @@ public class PatternedTextFieldType extends StringFieldType {
         String name,
         TextSearchInfo tsi,
         Analyzer indexAnalyzer,
+        Map<String, String> meta,
         boolean isSyntheticSource,
-        boolean isWithinMultiField,
-        Map<String, String> meta
+        boolean isWithinMultiField
     ) {
         // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
-        super(name, true, false, false, tsi, meta, isSyntheticSource, isWithinMultiField);
+        super(name, true, false, false, tsi, meta);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource, isWithinMultiField);
     }
@@ -83,9 +83,9 @@ public class PatternedTextFieldType extends StringFieldType {
             name,
             new TextSearchInfo(PatternedTextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             Lucene.STANDARD_ANALYZER,
+            Collections.emptyMap(),
             false,
-            false,
-            Collections.emptyMap()
+            false
         );
     }
 

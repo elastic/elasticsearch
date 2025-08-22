@@ -237,7 +237,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyFieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
         private final Parameter<Boolean> norms;
@@ -289,9 +289,6 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
         final TextParams.Analyzers analyzers;
 
-        private boolean isSyntheticSourceEnabled;
-        private final boolean isWithinMultiField;
-
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             this(name, IndexVersion.current(), null, indexAnalyzers, false, false);
         }
@@ -304,11 +301,10 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name);
+            super(name, isSyntheticSourceEnabled, isWithinMultiField);
 
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexMode = indexMode;
-            this.isWithinMultiField = isWithinMultiField;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
@@ -322,20 +318,23 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                 () -> indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES
             );
 
-            // // backwards compatibility checks
-            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
-                    return false;
-                }
+            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, this::storeDefault);
+        }
 
-                if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
-                    return isSyntheticSourceEnabled
-                        && isWithinMultiField == false
-                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                } else {
-                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                }
-            });
+        private boolean storeDefault() {
+            // ideally and for simplicity, store should be set to false by default
+            if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
+                return false;
+            }
+
+            // however, because historically we set store to true to support synthetic source, we must also keep that logic:
+            if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+                return isSyntheticSourceEnabled
+                    && isWithinMultiField == false
+                    && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            } else {
+                return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            }
         }
 
         public Builder index(boolean index) {
@@ -485,8 +484,6 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
-            this.isSyntheticSourceEnabled = context.isSourceSynthetic();
-
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
@@ -684,7 +681,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     }
 
-    public static class TextFieldType extends StringFieldType {
+    public static class TextFieldType extends TextFamilyFieldType {
 
         private boolean fielddata;
         private FielddataFrequencyFilter filter;

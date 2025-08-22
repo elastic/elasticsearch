@@ -944,7 +944,7 @@ public class FunctionScoreTests extends ESTestCase {
             null,
             Float.POSITIVE_INFINITY
         );
-        ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query1, 1));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(query1, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NaN));
         FunctionScoreQuery query2 = new FunctionScoreQuery(
             new TermQuery(new Term(FIELD, "out")),
@@ -953,7 +953,7 @@ public class FunctionScoreTests extends ESTestCase {
             null,
             Float.POSITIVE_INFINITY
         );
-        exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query2, 1));
+        exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(query2, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NEGATIVE_INFINITY));
     }
 

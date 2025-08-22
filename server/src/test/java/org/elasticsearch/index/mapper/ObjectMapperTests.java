@@ -739,10 +739,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                     new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current(), true)
                 )
                     .addMultiField(
-                        new TextFieldMapper.Builder("grand_child_size_5", IndexVersion.current(), null, createDefaultIndexAnalyzers(), true)
-                            .addMultiField(
-                                new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current(), true)
-                            )
+                        new TextFieldMapper.Builder(
+                            "grand_child_size_5",
+                            IndexVersion.current(),
+                            null,
+                            createDefaultIndexAnalyzers(),
+                            false,
+                            true
+                        ).addMultiField(new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current(), true))
                     )
             )
         );

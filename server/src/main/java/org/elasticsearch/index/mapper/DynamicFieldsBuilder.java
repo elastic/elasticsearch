@@ -341,9 +341,10 @@ final class DynamicFieldsBuilder {
                         indexSettings.getIndexVersionCreated(),
                         indexSettings.getMode(),
                         context.indexAnalyzers(),
+                        mapperBuilderContext.isSourceSynthetic(),
                         false
                     ).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
+                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated(), true).ignoreAbove(256)
                     ),
                     context
                 );

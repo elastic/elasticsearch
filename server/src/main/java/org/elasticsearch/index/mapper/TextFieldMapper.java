@@ -245,7 +245,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         private final IndexMode indexMode;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, false);
+        private Parameter<Boolean> store;
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
@@ -293,7 +293,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         private final boolean isWithinMultiField;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, IndexVersion.current(), null, indexAnalyzers, false);
+            this(name, IndexVersion.current(), null, indexAnalyzers, false, false);
         }
 
         public Builder(
@@ -301,6 +301,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             IndexVersion indexCreatedVersion,
             IndexMode indexMode,
             IndexAnalyzers indexAnalyzers,
+            boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
             super(name);
@@ -320,6 +321,21 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                 m -> ((TextFieldMapper) m).norms,
                 () -> indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES
             );
+
+            // // backwards compatibility checks
+            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
+                if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
+                    return false;
+                }
+
+                if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+                    return isSyntheticSourceEnabled
+                        && isWithinMultiField == false
+                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                } else {
+                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                }
+            });
         }
 
         public Builder index(boolean index) {
@@ -471,19 +487,6 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         public TextFieldMapper build(MapperBuilderContext context) {
             this.isSyntheticSourceEnabled = context.isSourceSynthetic();
 
-            // // backwards compatibility checks
-            // if (this.store.isSet() == false && keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion) == false) {
-            // this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-            // if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
-            // return isSyntheticSourceEnabled
-            // && isWithinMultiField == false
-            // && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-            // } else {
-            // return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-            // }
-            // });
-            // }
-
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
@@ -506,7 +509,14 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexSettings().getMode(), c.getIndexAnalyzers(), c.isWithinMultiField())
+        (n, c) -> new Builder(
+            n,
+            c.indexVersionCreated(),
+            c.getIndexSettings().getMode(),
+            c.getIndexAnalyzers(),
+            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
+            c.isWithinMultiField()
+        )
     );
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
@@ -1381,7 +1391,9 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexMode, indexAnalyzers, isWithinMultiField).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexMode, indexAnalyzers, isSyntheticSourceEnabled, isWithinMultiField).init(
+            this
+        );
     }
 
     @Override

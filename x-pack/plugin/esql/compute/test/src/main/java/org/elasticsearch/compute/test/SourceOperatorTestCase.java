@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.test;
 
+import org.elasticsearch.compute.data.Page;
+
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -14,7 +17,12 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 public abstract class SourceOperatorTestCase extends AnyOperatorTestCase {
     @Override
-    protected void assertEmptyStatus(Map<String, Object> map) {
-        assertMap(map, matchesMap().extraOk().entry("pages_emitted", 0).entry("rows_emitted", 0));
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        assertMap(
+            map,
+            matchesMap().extraOk()
+                .entry("pages_emitted", output.size())
+                .entry("rows_emitted", output.stream().mapToInt(Page::getPositionCount).sum())
+        );
     }
 }

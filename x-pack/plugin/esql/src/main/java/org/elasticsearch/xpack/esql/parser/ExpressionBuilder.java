@@ -277,14 +277,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return defaultValue;
         }
 
-        String name = visitUnqualifiedName(ctx.unqualifiedName());
+        String name = visitFieldName(ctx.fieldName());
         String qualifier = ctx.qualifier != null ? ctx.qualifier.getText() : null;
 
         return new UnresolvedAttribute(source(ctx), qualifier, name, null);
     }
 
     @Override
-    public String visitUnqualifiedName(EsqlBaseParser.UnqualifiedNameContext ctx) {
+    public String visitFieldName(EsqlBaseParser.FieldNameContext ctx) {
         List<Object> items = visitList(this, ctx.identifierOrParameter(), Object.class);
         List<String> strings = new ArrayList<>(items.size());
         for (Object item : items) {
@@ -335,7 +335,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         String qualifier = qualifiedCtx.qualifier != null ? qualifiedCtx.qualifier.getText() : null;
-        EsqlBaseParser.UnqualifiedNamePatternContext unqualifiedCtx = qualifiedCtx.unqualifiedNamePattern();
+        if (qualifier != null && qualifier.charAt(0) == '`') {
+            throw new ParsingException(source(qualifiedCtx), "Quoted identifiers are not supported as qualifiers, found [{}]", qualifier);
+        }
+        EsqlBaseParser.FieldNamePatternContext unqualifiedCtx = qualifiedCtx.fieldNamePattern();
 
         var src = source(qualifiedCtx);
         StringBuilder patternString = new StringBuilder();
@@ -370,7 +373,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
             if (unresolvedStar) {
                 if (qualifier != null) {
-                    throw qualifiersUnsupportedInPatterns(src, qualifier + " " + WILDCARD);
+                    throw qualifiersUnsupportedInPatterns(src, qualifiedCtx.getText());
                 }
 
                 return new UnresolvedStar(src, null);
@@ -490,13 +493,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             );
 
             if (qualifier != null) {
-                throw qualifiersUnsupportedInPatterns(src, qualifier + " " + result.name());
+                throw qualifiersUnsupportedInPatterns(src, qualifiedCtx.getText());
             }
         } else {
             result = new UnresolvedAttribute(src, qualifier, Strings.collectionToDelimitedString(objects, ""), null);
 
             if (qualifier != null && qualifier.contains(WILDCARD)) {
-                throw qualifiersUnsupportedInPatterns(src, ((UnresolvedAttribute) result).qualifiedName());
+                throw qualifiersUnsupportedInPatterns(src, qualifiedCtx.getText());
             }
         }
         return result;
@@ -873,7 +876,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         assert newName instanceof UnresolvedAttribute && oldName instanceof UnresolvedAttribute;
         UnresolvedAttribute ua = (UnresolvedAttribute) newName;
         if (ua.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(src, ua.qualifier() + " " + ua.name());
+            throw qualifiersUnsupportedInFieldDefinitions(src, ctx.newName.getText());
         }
 
         return new Alias(src, newName.name(), oldName);
@@ -892,7 +895,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(
                 source(ctx),
                 "Using qualifiers in ENRICH WITH projections is not allowed, found [{}]",
-                ctx.qualifier.getText() + " " + ctx.unqualifiedNamePattern().getText()
+                ctx.getText()
             );
         }
 
@@ -912,7 +915,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         if (id != null && id.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(source, id.qualifier() + " " + id.name());
+            throw qualifiersUnsupportedInFieldDefinitions(source, ctx.qualifiedName().getText());
         }
         Expression value = expression(ctx.booleanExpression());
         String name = id == null ? source.text() : id.name();
@@ -996,7 +999,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     }
                 } else {
                     if (id.qualifier() != null) {
-                        throw qualifiersUnsupportedInFieldDefinitions(source(field), id.qualifier() + " " + id.name());
+                        throw qualifiersUnsupportedInFieldDefinitions(source(field), field.qualifiedName().getText());
                     }
                     name = id.name();
                 }

@@ -151,20 +151,20 @@ aggField
     ;
 
 qualifiedName
-    : {this.isDevVersion()}? qualifier=UNQUOTED_IDENTIFIER name=unqualifiedName
-    | name=unqualifiedName
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=UNQUOTED_IDENTIFIER CLOSING_BRACKET DOT OPENING_BRACKET name=fieldName CLOSING_BRACKET
+    | name=fieldName
     ;
 
-unqualifiedName
+fieldName
     : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : {this.isDevVersion()}? qualifier=ID_PATTERN name=unqualifiedNamePattern
-    | name=unqualifiedNamePattern
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=ID_PATTERN CLOSING_BRACKET DOT OPENING_BRACKET name=fieldNamePattern CLOSING_BRACKET
+    | name=fieldNamePattern
     ;
 
-unqualifiedNamePattern
+fieldNamePattern
     : (identifierPattern (DOT identifierPattern)*)
     ;
 

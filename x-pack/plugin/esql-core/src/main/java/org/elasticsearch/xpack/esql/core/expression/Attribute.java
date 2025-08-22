@@ -85,7 +85,7 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public String qualifiedName() {
-        return qualifier != null ? qualifier + " " + name() : name();
+        return qualifier != null ? "[" + qualifier + "].[" + name() + "]" : name();
     }
 
     @Override

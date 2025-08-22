@@ -507,11 +507,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
 
         if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), parsedTargetTypeColumn.qualifiedName());
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
         }
 
         if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), parsedTargetPvalueColumn.qualifiedName());
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
         }
 
         Attribute targetType = new ReferenceAttribute(
@@ -795,7 +795,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
         if (scoreAttribute.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), scoreAttribute.qualifiedName());
+            throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
 
         return p -> {
@@ -836,7 +836,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
 
         if (targetField.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), targetField.qualifiedName());
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
 
         return p -> {

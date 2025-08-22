@@ -19,9 +19,9 @@ public class QualifierTests extends AbstractStatementParserTests {
         assumeFalse("Test only release builds", Build.current().isSnapshot());
 
         // Check that qualifiers are disabled in the qualifiedName grammar rule.
-        expectError("ROW x = 1 | WHERE qualified field", "no viable alternative at input 'qualified'");
+        expectError("ROW x = 1 | WHERE [qualified].[field]", "no viable alternative at input '['");
         // Check that qualifiers are disabled in the qualifiedNamePattern grammar rule.
-        expectError("ROW x = 1 | KEEP qualified field", "no viable alternative at input 'qualified'");
+        expectError("ROW x = 1 | KEEP [qualified] . [field]", "no viable alternative at input '['");
         // Check that qualifiers are disabled in the LOOKUP JOIN grammar.
         expectError("ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x", "no viable alternative at input 'lu_idx'");
         expectError("ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x", "no viable alternative at input 'lu_idx'");
@@ -36,60 +36,65 @@ public class QualifierTests extends AbstractStatementParserTests {
         // We do not check the lookup join specifically; it only serves as an example source of qualifiers for the WHERE.
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field`", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified ] . [ `field`]", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field`> 0", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field== qualified `field`", "qualified", "field", 2);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field/qualified field == 1", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[`field`]> 0", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]== [qualified].[`field`]", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]/[qualified].[field] == 1", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "WHERE qualified field - qualified `field` ==qualified field",
+            sourceQuery + "WHERE [qualified].[field] - [qualified].[`field`] ==[qualified].[field]",
             "qualified",
             "field",
             3
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE -qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE -[qualified].[field]", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field: \"foo\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]: \"foo\"", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT qualified field", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT (qualified field)", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT (qualified `field`)", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT ([qualified].[field])", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT ([qualified].[`field`])", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT qualified field AND qualified `field`", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "WHERE qualified field OR qualified field OR qualified `field` AND qualified field",
+            sourceQuery + "WHERE NOT [qualified].[field] AND [qualified].[`field`]",
+            "qualified",
+            "field",
+            2
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field] OR [qualified].[field] OR [qualified].[`field`] AND [qualified].[field]",
             "qualified",
             "field",
             4
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field` IS NULL", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field IS NOT NULL", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[`field`] IS NULL", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field] IS NOT NULL", "qualified", "field", 1);
 
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "WHERE function(qualified `field`) <= other_function(qualified field)",
+            sourceQuery + "WHERE function([qualified].[`field`]) <= other_function([qualified].[field])",
             "qualified",
             "field",
             2
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field::boolean", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field`::boolean", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field :: boolean", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE (qualified field)::boolean", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]::boolean", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[`field`]::boolean", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field] :: boolean", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE ([qualified].[field])::boolean", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field IN (qualified field)", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field] IN ([qualified].[field])", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "WHERE qualified field IN (qualified `field`, qualified field, qualified `field`)",
+            sourceQuery + "WHERE [qualified].[field] IN ([qualified].[`field`], [qualified].[field], [qualified].[`field`])",
             "qualified",
             "field",
             4
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field LIKE (\"foo\", \"bar?\")", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified `field` RLIKE \"foo\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field] LIKE (\"foo\", \"bar?\")", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[`field`] RLIKE \"foo\"", "qualified", "field", 1);
     }
 
     /**
@@ -102,96 +107,117 @@ public class QualifierTests extends AbstractStatementParserTests {
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x | ";
 
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "CHANGE_POINT qualified field ON qualified field AS type_name, pvalue_name",
+            sourceQuery + "CHANGE_POINT [qualified].[field] ON [qualified].[field] AS type_name, pvalue_name",
             "qualified",
             "field",
             2
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified field \"%{foo}\"", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified `field` \"%{foo}\"", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT qualified field \"\"\"%{foo}\"\"\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT [qualified].[field] \"%{foo}\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT [qualified].[`field`] \"%{foo}\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT [qualified].[field] \"\"\"%{foo}\"\"\"", "qualified", "field", 1);
 
         String keepDrop = randomBoolean() ? "KEEP" : "DROP";
-        assertQualifiedAttributeInExpressions(sourceQuery + keepDrop + " qualified field", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + keepDrop + " qualified `field`", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + keepDrop + " [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + keepDrop + " [qualified].[`field`]", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + keepDrop + " qualified field, field, qualified `field`, otherfield",
+            sourceQuery + keepDrop + " [qualified] . [field], field, [qualified].[`field`], otherfield",
             "qualified",
             "field",
             2
         );
         assertQualifiedAttributeInExpressions(
-            sourceQuery + keepDrop + " pat*ern, qualified field, other_pat*ern, qualified `field`, yet*other*pattern",
+            sourceQuery + keepDrop + " pat*ern, [qualified].[field], other_pat*ern, [qualified].[`field`], yet*other*pattern",
             "qualified",
             "field",
             2
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON qualified field", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON qualified field WITH x = y", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON [qualified].[field] WITH x = y", "qualified", "field", 1);
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL qualified field", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = qualified field", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = qualified field, y = qualified field", "qualified", "field", 2);
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = (qualified field)", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL qualified field/qualified field", "qualified", "field", 2);
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x=qualified field/qualified field, y = foo", "qualified", "field", 2);
-
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = [qualified].[field]", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "FORK (WHERE qualified field) (EVAL qualified field/2)",
+            sourceQuery + "EVAL x = [qualified].[field], y = [ qualified ] . [ field ] ",
+            "qualified",
+            "field",
+            2
+        );
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = ([qualified].[field])", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL [qualified].[field]/[qualified].[field]", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "EVAL x=[qualified].[field]/[qualified].[field], y = foo",
             "qualified",
             "field",
             2
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "GROK qualified field \"%{WORD:foo}\"", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "GROK qualified `field` \"%{WORD:foo}\"", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "GROK qualified field \"\"\"%{WORD:foo}\"\"\"", "qualified", "field", 1);
-
-        assertQualifiedAttributeInExpressions(sourceQuery + "MV_EXPAND qualified field", "qualified", "field", 1);
-
-        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME qualified field AS foo", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME qualified field AS foo, other_field AS bar", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME other_field AS bar, qualified field AS foo", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME bar = other_field, foo = qualified field", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "RENAME qualified field AS foo, bar = qualified field",
-            "qualified",
-            "field",
-            2
-        );
-        assertQualifiedAttributeInExpressions(
-            sourceQuery + "RENAME bar = qualified field, qualified field AS foo",
+            sourceQuery + "FORK (WHERE [qualified].[field]) (EVAL [qualified].[field]/2)",
             "qualified",
             "field",
             2
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "RERANK score = \"query\" ON qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "GROK [qualified].[field] \"%{WORD:foo}\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "GROK [qualified].[`field`] \"%{WORD:foo}\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "GROK [qualified] . [field] \"\"\"%{WORD:foo}\"\"\"", "qualified", "field", 1);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "MV_EXPAND [qualified].[field]", "qualified", "field", 1);
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME [qualified].[field] AS foo", "qualified", "field", 1);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "RERANK score = \"query\" ON qualified field, qualified field",
-            "qualified",
-            "field",
-            2
-        );
-        assertQualifiedAttributeInExpressions(
-            sourceQuery + "RERANK score = \"query\" ON field, qualified field, other_field",
+            sourceQuery + "RENAME [qualified ]. [field ] AS foo, other_field AS bar",
             "qualified",
             "field",
             1
         );
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "RERANK score = \"query\" ON qualified field WITH {\"inference_id\": \"foo\"}",
+            sourceQuery + "RENAME other_field AS bar, [ qualified ].[`field`] AS foo",
+            "qualified",
+            "field",
+            1
+        );
+        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME bar = other_field, foo = [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RENAME [qualified].[field] AS foo, bar = [qualified].[`field`]",
+            "qualified",
+            "field",
+            2
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RENAME bar = [qualified].[field], [qualified].[field] AS foo",
+            "qualified",
+            "field",
+            2
+        );
+
+        assertQualifiedAttributeInExpressions(sourceQuery + "RERANK score = \"query\" ON [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RERANK score = \"query\" ON [qualified].[field], [qualified].[`field`]",
+            "qualified",
+            "field",
+            2
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RERANK score = \"query\" ON field, [qualified ].[ field], other_field",
+            "qualified",
+            "field",
+            1
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RERANK score = \"query\" ON [qualified].[field] WITH {\"inference_id\": \"foo\"}",
             "qualified",
             "field",
             1
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "SORT qualified field", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "SORT qualified field/qualified field", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(sourceQuery + "SORT [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "SORT [qualified].[field]/[qualified].[field]", "qualified", "field", 2);
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "SORT qualified field ASC, qualified field DESC, qualified field NULLS FIRST, qualified field NULLS LAST",
+            sourceQuery
+                + "SORT [qualified].[field] ASC, [qualified].[field] DESC, [qualified].[field] NULLS FIRST, [qualified ]. [`field` ] NULLS LAST",
             "qualified",
             "field",
             4
@@ -199,23 +225,24 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         // The unresolved attribute in the BY gets also used as an aggregate, so we must count it twice.
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "STATS avg(qualified field), max(1/qualified field) by qualified field, 2*qualified field",
+            sourceQuery + "STATS avg([qualified].[field]), max(1/[qualified].[field]) by [qualified].[field], 2*[qualified ].[`field` ]",
             "qualified",
             "field",
             5
         );
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "STATS avg(x) WHERE qualified field, count(y) WHERE qualified field != qualified field BY qualified field",
+            sourceQuery
+                + "STATS avg(x) WHERE [qualified].[field], count(y) WHERE [ qualified] . [field] != [qualified].[field] BY [qualified].[field]",
             "qualified",
             "field",
             5
         );
         // This one's a bit nonsensical because there's no aggregate function, but we still need to parse the qualified attribute as
         // UnresolvedAttribute.
-        assertQualifiedAttributeInExpressions(sourceQuery + "STATS qualified field by qualified field", "qualified", "field", 3);
+        assertQualifiedAttributeInExpressions(sourceQuery + "STATS [qualified].[field] by [qualified].[field]", "qualified", "field", 3);
 
         // WHERE is tested extensively in testQualifiersReferencedInExpressions, so we don't need to repeat it here.
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE qualified field", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]", "qualified", "field", 1);
     }
 
     public void testUnsupportedQualifiers() {
@@ -223,117 +250,90 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
 
-        expectError("ROW qualified field = 1", "Qualified names are not supported in field definitions, found [qualified field]");
+        expectError("ROW [qualified].[field] = 1", "Qualified names are not supported in field definitions, found [[qualified].[field]]");
 
         expectError(
-            sourceQuery + "CHANGE_POINT value_field ON key_field AS qualified type_name, pvalue_name",
-            "Qualified names are not supported in field definitions, found [qualified type_name]"
+            sourceQuery + "CHANGE_POINT value_field ON key_field AS [qualified].[type_name], pvalue_name",
+            "Qualified names are not supported in field definitions, found [[qualified].[type_name]]"
         );
         expectError(
-            sourceQuery + "CHANGE_POINT value_field ON key_field AS type_name, qualified pvalue_name",
-            "Qualified names are not supported in field definitions, found [qualified pvalue_name]"
+            sourceQuery + "CHANGE_POINT value_field ON key_field AS type_name, [qualified].[pvalue_name]",
+            "Qualified names are not supported in field definitions, found [[qualified].[pvalue_name]]"
         );
 
         expectError(
-            sourceQuery + "COMPLETION qualified field = \"prompt\" WITH {\"inference_id\" : \"foo\"}",
-            "Qualified names are not supported in field definitions, found [qualified field]"
+            sourceQuery + "COMPLETION [qualified].[field] = \"prompt\" WITH {\"inference_id\" : \"foo\"}",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
 
         String keepDrop = randomBoolean() ? "KEEP" : "DROP";
         expectError(
-            sourceQuery + keepDrop + " qualified pat*ern",
-            "Qualified names are not supported in patterns, found [qualified pat*ern]"
+            sourceQuery + keepDrop + " [qualified].[pat*ern]",
+            "Qualified names are not supported in patterns, found [[qualified].[pat*ern]]"
         );
-        expectError(sourceQuery + keepDrop + " qual*fied field", "Qualified names are not supported in patterns, found [qual*fied field]");
-        expectError(sourceQuery + keepDrop + " qualified *", "Qualified names are not supported in patterns, found [qualified *]");
-        expectError(sourceQuery + keepDrop + " qual*fied *", "Qualified names are not supported in patterns, found [qual*fied *]");
+        expectError(
+            sourceQuery + keepDrop + " [qual*fied].[field]",
+            "Qualified names are not supported in patterns, found [[qual*fied].[field]]"
+        );
+        expectError(sourceQuery + keepDrop + " [qualified].[*]", "Qualified names are not supported in patterns, found [[qualified].[*]]");
+        expectError(sourceQuery + keepDrop + " [qual*fied].[*]", "Qualified names are not supported in patterns, found [[qual*fied].[*]]");
 
         expectError(
-            sourceQuery + "ENRICH policy ON field WITH qualified field = y",
-            "Using qualifiers in ENRICH WITH projections is not allowed, found [qualified field]"
+            sourceQuery + "EVAL [qualified].[field] = \"foo\"",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
         expectError(
-            sourceQuery + "ENRICH policy ON field WITH new_field = qualified field",
-            "Using qualifiers in ENRICH WITH projections is not allowed, found [qualified field]"
+            sourceQuery + "EVAL field = x, [qualified].[ field] = \"foo\"",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
-        expectError(
-            sourceQuery + "ENRICH policy ON field WITH qualified f*eld = y",
-            "Using qualifiers in ENRICH WITH projections is not allowed, found [qualified f*eld]"
-        );
-        expectError(
-            sourceQuery + "ENRICH policy ON field WITH qualified * = y",
-            "Using qualifiers in ENRICH WITH projections is not allowed, found [qualified *]"
-        );
-        expectError(
-            sourceQuery + "ENRICH policy WITH quali*ied field = y",
-            "Using qualifiers in ENRICH WITH projections is not allowed, found [quali*ied field]"
-        );
-        expectError(
-            sourceQuery + "ENRICH policy WITH * field = y",
-            "Using qualifiers in ENRICH WITH projections is not allowed, found [* field]"
-        );
-        expectError(
-            sourceQuery + "ENRICH policy ON quali*ied field",
-            "Qualified names are not supported in patterns, found [quali*ied field]"
-        );
-        expectError(sourceQuery + "ENRICH policy ON * field", "Qualified names are not supported in patterns, found [* field]");
+        expectError(sourceQuery + "EVAL field = x, [quali*ied].[field] = \"foo\"", "no viable alternative at input '[quali*'");
 
         expectError(
-            sourceQuery + "EVAL qualified field = \"foo\"",
-            "Qualified names are not supported in field definitions, found [qualified field]"
+            sourceQuery + "LOOKUP JOIN another_idx ON [qualified].[field]",
+            "JOIN ON clause only supports unqualified fields, found [[qualified].[field]]"
         );
         expectError(
-            sourceQuery + "EVAL field = x, qualified field = \"foo\"",
-            "Qualified names are not supported in field definitions, found [qualified field]"
-        );
-        expectError(sourceQuery + "EVAL field = x, quali*ied field = \"foo\"", "mismatched input '='");
-
-        expectError(
-            sourceQuery + "LOOKUP JOIN another_idx ON qualified field",
-            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+            sourceQuery + "LOOKUP JOIN another_idx ON another_field, [qualified].[field]",
+            "JOIN ON clause only supports unqualified fields, found [[qualified].[field]]"
         );
         expectError(
-            sourceQuery + "LOOKUP JOIN another_idx ON another_field, qualified field",
-            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+            sourceQuery + "LOOKUP JOIN another_idx ON [qualified ].[ field], another_field",
+            "JOIN ON clause only supports unqualified fields, found [[qualified].[field]]"
         );
         expectError(
-            sourceQuery + "LOOKUP JOIN another_idx ON qualified field, another_field",
-            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+            sourceQuery + "LOOKUP JOIN another_idx qualified ON [qualified].[field]",
+            "JOIN ON clause only supports unqualified fields, found [[qualified].[field]]"
         );
         expectError(
-            sourceQuery + "LOOKUP JOIN another_idx qualified ON qualified field",
-            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+            sourceQuery + "LOOKUP JOIN another_idx another_qualifier ON [qualified].[field]",
+            "JOIN ON clause only supports unqualified fields, found [[qualified].[field]]"
         );
         expectError(
-            sourceQuery + "LOOKUP JOIN another_idx another_qualifier ON qualified field",
-            "JOIN ON clause only supports unqualified fields, found [qualified field]"
-        );
-        expectError(
-            sourceQuery + "LOOKUP JOIN another_idx AS another_qualifier ON qualified field",
-            "JOIN ON clause only supports unqualified fields, found [qualified field]"
+            sourceQuery + "LOOKUP JOIN another_idx AS another_qualifier ON [qualified].[field]",
+            "JOIN ON clause only supports unqualified fields, found [[qualified].[field]]"
         );
 
         expectError(
-            sourceQuery + "RENAME foo AS qualified field",
-            "Qualified names are not supported in field definitions, found [qualified field]"
+            sourceQuery + "RENAME foo AS [qualified].[field]",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
         expectError(
-            sourceQuery + "RENAME qualified field = foo",
-            "Qualified names are not supported in field definitions, found [qualified field]"
-        );
-
-        expectError(
-            sourceQuery + "RERANK qualified field = \"query\" ON foo",
-            "Qualified names are not supported in field definitions, found [qualified field]"
+            sourceQuery + "RENAME [qualified ].[ field ] = foo",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
 
         expectError(
-            sourceQuery + "STATS qualified field = avg(x)",
-            "Qualified names are not supported in field definitions, found [qualified field]"
+            sourceQuery + "RERANK [qualified].[field] = \"query\" ON foo",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
+        );
+
+        expectError(
+            sourceQuery + "STATS [qualified].[field] = avg(x)",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
         expectError(
-            sourceQuery + "STATS avg(x) by qualified field = categorize(y)",
-            "Qualified names are not supported in field definitions, found [qualified field]"
+            sourceQuery + "STATS avg(x) by [qualified].[field] = categorize(y)",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
     }
 
@@ -345,25 +345,92 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
 
-        expectError(sourceQuery + "EVAL qualified function(x)", "mismatched input '('");
+        expectError(sourceQuery + "EVAL x = [`qualified`].[field]", "no viable alternative at input '[`qualified`'");
+        expectError(sourceQuery + "EVAL x = [qual.ified].[field]", "no viable alternative at input '[qual.'");
+        expectError(sourceQuery + "EVAL x = [qualified][field]", "no viable alternative at input '[qualified]['");
+        expectError(sourceQuery + "EVAL x = [qualified.field]", "no viable alternative at input '[qualified.'");
+        expectError(sourceQuery + "EVAL x = [qualified]..[field]", "no viable alternative at input '[qualified]..'");
+        expectError(sourceQuery + "EVAL x = [field]", "no viable alternative at input '[field]'");
+        expectError(sourceQuery + "EVAL x = qualified.[field]", "no viable alternative at input 'qualified.['");
+        expectError(sourceQuery + "EVAL x = [qualified].field", "no viable alternative at input '[qualified].field'");
 
-        expectError(sourceQuery + "EVAL y = qualified \"foo\"", "extraneous input '\"foo\"'");
-        expectError(sourceQuery + "EVAL y = qualified TRUE", "extraneous input 'TRUE'");
-        expectError(sourceQuery + "EVAL y = qualified 1", "extraneous input '1'");
-        expectError(sourceQuery + "EVAL y = qualified 1.2", "extraneous input '1.2'");
+        expectError(sourceQuery + "EVAL [qualified].[function](x)", "mismatched input '('");
 
-        expectError(sourceQuery + "LIMIT qualified 1.2", "extraneous input 'qualified'");
-        expectError(sourceQuery + "LIMIT qualified field", "mismatched input 'qualified'");
+        expectError(sourceQuery + "EVAL y = [qualified].[\"foo\"]", "no viable alternative at input '[qualified].[\"foo\"'");
+        expectError(sourceQuery + "EVAL y = [qualified].[TRUE]", "no viable alternative at input '[qualified].[TRUE'");
+        expectError(sourceQuery + "EVAL y = [qualified].[1]", "no viable alternative at input '[qualified].[1'");
+        expectError(sourceQuery + "EVAL y = [qualified].[1.2]", "no viable alternative at input '[qualified].[1.2'");
+        expectError(sourceQuery + "EVAL y = [\"foo\"].[field]", "mismatched input '.'");
+        expectError(sourceQuery + "EVAL y = [FALSE].[field]", "mismatched input '.'");
+        expectError(sourceQuery + "EVAL y = [1].[field]", "mismatched input '.'");
+        expectError(sourceQuery + "EVAL y = [1.2].[field]", "mismatched input '.'");
 
-        expectError(sourceQuery + "SAMPLE qualified field", "mismatched input 'qualified'");
+        expectError(
+            sourceQuery + "ENRICH policy ON field WITH [qualified].[ field] = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [[qualified].[field]]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy ON field WITH new_field = [qualified ].[field]",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [[qualified].[field]]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy ON field WITH [qualified].[f*eld] = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [[qualified].[f*eld]]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy ON field WITH [qualified].[*] = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [[qualified].[*]]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy WITH [quali*ied].[field] = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [[quali*ied].[field]]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy WITH [*].[field] = y",
+            "Using qualifiers in ENRICH WITH projections is not allowed, found [[*].[field]]"
+        );
+        expectError(
+            sourceQuery + "ENRICH policy ON [quali*ied].[field]",
+            "Qualified names are not supported in patterns, found [[quali*ied].[field]]"
+        );
+        expectError(sourceQuery + "ENRICH policy ON [*].[field]", "Qualified names are not supported in patterns, found [[*].[field]]");
 
-        // first/last are special keywords that are exceptionally allowed in function names
-        expectError(sourceQuery + "STATS first field = avg(x)", "no viable alternative at input 'first field'");
-        expectError(sourceQuery + "STATS last field = avg(x)", "no viable alternative at input 'last field'");
-        expectError(sourceQuery + "STATS qualified first = avg(x)", "mismatched input 'first'");
-        expectError(sourceQuery + "STATS qualified last = avg(x)", "mismatched input 'last'");
-        expectError(sourceQuery + "STATS qualified first(x)", "mismatched input 'first'");
-        expectError(sourceQuery + "STATS qualified last(x)", "mismatched input 'last'");
+        expectError(sourceQuery + "KEEP [`qualified`].[field]", "Quoted identifiers are not supported as qualifiers, found [`qualified`]");
+        expectError(sourceQuery + "KEEP [qual.ified].[field]", "missing ']' at '.'");
+        expectError(sourceQuery + "KEEP [qu*al.ified].[field]", "missing ']' at '.'");
+        expectError(sourceQuery + "KEEP [qual.if*ied].[field]", "missing ']' at '.'");
+        expectError(sourceQuery + "KEEP [qual.if*ied].[fi*eld]", "missing ']' at '.'");
+        expectError(sourceQuery + "KEEP [qualified][field]", "missing '.' at '['");
+        expectError(sourceQuery + "KEEP [qual*ified][field]", "missing '.' at '['");
+        expectError(sourceQuery + "KEEP [qualified][fi*eld]", "missing '.' at '['");
+        expectError(sourceQuery + "KEEP [qualified.field]", "missing ']' at '.'");
+        expectError(sourceQuery + "KEEP [qual*ified.field]", "missing ']' at '.'");
+        expectError(sourceQuery + "KEEP [qualified.fi*eld]", "missing ']' at '.'");
+        expectError(sourceQuery + "KEEP [qualified]..[field]", "extraneous input '.' expecting '['");
+        expectError(sourceQuery + "KEEP [qualified].field", "missing '[' at 'field'");
+        expectError(sourceQuery + "KEEP [qualified].*", "missing '[' at '*'");
+        expectError(sourceQuery + "KEEP [qual*ified].field", "missing '[' at 'field'");
+        expectError(sourceQuery + "KEEP qualified.[field]", "extraneous input '['");
+        expectError(sourceQuery + "KEEP qual*ified.[field]", "extraneous input '['");
+        expectError(sourceQuery + "KEEP qualified.[fi*eld]", "extraneous input '['");
+        expectError(sourceQuery + "KEEP [field]", "mismatched input '<EOF>' expecting '.'");
+        expectError(sourceQuery + "KEEP [fie*ld]", "mismatched input '<EOF>' expecting '.'");
+
+        expectError(sourceQuery + "LIMIT [qualified].[1.2]", "no viable alternative at input '[qualified'");
+        expectError(sourceQuery + "LIMIT [qualified].[field]", "no viable alternative at input '[qualified'");
+        expectError(sourceQuery + "LIMIT [1.2].[field]", "mismatched input '.'");
+
+        expectError(sourceQuery + "SAMPLE [qualified].[field]", "no viable alternative at input '[qualified'");
+
+        // first/last are special keywords that are exceptionally allowed only in function names
+        expectError(sourceQuery + "STATS [first].[field] = avg(x)", "no viable alternative at input '[first'");
+        expectError(sourceQuery + "STATS [last].[field] = avg(x)", "no viable alternative at input '[last'");
+        expectError(sourceQuery + "STATS [qualified].[first] = avg(x)", "no viable alternative at input '[qualified].[first'");
+        expectError(sourceQuery + "STATS [qualified].[last] = avg(x)", "no viable alternative at input '[qualified].[last'");
+        expectError(sourceQuery + "STATS [qualified].[first](x)", "no viable alternative at input '[qualified].[first'");
+        expectError(sourceQuery + "STATS [qualified].[last](x)", "no viable alternative at input '[qualified].[last'");
+        expectError(sourceQuery + "STATS [qualified].[first(x)]", "no viable alternative at input '[qualified].[first'");
+        expectError(sourceQuery + "STATS [qualified].[last(x)]", "no viable alternative at input '[qualified].[last'");
     }
 
     private void assertQualifiedAttributeInExpressions(String query, String qualifier, String name, int expectedCount) {

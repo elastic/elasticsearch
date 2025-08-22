@@ -337,13 +337,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterUnqualifiedName(EsqlBaseParser.UnqualifiedNameContext ctx) { }
+  @Override public void enterFieldName(EsqlBaseParser.FieldNameContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitUnqualifiedName(EsqlBaseParser.UnqualifiedNameContext ctx) { }
+  @Override public void exitFieldName(EsqlBaseParser.FieldNameContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -361,13 +361,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterUnqualifiedNamePattern(EsqlBaseParser.UnqualifiedNamePatternContext ctx) { }
+  @Override public void enterFieldNamePattern(EsqlBaseParser.FieldNamePatternContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitUnqualifiedNamePattern(EsqlBaseParser.UnqualifiedNamePatternContext ctx) { }
+  @Override public void exitFieldNamePattern(EsqlBaseParser.FieldNamePatternContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -1304,6 +1304,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
+            "from a | enrich countries on foo . * ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [foo . *]"
+        );
+        expectError(
             "from a | enrich typo:countries on foo",
             "line 1:17: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
@@ -2330,7 +2334,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSpaceNotAllowedInIdPattern() {
-        expectError("ROW a = 1| RENAME a AS this is `not okay`", "extraneous input '`not okay`");
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
     }
 
     public void testEnrichOnMatchField() {
@@ -2594,10 +2598,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFailingMetadataWithSquareBrackets() {
-        expectError(
-            "FROM test [METADATA _index] | STATS count(*)",
-            "line 1:11: mismatched input '[' expecting {<EOF>, '|', ',', 'metadata'}"
-        );
+        expectError("FROM test [METADATA _index] | STATS count(*)", "line 1:11: token recognition error at: '['");
     }
 
     public void testFunctionNamedParameterInMap() {

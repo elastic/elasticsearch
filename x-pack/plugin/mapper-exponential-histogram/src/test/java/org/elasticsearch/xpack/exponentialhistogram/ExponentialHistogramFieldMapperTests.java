@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,6 +39,14 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SC
 import static org.hamcrest.Matchers.containsString;
 
 public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
+
+    @Before
+    public void setup() {
+        assumeTrue(
+            "Only when exponential_histogram feature flag is enabled",
+            ExponentialHistogramFieldMapper.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
+        );
+    }
 
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singletonList(new ExponentialHistogramMapperPlugin());

@@ -30,42 +30,38 @@ class NVML {
     /**
      * nvmlReturn_t nvmlInit_v2 ( void )
      */
-    static final MethodHandle nvmlInit_v2$mh = Linker.nativeLinker().downcallHandle(
-        findOrThrow("nvmlInit_v2"),
-        FunctionDescriptor.of(ValueLayout.JAVA_INT)
-    );
+    static final MethodHandle nvmlInit_v2$mh = Linker.nativeLinker()
+        .downcallHandle(findOrThrow("nvmlInit_v2"), FunctionDescriptor.of(ValueLayout.JAVA_INT));
 
     /**
      * nvmlReturn_t nvmlShutdown ( void )
      */
-    static final MethodHandle nvmlShutdown$mh = Linker.nativeLinker().downcallHandle(
-        findOrThrow("nvmlShutdown"),
-        FunctionDescriptor.of(ValueLayout.JAVA_INT)
-    );
+    static final MethodHandle nvmlShutdown$mh = Linker.nativeLinker()
+        .downcallHandle(findOrThrow("nvmlShutdown"), FunctionDescriptor.of(ValueLayout.JAVA_INT));
 
     /**
      * const DECLDIR char* nvmlErrorString ( nvmlReturn_t result )
      */
-    static final MethodHandle nvmlErrorString$mh = Linker.nativeLinker().downcallHandle(
-        findOrThrow("nvmlErrorString"),
-        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT)
-    );
+    static final MethodHandle nvmlErrorString$mh = Linker.nativeLinker()
+        .downcallHandle(findOrThrow("nvmlErrorString"), FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
 
     /**
      * nvmlReturn_t nvmlDeviceGetHandleByIndex_v2 ( unsigned int  index, nvmlDevice_t* device )
      */
-    static final MethodHandle nvmlDeviceGetHandleByIndex_v2$mh = Linker.nativeLinker().downcallHandle(
-        findOrThrow("nvmlDeviceGetHandleByIndex_v2"),
-        FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
-    );
+    static final MethodHandle nvmlDeviceGetHandleByIndex_v2$mh = Linker.nativeLinker()
+        .downcallHandle(
+            findOrThrow("nvmlDeviceGetHandleByIndex_v2"),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
+        );
 
     /**
      * nvmlReturn_t nvmlDeviceGetUtilizationRates ( nvmlDevice_t device, nvmlUtilization_t* utilization )
      */
-    static final MethodHandle nvmlDeviceGetUtilizationRates$mh = Linker.nativeLinker().downcallHandle(
-        findOrThrow("nvmlDeviceGetUtilizationRates"),
-        FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
-    );
+    static final MethodHandle nvmlDeviceGetUtilizationRates$mh = Linker.nativeLinker()
+        .downcallHandle(
+            findOrThrow("nvmlDeviceGetUtilizationRates"),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
 
     public static class nvmlUtilization_t {
 
@@ -85,7 +81,7 @@ class NVML {
             return $LAYOUT;
         }
 
-        private static final ValueLayout.OfInt gpu$LAYOUT = (ValueLayout.OfInt)$LAYOUT.select(groupElement("gpu"));
+        private static final ValueLayout.OfInt gpu$LAYOUT = (ValueLayout.OfInt) $LAYOUT.select(groupElement("gpu"));
 
         /**
          * Getter for field: gpu
@@ -95,7 +91,7 @@ class NVML {
             return struct.get(gpu$LAYOUT, 0);
         }
 
-        private static final ValueLayout.OfInt memory$LAYOUT = (ValueLayout.OfInt)$LAYOUT.select(groupElement("memory"));
+        private static final ValueLayout.OfInt memory$LAYOUT = (ValueLayout.OfInt) $LAYOUT.select(groupElement("memory"));
 
         /**
          * Getter for field: memory
@@ -113,7 +109,7 @@ class NVML {
     public static void nvmlInit_v2() {
         int res;
         try {
-            res = (int)nvmlInit_v2$mh.invokeExact();
+            res = (int) nvmlInit_v2$mh.invokeExact();
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }
@@ -125,7 +121,7 @@ class NVML {
     public static void nvmlShutdown() {
         int res;
         try {
-            res = (int)nvmlShutdown$mh.invokeExact();
+            res = (int) nvmlShutdown$mh.invokeExact();
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }
@@ -139,7 +135,7 @@ class NVML {
         MemorySegment nvmlDevice;
         try (var localArena = Arena.ofConfined()) {
             MemorySegment devicePtr = localArena.allocate(ValueLayout.ADDRESS);
-            res = (int)nvmlDeviceGetHandleByIndex_v2$mh.invokeExact(index,devicePtr);
+            res = (int) nvmlDeviceGetHandleByIndex_v2$mh.invokeExact(index, devicePtr);
             nvmlDevice = devicePtr.get(ValueLayout.ADDRESS, 0);
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
@@ -152,8 +148,8 @@ class NVML {
 
     public static void nvmlDeviceGetUtilizationRates(MemorySegment nvmlDevice, MemorySegment nvmlUtilizationPtr) {
         int res;
-        try  {
-            res = (int)nvmlDeviceGetUtilizationRates$mh.invokeExact(nvmlDevice, nvmlUtilizationPtr);
+        try {
+            res = (int) nvmlDeviceGetUtilizationRates$mh.invokeExact(nvmlDevice, nvmlUtilizationPtr);
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }
@@ -172,7 +168,7 @@ class NVML {
             if (seg.equals(MemorySegment.NULL)) {
                 return "no last error text";
             }
-            return MemorySegmentUtil.getString(seg,0);
+            return MemorySegmentUtil.getString(seg, 0);
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

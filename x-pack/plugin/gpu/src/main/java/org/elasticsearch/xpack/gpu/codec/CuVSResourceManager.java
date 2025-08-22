@@ -211,7 +211,13 @@ public interface CuVSResourceManager {
         @Override
         public void finishedComputation(ManagedCuVSResources resources) {
             // Allow acquire to return possibly blocked resources
-            enoughResourcesCondition.signalAll();
+            try {
+                lock.lock();
+                assert resources.locked;
+                enoughResourcesCondition.signalAll();
+            } finally {
+                lock.unlock();
+            }
         }
 
         @Override

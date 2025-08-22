@@ -1174,6 +1174,11 @@ public class EsqlCapabilities {
         K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
 
         /**
+         * Geospatial field types in the k8s.csv and k8s-downsampled.csv datasets
+         */
+        K8S_DATASETS_GEOSPATIAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
@@ -1375,6 +1380,11 @@ public class EsqlCapabilities {
          * Support null elements on vector similarity functions
          */
         VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,
+
+        /**
+         * Support for vector Hamming distance.
+         */
+        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Allow qualifiers in attribute names.

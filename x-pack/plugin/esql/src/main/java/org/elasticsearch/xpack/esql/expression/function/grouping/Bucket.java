@@ -132,7 +132,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     ::::{note}
                     `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
                     For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
-                    Combine `BUCKET` with <<esql-where>> to filter rows.
+                    Combine `BUCKET` with [`WHERE`](/reference/query-languages/esql/commands/where.md) to filter rows.
                     ::::"""
             ),
             @Example(description = """
@@ -166,7 +166,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             @Example(
                 description = """
                     `BUCKET` may be used in both the aggregating and grouping part of the
-                    <<esql-stats-by, STATS ... BY ...>> command provided that in the aggregating
+                    [STATS ... BY ...](/reference/query-languages/esql/commands/stats-by.md) command provided that in the aggregating
                     part the function is referenced by an alias defined in the
                     grouping part, or that it is invoked with the exact same expression:""",
                 file = "bucket",

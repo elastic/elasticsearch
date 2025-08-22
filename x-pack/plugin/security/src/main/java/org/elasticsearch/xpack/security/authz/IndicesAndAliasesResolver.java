@@ -276,6 +276,7 @@ public class IndicesAndAliasesResolver {
         IndicesRequest indicesRequest,
         CrossProjectTargetResolver.ResolvedProjects resolvedProjects
     ) {
+        // TODO CPS
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {

@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -100,6 +101,9 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
 
     private static final String TOP_LEVEL_KNN_TEMPLATE = """
         {
+          "_source": {
+            "exclude_vectors": false
+          },
           "knn": {
               "field": "%s",
               "k": 5,
@@ -114,6 +118,9 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         }""";
     private static final String TOP_LEVEL_KNN_FILTER_TEMPLATE = """
         {
+          "_source": {
+            "exclude_vectors": false
+          },
           "knn": {
               "field": "%s",
               "k": 5,
@@ -129,6 +136,9 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         }""";
     private static final String TOP_LEVEL_KNN_HYBRID_ALL = """
         {
+          "_source": {
+            "exclude_vectors": false
+          },
           "knn": {
               "field": "embedding",
               "k": 3,
@@ -146,6 +156,9 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         }""";
     private static final String TOP_LEVEL_KNN_HYBRID_MATCH = """
         {
+          "_source": {
+            "exclude_vectors": false
+          },
           "knn": {
               "field": "embedding",
               "k": 3,
@@ -163,6 +176,9 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
 
     private static final String QUERY_DSL_KNN_TEMPLATE = """
         {
+          "_source": {
+            "exclude_vectors": false
+          },
           "query": {
               "knn" : {
                   "field": "%s",
@@ -178,6 +194,9 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         }""";
     private static final String QUERY_DSL_KNN_FILTER_TEMPLATE = """
         {
+          "_source": {
+            "exclude_vectors": false
+          },
           "query": {
               "knn" : {
                   "field": "%s",
@@ -194,6 +213,9 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         }""";
     private static final String QUERY_DSL_KNN_HYBRID_ALL = """
         {
+             "_source": {
+                "exclude_vectors": false
+             },
              "query": {
                  "bool": {
                      "should": [
@@ -220,6 +242,9 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
          }""";
     private static final String QUERY_DSL_KNN_HYBRID_MATCH = """
         {
+             "_source": {
+                "exclude_vectors": false
+             },
              "query": {
                  "bool": {
                      "should": [
@@ -554,7 +579,11 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
             // The top hit should have the search prefix
             assertEquals(searchPrefix + "my words", sourceText);
             List<Double> foundEmbedding = (List<Double>) MapHelper.dig("_source.embedding", topHit);
-            assertEquals(embeddings.get(0), foundEmbedding);
+            var expectedEmbeddings = embeddings.get(0);
+            assertThat(foundEmbedding.size(), equalTo(expectedEmbeddings.size()));
+            for (int i = 0; i < foundEmbedding.size(); i++) {
+                assertEquals(expectedEmbeddings.get(i), foundEmbedding.get(i), 0.01f);
+            }
         }
     }
 

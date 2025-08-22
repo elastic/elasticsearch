@@ -42,6 +42,13 @@ public class ES92Int7VectorsScorer {
     }
 
     /**
+     * Checks if the current implementation supports fast native access.
+     */
+    public boolean hasNativeAccess() {
+        return false; // This class does not support native access
+    }
+
+    /**
      * compute the quantize distance between the provided quantized query and the quantized vector
      * that is read from the wrapped {@link IndexInput}.
      */

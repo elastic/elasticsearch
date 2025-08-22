@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -22,23 +23,10 @@ import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponse
 public class ChatCompletionErrorResponseHandler {
     private static final String STREAM_ERROR = "stream_error";
 
-    private final UnifiedChatCompletionErrorParser unifiedChatCompletionErrorParser;
+    private final UnifiedChatCompletionErrorParserContract unifiedChatCompletionErrorParser;
 
-    public ChatCompletionErrorResponseHandler(UnifiedChatCompletionErrorParser errorParser) {
+    public ChatCompletionErrorResponseHandler(UnifiedChatCompletionErrorParserContract errorParser) {
         this.unifiedChatCompletionErrorParser = Objects.requireNonNull(errorParser);
-    }
-
-    public void checkForErrorObject(Request request, HttpResult result) {
-        var errorEntity = unifiedChatCompletionErrorParser.parse(result);
-
-        if (errorEntity.errorStructureFound()) {
-            // We don't really know what happened because the status code was 200 so we'll return a failure and let the
-            // client retry if necessary
-            // If we did want to retry here, we'll need to determine if this was a streaming request, if it was
-            // we shouldn't retry because that would replay the entire streaming request and the client would get
-            // duplicate chunks back
-            throw new RetryException(false, buildChatCompletionErrorInternal(SERVER_ERROR_OBJECT, request, result, errorEntity));
-        }
     }
 
     public UnifiedChatCompletionException buildChatCompletionError(String message, Request request, HttpResult result) {
@@ -62,12 +50,16 @@ public class ChatCompletionErrorResponseHandler {
                 restStatus,
                 errorMessage,
                 errorResponse.type(),
-                errorResponse.code(),
+                code(errorResponse.code(), restStatus),
                 errorResponse.param()
             );
         } else {
             return buildDefaultChatCompletionError(errorResponse, errorMessage, restStatus);
         }
+    }
+
+    private static String code(@Nullable String code, RestStatus status) {
+        return code != null ? code : status.name().toLowerCase(Locale.ROOT);
     }
 
     /**

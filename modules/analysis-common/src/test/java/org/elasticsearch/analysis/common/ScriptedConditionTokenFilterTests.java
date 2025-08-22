@@ -64,7 +64,13 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         };
 
         @SuppressWarnings("unchecked")
-        ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L) {
+        ScriptService scriptService = new ScriptService(
+            indexSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        ) {
             @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(context, AnalysisPredicateScript.CONTEXT);

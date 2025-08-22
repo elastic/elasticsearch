@@ -63,6 +63,16 @@ public class CsvTestsDataLoader {
     private static final TestDataset HOSTS = new TestDataset("hosts");
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
+    private static final TestDataset MULTI_COLUMN_JOINABLE = new TestDataset(
+        "multi_column_joinable",
+        "mapping-multi_column_joinable.json",
+        "multi_column_joinable.csv"
+    );
+    private static final TestDataset MULTI_COLUMN_JOINABLE_LOOKUP = new TestDataset(
+        "multi_column_joinable_lookup",
+        "mapping-multi_column_joinable_lookup.json",
+        "multi_column_joinable_lookup.csv"
+    ).withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
@@ -219,7 +229,9 @@ public class CsvTestsDataLoader {
         Map.entry(LOGS.indexName, LOGS),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
-        Map.entry(COLORS.indexName, COLORS)
+        Map.entry(COLORS.indexName, COLORS),
+        Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
+        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

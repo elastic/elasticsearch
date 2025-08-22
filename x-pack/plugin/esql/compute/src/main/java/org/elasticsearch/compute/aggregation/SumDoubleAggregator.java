@@ -105,8 +105,8 @@ class SumDoubleAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingSumState state, IntVector selected, DriverContext driverContext) {
-        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
+    public static Block evaluateFinal(GroupingSumState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (DoubleBlock.Builder builder = ctx.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.values.size()) {

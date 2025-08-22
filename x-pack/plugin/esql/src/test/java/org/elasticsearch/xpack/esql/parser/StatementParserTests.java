@@ -2378,7 +2378,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetricsWithoutStats() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
 
         assertStatement("TS foo", unresolvedTSRelation("foo"));
         assertStatement("TS foo,bar", unresolvedTSRelation("foo,bar"));
@@ -2388,7 +2388,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetricsIdentifiers() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Map<String, String> patterns = Map.ofEntries(
             Map.entry("ts foo,test-*", "foo,test-*"),
             Map.entry("ts 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
@@ -2401,7 +2401,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSimpleMetricsWithStats() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertStatement(
             "TS foo | STATS load=avg(cpu) BY ts",
             new TimeSeriesAggregate(
@@ -2536,7 +2536,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetricWithGroupKeyAsAgg() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var queries = List.of("TS foo | STATS a BY a");
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
@@ -3153,7 +3153,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFromPatterns() {
-        var sourceCommands = Build.current().isSnapshot() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
+        var sourceCommands = EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
         var indexIsBlank = "Blank index specified in index pattern";
         var remoteIsEmpty = "remote part is empty";
         var invalidDoubleColonUsage = "invalid usage of :: separator";
@@ -3839,7 +3839,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
             "line 1:42: Inavalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
         );
-        expectError("FROM foo* | RERANK 45 ON title", "Query must be a valid string in RERANK, found [45]");
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 

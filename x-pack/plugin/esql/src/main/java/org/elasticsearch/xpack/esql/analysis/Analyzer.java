@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
@@ -310,7 +311,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
                 // directly even if the data type is passed explicitly
                 if (type != t.getDataType()) {
-                    t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
+                    t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getTimeSeriesFieldType());
                 }
 
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
@@ -452,7 +453,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 String name = entry.getKey();
                 Column column = entry.getValue();
                 // create a fake ES field - alternative is to use a ReferenceAttribute
-                EsField field = new EsField(name, column.type(), Map.of(), false, false);
+                EsField field = new EsField(name, column.type(), Map.of(), false, false, EsField.TimeSeriesFieldType.UNKNOWN);
                 attributes.add(new FieldAttribute(source, null, name, field));
                 // prepare the block for the supplier
                 blocks[i++] = column.values();
@@ -813,11 +814,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
 
+            // Do not need to cast as string if there are multiple rerank fields since it will be converted to YAML.
+            boolean castRerankFieldsAsString = rerank.rerankFields().size() < 2;
+
             // First resolving fields used in expression
             for (Alias field : rerank.rerankFields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
-                newFields.add(result);
-                changed |= result != field;
+                Alias resolved = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
+
+                if (resolved.resolved()) {
+                    if (castRerankFieldsAsString
+                        && rerank.isValidRerankField(resolved)
+                        && DataType.isString(resolved.dataType()) == false) {
+                        resolved = resolved.replaceChild(new ToString(resolved.child().source(), resolved.child()));
+                    }
+                }
+
+                newFields.add(resolved);
+                changed |= resolved != field;
             }
 
             if (changed) {
@@ -1796,7 +1809,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             fa.fieldName().string(),
                             convertExpression.dataType(),
                             false,
-                            indexToConversionExpressions
+                            indexToConversionExpressions,
+                            fa.field().getTimeSeriesFieldType()
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
@@ -1855,7 +1869,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
-            EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
+            EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable(), mtf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,

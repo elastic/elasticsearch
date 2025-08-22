@@ -16,7 +16,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LimitStatusTests extends AbstractWireSerializingTestCase<LimitOperator.Status> {
+public class LimitOperatorStatusTests extends AbstractWireSerializingTestCase<LimitOperator.Status> {
     public void testToXContent() {
         assertThat(Strings.toString(new LimitOperator.Status(10, 1, 1, 111, 222)), equalTo("""
             {"limit":10,"limit_remaining":1,"pages_processed":1,"rows_received":111,"rows_emitted":222}"""));

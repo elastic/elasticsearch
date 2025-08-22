@@ -60,10 +60,10 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
     public void testInfinityHandling() {
         FixedCapacityExponentialHistogram morePositiveValues = createAutoReleasedHistogram(100);
         morePositiveValues.resetBuckets(0);
-        morePositiveValues.tryAddBucket(1999, 1,false);
+        morePositiveValues.tryAddBucket(1999, 1, false);
         morePositiveValues.tryAddBucket(2000, 2, false);
-        morePositiveValues.tryAddBucket(1999, 2,true);
-        morePositiveValues.tryAddBucket(2000, 2,true);
+        morePositiveValues.tryAddBucket(1999, 2, true);
+        morePositiveValues.tryAddBucket(2000, 2, true);
 
         double sum = ExponentialHistogramUtils.estimateSum(
             morePositiveValues.negativeBuckets().iterator(),
@@ -72,10 +72,10 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
         assertThat(sum, equalTo(Double.POSITIVE_INFINITY));
         FixedCapacityExponentialHistogram moreNegativeValues = createAutoReleasedHistogram(100);
         moreNegativeValues.resetBuckets(0);
-        moreNegativeValues.tryAddBucket(1999, 2,false);
+        moreNegativeValues.tryAddBucket(1999, 2, false);
         moreNegativeValues.tryAddBucket(2000, 2, false);
-        moreNegativeValues.tryAddBucket(1999, 1,true);
-        moreNegativeValues.tryAddBucket(2000, 2,true);
+        moreNegativeValues.tryAddBucket(1999, 1, true);
+        moreNegativeValues.tryAddBucket(2000, 2, true);
 
         sum = ExponentialHistogramUtils.estimateSum(
             moreNegativeValues.negativeBuckets().iterator(),

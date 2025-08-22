@@ -48,10 +48,10 @@ public class ExponentialHistogramUtils {
                 countWithSign = positiveBuckets.peekCount() - negativeBuckets.peekCount();
                 positiveBuckets.advance();
                 negativeBuckets.advance();
-            } else if (negativeIndex < positiveIndex){
+            } else if (negativeIndex < positiveIndex) {
                 countWithSign = -negativeBuckets.peekCount();
                 negativeBuckets.advance();
-            }  else { // positiveIndex > negativeIndex
+            } else { // positiveIndex > negativeIndex
                 countWithSign = positiveBuckets.peekCount();
                 positiveBuckets.advance();
             }

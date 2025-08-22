@@ -27,6 +27,7 @@ import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -180,10 +181,12 @@ public class InetAddressesTests extends ESTestCase {
             // Shouldn't hit DNS, because it's an IP string literal.
             InetAddress ipv6Addr = InetAddress.getByName(ipString);
             assertEquals(ipv6Addr, InetAddresses.forString(ipString));
+            int extraLength = randomInt(8);
+            int offset = randomInt(extraLength);
             byte[] asBytes = ipString.getBytes(StandardCharsets.UTF_8);
-            byte[] bytes = new byte[32];
-            System.arraycopy(asBytes, 0, bytes, 8, asBytes.length);
-            assertEquals(ipv6Addr, InetAddresses.forString(bytes, 8, asBytes.length));
+            byte[] bytes = new byte[asBytes.length + extraLength];
+            System.arraycopy(asBytes, 0, bytes, offset, asBytes.length);
+            assertEquals(ipv6Addr, InetAddresses.forString(bytes, offset, asBytes.length));
             assertTrue(InetAddresses.isInetAddress(ipString));
         }
     }
@@ -206,6 +209,35 @@ public class InetAddressesTests extends ESTestCase {
         assertEquals("::1", InetAddresses.toAddrString(InetAddresses.forString("0:0:0:0:0:0:0:1")));
         assertEquals("2001:658:22a:cafe::", InetAddresses.toAddrString(InetAddresses.forString("2001:0658:022a:cafe::")));
         assertEquals("::102:304", InetAddresses.toAddrString(InetAddresses.forString("::1.2.3.4")));
+        assertEquals("2001:db8::1:0:0:1", InetAddresses.toAddrString(InetAddresses.forString("2001:db8::1:0:0:1")));
+    }
+
+    public void testWithOffsets() {
+        List<String> ipStrings = List.of(
+            "1:2:3:4:5:6:7:8",
+            "2001:0:0:4::8",
+            "2001::4:5:6:7:8",
+            "2001:0:3:4:5:6:7:8",
+            "0:0:3::ffff",
+            "::4:0:0:0:ffff",
+            "::5:0:0:ffff",
+            "1::4:0:0:7:8",
+            "::",
+            "::1",
+            "2001:658:22a:cafe::",
+            "::102:304",
+            "2001:db8::1:0:0:1",
+            "2001:db8::1:0:1:0"
+        );
+        for (String ipString : ipStrings) {
+            byte[] bytes = ipString.getBytes(StandardCharsets.UTF_8);
+            int extraLength = randomInt(8);
+            int offset = randomInt(extraLength);
+            byte[] bytesWithPadding = new byte[bytes.length + extraLength];
+            System.arraycopy(bytes, 0, bytesWithPadding, offset, bytes.length);
+            InetAddress addr = InetAddresses.forString(bytesWithPadding, offset, bytes.length);
+            assertEquals(ipString, InetAddresses.toAddrString(addr));
+        }
     }
 
     public void testToUriStringIPv4() {

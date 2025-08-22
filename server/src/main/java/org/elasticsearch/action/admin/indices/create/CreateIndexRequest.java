@@ -70,7 +70,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private Settings settings = Settings.EMPTY;
     public static final String EMPTY_MAPPINGS = "{}";
 
-    private String mappings = EMPTY_MAPPINGS;
+    private String mappings = "{\"_doc\":{}}";
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -284,7 +284,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        if (isSourceEffectivelyEmpty(source) || source.size() != 1 || source.containsKey(type) == false) {
+        if (source.isEmpty()) {
+            // If no source is provided we return empty mappings
+            source = Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of());
+        } else if (source.size() != 1 || source.containsKey(type) == false) {
             // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
         } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {

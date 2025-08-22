@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-
 import org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStrategy;
 
 import java.util.List;

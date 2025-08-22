@@ -23,6 +23,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import org.apache.lucene.util.RamUsageEstimator;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
@@ -36,15 +37,28 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.expon
  * To allow efficient comparison with bucket boundaries, this class internally
  * represents the zero threshold as a exponential histogram bucket index with a scale,
  * computed via {@link ExponentialScaleUtils#computeIndex(double, int)}.
- *
- * @param index The index used with the scale to determine the zero threshold.
- * @param scale The scale used with the index to determine the zero threshold.
- * @param count The number of values in the zero bucket.
  */
-public record ZeroBucket(long index, int scale, long count) {
+public final class ZeroBucket {
 
     public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ZeroBucket.class);
 
+    /**
+     * The exponential histogram scale used for {@link #index}
+     */
+    private final int scale;
+
+    /**
+     * The exponential histogram bucket index whose upper boundary corresponds to the zero threshold.
+     * Might be computed lazily from {@link #realThreshold}, uses {@link Long#MAX_VALUE} as placeholder in this case.
+     */
+    private long index;
+
+    /**
+     * Might be computed lazily from {@link #realThreshold}, uses {@link Double#NaN} as placeholder in this case.
+     */
+    private double realThreshold;
+
+    private final long count;
     // A singleton for an empty zero bucket with the smallest possible threshold.
     private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(MIN_INDEX, MIN_SCALE, 0);
 
@@ -55,7 +69,27 @@ public record ZeroBucket(long index, int scale, long count) {
      * @param count         The number of values in the bucket.
      */
     public ZeroBucket(double zeroThreshold, long count) {
-        this(computeIndex(zeroThreshold, MAX_SCALE) + 1, MAX_SCALE, count);
+        assert zeroThreshold >= 0.0 : "zeroThreshold must not be negative";
+        this.index = Long.MAX_VALUE; // compute lazily when needed
+        this.scale = MAX_SCALE;
+        this.realThreshold = zeroThreshold;
+        this.count = count;
+    }
+
+    private ZeroBucket(long index, int scale, long count) {
+        assert index >= MIN_INDEX && index <= MAX_INDEX : "index must be in range [" + MIN_INDEX + ", " + MAX_INDEX + "]";
+        assert scale >= MIN_SCALE && scale <= MAX_SCALE : "scale must be in range [" + MIN_SCALE + ", " + MAX_SCALE + "]";
+        this.index = index;
+        this.scale = scale;
+        this.realThreshold = Double.NaN; // compute lazily when needed
+        this.count = count;
+    }
+
+    private ZeroBucket(double realThreshold, long index, int scale, long count) {
+        this.realThreshold = realThreshold;
+        this.index = index;
+        this.scale = scale;
+        this.count = count;
     }
 
     /**
@@ -75,8 +109,33 @@ public record ZeroBucket(long index, int scale, long count) {
         if (count == 0) {
             return MINIMAL_EMPTY;
         } else {
-            return new ZeroBucket(MINIMAL_EMPTY.index, MINIMAL_EMPTY.scale(), count);
+            return new ZeroBucket(MINIMAL_EMPTY.zeroThreshold(), MINIMAL_EMPTY.index(), MINIMAL_EMPTY.scale(), count);
         }
+    }
+
+    /**
+     * @return The value of the zero threshold.
+     */
+    public double zeroThreshold() {
+        if (Double.isNaN(realThreshold)) {
+            realThreshold = exponentiallyScaledToDoubleValue(index(), scale());
+        }
+        return realThreshold;
+    }
+
+    public long index() {
+        if (index == Long.MAX_VALUE) {
+            index = computeIndex(zeroThreshold(), scale()) + 1;
+        }
+        return index;
+    }
+
+    public int scale() {
+        return scale;
+    }
+
+    public long count() {
+        return count;
     }
 
     /**
@@ -99,9 +158,9 @@ public record ZeroBucket(long index, int scale, long count) {
             long totalCount = count + other.count;
             // Both are populated, so we need to use the higher zero-threshold.
             if (this.compareZeroThreshold(other) >= 0) {
-                return new ZeroBucket(index, scale, totalCount);
+                return new ZeroBucket(realThreshold, index, scale, totalCount);
             } else {
-                return new ZeroBucket(other.index, other.scale, totalCount);
+                return new ZeroBucket(other.realThreshold, other.index, other.scale, totalCount);
             }
         }
     }
@@ -133,14 +192,7 @@ public record ZeroBucket(long index, int scale, long count) {
      *         equal to, or greater than the other's.
      */
     public int compareZeroThreshold(ZeroBucket other) {
-        return compareExponentiallyScaledValues(index, scale, other.index, other.scale);
-    }
-
-    /**
-     * @return The value of the zero threshold.
-     */
-    public double zeroThreshold() {
-        return exponentiallyScaledToDoubleValue(index, scale);
+        return compareExponentiallyScaledValues(index(), scale(), other.index(), other.scale());
     }
 
     /**
@@ -154,7 +206,7 @@ public record ZeroBucket(long index, int scale, long count) {
 
         long collapsedCount = 0;
         long highestCollapsedIndex = 0;
-        while (buckets.hasNext() && compareExponentiallyScaledValues(buckets.peekIndex(), buckets.scale(), index, scale) < 0) {
+        while (buckets.hasNext() && compareExponentiallyScaledValues(buckets.peekIndex(), buckets.scale(), index(), scale()) < 0) {
             highestCollapsedIndex = buckets.peekIndex();
             collapsedCount += buckets.peekCount();
             buckets.advance();
@@ -165,9 +217,9 @@ public record ZeroBucket(long index, int scale, long count) {
             long newZeroCount = count + collapsedCount;
             // +1 because we need to adjust the zero threshold to the upper boundary of the collapsed bucket
             long collapsedUpperBoundIndex = highestCollapsedIndex + 1;
-            if (compareExponentiallyScaledValues(index, scale, collapsedUpperBoundIndex, buckets.scale()) >= 0) {
+            if (compareExponentiallyScaledValues(index(), scale(), collapsedUpperBoundIndex, buckets.scale()) >= 0) {
                 // Our current zero-threshold is larger than the upper boundary of the largest collapsed bucket, so we keep it.
-                return new ZeroBucket(index, scale, newZeroCount);
+                return new ZeroBucket(realThreshold, index, scale, newZeroCount);
             } else {
                 return new ZeroBucket(collapsedUpperBoundIndex, buckets.scale(), newZeroCount);
             }

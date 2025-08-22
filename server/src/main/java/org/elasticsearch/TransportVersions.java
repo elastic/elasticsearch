@@ -132,7 +132,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SKIP_ES_INDEX_SERIALIZATION = def(8_827_0_00);
     public static final TransportVersion ADD_INDEX_BLOCK_TWO_PHASE = def(8_828_0_00);
     public static final TransportVersion RESOLVE_CLUSTER_NO_INDEX_EXPRESSION = def(8_829_0_00);
-    public static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = def(8_830_0_00);
     public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_0_00);
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_0_00);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_0_00);
@@ -365,6 +364,10 @@ public class TransportVersions {
     public static final TransportVersion SIMULATE_INGEST_MAPPING_MERGE_TYPE = def(9_138_0_00);
     public static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = def(9_139_0_00);
     public static final TransportVersion SIMULATE_INGEST_EFFECTIVE_MAPPING = def(9_140_0_00);
+    public static final TransportVersion RESOLVE_INDEX_MODE_ADDED = def(9_141_0_00);
+    public static final TransportVersion DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS = def(9_142_0_00);
+    public static final TransportVersion SCRIPT_RESCORER = def(9_143_0_00);
+    public static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = def(9_144_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

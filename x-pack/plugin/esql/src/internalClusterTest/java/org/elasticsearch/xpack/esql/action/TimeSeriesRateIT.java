@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -28,7 +27,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
 
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("time series available in snapshot builds only", Build.current().isSnapshot());
+        assumeTrue("time series available in snapshot builds only", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         return super.run(request);
     }
 

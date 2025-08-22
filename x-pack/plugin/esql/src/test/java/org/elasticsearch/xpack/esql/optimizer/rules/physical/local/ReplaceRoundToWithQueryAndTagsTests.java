@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -38,12 +40,15 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -55,6 +60,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
@@ -391,9 +397,11 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
         }
     }
 
-    // If the number of rounding points is 127 or less, the query is rewritten to use QueryAndTags.
-    // If the number of rounding points is 128 or more, the query is not rewritten.
-    public void testRoundToTransformToQueryAndTagsUpperLimit() {
+    /**
+     * If the number of rounding points is 127 or less, the query is rewritten to QueryAndTags.
+     * If the number of rounding points is 128 or more, the query is not rewritten.
+     */
+    public void testRoundToTransformToQueryAndTagsWithDefaultUpperLimit() {
         for (int numOfPoints : List.of(127, 128)) {
             StringBuilder points = new StringBuilder();
             for (int i = 0; i < numOfPoints; i++) {
@@ -441,6 +449,83 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                 assertNull(queryBuilder.query());
                 assertTrue(queryBuilder.tags().isEmpty());
                 assertNull(esQueryExec.query());
+            }
+        }
+    }
+
+    /**
+     * Query level threshold(if greater than -1) set in QueryPragmas overrides the cluster level threshold set in EsqlFlags.
+     */
+    public void testRoundToTransformToQueryAndTagsWithCustomizedUpperLimit() {
+        for (int clusterLevelThreshold : List.of(-1, 0, 60, 126, 128, 256)) {
+            for (int queryLevelThreshold : List.of(-1, 0, 60, 126, 128, 256)) {
+                StringBuilder points = new StringBuilder(); // there are 127 rounding points
+                for (int i = 0; i < 127; i++) {
+                    if (i > 0) {
+                        points.append(", ");
+                    }
+                    points.append(i);
+                }
+                String query = LoggerMessageFormat.format(null, """
+                    from test
+                    | stats count(*) by x = round_to(integer, {})
+                    """, points.toString());
+
+                TestPlannerOptimizer plannerOptimizerWithPragmas = new TestPlannerOptimizer(
+                    configuration(
+                        new QueryPragmas(
+                            Settings.builder()
+                                .put(QueryPragmas.ROUNDTO_PUSHDOWN_THRESHOLD.getKey().toLowerCase(Locale.ROOT), queryLevelThreshold)
+                                .build()
+                        ),
+                        query
+                    ),
+                    makeAnalyzer("mapping-all-types.json")
+                );
+                EsqlFlags esqlFlags = new EsqlFlags(clusterLevelThreshold);
+                assertEquals(clusterLevelThreshold, esqlFlags.roundToPushdownThreshold());
+                assertTrue(esqlFlags.stringLikeOnIndex());
+                PhysicalPlan plan = plannerOptimizerWithPragmas.plan(query, searchStats, esqlFlags);
+                boolean pushdown = false;
+                if (queryLevelThreshold > -1) {
+                    pushdown = queryLevelThreshold >= 127;
+                } else {
+                    pushdown = clusterLevelThreshold >= 127;
+                }
+
+                LimitExec limit = as(plan, LimitExec.class);
+                AggregateExec agg = as(limit.child(), AggregateExec.class);
+                assertThat(agg.getMode(), is(FINAL));
+                List<? extends Expression> groupings = agg.groupings();
+                NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
+                assertEquals("x", grouping.name());
+                assertEquals(DataType.INTEGER, grouping.dataType());
+                assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
+                ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
+                assertThat(exchange.inBetweenAggs(), is(true));
+                agg = as(exchange.child(), AggregateExec.class);
+                EvalExec evalExec = as(agg.child(), EvalExec.class);
+                List<Alias> aliases = evalExec.fields();
+                assertEquals(1, aliases.size());
+                if (pushdown) {
+                    FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
+                    assertTrue(roundToTag.name().startsWith("$$integer$round_to$"));
+                    EsQueryExec esQueryExec = as(evalExec.child(), EsQueryExec.class);
+                    List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+                    assertEquals(128, queryBuilderAndTags.size()); // 127 + nullBucket
+                    assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+                } else { // query rewrite does not happen
+                    RoundTo roundTo = as(aliases.get(0).child(), RoundTo.class);
+                    assertEquals(127, roundTo.points().size());
+                    FieldExtractExec fieldExtractExec = as(evalExec.child(), FieldExtractExec.class);
+                    EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+                    List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+                    assertEquals(1, queryBuilderAndTags.size());
+                    EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+                    assertNull(queryBuilder.query());
+                    assertTrue(queryBuilder.tags().isEmpty());
+                    assertNull(esQueryExec.query());
+                }
             }
         }
     }

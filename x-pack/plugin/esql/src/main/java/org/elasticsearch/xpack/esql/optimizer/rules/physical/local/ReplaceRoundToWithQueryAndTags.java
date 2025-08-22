@@ -38,6 +38,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
+import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_THRESHOLD;
 
 /**
  * {@code ReplaceRoundToWithQueryAndTags} builds a list of ranges and associated tags base on the rounding points defined in a
@@ -255,9 +256,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     EvalExec,
     LocalPhysicalOptimizerContext> {
 
-    // this is the maximum number of rounding points supported by this rule,
-    // it is the same as the maximum number of buckets used in Rounding.
-    public static final int MAX_NUM_POINTS = 127;
     private static final Logger logger = LogManager.getLogger(ReplaceRoundToWithQueryAndTags.class);
 
     @Override
@@ -277,12 +275,13 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
                 int count = roundTo.points().size();
-                if (count > MAX_NUM_POINTS) {
+                int roundingPointsUpperLimit = roundingPointsThreshold(ctx);
+                if (count > roundingPointsUpperLimit) {
                     logger.debug(
                         "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
                         roundTo.source(),
                         count,
-                        MAX_NUM_POINTS
+                        roundingPointsUpperLimit
                     );
                     return evalExec;
                 }
@@ -468,5 +467,22 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         QueryBuilder newQuery = queryDSL.toQueryBuilder();
         QueryBuilder combinedQuery = Queries.combine(clause, mainQuery != null ? List.of(mainQuery, newQuery) : List.of(newQuery));
         return new EsQueryExec.QueryBuilderAndTags(combinedQuery, tags);
+    }
+
+    /**
+     * Get the rounding points upper limit for {@code RoundTo} pushdown from query level pragmas or cluster level flags.
+     * If the query level pragmas is set to -1(default), the cluster level flags will be used.
+     * If the query level pragmas is set to greater than or equals to 0, the query level pragmas will be used.
+     */
+    private int roundingPointsThreshold(LocalPhysicalOptimizerContext ctx) {
+        int queryLevelRoundingPointsThreshold = ctx.configuration().pragmas().roundToPushDownThreshold();
+        int clusterLevelRoundingPointsThreshold = ctx.flags().roundToPushdownThreshold();
+        int roundingPointsThreshold;
+        if (queryLevelRoundingPointsThreshold == ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(ctx.configuration().pragmas().getSettings())) {
+            roundingPointsThreshold = clusterLevelRoundingPointsThreshold;
+        } else {
+            roundingPointsThreshold = queryLevelRoundingPointsThreshold;
+        }
+        return roundingPointsThreshold;
     }
 }

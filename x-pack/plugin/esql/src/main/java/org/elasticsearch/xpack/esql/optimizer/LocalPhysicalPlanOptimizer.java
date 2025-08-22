@@ -75,19 +75,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         // execute the rules multiple times to improve the chances of things being pushed down
         @SuppressWarnings("unchecked")
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
-        List<Rule<?, PhysicalPlan>> substitutionRules = new ArrayList<>(1);
-        if (optimizeForEsSource) {
-            substitutionRules.add(new ReplaceRoundToWithQueryAndTags());
-        }
+
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
         // done, and it should be executed only once.
-        @SuppressWarnings("unchecked")
-        var substituteRoundToWithQueryAndTags = new Batch<PhysicalPlan>(
-            "Substitute RoundTo with QueryAndTags",
-            Limiter.ONCE,
-            substitutionRules.toArray(Rule[]::new)
-        );
+        var substitutionRules = new Batch<>("Substitute RoundTo with QueryAndTags", Limiter.ONCE, new ReplaceRoundToWithQueryAndTags());
 
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
@@ -99,6 +91,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new SpatialShapeBoundsExtraction(),
             new ParallelizeTimeSeriesSource()
         );
-        return List.of(pushdown, substituteRoundToWithQueryAndTags, fieldExtraction);
+        return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }
 }

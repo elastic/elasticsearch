@@ -146,6 +146,8 @@ toc:
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-multivalued-fields.md
       - file: esql/esql-examples.md
+        children:
+          - file: esql/esql-search-tutorial.md
       - file: esql/esql-troubleshooting.md
         children:
           - file: esql/esql-query-log.md

@@ -7,5 +7,5 @@ navigation_title: "Tutorials"
 Use these hands-on tutorials to explore practical use cases with {{esql}}:
 
 - [](esql-getting-started.md): Learn the basic syntax of the language.
-- [Search and filter with {{esql}}](docs-content://solutions/search/esql-search-tutorial.md): Learn how to use {{esql}} to search and filter data.
+- [Search and filter with {{esql}}](esql-search-tutorial.md): Learn how to use {{esql}} to search and filter data.
 - [Threat hunting with {{esql}}](docs-content://solutions/security/esql-for-security/esql-threat-hunting-tutorial.md): Learn how to use {{esql}} for advanced threat hunting techniques and security analysis.

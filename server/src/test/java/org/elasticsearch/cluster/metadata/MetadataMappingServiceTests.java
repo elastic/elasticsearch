@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -24,6 +25,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -148,6 +150,19 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor(
             new IndexSettingProviders(Set.of(new IndexSettingProvider() {
+                @Override
+                public void getAdditionalIndexSettings(
+                    String indexName,
+                    String dataStreamName,
+                    IndexMode templateIndexMode,
+                    ProjectMetadata projectMetadata,
+                    Instant resolvedAt,
+                    Settings indexTemplateAndCreateRequestSettings,
+                    List<CompressedXContent> combinedTemplateMappings,
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                ) {}
+
                 @Override
                 public void onUpdateMappings(
                     IndexMetadata indexMetadata,

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -30,7 +29,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemIndices;
@@ -43,7 +41,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -493,22 +490,20 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
-            new IndexSettingProviders(Set.of(new IndexSettingProvider() {
-                @Override
-                public void getAdditionalIndexSettings(
-                    String indexName,
-                    String dataStreamName,
-                    IndexMode templateIndexMode,
-                    ProjectMetadata metadata,
-                    Instant resolvedAt,
-                    Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings,
-                    Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
-                ) {
-                    additionalSettings.put("index.mode", IndexMode.LOOKUP);
-                }
-            })),
+            new IndexSettingProviders(
+                Set.of(
+                    (
+                        indexName,
+                        dataStreamName,
+                        templateIndexMode,
+                        metadata,
+                        resolvedAt,
+                        indexTemplateAndCreateRequestSettings,
+                        combinedTemplateMappings,
+                        additionalSettings,
+                        additionalCustomMetadata) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)
+                )
+            ),
             null
         );
         assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo("lookup"));

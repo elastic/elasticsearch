@@ -49,7 +49,7 @@ public interface IndexSettingProvider {
      *                                              {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
      *                                              can be added
      */
-    default void getAdditionalIndexSettings(
+    void getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -59,7 +59,7 @@ public interface IndexSettingProvider {
         List<CompressedXContent> combinedTemplateMappings,
         Settings.Builder additionalSettings,
         BiConsumer<String, Map<String, String>> additionalCustomMetadata
-    ) {}
+    );
 
     /**
      * Called when the mappings for an index are updated, before the new index metadata is created.

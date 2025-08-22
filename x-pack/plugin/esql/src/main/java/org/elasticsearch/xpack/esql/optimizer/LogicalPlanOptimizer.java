@@ -142,7 +142,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogateAggregations(),
-            new SubstituteSurrogateExpressions(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateTimeSeriesAggregate(),
             new PruneUnusedIndexMode(),

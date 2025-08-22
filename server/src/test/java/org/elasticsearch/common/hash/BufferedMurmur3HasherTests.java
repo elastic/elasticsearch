@@ -88,14 +88,14 @@ public class BufferedMurmur3HasherTests extends ESTestCase {
                 case 2 -> {
                     long randomLong = randomLong();
                     bufferedHasher.addLong(randomLong);
-                    hasher.update(toBytes(randomLong), 0, Long.BYTES);
+                    hasher.update(toBytes(randomLong));
                 }
                 case 3 -> {
                     long randomLong1 = randomLong();
                     long randomLong2 = randomLong();
                     bufferedHasher.addLongs(randomLong1, randomLong2);
-                    hasher.update(toBytes(randomLong1), 0, Long.BYTES);
-                    hasher.update(toBytes(randomLong2), 0, Long.BYTES);
+                    hasher.update(toBytes(randomLong1));
+                    hasher.update(toBytes(randomLong2));
                 }
                 case 4 -> {
                     long randomLong1 = randomLong();
@@ -103,10 +103,10 @@ public class BufferedMurmur3HasherTests extends ESTestCase {
                     long randomLong3 = randomLong();
                     long randomLong4 = randomLong();
                     bufferedHasher.addLongs(randomLong1, randomLong2, randomLong3, randomLong4);
-                    hasher.update(toBytes(randomLong1), 0, Long.BYTES);
-                    hasher.update(toBytes(randomLong2), 0, Long.BYTES);
-                    hasher.update(toBytes(randomLong3), 0, Long.BYTES);
-                    hasher.update(toBytes(randomLong4), 0, Long.BYTES);
+                    hasher.update(toBytes(randomLong1));
+                    hasher.update(toBytes(randomLong2));
+                    hasher.update(toBytes(randomLong3));
+                    hasher.update(toBytes(randomLong4));
                 }
             }
         }

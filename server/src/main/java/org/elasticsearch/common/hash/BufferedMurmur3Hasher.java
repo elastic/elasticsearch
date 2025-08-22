@@ -82,7 +82,7 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
      */
     public void addLong(long value) {
         flushIfRemainingCapacityLowerThan(Long.BYTES);
-        ByteUtils.writeLongLE(value, buffer, 0);
+        ByteUtils.writeLongLE(value, buffer, pos);
         pos = Long.BYTES;
     }
 
@@ -95,8 +95,8 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
      */
     public void addLongs(long v1, long v2) {
         flushIfRemainingCapacityLowerThan(Long.BYTES * 2);
-        ByteUtils.writeLongLE(v1, buffer, 0);
-        ByteUtils.writeLongLE(v2, buffer, 8);
+        ByteUtils.writeLongLE(v1, buffer, pos);
+        ByteUtils.writeLongLE(v2, buffer, pos + 8);
         pos = Long.BYTES * 2;
     }
 
@@ -111,10 +111,10 @@ public class BufferedMurmur3Hasher extends Murmur3Hasher {
      */
     public void addLongs(long v1, long v2, long v3, long v4) {
         flushIfRemainingCapacityLowerThan(Long.BYTES * 4);
-        ByteUtils.writeLongLE(v1, buffer, 0);
-        ByteUtils.writeLongLE(v2, buffer, 8);
-        ByteUtils.writeLongLE(v3, buffer, 16);
-        ByteUtils.writeLongLE(v4, buffer, 24);
+        ByteUtils.writeLongLE(v1, buffer, pos);
+        ByteUtils.writeLongLE(v2, buffer, pos + 8);
+        ByteUtils.writeLongLE(v3, buffer, pos + 16);
+        ByteUtils.writeLongLE(v4, buffer, pos + 24);
         pos = Long.BYTES * 4;
     }
 

@@ -19,8 +19,8 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -92,15 +92,15 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "exponential_histogram";
 
-    public static final ParseField SCALE_FIELD = new ParseField("scale");
-    public static final ParseField ZERO_FIELD = new ParseField("zero");
-    public static final ParseField ZERO_COUNT_FIELD = new ParseField("count");
-    public static final ParseField ZERO_THRESHOLD_FIELD = new ParseField("threshold");
+    public static final ParseField SCALE_FIELD = new ParseField(ExponentialHistogramXContent.SCALE_FIELD);
+    public static final ParseField ZERO_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_FIELD);
+    public static final ParseField ZERO_COUNT_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_COUNT_FIELD);
+    public static final ParseField ZERO_THRESHOLD_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD);
 
-    public static final ParseField POSITIVE_FIELD = new ParseField("positive");
-    public static final ParseField NEGATIVE_FIELD = new ParseField("negative");
-    public static final ParseField BUCKET_INDICES_FIELD = new ParseField("indices");
-    public static final ParseField BUCKET_COUNTS_FIELD = new ParseField("counts");
+    public static final ParseField POSITIVE_FIELD = new ParseField(ExponentialHistogramXContent.POSITIVE_FIELD);
+    public static final ParseField NEGATIVE_FIELD = new ParseField(ExponentialHistogramXContent.NEGATIVE_FIELD);
+    public static final ParseField BUCKET_INDICES_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_INDICES_FIELD);
+    public static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
 
     private static ExponentialHistogramFieldMapper toType(FieldMapper in) {
         return (ExponentialHistogramFieldMapper) in;
@@ -625,50 +625,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
 
             histogram.reset(zeroThreshold, valueCount, binaryValue);
-
-            b.startObject();
-
-            b.field(SCALE_FIELD.getPreferredName(), histogram.scale());
-            double zeroThreshold = histogram.zeroBucket().zeroThreshold();
-            long zeroCount = histogram.zeroBucket().count();
-
-            if (zeroCount != 0 || zeroThreshold != 0) {
-                b.startObject(ZERO_FIELD.getPreferredName());
-                if (zeroCount != 0) {
-                    b.field(ZERO_COUNT_FIELD.getPreferredName(), zeroCount);
-                }
-                if (zeroThreshold != 0) {
-                    b.field(ZERO_THRESHOLD_FIELD.getPreferredName(), zeroThreshold);
-                }
-                b.endObject();
-            }
-
-            writeBuckets(b, POSITIVE_FIELD.getPreferredName(), histogram.positiveBuckets());
-            writeBuckets(b, NEGATIVE_FIELD.getPreferredName(), histogram.negativeBuckets());
-
-            b.endObject();
-        }
-
-        private static void writeBuckets(XContentBuilder b, String fieldName, ExponentialHistogram.Buckets buckets) throws IOException {
-            if (buckets.iterator().hasNext() == false) {
-                return;
-            }
-            b.startObject(fieldName);
-            BucketIterator it = buckets.iterator();
-            b.startArray(BUCKET_INDICES_FIELD.getPreferredName());
-            while (it.hasNext()) {
-                b.value(it.peekIndex());
-                it.advance();
-            }
-            b.endArray();
-            it = buckets.iterator();
-            b.startArray(BUCKET_COUNTS_FIELD.getPreferredName());
-            while (it.hasNext()) {
-                b.value(it.peekCount());
-                it.advance();
-            }
-            b.endArray();
-            b.endObject();
+            ExponentialHistogramXContent.serialize(b, histogram);
         }
 
         @Override

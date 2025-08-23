@@ -156,8 +156,8 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                 new DateParse(
                     Source.EMPTY,
                     new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
-                    field("str", DataType.KEYWORD)
-                )
+                    field("str", DataType.KEYWORD),
+                    Literal.NULL)
             ).get(driverContext)
         );
         assertThat(e.getMessage(), startsWith("invalid date pattern for []: Invalid format: [" + pattern + "]"));
@@ -165,6 +165,6 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new DateParse(source, args.get(0), args.size() > 1 ? args.get(1) : null);
+        return new DateParse(source, args.get(0), args.size() > 1 ? args.get(1) : null, Literal.NULL);
     }
 }

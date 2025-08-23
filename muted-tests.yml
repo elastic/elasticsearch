@@ -384,9 +384,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
-  method: testDataStreamLifecycleDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/131394
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/131412

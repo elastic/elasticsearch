@@ -546,3 +546,6 @@ tests:
 - class: org.elasticsearch.core.GlobTests
   method: testSuffixMatch
   issue: https://github.com/elastic/elasticsearch/issues/133117
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/apis/delete-snapshot-api/line_78}
+  issue: https://github.com/elastic/elasticsearch/issues/133438

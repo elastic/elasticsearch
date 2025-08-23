@@ -26,7 +26,16 @@ public class LoaderHelper {
             return Paths.get(path);
         }
 
-        Path homeDir = Paths.get(System.getProperty("es.path.home"));
+        String homeDirPath = System.getProperty("es.path.home");
+        if (homeDirPath == null) {
+            // if we don't have the native libs passed in for tests, and we don't have the home dir set
+            // then we must be in a test for an external plugin. there's nothing we can do to get the
+            // native libs, they don't exist, so just return the working dir, it will fail if the test
+            // actually tries to load a library
+            return Paths.get("");
+        }
+
+        Path homeDir = Paths.get(homeDirPath);
         Path platformDir = homeDir.resolve("lib/platform");
 
         String osname = System.getProperty("os.name");

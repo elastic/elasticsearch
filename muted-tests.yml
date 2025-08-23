@@ -621,6 +621,9 @@ tests:
 - class: org.elasticsearch.index.mapper.LongFieldMapperTests
   method: testSyntheticSourceInNestedObject
   issue: https://github.com/elastic/elasticsearch/issues/133426
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on date field in empty index}
+  issue: https://github.com/elastic/elasticsearch/issues/133439
 
 # Examples:
 #

@@ -411,16 +411,20 @@ public class S3HttpHandlerTests extends ESTestCase {
             task.etag = Objects.requireNonNull(uploadPart1Response.etag());
         };
 
-        Consumer<TestWriteTask> completeMultipartUploadConsumer = (task) -> {
-            task.status = handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + task.uploadId, new BytesArray(Strings.format("""
+        Consumer<TestWriteTask> completeMultipartUploadConsumer = (task) -> task.status = handleRequest(
+            handler,
+            "POST",
+            "/bucket/path/blob?uploadId=" + task.uploadId,
+            new BytesArray(Strings.format("""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                    <Part>
                       <ETag>%s</ETag>
                       <PartNumber>1</PartNumber>
                    </Part>
-                </CompleteMultipartUpload>""", task.etag)), ifNoneMatchHeader()).status();
-        };
+                </CompleteMultipartUpload>""", task.etag)),
+            ifNoneMatchHeader()
+        ).status();
 
         var tasks = List.of(
             new TestWriteTask(putObjectConsumer),
@@ -438,6 +442,16 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         List<TestWriteTask> successfulTasks = tasks.stream().filter(task -> task.status == RestStatus.OK).toList();
         assertThat(successfulTasks, hasSize(1));
+
+        tasks.stream().filter(task -> task.uploadId != null).forEach(task -> {
+            if (task.status == RestStatus.PRECONDITION_FAILED) {
+                logger.info("failed");
+                assertNotNull(handler.getUpload(task.uploadId));
+            } else {
+                logger.info("success");
+                assertNull(handler.getUpload(task.uploadId));
+            }
+        });
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, successfulTasks.getFirst().body, TestHttpExchange.EMPTY_HEADERS),

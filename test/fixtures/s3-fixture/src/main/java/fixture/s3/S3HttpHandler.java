@@ -191,7 +191,7 @@ public class S3HttpHandler implements HttpHandler {
                 final byte[] responseBody;
                 boolean preconditionFailed = false;
                 synchronized (uploads) {
-                    final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                    final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                     if (upload == null) {
                         if (Randomness.get().nextBoolean()) {
                             responseBody = null;
@@ -227,6 +227,7 @@ public class S3HttpHandler implements HttpHandler {
                                 + request.path()
                                 + "</Key>\n"
                                 + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                            removeUpload(upload.getUploadId());
                         } else {
                             responseBody = null;
                         }

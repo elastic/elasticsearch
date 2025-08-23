@@ -445,10 +445,8 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         tasks.stream().filter(task -> task.uploadId != null).forEach(task -> {
             if (task.status == RestStatus.PRECONDITION_FAILED) {
-                logger.info("failed");
                 assertNotNull(handler.getUpload(task.uploadId));
             } else {
-                logger.info("success");
                 assertNull(handler.getUpload(task.uploadId));
             }
         });

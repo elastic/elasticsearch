@@ -174,7 +174,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
                 right()
             );
         }
-        if(supersetType == ElementType.NULL || subsetType == ElementType.NULL) {
+        if (supersetType == ElementType.NULL || subsetType == ElementType.NULL) {
             return new MvContainsAllNullEvaluator(toEvaluator.apply(right()));
         }
         return switch (supersetType) {

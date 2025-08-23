@@ -49,13 +49,15 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
         doubles(suppliers);
         bytesRefs(suppliers);
 
-        return parameterSuppliersFromTypedData(anyNullIsNull(
-            suppliers,
-            (nullPosition, nullValueDataType, original) -> false
-                && nullValueDataType == DataType.NULL
-                && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
-            (nullPosition, nullData, original) -> original
-        ));
+        return parameterSuppliersFromTypedData(
+            anyNullIsNull(
+                suppliers,
+                (nullPosition, nullValueDataType, original) -> false && nullValueDataType == DataType.NULL && original.getData().size() == 1
+                    ? DataType.NULL
+                    : original.expectedType(),
+                (nullPosition, nullData, original) -> original
+            )
+        );
     }
 
     @Override
@@ -347,6 +349,6 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
     // We always return a boolean.
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return anyOf(equalTo(false),equalTo(true));
+        return anyOf(equalTo(false), equalTo(true));
     }
 }

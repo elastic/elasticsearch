@@ -21,22 +21,30 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 public record ESONFlat(
     AtomicReference<List<ESONEntry>> keys,
     ESONSource.Values values,
-    AtomicReference<BytesReference> serializedKeyBytes
+    AtomicReference<BytesReference> serializedKeyBytes,
+    AtomicReference<HashMap<String, byte[]>> sharedKeyBytes
 ) {
 
     public ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
-        this(new AtomicReference<>(keys), values, new AtomicReference<>());
+        this(new AtomicReference<>(keys), values, new AtomicReference<>(), new AtomicReference<>());
     }
 
     public static ESONFlat readFrom(StreamInput in) throws IOException {
         BytesReference keys = in.readBytesReference();
-        return new ESONFlat(new AtomicReference<>(), new ESONSource.Values(in.readBytesReference()), new AtomicReference<>(keys));
+        // TODO: Find way to share
+        return new ESONFlat(
+            new AtomicReference<>(),
+            new ESONSource.Values(in.readBytesReference()),
+            new AtomicReference<>(keys),
+            new AtomicReference<>()
+        );
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -105,6 +113,7 @@ public record ESONFlat(
 
     public BytesReference getSerializedKeyBytes() {
         if (serializedKeyBytes.get() == null) {
+            HashMap<String, byte[]> sharedKeyBytesMap = sharedKeyBytes.get();
             assert keys.get() != null;
             // TODO: Better estimate
             // for (ESONEntry entry : keys) {
@@ -117,7 +126,9 @@ public record ESONFlat(
                 for (ESONEntry entry : esonEntries) {
                     String key = entry.key();
                     if (key != null) {
-                        byte[] bytes = key.getBytes(StandardCharsets.UTF_8);
+                        byte[] bytes = sharedKeyBytesMap == null
+                            ? key.getBytes(StandardCharsets.UTF_8)
+                            : sharedKeyBytesMap.computeIfAbsent(key, k -> key.getBytes(StandardCharsets.UTF_8));
                         streamOutput.writeVInt(bytes.length);
                         streamOutput.writeBytes(bytes, 0, bytes.length);
                         // streamOutput.writeUTF8String(key);

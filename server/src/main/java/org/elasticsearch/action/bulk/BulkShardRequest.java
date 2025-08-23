@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -211,6 +212,15 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    public void createSharedKeyBytes() {
+        HashMap<String, byte[]> sharedKeyBytes = new HashMap<>();
+        for (BulkItemRequest bulkItemRequest : items) {
+            if (bulkItemRequest.request() instanceof IndexRequest indexRequest) {
+                indexRequest.modernSource().setSharedKeyBytes(sharedKeyBytes);
+            }
+        }
     }
 
     public long largestOperationSize() {

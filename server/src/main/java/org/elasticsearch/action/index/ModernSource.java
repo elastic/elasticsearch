@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 
 public class ModernSource implements Writeable {
 
@@ -68,6 +69,11 @@ public class ModernSource implements Writeable {
         this.contentType = contentType;
         this.originalSourceSize = originalSourceSize;
         this.structuredSource = structuredSource;
+    }
+
+    public void setSharedKeyBytes(HashMap<String, byte[]> sharedKeyBytes) {
+        ensureStructured();
+        structuredSource.sharedKeyBytes().set(sharedKeyBytes);
     }
 
     public void ensureStructured() {

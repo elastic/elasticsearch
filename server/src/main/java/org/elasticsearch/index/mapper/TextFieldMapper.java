@@ -91,7 +91,7 @@ import java.util.function.IntPredicate;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
-public final class TextFieldMapper extends TextFamilyFieldMapper {
+public final class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
@@ -237,7 +237,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends TextFamilyFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
         private final Parameter<Boolean> store;
@@ -409,7 +409,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                     index.getValue(),
                     store.getValue(),
                     tsi,
-                    context.isSourceSynthetic(),
+                    isSyntheticSourceEnabled,
                     isWithinMultiField,
                     SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                     meta.getValue(),
@@ -681,7 +681,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     }
 
-    public static class TextFieldType extends TextFamilyFieldType {
+    public static class TextFieldType extends StringFieldType {
 
         private boolean fielddata;
         private FielddataFrequencyFilter filter;
@@ -1064,6 +1064,15 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             return str.length() <= syntheticSourceDelegate.get().ignoreAbove();
         }
 
+        public boolean needsToSupportSyntheticSource(final IndexVersion indexCreatedVersion) {
+            if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+                // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the
+                // parent
+                return isSyntheticSourceEnabled() && isWithinMultiField() == false;
+            }
+            return isSyntheticSourceEnabled();
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (canUseSyntheticSourceDelegateForLoading()) {
@@ -1107,7 +1116,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
-            if (isSyntheticSourceEnabled && syntheticSourceDelegate.isPresent()) {
+            if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isPresent()) {
                 // Since we are using synthetic source and a delegate, we can't use this field
                 // to determine if the delegate has values in the document (f.e. handling of `null` is different
                 // between text and keyword).
@@ -1158,7 +1167,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             if (operation != FielddataOperation.SCRIPT) {
                 throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
             }
-            if (isSyntheticSourceEnabled) {
+            if (isSyntheticSourceEnabled()) {
                 if (isStored()) {
                     return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                         name(),
@@ -1193,10 +1202,6 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );
-        }
-
-        public boolean isSyntheticSourceEnabled() {
-            return isSyntheticSourceEnabled;
         }
 
         public Optional<KeywordFieldMapper.KeywordFieldType> syntheticSourceDelegate() {
@@ -1306,6 +1311,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     }
 
+    private final IndexVersion indexCreatedVersion;
     private final IndexMode indexMode;
     private final boolean index;
     private final boolean store;
@@ -1332,14 +1338,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         BuilderParams builderParams,
         Builder builder
     ) {
-        super(
-            simpleName,
-            builder.indexCreatedVersion,
-            builder.isSyntheticSourceEnabled,
-            builder.isWithinMultiField,
-            mappedFieldType,
-            builderParams
-        );
+        super(simpleName, mappedFieldType, builderParams);
 
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
@@ -1349,6 +1348,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + fullPath() + "]");
         }
 
+        this.indexCreatedVersion = builder.indexCreatedVersion;
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
@@ -1388,9 +1388,14 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexMode, indexAnalyzers, isSyntheticSourceEnabled, isWithinMultiField).init(
-            this
-        );
+        return new Builder(
+            leafName(),
+            indexCreatedVersion,
+            indexMode,
+            indexAnalyzers,
+            fieldType().isSyntheticSourceEnabled(),
+            fieldType().isWithinMultiField()
+        ).init(this);
     }
 
     @Override
@@ -1416,7 +1421,7 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
         }
 
         // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something else
-        if (needsToSupportSyntheticSource() && fieldType.stored() == false) {
+        if (fieldType().needsToSupportSyntheticSource(indexCreatedVersion) && fieldType.stored() == false) {
             // if we can rely on the synthetic source delegate for synthetic source, then exit as there is nothing to do
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
@@ -1426,6 +1431,25 @@ public final class TextFieldMapper extends TextFamilyFieldMapper {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             context.doc().add(new StoredField(fieldName, value));
         }
+    }
+
+    /**
+     * Returns whether the current index version supports not storing keyword multi fields when they trip ignore_above. The consequence
+     * of this check is that the store parameter will be simplified and defaulted to false.
+     */
+    public static boolean keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(final IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.onOrAfter(IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED);
+    }
+
+    /**
+     * Returns whether the current index version supports not storing fields by default when they're multi fields.
+     */
+    public static boolean multiFieldsNotStoredByDefault_indexVersionCheck(final IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)
+            || indexCreatedVersion.between(
+                IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            );
     }
 
     @Override

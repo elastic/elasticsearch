@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
@@ -38,7 +37,7 @@ import java.util.Map;
 /**
  * A {@link FieldMapper} that assigns every document the same value.
  */
-public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
+public class PatternedTextFieldMapper extends FieldMapper {
 
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
 
@@ -56,7 +55,7 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
         }
     }
 
-    public static class Builder extends TextFamilyFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
         private final IndexSettings indexSettings;
@@ -146,14 +145,7 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
         Builder builder,
         KeywordFieldMapper templateIdMapper
     ) {
-        super(
-            simpleName,
-            builder.indexCreatedVersion,
-            builder.isSyntheticSourceEnabled,
-            builder.isWithinMultiField,
-            mappedFieldPatternedTextFieldType,
-            builderParams
-        );
+        super(simpleName, mappedFieldPatternedTextFieldType, builderParams);
 
         assert mappedFieldPatternedTextFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldPatternedTextFieldType.hasDocValues() == false;
@@ -174,8 +166,14 @@ public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers, isSyntheticSourceEnabled, isWithinMultiField)
-            .init(this);
+        return new Builder(
+            leafName(),
+            indexCreatedVersion,
+            indexSettings,
+            indexAnalyzers,
+            fieldType().isSyntheticSourceEnabled(),
+            fieldType().isWithinMultiField()
+        ).init(this);
     }
 
     @Override

@@ -62,8 +62,8 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
         examples = {
             @Example(file = "string", tag = "mv_contains_all"),
             @Example(file = "string", tag = "mv_contains_all_bothsides"),
-            @Example(file = "string", tag = "mv_contains_all_where"),},
-        appliesTo = {@FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0")}
+            @Example(file = "string", tag = "mv_contains_all_where"), },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
     )
     public MvContainsAll(
         Source source,
@@ -84,7 +84,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
                 "long",
                 "text",
                 "unsigned_long",
-                "version"},
+                "version" },
             description = "Multivalue expression."
         ) Expression superset,
         @Param(
@@ -104,7 +104,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
                 "long",
                 "text",
                 "unsigned_long",
-                "version"},
+                "version" },
             description = "Multivalue expression."
         ) Expression subset
     ) {
@@ -184,7 +184,6 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
     }
-
 
     @Evaluator(extraName = "Int")
     static void process(BooleanBlock.Builder builder, int position, IntBlock field1, IntBlock field2) {

@@ -30,7 +30,6 @@ toc:
   - toc: release-notes
   - toc: extend
 subs:
-  version: 9.0.0
   api-request-title:   "Request"
   api-prereq-title:   "Prerequisites"
   api-description-title:   "Description"

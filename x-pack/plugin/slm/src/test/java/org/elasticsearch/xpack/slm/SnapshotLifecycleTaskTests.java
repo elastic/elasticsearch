@@ -20,7 +20,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -74,6 +75,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecycleTaskTests extends ESTestCase {
+    private final ProjectId projectId = randomProjectIdOrDefault();
 
     public void testGetSnapMetadata() {
         final String id = randomAlphaOfLength(4);
@@ -84,19 +86,16 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleStats()
         );
 
-        final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
-            .build();
-
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(SnapshotLifecycleMetadata.TYPE, meta).build();
         final Optional<SnapshotLifecyclePolicyMetadata> o = SnapshotLifecycleTask.getSnapPolicyMetadata(
-            SnapshotLifecycleService.getJobId(slpm),
-            state
+            projectMetadata,
+            SnapshotLifecycleService.getJobId(slpm)
         );
 
         assertTrue("the policy metadata should be retrieved from the cluster state", o.isPresent());
         assertThat(o.get(), equalTo(slpm));
 
-        assertFalse(SnapshotLifecycleTask.getSnapPolicyMetadata("bad-jobid", state).isPresent());
+        assertFalse(SnapshotLifecycleTask.getSnapPolicyMetadata(projectMetadata, "bad-jobid").isPresent());
     }
 
     public void testSkipCreatingSnapshotWhenJobDoesNotMatch() {
@@ -109,7 +108,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         );
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
             .build();
 
         final ThreadPool threadPool = new TestThreadPool("test");
@@ -128,7 +127,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 item -> fail("should not have tried to store an item")
             );
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
+            SnapshotLifecycleTask task = new SnapshotLifecycleTask(projectId, client, clusterService, historyStore);
 
             // Trigger the event, but since the job name does not match, it should
             // not run the function to create a snapshot
@@ -148,7 +147,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         );
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
             .nodes(
                 DiscoveryNodes.builder()
                     .add(DiscoveryNodeUtils.builder("nodeId").name("nodeId").build())
@@ -229,7 +228,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 assertEquals(snapshotName.get(), item.getSnapshotName());
             });
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
+            SnapshotLifecycleTask task = new SnapshotLifecycleTask(projectId, client, clusterService, historyStore);
             // Trigger the event with a matching job name for the policy
             task.triggered(
                 new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm), System.currentTimeMillis(), System.currentTimeMillis())
@@ -254,7 +253,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         );
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
             .nodes(
                 DiscoveryNodes.builder()
                     .add(DiscoveryNodeUtils.builder("nodeId").name("nodeId").build())
@@ -293,7 +292,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 long endTime = randomLongBetween(startTime, Long.MAX_VALUE);
                 return new CreateSnapshotResponse(
                     new SnapshotInfo(
-                        new Snapshot(req.repository(), new SnapshotId(req.snapshot(), "uuid")),
+                        new Snapshot(projectId, req.repository(), new SnapshotId(req.snapshot(), "uuid")),
                         Arrays.asList(req.indices()),
                         Collections.emptyList(),
                         Collections.emptyList(),
@@ -324,7 +323,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 );
             });
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
+            SnapshotLifecycleTask task = new SnapshotLifecycleTask(projectId, client, clusterService, historyStore);
             // Trigger the event with a matching job name for the policy
             task.triggered(
                 new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm), System.currentTimeMillis(), System.currentTimeMillis())
@@ -347,19 +346,19 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId snapForDeletedPolicy = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(policyId, initiatingSnap, randomLong(), randomLong())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(policyId, initiatingSnap, randomLong(), new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(), randomLong())
+            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(), new RuntimeException());
 
         // deletedPolicy is no longer defined
         var definedSlmPolicies = List.of(policyId);
         var registeredSnapshots = Map.of(policyId, List.of(initiatingSnap), deletedPolicy, List.of(snapForDeletedPolicy));
         // behavior is same whether initiatingSnap still in progress
         var inProgress = Map.of(policyId, randomBoolean() ? List.of(initiatingSnap) : List.<SnapshotId>of());
-        ClusterState clusterState = buildClusterState(definedSlmPolicies, registeredSnapshots, inProgress);
+        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
 
         ClusterState newClusterState = writeJobStatus.execute(clusterState);
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
-            .getProject()
+            .getProject(projectId)
             .custom(RegisteredPolicySnapshots.TYPE);
 
         assertEquals(List.of(), newRegisteredPolicySnapshots.getSnapshots());
@@ -374,17 +373,17 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId otherSnapNotRunning = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(policyId, initiatingSnap, randomLong(), randomLong())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(policyId, initiatingSnap, randomLong(), new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(), randomLong())
+            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(), new RuntimeException());
 
         var definedSlmPolicies = List.of(policyId, otherPolicy);
         var registeredSnapshots = Map.of(policyId, List.of(initiatingSnap), otherPolicy, List.of(otherSnapRunning, otherSnapNotRunning));
         var inProgress = Map.of(policyId, List.<SnapshotId>of(), otherPolicy, List.of(otherSnapRunning));
-        ClusterState clusterState = buildClusterState(definedSlmPolicies, registeredSnapshots, inProgress);
+        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
 
         ClusterState newClusterState = writeJobStatus.execute(clusterState);
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
-            .getProject()
+            .getProject(projectId)
             .custom(RegisteredPolicySnapshots.TYPE);
 
         assertEquals(List.of(otherSnapRunning, otherSnapNotRunning), newRegisteredPolicySnapshots.getSnapshotsByPolicy(otherPolicy));
@@ -396,8 +395,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId initiatingSnap = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(policyId, initiatingSnap, randomLong(), randomLong())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(policyId, initiatingSnap, randomLong(), new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(), randomLong())
+            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(), new RuntimeException());
 
         final SnapshotId stillRunning = randSnapshotId();
 
@@ -405,11 +404,11 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         var registeredSnapshots = Map.of(policyId, List.of(stillRunning, initiatingSnap));
         // behavior is same whether initiatingSnap still in progress
         var inProgress = Map.of(policyId, randomBoolean() ? List.of(stillRunning, initiatingSnap) : List.of(stillRunning));
-        ClusterState clusterState = buildClusterState(definedSlmPolicies, registeredSnapshots, inProgress);
+        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
 
         ClusterState newClusterState = writeJobStatus.execute(clusterState);
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
-            .getProject()
+            .getProject(projectId)
             .custom(RegisteredPolicySnapshots.TYPE);
 
         assertEquals(List.of(stillRunning), newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId));
@@ -425,14 +424,20 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         var definedSlmPolicies = List.of(policyId);
         var registeredSnapshots = Map.of(policyId, List.of(stillRunning, previousFailedSnapshot));
         var inProgress = Map.of(policyId, List.of(stillRunning));
-        ClusterState clusterState = buildClusterState(definedSlmPolicies, registeredSnapshots, inProgress);
+        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
 
-        var writeJobTask = SnapshotLifecycleTask.WriteJobStatus.success(policyId, initiatingSnapshot, randomLong(), randomLong());
+        var writeJobTask = SnapshotLifecycleTask.WriteJobStatus.success(
+            projectId,
+            policyId,
+            initiatingSnapshot,
+            randomLong(),
+            randomLong()
+        );
 
         ClusterState newClusterState = writeJobTask.execute(clusterState);
 
         // previous failure is now recorded in stats and metadata
-        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
         SnapshotLifecycleStats newStats = newSlmMetadata.getStats();
         SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newStats.getMetrics().get(policyId);
         assertEquals(1, snapshotPolicyStats.getSnapshotFailedCount());
@@ -445,7 +450,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         // failed snapshot no longer in registeredSnapshot set
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
-            .getProject()
+            .getProject(projectId)
             .custom(RegisteredPolicySnapshots.TYPE);
         List<SnapshotId> newRegisteredSnapIds = newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId);
         assertEquals(List.of(stillRunning), newRegisteredSnapIds);
@@ -460,14 +465,20 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         var definedSlmPolicies = List.of(policyId);
         var registeredSnapshots = Map.of(policyId, List.of(stillRunning, previousFailedSnapshot));
         var inProgress = Map.of(policyId, List.of(stillRunning));
-        ClusterState clusterState = buildClusterState(definedSlmPolicies, registeredSnapshots, inProgress);
+        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
 
-        var writeJobTask = SnapshotLifecycleTask.WriteJobStatus.failure(policyId, initiatingSnapshot, randomLong(), new RuntimeException());
+        var writeJobTask = SnapshotLifecycleTask.WriteJobStatus.failure(
+            projectId,
+            policyId,
+            initiatingSnapshot,
+            randomLong(),
+            new RuntimeException()
+        );
 
         ClusterState newClusterState = writeJobTask.execute(clusterState);
 
         // previous failure is now recorded in stats and metadata
-        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
         SnapshotLifecycleStats newStats = newSlmMetadata.getStats();
         SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newStats.getMetrics().get(policyId);
         assertEquals(2, snapshotPolicyStats.getSnapshotFailedCount());
@@ -480,7 +491,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         // failed snapshot no longer in registeredSnapshot set
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
-            .getProject()
+            .getProject(projectId)
             .custom(RegisteredPolicySnapshots.TYPE);
         List<SnapshotId> newRegisteredSnapIds = newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId);
         assertEquals(List.of(stillRunning), newRegisteredSnapIds);
@@ -496,13 +507,19 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final String repo2 = randomAlphaOfLength(10);
 
         final var snapshotsInProgress = SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(
+            projectId,
             repo1,
             List.of(
-                makeSnapshotInProgress(repo1, "some-policy", snapshot1),
-                makeSnapshotInProgress(repo1, "some-policy", snapshot2),
-                makeSnapshotInProgress(repo1, "other-policy", snapshot3)
+                makeSnapshotInProgress(projectId, repo1, "some-policy", snapshot1),
+                makeSnapshotInProgress(projectId, repo1, "some-policy", snapshot2),
+                makeSnapshotInProgress(projectId, repo1, "other-policy", snapshot3)
             )
-        ).createCopyWithUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, "other-policy", snapshot4)));
+        )
+            .createCopyWithUpdatedEntriesForRepo(
+                projectId,
+                repo2,
+                List.of(makeSnapshotInProgress(projectId, repo2, "other-policy", snapshot4))
+            );
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
@@ -517,6 +534,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     }
 
     private static ClusterState buildClusterState(
+        ProjectId projectId,
         List<String> slmPolicies,
         Map<String, List<SnapshotId>> registeredSnaps,
         Map<String, List<SnapshotId>> inProgress
@@ -525,7 +543,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         List<SnapshotsInProgress.Entry> inProgressEntries = new ArrayList<>();
         for (String policy : inProgress.keySet()) {
             for (SnapshotId snap : inProgress.get(policy)) {
-                inProgressEntries.add(makeSnapshotInProgress(repo, policy, snap));
+                inProgressEntries.add(makeSnapshotInProgress(projectId, repo, policy, snap));
             }
         }
 
@@ -537,11 +555,15 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         }
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(repo, inProgressEntries))
-            .metadata(
-                Metadata.builder()
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
                     .putCustom(SnapshotLifecycleMetadata.TYPE, makeSnapMeta(slmPolicies))
                     .putCustom(RegisteredPolicySnapshots.TYPE, new RegisteredPolicySnapshots(policySnapshots))
+                    .build()
+            )
+            .putCustom(
+                SnapshotsInProgress.TYPE,
+                SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(projectId, repo, inProgressEntries)
             )
             .build();
 
@@ -569,10 +591,15 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         return new SnapshotLifecycleMetadata(slmMeta, OperationMode.RUNNING, stats);
     }
 
-    private static SnapshotsInProgress.Entry makeSnapshotInProgress(String repo, String policyId, SnapshotId snapshotId) {
+    private static SnapshotsInProgress.Entry makeSnapshotInProgress(
+        ProjectId projectId,
+        String repo,
+        String policyId,
+        SnapshotId snapshotId
+    ) {
         final Map<String, Object> metadata = Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyId);
         return SnapshotsInProgress.Entry.snapshot(
-            new Snapshot(repo, snapshotId),
+            new Snapshot(projectId, repo, snapshotId),
             randomBoolean(),
             randomBoolean(),
             SnapshotsInProgress.State.SUCCESS,

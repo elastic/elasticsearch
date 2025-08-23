@@ -31,6 +31,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
@@ -160,7 +161,7 @@ public class SageMakerService implements InferenceService {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
-
+        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
         var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);
 
         try {
@@ -173,7 +174,7 @@ public class SageMakerService implements InferenceService {
                 client.invokeStream(
                     regionAndSecrets,
                     request,
-                    timeout != null ? timeout : DEFAULT_TIMEOUT,
+                    timeout,
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.streamResponse(sageMakerModel, response)),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
@@ -185,7 +186,7 @@ public class SageMakerService implements InferenceService {
                 client.invoke(
                     regionAndSecrets,
                     request,
-                    timeout != null ? timeout : DEFAULT_TIMEOUT,
+                    timeout,
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.response(sageMakerModel, response, threadPool.getThreadContext())),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))

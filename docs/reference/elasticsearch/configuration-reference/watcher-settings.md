@@ -558,7 +558,7 @@ $$$pagerduty-account-attributes$$$
     :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Whether or not to provide the watch payload as context for the event by default. Valid values: `true`, `false`.
 
 `xpack.notification.webhook.additional_token_enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   When set to `true`, {{es}} automatically sets a token which enables the bypassing of traffic filters for calls initiated by Watcher towards {{es}} or {{kib}}. The default is `false` and the feature is available starting with {{es}} version 8.7.1 and later.
+:   When set to `true`, {{es}} automatically sets a token which enables the bypassing of [network security](docs-content://deploy-manage/security/network-security.md) for calls initiated by Watcher towards {{es}} or {{kib}}. The default is `false` and the feature is available starting with {{es}} version 8.7.1 and later.
 
     ::::{important}
     This setting only applies to the Watcher `webhook` action, not the `http` input action.

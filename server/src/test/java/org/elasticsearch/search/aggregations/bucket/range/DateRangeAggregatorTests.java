@@ -22,6 +22,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -559,6 +560,12 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
         final MockScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, emptyMap());
         final Map<String, ScriptEngine> engines = Map.of(engine.getType(), engine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 0);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 0,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 }

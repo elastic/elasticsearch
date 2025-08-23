@@ -134,7 +134,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         snapshotLifecycleService.set(
             new SnapshotLifecycleService(
                 settings,
-                () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()),
+                projectId -> new SnapshotLifecycleTask(projectId, client, clusterService, snapshotHistoryStore.get()),
                 clusterService,
                 getClock()
             )

@@ -349,7 +349,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
         Set<String> nullsFilteredFields = new HashSet<>();
         fieldExtractExec.forEachDown(EsQueryExec.class, queryExec -> {
-            QueryBuilder q = queryExec.query();
+            QueryBuilder q = queryExec.queryBuilderAndTags().get(0).query();
             if (q != null) {
                 nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQuery(q));
             }

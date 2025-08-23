@@ -111,7 +111,7 @@ public enum AllocationDecision implements Writeable {
      */
     public static AllocationDecision fromDecisionType(Decision.Type type) {
         return switch (type) {
-            case YES -> YES;
+            case YES, NOT_PREFERRED -> YES;
             case THROTTLE -> THROTTLED;
             case NO -> NO;
         };

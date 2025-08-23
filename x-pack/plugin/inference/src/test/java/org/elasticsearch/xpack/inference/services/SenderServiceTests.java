@@ -108,7 +108,7 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     public void test_nullTimeoutUsesClusterSetting() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = mock(HttpRequestSender.class);
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 

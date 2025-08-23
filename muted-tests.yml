@@ -384,9 +384,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
-  method: testDataStreamLifecycleDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/131394
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/131412
@@ -621,6 +618,15 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/133370
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSourceMany
+  issue: https://github.com/elastic/elasticsearch/issues/133394
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_int4_flat/kNN search with filter}
+  issue: https://github.com/elastic/elasticsearch/issues/133420
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSourceInNestedObject
+  issue: https://github.com/elastic/elasticsearch/issues/133426
 
 # Examples:
 #

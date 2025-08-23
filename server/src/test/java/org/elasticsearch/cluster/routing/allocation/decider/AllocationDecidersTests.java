@@ -60,7 +60,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF -> Decision.THROTTLE;
-            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
+            case EXCLUDE_YES_DECISIONS -> collectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
             case ON -> collectToMultiDecision(allDecisions);
         };
 

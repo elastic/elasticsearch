@@ -30,6 +30,13 @@ public class TimeSeriesDimensionsMetadataAccess {
         customMetadataBuilder.put(TIME_SERIES_DIMENSIONS_METADATA_KEY, toCustomMetadata(timeSeriesDimensions));
     }
 
+    public static void transferCustomMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata.Builder targetIndexMetadataBuilder) {
+        Map<String, String> metadata = sourceIndexMetadata.getCustomData(TIME_SERIES_DIMENSIONS_METADATA_KEY);
+        if (metadata != null) {
+            targetIndexMetadataBuilder.putCustom(TIME_SERIES_DIMENSIONS_METADATA_KEY, metadata);
+        }
+    }
+
     static Map<String, String> toCustomMetadata(List<String> timeSeriesDimensions) {
         return Map.of("includes", String.join(",", timeSeriesDimensions));
     }

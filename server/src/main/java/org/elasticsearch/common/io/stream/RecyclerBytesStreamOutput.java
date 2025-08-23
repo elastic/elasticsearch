@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -112,27 +113,47 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     public void writeUTF8String(String str) throws IOException {
-        final int charCount = str.length();
-        if (charCount == 0) {
-            writeByte((byte) 0);
-            return;
-        }
+        byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
+        writeVIntAndBytes(utf8Bytes, 0, utf8Bytes.length);
+    }
 
-        // Optimistically write length assuming all ASCII (1 byte per char)
-        int asciiBytesNeeded = vIntLength(charCount);
+    private void writeVIntAndBytes(byte[] bytes, int offset, int length) throws IOException {
+        int vIntSize = vIntLength(length);
+        int totalSize = vIntSize + length;
 
-        // Ensure we have at least enough capacity for ASCII representation and vint
-        if ((charCount + asciiBytesNeeded) > (pageSize - currentPageOffset)) {
-            ensureCapacity(charCount);
-        }
-
-        long startPosition = position();
-        putVInt(charCount, asciiBytesNeeded);
-        if (writeAsciiChars(str, charCount) == false) {
-            seek(startPosition);
-            handleNonAsciiString(str);
+        if (totalSize <= (pageSize - currentPageOffset)) {
+            int pos = bytesRefOffset + currentPageOffset;
+            pos += putVInt(bytesRefBytes, length, pos);
+            System.arraycopy(bytes, offset, bytesRefBytes, pos, length);
+            currentPageOffset += totalSize;
+        } else {
+            writeVInt(length);
+            writeBytes(bytes, offset, length);
         }
     }
+
+    // public void writeUTF8String(String str) throws IOException {
+    // final int charCount = str.length();
+    // if (charCount == 0) {
+    // writeByte((byte) 0);
+    // return;
+    // }
+    //
+    // // Optimistically write length assuming all ASCII (1 byte per char)
+    // int asciiBytesNeeded = vIntLength(charCount);
+    //
+    // // Ensure we have at least enough capacity for ASCII representation and vint
+    // if ((charCount + asciiBytesNeeded) > (pageSize - currentPageOffset)) {
+    // ensureCapacity(charCount);
+    // }
+    //
+    // long startPosition = position();
+    // putVInt(charCount, asciiBytesNeeded);
+    // if (writeAsciiChars(str, charCount) == false) {
+    // seek(startPosition);
+    // handleNonAsciiString(str);
+    // }
+    // }
 
     private boolean writeAsciiChars(String str, int charCount) {
         int charIndex = 0;

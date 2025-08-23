@@ -76,3 +76,4 @@ server/src/main/resources/transport/definitions/manifest.txt
 
 # JEnv
 .java-version
+.aider*

@@ -16,6 +16,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
@@ -142,7 +143,8 @@ public final class CsvAssert {
                     && (expectedType == Type.IP
                         || expectedType == Type.VERSION
                         || expectedType == Type.TEXT
-                        || expectedType == Type.SEMANTIC_TEXT)) {
+                        || expectedType == Type.SEMANTIC_TEXT)
+                    || expectedType == Type.DATE_RANGE) {
                     // Type.asType translates all bytes references into keywords
                     continue;
                 }
@@ -422,6 +424,7 @@ public final class CsvAssert {
                 AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class,
                 x -> aggregateMetricDoubleLiteralToString((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) x)
             );
+            case DATE_RANGE -> rebuildExpected(expectedValue, BytesRef.class, x -> EsqlDataTypeConverter.dateRangeToString((BytesRef) x));
             default -> expectedValue;
         };
     }

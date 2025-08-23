@@ -239,8 +239,7 @@ public class ClusterServiceUtils {
         clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
     }
 
-    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
-        throws Exception {
+    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService) {
         final var listener = addTemporaryStateListener(clusterService, statePredicate, ESTestCase.TEST_REQUEST_TIMEOUT);
         ESTestCase.safeAwait(listener, ESTestCase.TEST_REQUEST_TIMEOUT);
     }

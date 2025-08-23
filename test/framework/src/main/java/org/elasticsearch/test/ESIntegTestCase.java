@@ -85,6 +85,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -1219,8 +1220,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
+    protected static void awaitClusterState(Predicate<ClusterState> statePredicate) {
+        awaitClusterState(null, internalCluster().getMasterName(), statePredicate);
     }
 
     protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
@@ -1231,7 +1232,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
     }
 
-    public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
+    public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) {
         ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
     }
 
@@ -1851,6 +1852,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .setTimeout(timeout)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
         );
+    }
+
+    /**
+     *
+     * Waits until the specified index no longer exists in the cluster.
+     * This method blocks until the index is deleted or times out.
+     * Note that this method waits by listening to cluster state updates <i>on the master node</i>.
+     * Meaning that if this method returns, all other nodes are aware that that index is deleted from the cluster state as well.
+     *
+     * @param index the name of the index to wait for deletion
+     */
+    public static void awaitIndexNotExists(String index) {
+        awaitClusterState(state -> state.metadata().getProject(ProjectId.DEFAULT).hasIndex(index) == false);
     }
 
     /**

@@ -53,7 +53,7 @@ public class ForceMergeAction implements LifecycleAction {
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
     public static final ParseField CODEC = new ParseField("index_codec");
 
-    public static final String FORCE_MERGED_INDEX_PREFIX = "force-merged-";
+    public static final String FORCE_MERGED_INDEX_PREFIX = "force-merge-";
     public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGED_INDEX_NAME_SUPPLIER = (indexName, state) -> state
         .forceMergeIndexName();
 

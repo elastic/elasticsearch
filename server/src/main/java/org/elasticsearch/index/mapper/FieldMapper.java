@@ -1416,10 +1416,10 @@ public abstract class FieldMapper extends Mapper {
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
 
-        // we're using Boolean here instead of boolean by design - to throw an NPE when users attempt to use these fields without setting
-        // them
-        public final Boolean isSyntheticSourceEnabled;
-        public final Boolean isWithinMultiField;
+        // we're using Boolean here instead of boolean by design - to throw a NPE when users attempt to use these fields without
+        // initializing them first
+        protected final Boolean isSyntheticSourceEnabled;
+        protected final Boolean isWithinMultiField;
 
         /**
          * Creates a new Builder with a field name

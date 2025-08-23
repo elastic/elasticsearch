@@ -245,6 +245,13 @@ public class EsqlCapabilities {
          */
         FN_MONTH_NAME,
 
+
+        /**
+         * support for MV_CONTAINS_ALL function
+         */
+        FN_MV_CONTAINS_ALL,
+
+
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */

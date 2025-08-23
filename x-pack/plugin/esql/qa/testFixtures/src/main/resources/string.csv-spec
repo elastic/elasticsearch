@@ -1931,33 +1931,37 @@ l1:integer | l2:integer
 null       | 0
 ;
 
-mvContainsAll#[skip:-9.1.99,reason:new mvContainsall function added in 9.2]
+mvContainsAll
+required_capability: fn_mv_contains_all
 // tag::mv_contains_all[]
-ROW a = "a", b = ["a", "b", "c"]
-| EVAL a_subset_of_b = mv_contains_all(b, a)
+ROW set = ["a", "b", "c"], element = "a"
+| EVAL set_contains_element = mv_contains_all(set, element)
 // end::mv_contains_all[]
 ;
 
 // tag::mv_contains_all-result[]
-a:keyword | b:keyword | a_subset_of_b:boolean 
-a         | [a, b, c]    | true         
+set:keyword | element:keyword | set_contains_element:boolean 
+[a, b, c]   | a               | true         
 // end::mv_contains_all-result[]
 ;
 
-mvContainsAll_bothsides#[skip:-9.1.99,reason:new mvContainsall function added in 9.2]
+mvContainsAll_bothsides
+required_capability: fn_mv_contains_all
 // tag::mv_contains_all_bothsides[]
-ROW a = ["a","c"], b = ["a", "b", "c"]
-| EVAL a_subset_of_b = mv_contains_all(b, a)
+ROW setA = ["a","c"], setB = ["a", "b", "c"]
+| EVAL a_subset_of_b = mv_contains_all(setB, setA)
+| EVAL b_subset_of_a = mv_contains_all(setA, setB)
 // end::mv_contains_all_bothsides[]
 ;
 
 // tag::mv_contains_all_bothsides-result[]
-a:keyword | b:keyword | a_subset_of_b:boolean 
-[a, c]    | [a, b, c] | true   
+setA:keyword | setB:keyword | a_subset_of_b:boolean | b_subset_of_a:boolean 
+[a, c]       | [a, b, c]    | true                  | false
 // end::mv_contains_all_bothsides-result[]
 ;
 
-mvContainsAllCombinations#[skip:-9.1.99,reason:new mvContainsall function added in 9.2]
+mvContainsAllCombinations
+required_capability: fn_mv_contains_all
 
 ROW a = "a", b = ["a", "b", "c"], n = null
 | EVAL aa = mv_contains_all(a, a), 
@@ -1969,11 +1973,12 @@ ROW a = "a", b = ["a", "b", "c"], n = null
        nn = mv_contains_all(n,n)
 ;
 
-a:keyword | b:keyword | n:null | aa:boolean | bb:boolean   | ab:boolean | ba:boolean | na:boolean | an:boolean | nn:null
-a         | [a, b, c] | null   | true       | true         | false      | true       | null       | null      | null
+a:keyword | b:keyword | n:null | aa:boolean | bb:boolean   | ab:boolean | ba:boolean | na:boolean | an:boolean | nn:boolean
+a         | [a, b, c] | null   | true       | true         | false      | true       | false      | true       | true
 ;
 
-mvContainsAll_where#[skip:-9.1.99,reason:new mvContainsall function added in 9.2]
+mvContainsAll_where
+required_capability: fn_mv_contains_all
 // tag::mv_contains_all_where[]
 FROM airports
 | WHERE mv_contains_all(type, ["major","military"]) AND scalerank == 9

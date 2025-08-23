@@ -15,13 +15,17 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -50,17 +54,16 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
         "MvContainsAll",
         MvContainsAll::new
     );
-    private DataType dataType;
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "\"Checks if all values yielded by the second multivalue expression are present in the values yielded by "
-            + "the first multivalue expression. Returns a boolean, or null if either expression is null.",
+        description = "Checks if all values yielded by the second multivalue expression are present in the values yielded by "
+            + "the first multivalue expression. Returns a boolean. Null values are treated as an empty set.",
         examples = {
             @Example(file = "string", tag = "mv_contains_all"),
             @Example(file = "string", tag = "mv_contains_all_bothsides"),
-            @Example(file = "string", tag = "mv_contains_all_where"), },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
+            @Example(file = "string", tag = "mv_contains_all_where"),},
+        appliesTo = {@FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0")}
     )
     public MvContainsAll(
         Source source,
@@ -81,7 +84,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version"},
             description = "Multivalue expression."
         ) Expression superset,
         @Param(
@@ -101,7 +104,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version"},
             description = "Multivalue expression."
         ) Expression subset
     ) {
@@ -127,9 +130,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
         if (resolution.unresolved()) {
             return resolution;
         }
-        dataType = left().dataType() == DataType.NULL ? DataType.NULL : DataType.BOOLEAN;
         if (left().dataType() == DataType.NULL) {
-            dataType = right().dataType() == DataType.NULL ? DataType.NULL : DataType.BOOLEAN;
             return isRepresentableExceptCounters(right(), sourceText(), SECOND);
         }
         return isType(right(), t -> t.noText() == left().dataType().noText(), sourceText(), SECOND, left().dataType().noText().typeName());
@@ -137,14 +138,16 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
-        return dataType;
+        return DataType.BOOLEAN;
     }
 
     @Override
-    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
+    public Nullability nullable() {
+        return Nullability.FALSE;
+    }
+
+    @Override
+    protected MvContainsAll replaceChildren(Expression newLeft, Expression newRight) {
         return new MvContainsAll(source(), newLeft, newRight);
     }
 
@@ -162,7 +165,7 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var supersetType = PlannerUtils.toElementType(left().dataType());
         var subsetType = PlannerUtils.toElementType(right().dataType());
-        if (supersetType != subsetType) {
+        if (supersetType != ElementType.NULL && subsetType != ElementType.NULL && supersetType != subsetType) {
             throw new EsqlIllegalArgumentException(
                 "Incompatible data types for MvContainsAll, superset type({}) value({}) and subset type({}) value({}) don't match.",
                 supersetType,
@@ -177,10 +180,11 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
             case DOUBLE -> new MvContainsAllDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case INT -> new MvContainsAllIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvContainsAllLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> new MvContainsAllNullEvaluator(toEvaluator.apply(right()));
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
     }
+
 
     @Evaluator(extraName = "Int")
     static void process(BooleanBlock.Builder builder, int position, IntBlock field1, IntBlock field2) {
@@ -228,10 +232,10 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
      * A block is considered a subset if the superset contains values that test equal for all the values in the subset, independent of
      * order. Duplicates are ignored in the sense that for each duplicate in the subset, we will search/match against the first/any value
      * in the superset.
+     *
      * @param superset block to check against
-     * @param subset block containing values that should be present in the other block.
-     * @return {@code true} if the given blocks are a superset and subset to each other, {@code false} if not and {@code null} if the subset
-     * or superset contains only null values.
+     * @param subset   block containing values that should be present in the other block.
+     * @return {@code true} if the given blocks are a superset and subset to each other, {@code false} if not.
      */
     static <BlockType extends Block, Type> Boolean containsAll(
         BlockType superset,
@@ -242,8 +246,8 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
         if (superset == subset) {
             return true;
         }
-        if (subset.areAllValuesNull() || superset.areAllValuesNull()) {
-            return null;
+        if (subset.areAllValuesNull()) {
+            return true;
         }
 
         final var subsetCount = subset.getValueCount(position);
@@ -282,5 +286,27 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
 
     interface ValueExtractor<BlockType extends Block, Type> {
         Type extractValue(BlockType block, int position);
+    }
+
+    private record MvContainsAllNullEvaluator(ExpressionEvaluator.Factory toEvaluator) implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            return new ExpressionEvaluator() {
+                final ExpressionEvaluator subsetField = toEvaluator.get(context);
+
+                @Override
+                public Block eval(Page page) {
+                    try (Block block = subsetField.eval(page)) {
+                        var position = page.getPositionCount();
+                        return context.blockFactory().newConstantBooleanBlockWith(block.isNull(position), position);
+                    }
+                }
+
+                @Override
+                public void close() {
+                    Releasables.closeExpectNoException(subsetField);
+                }
+            };
+        }
     }
 }

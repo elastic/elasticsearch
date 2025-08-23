@@ -104,7 +104,7 @@ public record ESONFlat(
                 default -> new ESONEntry.FieldEntry(key, type, offsetOrCount);
             };
             keys.add(entry);
-            while (ESONStack.fieldsRemaining(esonStack.currentStackValue()) == 0) {
+            while (esonStack.isEmpty() == false && ESONStack.fieldsRemaining(esonStack.currentStackValue()) == 0) {
                 esonStack.popContainer();
             }
         }

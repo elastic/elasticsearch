@@ -23,7 +23,6 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
@@ -51,7 +50,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     private ESONEntry currentEntry = null;
     private Object currentValue = null;
 
-    private final IntStack containerStack = new IntStack();
+    private final ESONStack containerStack = new ESONStack();
 
     private boolean closed = false;
 
@@ -98,7 +97,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     private Token advanceInContainer() {
         int stackValue = containerStack.currentStackValue();
-        int remainingFields = IntStack.fieldsRemaining(stackValue);
+        int remainingFields = ESONStack.fieldsRemaining(stackValue);
         if (remainingFields > 0) {
             currentEntry = keyArray.get(currentIndex);
             currentValue = null;
@@ -122,7 +121,7 @@ public class ESONXContentParser extends AbstractXContentParser {
             }
             // token = TOKEN_LOOKUP[type];
 
-            if (IntStack.isObject(stackValue)) {
+            if (ESONStack.isObject(stackValue)) {
                 nextToken = token;
                 return currentToken = Token.FIELD_NAME;
             } else {
@@ -131,7 +130,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         } else {
             // End of container
             containerStack.popContainer();
-            return currentToken = IntStack.isObject(stackValue) ? Token.END_OBJECT : Token.END_ARRAY;
+            return currentToken = ESONStack.isObject(stackValue) ? Token.END_OBJECT : Token.END_ARRAY;
         }
     }
 
@@ -454,55 +453,4 @@ public class ESONXContentParser extends AbstractXContentParser {
         closed = true;
     }
 
-    private static class IntStack {
-        // Bit layout: [container_type:1][count:31]
-        private int[] containerStack = new int[16];
-        private int stackTop = -1;
-
-        private static final int CONTAINER_TYPE_MASK = 0x80000000;  // Top bit
-        private static final int COUNT_MASK = 0x7FFFFFFF;           // Bottom 31 bits
-
-        private void pushArray(int count) {
-            if (++stackTop >= containerStack.length) {
-                growStack();
-            }
-            containerStack[stackTop] = count | CONTAINER_TYPE_MASK;
-        }
-
-        private void pushObject(int count) {
-            if (++stackTop >= containerStack.length) {
-                growStack();
-            }
-            containerStack[stackTop] = count;
-        }
-
-        private void growStack() {
-            containerStack = Arrays.copyOf(containerStack, containerStack.length << 1);
-        }
-
-        private int currentStackValue() {
-            return containerStack[stackTop];
-        }
-
-        private static boolean isObject(int value) {
-            return (value & CONTAINER_TYPE_MASK) == 0;
-        }
-
-        private static int fieldsRemaining(int value) {
-            return value & COUNT_MASK;
-        }
-
-        private void updateRemainingFields(int stackValue) {
-            containerStack[stackTop] = stackValue;
-        }
-
-        private boolean isEmpty() {
-            return stackTop == -1;
-        }
-
-        // Pop
-        private void popContainer() {
-            stackTop--;
-        }
-    }
 }

@@ -135,7 +135,7 @@ public record ESONFlat(
                     }
                     byte type = entry.type();
                     streamOutput.writeByte(type);
-                    if (type <= ESONEntry.TYPE_TRUE) {
+                    if (type > ESONEntry.TYPE_TRUE) {
                         streamOutput.writeInt(entry.offsetOrCount());
                     }
                 }

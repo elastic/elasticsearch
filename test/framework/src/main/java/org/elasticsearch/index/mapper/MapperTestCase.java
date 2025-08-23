@@ -1542,7 +1542,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
                 assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 for (int i = 0; i < block.size(); i++) {
                     assertThat(block.get(i), equalTo(expectedSampleValues[i]));
                 }
@@ -1567,7 +1567,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
                 assertThat(columnReader.numericDocValues, not(instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)));
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), nullValue());
                 assertThat(block.get(2), equalTo(expectedSampleValues[2]));
@@ -1597,7 +1597,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var columnReader = blockLoader.columnAtATimeReader(context);
                 assertThat(columnReader, instanceOf(BlockDocValuesReader.Longs.class));
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), equalTo(List.of(expectedSampleValues[0], expectedSampleValues[1])));
                 assertThat(block.get(2), equalTo(expectedSampleValues[2]));

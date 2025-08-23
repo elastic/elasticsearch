@@ -30,8 +30,6 @@ public record ESONFlat(
     AtomicReference<BytesReference> serializedKeyBytes
 ) {
 
-    private static final byte[] EMPTY_KEY = new byte[0];
-
     public ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
         this(new AtomicReference<>(keys), values, new AtomicReference<>());
     }
@@ -60,21 +58,47 @@ public record ESONFlat(
 
     private static List<ESONEntry> readKeys(StreamInput in) throws IOException {
         int expected = in.readVInt();
+        ESONStack esonStack = new ESONStack();
         ArrayList<ESONEntry> keys = new ArrayList<>(expected);
-        for (int i = 0; i < expected; ++i) {
-            int stringLength = in.readVInt();
-            byte[] stringBytes = new byte[stringLength];
-            in.readBytes(stringBytes, 0, stringLength);
-            String key = stringBytes.length == 0 ? null : new String(stringBytes, StandardCharsets.UTF_8);
+        byte startType = in.readByte();
+        assert startType == ESONEntry.TYPE_OBJECT;
+        int count = in.readInt();
+        keys.add(new ESONEntry.ObjectEntry(null, count));
+        esonStack.pushObject(count);
+        for (int i = 1; i < expected; ++i) {
+            int stackValue = esonStack.currentStackValue();
+            final String key;
+            if (ESONStack.isObject(stackValue)) {
+                int stringLength = in.readVInt();
+                byte[] stringBytes = new byte[stringLength];
+                in.readBytes(stringBytes, 0, stringLength);
+                key = new String(stringBytes, StandardCharsets.UTF_8);
+            } else {
+                key = null;
+            }
             byte type = in.readByte();
-            int offsetOrCount = in.readInt();
+            int offsetOrCount;
+            if (type == ESONEntry.TYPE_NULL || type == ESONEntry.TYPE_TRUE || type == ESONEntry.TYPE_FALSE) {
+                offsetOrCount = -1;
+            } else {
+                offsetOrCount = in.readInt();
+            }
+            esonStack.updateRemainingFields(stackValue - 1);
             ESONEntry entry = switch (type) {
-                case ESONEntry.TYPE_OBJECT -> new ESONEntry.ObjectEntry(key, offsetOrCount);
-                case ESONEntry.TYPE_ARRAY -> new ESONEntry.ArrayEntry(key, offsetOrCount);
+                case ESONEntry.TYPE_OBJECT -> {
+                    esonStack.pushObject(offsetOrCount);
+                    yield new ESONEntry.ObjectEntry(key, offsetOrCount);
+                }
+                case ESONEntry.TYPE_ARRAY -> {
+                    esonStack.pushArray(offsetOrCount);
+                    yield new ESONEntry.ArrayEntry(key, offsetOrCount);
+                }
                 default -> new ESONEntry.FieldEntry(key, type, offsetOrCount);
             };
-            entry.offsetOrCount(offsetOrCount);
             keys.add(entry);
+            while (ESONStack.fieldsRemaining(esonStack.currentStackValue()) == 0) {
+                esonStack.popContainer();
+            }
         }
         return keys;
     }
@@ -91,13 +115,18 @@ public record ESONFlat(
                 List<ESONEntry> esonEntries = keys.get();
                 streamOutput.writeVInt(esonEntries.size());
                 for (ESONEntry entry : esonEntries) {
-                    String key = entry.key() == null ? "" : entry.key();
-                    byte[] bytes = key == null ? EMPTY_KEY : key.getBytes(StandardCharsets.UTF_8);
-                    streamOutput.writeVInt(bytes.length);
-                    streamOutput.writeBytes(bytes, 0, bytes.length);
-                    // streamOutput.writeUTF8String(key);
-                    streamOutput.writeByte(entry.type());
-                    streamOutput.writeInt(entry.offsetOrCount());
+                    String key = entry.key();
+                    if (key != null) {
+                        byte[] bytes = key.getBytes(StandardCharsets.UTF_8);
+                        streamOutput.writeVInt(bytes.length);
+                        streamOutput.writeBytes(bytes, 0, bytes.length);
+                        // streamOutput.writeUTF8String(key);
+                    }
+                    byte type = entry.type();
+                    streamOutput.writeByte(type);
+                    if (type != ESONEntry.TYPE_NULL && type != ESONEntry.TYPE_TRUE && type != ESONEntry.TYPE_FALSE) {
+                        streamOutput.writeInt(entry.offsetOrCount());
+                    }
                 }
                 BytesReference bytes = streamOutput.bytes();
                 final BytesRef bytesRef;

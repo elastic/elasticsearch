@@ -40,6 +40,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,7 +52,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.LongSupplier;
 
 /**
  * This is a cache for {@link BitSet} instances that are used with the {@link DocumentSubsetReader}.
@@ -120,18 +124,27 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     private final Cache<BitsetCacheKey, BitSet> bitsetCache;
     private final Map<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByIndex;
     private final AtomicLong cacheFullWarningTime;
+    private final LongSupplier relativeNanoTimeProvider;
+    private final LongAdder hitsTimeInNanos = new LongAdder();
+    private final LongAdder missesTimeInNanos = new LongAdder();
 
     public DocumentSubsetBitsetCache(Settings settings, ThreadPool threadPool) {
         this(settings, threadPool.executor(ThreadPool.Names.GENERIC));
+    }
+
+    // visible for testing
+    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
+        this(settings, cleanupExecutor, System::nanoTime);
     }
 
     /**
      * @param settings The global settings object for this node
      * @param cleanupExecutor An executor on which the cache cleanup tasks can be run. Due to the way the cache is structured internally,
      *                        it is sometimes necessary to run an asynchronous task to synchronize the internal state.
+     * @param relativeNanoTimeProvider Provider of nanos for code that needs to measure relative time.
      */
     // visible for testing
-    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
+    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor, LongSupplier relativeNanoTimeProvider) {
         final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
         this.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
         this.cacheModificationLock = new ReleasableLock(readWriteLock.readLock());
@@ -148,11 +161,12 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
         this.keysByIndex = new ConcurrentHashMap<>();
         this.cacheFullWarningTime = new AtomicLong(0);
+        this.relativeNanoTimeProvider = Objects.requireNonNull(relativeNanoTimeProvider);
     }
 
     @Override
-    public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
-        final Set<BitsetCacheKey> keys = keysByIndex.remove(ownerCoreCacheKey);
+    public void onClose(IndexReader.CacheKey indexKey) {
+        final Set<BitsetCacheKey> keys = keysByIndex.remove(indexKey);
         if (keys != null) {
             // Because this Set has been removed from the map, and the only update to the set is performed in a
             // Map#compute call, it should not be possible to get a concurrent modification here.
@@ -164,10 +178,10 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * Cleanup (synchronize) the internal state when an object is removed from the primary cache
      */
     private void onCacheEviction(RemovalNotification<BitsetCacheKey, BitSet> notification) {
-        final BitsetCacheKey bitsetKey = notification.getKey();
-        final IndexReader.CacheKey indexKey = bitsetKey.index;
-        if (keysByIndex.getOrDefault(indexKey, Set.of()).contains(bitsetKey) == false) {
-            // If the bitsetKey isn't in the lookup map, then there's nothing to synchronize
+        final BitsetCacheKey cacheKey = notification.getKey();
+        final IndexReader.CacheKey indexKey = cacheKey.indexKey;
+        if (keysByIndex.getOrDefault(indexKey, Set.of()).contains(cacheKey) == false) {
+            // If the cacheKey isn't in the lookup map, then there's nothing to synchronize
             return;
         }
         // We push this to a background thread, so that it reduces the risk of blocking searches, but also so that the lock management is
@@ -177,9 +191,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         cleanupExecutor.submit(() -> {
             try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
                 // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
-                if (bitsetCache.get(bitsetKey) == null) {
+                if (bitsetCache.get(cacheKey) == null) {
                     // key is no longer in the cache, make sure it is no longer in the lookup map either.
-                    Optional.ofNullable(keysByIndex.get(indexKey)).ifPresent(set -> set.remove(bitsetKey));
+                    Optional.ofNullable(keysByIndex.get(indexKey)).ifPresent(set -> set.remove(cacheKey));
                 }
             }
         });
@@ -220,6 +234,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      */
     @Nullable
     public BitSet getBitSet(final Query query, final LeafReaderContext context) throws ExecutionException {
+        final long cacheStart = relativeNanoTimeProvider.getAsLong();
+
         final IndexReader.CacheHelper coreCacheHelper = context.reader().getCoreCacheHelper();
         if (coreCacheHelper == null) {
             try {
@@ -233,7 +249,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         final BitsetCacheKey cacheKey = new BitsetCacheKey(indexKey, query);
 
         try (ReleasableLock ignored = cacheModificationLock.acquire()) {
+            final boolean[] cacheKeyWasPresent = new boolean[] { true };
             final BitSet bitSet = bitsetCache.computeIfAbsent(cacheKey, ignore1 -> {
+                cacheKeyWasPresent[0] = false;
                 // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
                 keysByIndex.compute(indexKey, (ignore2, set) -> {
                     if (set == null) {
@@ -262,6 +280,11 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 }
                 return result;
             });
+            if (cacheKeyWasPresent[0]) {
+                hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+            } else {
+                missesTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+            }
             if (bitSet == NULL_MARKER) {
                 return null;
             } else {
@@ -320,17 +343,33 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     public Map<String, Object> usageStats() {
         final ByteSizeValue ram = ByteSizeValue.ofBytes(ramBytesUsed());
-        return Map.of("count", entryCount(), "memory", ram.toString(), "memory_in_bytes", ram.getBytes());
+        final Cache.Stats cacheStats = bitsetCache.stats();
+
+        final Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("count", entryCount());
+        stats.put("memory", ram.toString());
+        stats.put("memory_in_bytes", ram.getBytes());
+        stats.put("hits", cacheStats.getHits());
+        stats.put("misses", cacheStats.getMisses());
+        stats.put("evictions", cacheStats.getEvictions());
+        stats.put("hits_time_in_millis", TimeValue.nsecToMSec(hitsTimeInNanos.sum()));
+        stats.put("misses_time_in_millis", TimeValue.nsecToMSec(missesTimeInNanos.sum()));
+        return Collections.unmodifiableMap(stats);
     }
 
     private static final class BitsetCacheKey {
 
-        final IndexReader.CacheKey index;
+        final IndexReader.CacheKey indexKey;
         final Query query;
+        final int hashCode;
 
-        private BitsetCacheKey(IndexReader.CacheKey index, Query query) {
-            this.index = index;
+        private BitsetCacheKey(IndexReader.CacheKey indexKey, Query query) {
+            this.indexKey = indexKey;
             this.query = query;
+            // compute the hashCode eagerly, since it's used multiple times in the cache implementation anyway -- the query here will
+            // be a ConstantScoreQuery around a BooleanQuery, and BooleanQuery already *lazily* caches the hashCode, so this isn't
+            // altogether that much faster in reality, but it makes it more explicit here that we're doing this
+            this.hashCode = computeHashCode();
         }
 
         @Override
@@ -342,17 +381,23 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 return false;
             }
             final BitsetCacheKey that = (BitsetCacheKey) other;
-            return Objects.equals(this.index, that.index) && Objects.equals(this.query, that.query);
+            return Objects.equals(this.indexKey, that.indexKey) && Objects.equals(this.query, that.query);
+        }
+
+        private int computeHashCode() {
+            int result = indexKey.hashCode();
+            result = 31 * result + query.hashCode();
+            return result;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(index, query);
+            return hashCode;
         }
 
         @Override
         public String toString() {
-            return getClass().getSimpleName() + "(" + index + "," + query + ")";
+            return getClass().getSimpleName() + "(" + indexKey + "," + query + ")";
         }
     }
 
@@ -362,15 +407,15 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      */
     void verifyInternalConsistency() {
         this.bitsetCache.keys().forEach(bck -> {
-            final Set<BitsetCacheKey> set = this.keysByIndex.get(bck.index);
+            final Set<BitsetCacheKey> set = this.keysByIndex.get(bck.indexKey);
             if (set == null) {
                 throw new IllegalStateException(
-                    "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.index + "] in the lookup map"
+                    "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.indexKey + "] in the lookup map"
                 );
             }
             if (set.contains(bck) == false) {
                 throw new IllegalStateException(
-                    "Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.index + "] does not contain that key"
+                    "Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.indexKey + "] does not contain that key"
                 );
             }
         });

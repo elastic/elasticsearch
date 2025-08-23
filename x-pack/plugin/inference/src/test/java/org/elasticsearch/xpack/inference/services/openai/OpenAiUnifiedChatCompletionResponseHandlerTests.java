@@ -65,9 +65,19 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
 
         var errorJson = invalidResponseJson(responseJson);
 
-        assertThat(errorJson, is("""
-            {"error":{"message":"Received a server error status code for request from inference entity id [abc] status [500]. \
-            Error message: [a message]","type":"not_found_error"}}"""));
+        @SuppressWarnings("checkstyle:LineLength")
+        var expectedError = XContentHelper.stripWhitespace(
+            """
+                {
+                    "error":{
+                        "code":"bad_request",
+                        "message":"Received a server error status code for request from inference entity id [abc] status [500]. Error message: [a message]",
+                        "type":"not_found_error"
+                    }
+                }"""
+        );
+
+        assertThat(errorJson, is(expectedError));
     }
 
     public void testFailValidationWithInvalidJson() throws IOException {
@@ -79,7 +89,7 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
 
         assertThat(errorJson, is("""
             {"error":{"code":"bad_request","message":"Received a server error status code for request from inference entity id [abc] status\
-             [500]","type":"ErrorResponse"}}"""));
+             [500]","type":"UnifiedChatCompletionErrorResponse"}}"""));
     }
 
     private String invalidResponseJson(String responseJson) throws IOException {
@@ -96,8 +106,7 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
                 mock(),
                 mock(),
                 mockRequest(),
-                new HttpResult(mock500Response(), responseJson.getBytes(StandardCharsets.UTF_8)),
-                true
+                new HttpResult(mock500Response(), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
     }

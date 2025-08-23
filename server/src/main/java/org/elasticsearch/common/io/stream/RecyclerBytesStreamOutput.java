@@ -118,20 +118,16 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             return;
         }
 
-        // Ensure we have at least enough capacity for ASCII representation and max vint
-        if ((charCount + 5) > (pageSize - currentPageOffset)) {
+        // Optimistically write length assuming all ASCII (1 byte per char)
+        int asciiBytesNeeded = vIntLength(charCount);
+
+        // Ensure we have at least enough capacity for ASCII representation and vint
+        if ((charCount + asciiBytesNeeded) > (pageSize - currentPageOffset)) {
             ensureCapacity(charCount);
         }
 
-        // Optimistically write length assuming all ASCII (1 byte per char)
         long startPosition = position();
-        if (Integer.numberOfLeadingZeros(charCount) >= 25) {
-            bytesRefBytes[bytesRefOffset + currentPageOffset] = (byte) charCount;
-            ++currentPageOffset;
-        } else {
-            currentPageOffset += putMultiByteVInt(bytesRefBytes, charCount, bytesRefOffset + currentPageOffset);
-        }
-
+        putVInt(charCount, asciiBytesNeeded);
         if (writeAsciiChars(str, charCount) == false) {
             seek(startPosition);
             handleNonAsciiString(str);
@@ -164,9 +160,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         return true;
     }
 
-    private void handleNonAsciiString(String str) throws IOException {
+    private void handleNonAsciiString(String str) {
         byte[] utf8Bytes = str.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        writeVInt(utf8Bytes.length);
+        int vIntLength = vIntLength(utf8Bytes.length);
+        if ((utf8Bytes.length + vIntLength) > (pageSize - currentPageOffset)) {
+            ensureCapacity(utf8Bytes.length + vIntLength);
+        }
+
+        putVInt(utf8Bytes.length, vIntLength);
         writeBytes(utf8Bytes, 0, utf8Bytes.length);
     }
 
@@ -177,12 +178,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             ensureCapacity(bytesNeeded);
             super.writeVInt(i);
         } else {
-            if (bytesNeeded == 1) {
-                bytesRefBytes[bytesRefOffset + currentPageOffset] = (byte) i;
-                currentPageOffset += 1;
-            } else {
-                currentPageOffset += putMultiByteVInt(bytesRefBytes, i, bytesRefOffset + currentPageOffset);
-            }
+            putVInt(i, bytesNeeded);
         }
     }
 
@@ -198,6 +194,15 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             return 4;
         }
         return 5;
+    }
+
+    private void putVInt(int i, int bytesNeeded) {
+        if (bytesNeeded == 1) {
+            bytesRefBytes[bytesRefOffset + currentPageOffset] = (byte) i;
+            currentPageOffset += 1;
+        } else {
+            currentPageOffset += putMultiByteVInt(bytesRefBytes, i, bytesRefOffset + currentPageOffset);
+        }
     }
 
     @Override

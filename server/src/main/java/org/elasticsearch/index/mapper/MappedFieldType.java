@@ -72,6 +72,10 @@ public abstract class MappedFieldType {
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
 
+    // we're using Boolean here instead of boolean by design - to throw an NPE when users attempt to use these fields without setting them
+    private final Boolean isSyntheticSourceEnabled;
+    private final Boolean isWithinMultiField;
+
     public MappedFieldType(
         String name,
         boolean isIndexed,
@@ -79,6 +83,19 @@ public abstract class MappedFieldType {
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
+    ) {
+        this(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, null, null);
+    }
+
+    public MappedFieldType(
+        String name,
+        boolean isIndexed,
+        boolean isStored,
+        boolean hasDocValues,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta,
+        Boolean isSyntheticSourceEnabled,
+        Boolean isWithinMultiField
     ) {
         this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
@@ -88,6 +105,24 @@ public abstract class MappedFieldType {
         // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
         // irrelevant
         this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
+        this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+        this.isWithinMultiField = isWithinMultiField;
+    }
+
+    public boolean isSyntheticSourceEnabled() {
+        return isSyntheticSourceEnabled;
+    }
+
+    public boolean isWithinMultiField() {
+        return isWithinMultiField;
+    }
+
+    /**
+     * Returns the name of the "fallback" field that can be used for synthetic source when the "main" field was not
+     * stored for whatever reason.
+     */
+    public String syntheticSourceFallbackFieldName() {
+        return isSyntheticSourceEnabled ? name() + "._original" : null;
     }
 
     /**

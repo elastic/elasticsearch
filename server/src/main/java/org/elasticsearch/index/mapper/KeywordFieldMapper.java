@@ -546,7 +546,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
-    public static final class KeywordFieldType extends TextFamilyFieldMapper.TextFamilyFieldType {
+    public static final class KeywordFieldType extends StringFieldType {
 
         private final int ignoreAbove;
         private final String nullValue;
@@ -807,7 +807,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled)) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             if (isStored()) {
@@ -815,7 +815,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
 
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSourceEnabled && blContext.parentField(name()) == null) {
+            if (isSyntheticSourceEnabled() && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -896,7 +896,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return fieldDataFromDocValues();
             }
-            if (isSyntheticSourceEnabled) {
+            if (isSyntheticSourceEnabled()) {
                 if (false == isStored()) {
                     throw new IllegalStateException(
                         "keyword field ["
@@ -1124,7 +1124,7 @@ public final class KeywordFieldMapper extends FieldMapper {
          */
         boolean isIgnored(final String value) {
             // all values that exceed ignore_above limits that are multi fields are ignored
-            return value.length() > ignoreAbove && isWithinMultiField;
+            return value.length() > ignoreAbove && isWithinMultiField();
         }
     }
 
@@ -1146,8 +1146,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean forceDocValuesSkipper;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
-
-    private final boolean isWithinMultiField;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -1177,7 +1175,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
-        this.isWithinMultiField = builder.isWithinMultiField;
     }
 
     @Override
@@ -1226,7 +1223,7 @@ public final class KeywordFieldMapper extends FieldMapper {
      */
     private boolean storeIgnoredValuesForSyntheticSource() {
         // skip all fields that are multi-fields
-        return fieldType().isSyntheticSourceEnabled && fieldType().isWithinMultiField == false;
+        return fieldType().isSyntheticSourceEnabled() && fieldType().isWithinMultiField() == false;
     }
 
     private boolean indexValue(DocumentParserContext context, XContentString value) {
@@ -1346,7 +1343,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             enableDocValuesSkipper,
             forceDocValuesSkipper,
             indexSourceKeepMode,
-            isWithinMultiField
+            fieldType().isWithinMultiField()
         ).dimension(fieldType().isDimension()).init(this);
     }
 

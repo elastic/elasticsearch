@@ -54,7 +54,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -80,7 +80,7 @@ import java.util.Set;
  * {@link IndexOptions#DOCS} and runs positional queries by looking at the
  * _source.
  */
-public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
+public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
@@ -99,7 +99,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
     }
 
-    public static class Builder extends TextFamilyFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
 
@@ -186,7 +186,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
         )
     );
 
-    public static class MatchOnlyTextFieldType extends TextFamilyFieldType {
+    public static class MatchOnlyTextFieldType extends StringFieldType {
 
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
@@ -247,7 +247,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
             // if synthetic source is enabled, then fetch the value from one of the valid source providers
             if (searchExecutionContext.isSourceSynthetic()) {
-                if (isWithinMultiField) {
+                if (isWithinMultiField()) {
                     // fetch the value from parent
                     return parentFieldFetcher(searchExecutionContext);
                 } else if (textFieldType.syntheticSourceDelegate().isPresent()) {
@@ -631,14 +631,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
         BuilderParams builderParams,
         Builder builder
     ) {
-        super(
-            simpleName,
-            builder.indexCreatedVersion,
-            builder.isSyntheticSourceEnabled,
-            builder.isWithinMultiField,
-            mappedFieldType,
-            builderParams
-        );
+        super(simpleName, mappedFieldType, builderParams);
 
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
@@ -663,8 +656,8 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
             indexCreatedVersion,
             indexAnalyzers,
             storedFieldInBinaryFormat,
-            isSyntheticSourceEnabled,
-            isWithinMultiField
+            fieldType().isSyntheticSourceEnabled(),
+            fieldType().isWithinMultiField()
         ).init(this);
     }
 
@@ -682,7 +675,7 @@ public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
         context.addToFieldNames(fieldType().name());
 
         // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it
-        if (needsToSupportSyntheticSource()) {
+        if (fieldType().textFieldType.needsToSupportSyntheticSource(indexCreatedVersion)) {
             // check if we can use the delegate
             if (fieldType().textFieldType.canUseSyntheticSourceDelegateForSyntheticSource(value.string())) {
                 return;

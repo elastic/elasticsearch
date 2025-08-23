@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
-import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -65,7 +64,7 @@ import java.util.regex.Pattern;
  * This code is largely a copy of TextFieldMapper which is less than ideal -
  * my attempts to subclass TextFieldMapper failed but we can revisit this.
  **/
-public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
+public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "annotated_text";
 
@@ -82,7 +81,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         );
     }
 
-    public static class Builder extends TextFamilyFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
@@ -114,7 +113,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         }
 
         private boolean storeDefault() {
-            if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
+            if (TextFieldMapper.keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
                 return false;
             }
             return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
@@ -538,14 +537,7 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         BuilderParams builderParams,
         Builder builder
     ) {
-        super(
-            simpleName,
-            builder.indexCreatedVersion,
-            builder.isSyntheticSourceEnabled,
-            builder.isWithinMultiField,
-            mappedFieldType,
-            builderParams
-        );
+        super(simpleName, mappedFieldType, builderParams);
 
         assert fieldType.tokenized();
 
@@ -594,6 +586,14 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
         }
     }
 
+    private boolean needsToSupportSyntheticSource() {
+        if (TextFieldMapper.multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+            // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the parent
+            return fieldType().isSyntheticSourceEnabled() && fieldType().isWithinMultiField() == false;
+        }
+        return fieldType().isSyntheticSourceEnabled();
+    }
+
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
@@ -605,8 +605,8 @@ public class AnnotatedTextFieldMapper extends TextFamilyFieldMapper {
             leafName(),
             builder.indexCreatedVersion,
             builder.analyzers.indexAnalyzers,
-            isSyntheticSourceEnabled,
-            isWithinMultiField
+            fieldType().isSyntheticSourceEnabled(),
+            fieldType().isWithinMultiField()
         ).init(this);
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -34,13 +35,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 
@@ -60,28 +66,28 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .build();
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        final Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.getMockPlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
+        return plugins;
+    }
+
+    private DiscoveryNode getDiscoveryNode(String nodeName) {
+        final TransportService transportService = internalCluster().getInstance(TransportService.class, nodeName);
+        assertNotNull(transportService);
+        return transportService.getLocalNode();
+    }
+
     /**
      * Uses MockTransportService to set up write load stat responses from the data nodes and tests the allocation decisions made by the
      * balancer, specifically the effect of the {@link WriteLoadConstraintDecider}.
      *
-     * Leverages the {@link FilterAllocationDecider} to start all shards on Nod
-     *
-     * Can I override the stats results for the data nodes, trick the master into having higher stats than reality?
-     * Set high shard move concurrency settings, and watch the cluster state updates for outcomes.
-     *
-     * Can I set the balancer write loads for the shards to some high even number, and then have the write load decider block rebalancing?
-     *
-     * Ultimately, unassigned shards should override the Decider.
-     *
-     * How can I force even shard assignment? And then force a reassignment attempt?
-     * If I have 3 nodes, 2 shards, could I force shard movement away from NodeA with a filter, and then ensure re-assignment
-     * to nodeB because nodeC is hot?
-     * Let's make it a lot of index shards, and then they all get reassigned to nodeB.
-     * Also, set a filter to initially get all the shards assigned to nodeA -- nice!
-     * TODO: I need to set shard level write load else the Decider won't act...
-     *
+     * Leverages the {@link FilterAllocationDecider} to first start all shards on NodeOne, and then eventually force the shards off of
+     * NodeOne while NodeThree is hot-spotting, resulting in reassignment of all shards to NodeTwo.
      */
     public void testHighNodeWriteLoadPreventsNewShardAllocation() {
+        final String masterName = internalCluster().startMasterOnlyNode();
         final var dataNodes = internalCluster().startDataOnlyNodes(3);
         final String firstDataNodeName = dataNodes.get(0);
         final String secondDataNodeName = dataNodes.get(1);
@@ -89,47 +95,52 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final String firstDataNodeId = getNodeId(firstDataNodeName);
         final String secondDataNodeId = getNodeId(secondDataNodeName);
         final String thirdDataNodeId = getNodeId(thirdDataNodeName);
-        final String masterName = internalCluster().startMasterOnlyNode();
-        ensureStableCluster(3);
+        ensureStableCluster(4);
 
         /**
          * Exclude assignment of shards to the second and third data nodes via the {@link FilterAllocationDecider} settings.
          * Then create an index with many shards, which will all be assigned to the first data node.
          */
 
-        String indexName = randomIdentifier();
-        String indexUUID = randomAlphaOfLength(10);
-        Index index = new Index(indexName, indexUUID);
-
         logger.info("---> Limit shard assignment to node " + firstDataNodeName + " by excluding the other nodes");
         updateClusterSettings(
             Settings.builder().put("cluster.routing.allocation.exclude._name", secondDataNodeName + "," + thirdDataNodeName)
         );
 
+        String indexName = randomIdentifier();
         int randomNumberOfShards = randomIntBetween(15, 40); // Pick a high number of shards, so it is clear assignment is not accidental.
+
+        var verifyAssignmentToFirstNodeListener = ClusterServiceUtils.addMasterTemporaryStateListener(
+            clusterState -> {
+                var indexRoutingTable = clusterState.routingTable().index(indexName);
+                if (indexRoutingTable == null) {
+                    return false;
+                }
+                return checkShardAssignment(
+                    clusterState.getRoutingNodes(),
+                    indexRoutingTable.getIndex(),
+                    firstDataNodeId,
+                    secondDataNodeId,
+                    thirdDataNodeId,
+                    randomNumberOfShards,
+                    0,
+                    0
+                );
+            }
+        );
+
         createIndex(
             indexName,
             Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomNumberOfShards)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
                 .build()
         );
         index(indexName, Integer.toString(randomInt(10)), Collections.singletonMap("foo", "bar"));
         ensureGreen(indexName);
 
-        logger.info("---> Verifying that all shards are assigned to node " + firstDataNodeName);
-        final RoutingNodes routingNodes = internalCluster().getInstance(RoutingNodes.class, masterName);
-        assertTrue(
-            Strings.format(
-                "Expected all [%d] shards for index [%s] to be on node [%s]: [%s]",
-                randomNumberOfShards,
-                indexName,
-                firstDataNodeName,
-                routingNodes
-            ),
-            checkShardAssignment(routingNodes, index, firstDataNodeId, secondDataNodeId, thirdDataNodeId, randomNumberOfShards, 0, 0)
-        );
+        logger.info("---> Waiting for all shards to be assigned to node " + firstDataNodeName);
+        safeAwait(verifyAssignmentToFirstNodeListener);
 
         /**
          * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} and {@link TransportIndicesStatsAction} actions on the data
@@ -137,14 +148,17 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          * write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
          */
 
-        final DiscoveryNode firstDiscoveryNode = internalCluster().getInstance(DiscoveryNode.class, firstDataNodeName);
-        final DiscoveryNode secondDiscoveryNode = internalCluster().getInstance(DiscoveryNode.class, firstDataNodeName);
-        final DiscoveryNode thirdDiscoveryNode = internalCluster().getInstance(DiscoveryNode.class, thirdDataNodeName);
+        final DiscoveryNode firstDiscoveryNode = getDiscoveryNode(firstDataNodeName);
+        final DiscoveryNode secondDiscoveryNode = getDiscoveryNode(secondDataNodeName);
+        final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
         final NodeUsageStatsForThreadPools nonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(firstDiscoveryNode, 2, 0.5f, 0);
         final NodeUsageStatsForThreadPools hotSpottingNodeStats = createNodeUsageStatsForThreadPools(secondDiscoveryNode, 2, 1.00f, 0);
 
+        final var transportService = internalCluster().getInstance(TransportService.class, firstDataNodeName);
+        final var mockTransportService = asInstanceOf(MockTransportService.class, transportService);
+
         MockTransportService.getInstance(firstDataNodeName)
-            .addRequestHandlingBehavior(
+            .<NodeUsageStatsForThreadPoolsAction.NodeRequest>addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
                 (handler, request, channel, task) -> channel.sendResponse(
                     new NodeUsageStatsForThreadPoolsAction.NodeResponse(firstDiscoveryNode, nonHotSpottingNodeStats)
@@ -195,16 +209,19 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         safeAwait(
             ClusterServiceUtils.addMasterTemporaryStateListener(
-                clusterState -> checkShardAssignment(
-                    clusterState.getRoutingNodes(),
-                    index,
-                    firstDataNodeId,
-                    secondDataNodeId,
-                    thirdDataNodeId,
-                    0,
-                    randomNumberOfShards,
-                    0
-                )
+                clusterState -> {
+                    Index index = clusterState.routingTable().index(indexName).getIndex();
+                    return checkShardAssignment(
+                        clusterState.getRoutingNodes(),
+                        index,
+                        firstDataNodeId,
+                        secondDataNodeId,
+                        thirdDataNodeId,
+                        0,
+                        randomNumberOfShards,
+                        0
+                    );
+                }
             )
         );
 
@@ -215,7 +232,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
      * load stats with the provided one instead, before returning the result to the waiting network channel. Essentially injects the desired
      * write load stat for all shards on the node.
      */
-    public StubbableTransport.RequestHandlingBehavior<IndicesStatsRequest> runAndReplaceShardWriteLoadStats(double shardWriteLoadEstimate) {
+    public StubbableTransport.RequestHandlingBehavior<TransportRequest> runAndReplaceShardWriteLoadStats(double shardWriteLoadEstimate) {
         return (handler, request, channel, task) -> ActionListener.wrap(response -> {
             var statsResponse = (IndicesStatsResponse) response;
             ShardStats[] newShardStats = Arrays.stream(statsResponse.getShards()).map(shardStats -> {

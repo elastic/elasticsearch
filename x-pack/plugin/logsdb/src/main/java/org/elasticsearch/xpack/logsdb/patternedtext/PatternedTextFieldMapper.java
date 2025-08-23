@@ -107,7 +107,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 tsi,
                 indexAnalyzer,
                 meta.getValue(),
-                context.isSourceSynthetic(),
+                isSyntheticSourceEnabled,
                 isWithinMultiField
             );
         }

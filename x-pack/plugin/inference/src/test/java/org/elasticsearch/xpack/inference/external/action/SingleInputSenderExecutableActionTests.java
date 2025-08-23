@@ -15,9 +15,9 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setUpMocks() {
-        var sender = mock(HttpRequestSender.class);
+        var sender = mock(Sender.class);
         var requestManager = mock(RequestManager.class);
         executableAction = new SingleInputSenderExecutableAction(sender, requestManager, errorMessage, errorMessage);
 

@@ -126,12 +126,13 @@ public record ESONFlat(
                 for (ESONEntry entry : esonEntries) {
                     String key = entry.key();
                     if (key != null) {
-                        byte[] bytes = sharedKeyBytesMap == null
-                            ? key.getBytes(StandardCharsets.UTF_8)
-                            : sharedKeyBytesMap.computeIfAbsent(key, k -> key.getBytes(StandardCharsets.UTF_8));
-                        // streamOutput.writeVInt(bytes.length);
-                        // streamOutput.writeBytes(bytes, 0, bytes.length);
-                        streamOutput.writeUTF8String(key);
+                        // byte[] bytes = sharedKeyBytesMap == null
+                        // ? key.getBytes(StandardCharsets.UTF_8)
+                        // : sharedKeyBytesMap.computeIfAbsent(key, k -> key.getBytes(StandardCharsets.UTF_8));
+                        byte[] bytes = key.getBytes(StandardCharsets.UTF_8);
+                        streamOutput.writeVInt(bytes.length);
+                        streamOutput.writeBytes(bytes, 0, bytes.length);
+//                        streamOutput.writeUTF8String(key);
                     }
                     byte type = entry.type();
                     streamOutput.writeByte(type);

@@ -174,13 +174,15 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
                 right()
             );
         }
+        if(supersetType == ElementType.NULL || subsetType == ElementType.NULL) {
+            return new MvContainsAllNullEvaluator(toEvaluator.apply(right()));
+        }
         return switch (supersetType) {
             case BOOLEAN -> new MvContainsAllBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case BYTES_REF -> new MvContainsAllBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvContainsAllDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case INT -> new MvContainsAllIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvContainsAllLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case NULL -> new MvContainsAllNullEvaluator(toEvaluator.apply(right()));
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
     }
@@ -287,11 +289,12 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
         Type extractValue(BlockType block, int position);
     }
 
-    private record MvContainsAllNullEvaluator(ExpressionEvaluator.Factory toEvaluator) implements ExpressionEvaluator.Factory {
+    private record MvContainsAllNullEvaluator(ExpressionEvaluator.Factory subsetFieldEvaluator) implements ExpressionEvaluator.Factory {
+
         @Override
         public ExpressionEvaluator get(DriverContext context) {
             return new ExpressionEvaluator() {
-                final ExpressionEvaluator subsetField = toEvaluator.get(context);
+                final ExpressionEvaluator subsetField = subsetFieldEvaluator.get(context);
 
                 @Override
                 public Block eval(Page page) {
@@ -305,7 +308,17 @@ public class MvContainsAll extends BinaryScalarFunction implements EvaluatorMapp
                 public void close() {
                     Releasables.closeExpectNoException(subsetField);
                 }
+
+                @Override
+                public String toString() {
+                    return "MvContainsAllNullEvaluator[" + "subsetField=" + subsetFieldEvaluator + "]";
+                }
             };
+        }
+
+        @Override
+        public String toString() {
+            return "MvContainsAllNullEvaluator[" + "subsetField=" + subsetFieldEvaluator + "]";
         }
     }
 }

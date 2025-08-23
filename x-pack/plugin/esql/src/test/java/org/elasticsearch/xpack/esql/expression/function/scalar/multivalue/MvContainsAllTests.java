@@ -19,14 +19,20 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.MULTI_ROW_NULL;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.NULL;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
@@ -42,7 +48,14 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+
+        return parameterSuppliersFromTypedData(anyNullIsNull(
+            suppliers,
+            (nullPosition, nullValueDataType, original) -> false
+                && nullValueDataType == DataType.NULL
+                && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullData, original) -> original
+        ));
     }
 
     @Override
@@ -270,4 +283,70 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
         }));
     }
 
+    // Adjusted from static method anyNullIsNull in {@code AbstractScalarFunctionTestCase#}
+    protected static List<TestCaseSupplier> anyNullIsNull(
+        List<TestCaseSupplier> testCaseSuppliers,
+        ExpectedType expectedType,
+        ExpectedEvaluatorToString evaluatorToString
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        /*
+         * For each original test case, add as many copies as there were
+         * arguments, replacing one of the arguments with null and keeping
+         * the others.
+         *
+         * Also, if this was the first time we saw the signature we copy it
+         * *again*, replacing the argument with null, but annotating the
+         * argument’s type as `null` explicitly.
+         */
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+        for (TestCaseSupplier original : testCaseSuppliers) {
+            boolean firstTimeSeenSignature = uniqueSignatures.add(original.types());
+            for (int typeIndex = 0; typeIndex < original.types().size(); typeIndex++) {
+                int nullPosition = typeIndex;
+
+                suppliers.add(new TestCaseSupplier(original.name() + " null in " + nullPosition, original.types(), () -> {
+                    TestCaseSupplier.TestCase originalTestCase = original.get();
+                    List<TestCaseSupplier.TypedData> data = new ArrayList<>(originalTestCase.getData());
+                    data.set(nullPosition, NULL);
+                    TestCaseSupplier.TypedData nulledData = originalTestCase.getData().get(nullPosition);
+                    return new TestCaseSupplier.TestCase(
+                        data,
+                        evaluatorToString.evaluatorToString(nullPosition, nulledData, originalTestCase.evaluatorToString()),
+                        expectedType.expectedType(nullPosition, nulledData.type(), originalTestCase),
+                        equalTo(nullPosition == 1)
+                    );
+                }));
+
+                if (firstTimeSeenSignature) {
+                    var typesWithNull = new ArrayList<>(original.types());
+                    typesWithNull.set(nullPosition, DataType.NULL);
+                    boolean newSignature = uniqueSignatures.add(typesWithNull);
+                    if (newSignature) {
+                        suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
+                            TestCaseSupplier.TestCase originalTestCase = original.get();
+                            var typeDataWithNull = new ArrayList<>(originalTestCase.getData());
+                            typeDataWithNull.set(nullPosition, typeDataWithNull.get(nullPosition).isMultiRow() ? MULTI_ROW_NULL : NULL);
+                            return new TestCaseSupplier.TestCase(
+                                typeDataWithNull,
+                                "MvContainsAllNullEvaluator[subsetField=Attribute[channel=1]]",
+                                DataType.BOOLEAN,
+                                equalTo(nullPosition == 1)
+                            );
+                        }));
+                    }
+                }
+            }
+        }
+
+        return suppliers;
+    }
+
+    // We always return a boolean.
+    @Override
+    protected Matcher<Object> allNullsMatcher() {
+        return anyOf(equalTo(false),equalTo(true));
+    }
 }

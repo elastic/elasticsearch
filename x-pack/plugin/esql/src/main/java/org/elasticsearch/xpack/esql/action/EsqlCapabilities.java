@@ -246,9 +246,10 @@ public class EsqlCapabilities {
         FN_MONTH_NAME,
 
         /**
-         * support for MV_CONTAINS_ALL function
+         * support for MV_CONTAINS function
+         * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
          */
-        FN_MV_CONTAINS_ALL,
+        FN_MV_CONTAINS,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.

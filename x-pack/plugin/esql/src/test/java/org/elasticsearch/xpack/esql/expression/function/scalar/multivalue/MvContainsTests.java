@@ -22,10 +22,13 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -35,8 +38,8 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
-    public MvContainsAllTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class MvContainsTests extends AbstractScalarFunctionTestCase {
+    public MvContainsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -49,20 +52,16 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
         doubles(suppliers);
         bytesRefs(suppliers);
 
-        return parameterSuppliersFromTypedData(
-            anyNullIsNull(
-                suppliers,
-                (nullPosition, nullValueDataType, original) -> false && nullValueDataType == DataType.NULL && original.getData().size() == 1
-                    ? DataType.NULL
-                    : original.expectedType(),
-                (nullPosition, nullData, original) -> original
-            )
-        );
+        return parameterSuppliersFromTypedData(anyNullIsNull(
+            suppliers,
+            (nullPosition, nullValueDataType, original) -> original.expectedType(),
+            (nullPosition, nullData, original) -> original
+        ));
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvContainsAll(source, args.get(0), args.get(1));
+        return new MvContains(source, args.get(0), args.get(1));
     }
 
     private static void booleans(List<TestCaseSupplier> suppliers) {
@@ -75,7 +74,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.BOOLEAN, "field2")
                 ),
-                "MvContainsAllBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -92,7 +91,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
                 ),
-                "MvContainsAllIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -109,7 +108,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.LONG, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.LONG, "field2")
                 ),
-                "MvContainsAllLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -123,7 +122,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.UNSIGNED_LONG, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.UNSIGNED_LONG, "field2")
                 ),
-                "MvContainsAllLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -137,7 +136,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.DATETIME, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.DATETIME, "field2")
                 ),
-                "MvContainsAllLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -151,7 +150,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.DATE_NANOS, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.DATE_NANOS, "field2")
                 ),
-                "MvContainsAllLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -168,7 +167,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.DOUBLE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.DOUBLE, "field2")
                 ),
-                "MvContainsAllDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -187,7 +186,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(field1, lhs, "field1"),
                             new TestCaseSupplier.TypedData(field2, rhs, "field2")
                         ),
-                        "MvContainsAllBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                        "MvContainsBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                         DataType.BOOLEAN,
                         equalTo(result)
                     );
@@ -203,7 +202,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.IP, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.IP, "field")
                 ),
-                "MvContainsAllBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -218,7 +217,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.VERSION, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.VERSION, "field")
                 ),
-                "MvContainsAllBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -233,7 +232,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_POINT, "field2")
                 ),
-                "MvContainsAllBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -248,7 +247,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_POINT, "field2")
                 ),
-                "MvContainsAllBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -263,7 +262,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_SHAPE, "field2")
                 ),
-                "MvContainsAllBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -278,7 +277,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_SHAPE, "field2")
                 ),
-                "MvContainsAllBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvContainsBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -291,8 +290,7 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
         ExpectedType expectedType,
         ExpectedEvaluatorToString evaluatorToString
     ) {
-        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
-        suppliers.addAll(testCaseSuppliers);
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers);
 
         /*
          * For each original test case, add as many copies as there were
@@ -309,15 +307,16 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
             for (int typeIndex = 0; typeIndex < original.types().size(); typeIndex++) {
                 int nullPosition = typeIndex;
 
-                suppliers.add(new TestCaseSupplier(original.name() + " null in " + nullPosition, original.types(), () -> {
+                suppliers.add(new TestCaseSupplier("G1: " + original.name() + " null in " + nullPosition, original.types(), () -> {
                     TestCaseSupplier.TestCase originalTestCase = original.get();
-                    List<TestCaseSupplier.TypedData> data = new ArrayList<>(originalTestCase.getData());
-                    data.set(nullPosition, NULL);
+                    List<TestCaseSupplier.TypedData> typeDataWithNull = new ArrayList<>(originalTestCase.getData());
+                    var data = typeDataWithNull.get(nullPosition);
+                    typeDataWithNull.set(nullPosition, data.withData(data.isMultiRow() ? Collections.singletonList(null) : null));
                     TestCaseSupplier.TypedData nulledData = originalTestCase.getData().get(nullPosition);
                     return new TestCaseSupplier.TestCase(
-                        data,
+                        typeDataWithNull,
                         evaluatorToString.evaluatorToString(nullPosition, nulledData, originalTestCase.evaluatorToString()),
-                        expectedType.expectedType(nullPosition, nulledData.type(), originalTestCase),
+                        expectedType.expectedType(nullPosition, DataType.BOOLEAN, originalTestCase),
                         equalTo(nullPosition == 1)
                     );
                 }));
@@ -327,17 +326,21 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
                     typesWithNull.set(nullPosition, DataType.NULL);
                     boolean newSignature = uniqueSignatures.add(typesWithNull);
                     if (newSignature) {
-                        suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
-                            TestCaseSupplier.TestCase originalTestCase = original.get();
-                            var typeDataWithNull = new ArrayList<>(originalTestCase.getData());
-                            typeDataWithNull.set(nullPosition, typeDataWithNull.get(nullPosition).isMultiRow() ? MULTI_ROW_NULL : NULL);
-                            return new TestCaseSupplier.TestCase(
-                                typeDataWithNull,
-                                "MvContainsAllNullEvaluator[subsetField=Attribute[channel=1]]",
-                                DataType.BOOLEAN,
-                                equalTo(nullPosition == 1)
-                            );
-                        }));
+                        suppliers.add(new TestCaseSupplier(
+                            "G2: " + toSpaceSeparatedString(typesWithNull) + " null in " + nullPosition,
+                            typesWithNull,
+                            () -> {
+                                TestCaseSupplier.TestCase originalTestCase = original.get();
+                                var typeDataWithNull = new ArrayList<>(originalTestCase.getData());
+                                typeDataWithNull.set(nullPosition, typeDataWithNull.get(nullPosition).isMultiRow() ? MULTI_ROW_NULL : NULL);
+                                return new TestCaseSupplier.TestCase(
+                                    typeDataWithNull,
+                                    "MvContainsNullEvaluator[subsetField=Attribute[channel=1]]",
+                                    expectedType.expectedType(nullPosition, DataType.BOOLEAN, originalTestCase),
+                                    equalTo(nullPosition == 1)
+                                );
+                            }
+                        ));
                     }
                 }
             }
@@ -346,9 +349,13 @@ public class MvContainsAllTests extends AbstractScalarFunctionTestCase {
         return suppliers;
     }
 
+    private static String toSpaceSeparatedString(ArrayList<DataType> typesWithNull) {
+        return typesWithNull.stream().map(Objects::toString).collect(Collectors.joining(" "));
+    }
+
     // We always return a boolean.
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return anyOf(equalTo(false), equalTo(true));
+        return anyOf(equalTo(false),equalTo(true));
     }
 }

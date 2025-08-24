@@ -13,17 +13,17 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvContainsAllSerializationTests extends AbstractExpressionSerializationTests<MvContainsAll> {
+public class MvContainsSerializationTests extends AbstractExpressionSerializationTests<MvContains> {
     @Override
-    protected MvContainsAll createTestInstance() {
+    protected MvContains createTestInstance() {
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();
-        return new MvContainsAll(source, field1, field2);
+        return new MvContains(source, field1, field2);
     }
 
     @Override
-    protected MvContainsAll mutateInstance(MvContainsAll instance) throws IOException {
+    protected MvContains mutateInstance(MvContains instance) throws IOException {
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();
@@ -32,6 +32,6 @@ public class MvContainsAllSerializationTests extends AbstractExpressionSerializa
         } else {
             field2 = randomValueOtherThan(field2, AbstractExpressionSerializationTests::randomChild);
         }
-        return new MvContainsAll(source, field1, field2);
+        return new MvContains(source, field1, field2);
     }
 }

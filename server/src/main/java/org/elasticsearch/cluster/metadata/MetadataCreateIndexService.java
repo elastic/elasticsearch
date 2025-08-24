@@ -1156,7 +1156,7 @@ public class MetadataCreateIndexService {
             Set<String> overrulingSettings = new HashSet<>();
             for (IndexSettingProvider provider : indexSettingProviders) {
                 Settings.Builder builder = Settings.builder();
-                provider.onCreateIndex(
+                provider.provideAdditionalMetadata(
                     request.index(),
                     request.dataStreamName(),
                     templateIndexMode,

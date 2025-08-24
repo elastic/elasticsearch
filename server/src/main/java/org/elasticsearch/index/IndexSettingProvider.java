@@ -31,8 +31,7 @@ import java.util.function.BiConsumer;
  */
 public interface IndexSettingProvider {
     /**
-     * Allows to provide default index {@link Settings} and custom index metadata for the given index
-     * on index creation and template validation.
+     * Allows to provide default index {@link Settings} and custom index metadata for a newly created index.
      *
      * @param indexName                             The name of the new index being created
      * @param dataStreamName                        The name of the data stream if the index being created is part of a data stream
@@ -49,7 +48,7 @@ public interface IndexSettingProvider {
      *                                              {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
      *                                              can be added
      */
-    void onCreateIndex(
+    void provideAdditionalMetadata(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -62,8 +61,8 @@ public interface IndexSettingProvider {
     );
 
     /**
-     * Called when the mappings for an index are updated, before the new index metadata is created.
-     * This method can be used to update index settings based on the new mappings.
+     * Called when the mappings for an existing index are updated, before the new index metadata is created.
+     * This method can be used to update index settings and to provide custom metadata based on the new mappings.
      *
      * @param indexMetadata            The index metadata for the index being updated
      * @param documentMapper           The document mapper containing the updated mappings

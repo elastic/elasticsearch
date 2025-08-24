@@ -769,7 +769,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public void onCreateIndex(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -821,7 +821,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public void onCreateIndex(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -865,7 +865,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public void onCreateIndex(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -909,7 +909,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
-                public void onCreateIndex(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -954,7 +954,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public void onCreateIndex(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,

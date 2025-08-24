@@ -793,7 +793,7 @@ public class MetadataIndexTemplateService {
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         for (var provider : indexSettingProviders) {
             Settings.Builder builder = Settings.builder();
-            provider.onCreateIndex(
+            provider.provideAdditionalMetadata(
                 VALIDATE_INDEX_NAME,
                 indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
                 projectMetadata.retrieveIndexModeFromTemplate(indexTemplate),

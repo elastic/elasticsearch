@@ -76,7 +76,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -125,7 +125,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -199,7 +199,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -228,7 +228,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -257,7 +257,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -286,7 +286,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         TimeValue lookBackTime = TimeValue.timeValueHours(12);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_back_time", lookBackTime.getStringRep()).build();
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -322,7 +322,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -362,7 +362,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
         Exception e = expectThrows(
             IllegalStateException.class,
-            () -> provider.onCreateIndex(
+            () -> provider.provideAdditionalMetadata(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
                 IndexMode.TIME_SERIES,
@@ -391,7 +391,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             null,
@@ -417,7 +417,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -450,7 +450,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -733,7 +733,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
 
         Settings.Builder additionalSettings = builder();
-        provider.onCreateIndex(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,

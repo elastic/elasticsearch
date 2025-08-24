@@ -219,7 +219,7 @@ public class DataTier {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
 
         @Override
-        public void onCreateIndex(
+        public void provideAdditionalMetadata(
             String indexName,
             @Nullable String dataStreamName,
             IndexMode templateIndexMode,

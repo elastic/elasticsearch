@@ -63,7 +63,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         // Create a setting provider that sets the test-setting to 0
         Set<IndexSettingProvider> indexSettingsProviders = Set.of(new IndexSettingProvider() {
             @Override
-            public void onCreateIndex(
+            public void provideAdditionalMetadata(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
@@ -78,7 +78,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             }
         }, new IndexSettingProvider() {
             @Override
-            public void onCreateIndex(
+            public void provideAdditionalMetadata(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,

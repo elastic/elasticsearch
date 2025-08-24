@@ -100,7 +100,7 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator
     static boolean process(BytesRef str, BytesRef substr) {
-        if (str == null || substr == null || str.length < substr.length) {
+        if (str.length < substr.length) {
             return false;
         }
         return str.utf8ToString().contains(substr.utf8ToString());

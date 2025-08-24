@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -30,4 +32,13 @@ public class TimeSeriesDimensionsMetadataAccessTests extends ESTestCase {
         assertEquals(List.of("dim1", "dim2"), dimensions);
     }
 
+    public void testTransferCustomMetadata() {
+        var sourceMetadataBuilder = IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 1, 0));
+        var targetMetadataBuilder = IndexMetadata.builder("target").settings(indexSettings(IndexVersion.current(), 1, 0));
+
+        TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(sourceMetadataBuilder, List.of("dim1", "dim2"));
+        TimeSeriesDimensionsMetadataAccess.transferCustomMetadata(sourceMetadataBuilder.build(), targetMetadataBuilder);
+
+        assertEquals(List.of("dim1", "dim2"), TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(targetMetadataBuilder.build()));
+    }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class TimeSeriesDimensionsMetadataAccess {
 
@@ -30,6 +31,10 @@ public class TimeSeriesDimensionsMetadataAccess {
         customMetadataBuilder.put(TIME_SERIES_DIMENSIONS_METADATA_KEY, toCustomMetadata(timeSeriesDimensions));
     }
 
+    static Map<String, String> toCustomMetadata(List<String> timeSeriesDimensions) {
+        return Map.of("includes", String.join(",", timeSeriesDimensions));
+    }
+
     public static void transferCustomMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata.Builder targetIndexMetadataBuilder) {
         Map<String, String> metadata = sourceIndexMetadata.getCustomData(TIME_SERIES_DIMENSIONS_METADATA_KEY);
         if (metadata != null) {
@@ -37,16 +42,19 @@ public class TimeSeriesDimensionsMetadataAccess {
         }
     }
 
-    static Map<String, String> toCustomMetadata(List<String> timeSeriesDimensions) {
-        return Map.of("includes", String.join(",", timeSeriesDimensions));
+    public static List<String> fromCustomMetadata(Map<String, ? extends Map<String, String>> customMetadata) {
+        return fromTimeSeriesDimensionsMetadata(customMetadata.get(TIME_SERIES_DIMENSIONS_METADATA_KEY));
     }
 
-    public static List<String> fromCustomMetadata(Map<String, ? extends Map<String, String>> customMetadata) {
-        Map<String, String> metadata = customMetadata.get(TIME_SERIES_DIMENSIONS_METADATA_KEY);
-        if (metadata == null) {
+    public static List<String> fromCustomMetadata(IndexMetadata indexMetadata) {
+        return fromTimeSeriesDimensionsMetadata(indexMetadata.getCustomData(TIME_SERIES_DIMENSIONS_METADATA_KEY));
+    }
+
+    private static List<String> fromTimeSeriesDimensionsMetadata(Map<String, String> timeSeriesDimensionsMetadata) {
+        if (timeSeriesDimensionsMetadata == null) {
             return List.of();
         }
-        String includes = metadata.get("includes");
+        String includes = timeSeriesDimensionsMetadata.get("includes");
         if (includes == null || includes.isEmpty()) {
             return List.of();
         }

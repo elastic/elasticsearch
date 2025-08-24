@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -43,7 +45,8 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(returnType = "boolean", description = """
         Returns true if a keyword substring is within another string.
-        Returns false if the substring cannot be found.""", examples = @Example(file = "string", tag = "contains"))
+        Returns false if the substring cannot be found.""", examples = @Example(file = "string", tag = "contains"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version="9.2.0") })
     public Contains(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,

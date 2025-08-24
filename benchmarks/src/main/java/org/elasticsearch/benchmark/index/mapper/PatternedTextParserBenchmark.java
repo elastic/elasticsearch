@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IntegerArgume
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseException;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Timestamp;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -36,6 +35,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -67,19 +67,20 @@ public class PatternedTextParserBenchmark {
 
     @Benchmark
     public void parseWithCharParser(Blackhole blackhole) throws ParseException {
-        PatternedMessage result = parser.parse(testMessageNoComma);
-        blackhole.consume(result);
+        List<Argument<?>> arguments = parser.parse(testMessageNoComma);
+        blackhole.consume(arguments);
         // long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05 2023 02:48:00 PM");
         // blackhole.consume(timestamp);
     }
 
     @Benchmark
-    public void parseWithRegexParser(Blackhole blackhole) {
-        PatternedMessage result = regexParser.parse(testMessageWithComma);
-        blackhole.consume(result);
+    public void parseWithRegexParser(Blackhole blackhole) throws ParseException {
+        List<Argument<?>> arguments = regexParser.parse(testMessageWithComma);
+        blackhole.consume(arguments);
     }
 
-    private static class RegexParser {
+    private static class RegexParser implements Parser {
+
         private static final Pattern IPV4_PATTERN = Pattern.compile("\\b(\\d{1,3}(?:\\.\\d{1,3}){3})\\b");
         private static final Pattern INTEGER_PATTERN = Pattern.compile("\\b\\d+\\b");
 
@@ -101,31 +102,48 @@ public class PatternedTextParserBenchmark {
             () -> new SimpleDateFormat(TIMESTAMP_2_FORMAT, Locale.ENGLISH)
         );
 
-        private final StringBuilder patternBuilder = new StringBuilder();
-        private final List<Argument<?>> arguments = new ArrayList<>();
+        /**
+         * Checks if a position range overlaps with any existing argument in the list
+         * @param arguments List of existing arguments
+         * @param startPos Start position of the range to check
+         * @param length Length of the range to check
+         * @return true if there is an overlap, false otherwise
+         */
+        private boolean isOverlappingWithExistingArguments(List<Argument<?>> arguments, int startPos, int length) {
+            int endPos = startPos + length;
+            for (Argument<?> arg : arguments) {
+                int argStart = arg.startPosition();
+                int argEnd = argStart + arg.length();
 
-        public PatternedMessage parse(String rawMessage) {
+                // Check if ranges overlap
+                if ((startPos <= argEnd) && (endPos >= argStart)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public List<Argument<?>> parse(String rawMessage) throws ParseException {
             if (rawMessage == null || rawMessage.isEmpty()) {
                 throw new IllegalArgumentException("rawMessage cannot be null or empty");
             }
 
-            patternBuilder.setLength(0);
-            arguments.clear();
-            Timestamp timestampArg = null;
+            List<Argument<?>> arguments = new ArrayList<>();
 
             // 1. Find and extract timestamp substring (prefer TIMESTAMP_1, then TIMESTAMP_2)
             int tsStart = -1, tsEnd = -1;
             String tsString = null;
             SimpleDateFormat usedFormatter = null;
 
-            java.util.regex.Matcher ts1Matcher = TIMESTAMP_1_PATTERN.matcher(rawMessage);
+            Matcher ts1Matcher = TIMESTAMP_1_PATTERN.matcher(rawMessage);
             if (ts1Matcher.find()) {
                 tsString = ts1Matcher.group();
                 tsStart = ts1Matcher.start();
                 tsEnd = ts1Matcher.end();
                 usedFormatter = TIMESTAMP_1_FORMATTER.get();
             } else {
-                java.util.regex.Matcher ts2Matcher = TIMESTAMP_2_PATTERN.matcher(rawMessage);
+                Matcher ts2Matcher = TIMESTAMP_2_PATTERN.matcher(rawMessage);
                 if (ts2Matcher.find()) {
                     tsString = ts2Matcher.group();
                     tsStart = ts2Matcher.start();
@@ -135,41 +153,50 @@ public class PatternedTextParserBenchmark {
             }
 
             if (tsString != null) {
-                patternBuilder.append(rawMessage, 0, tsStart);
                 try {
                     Date date = usedFormatter.parse(tsString);
-                    timestampArg = new Timestamp(date.getTime(), usedFormatter.toPattern());
-                    patternBuilder.append("%T");
+                    arguments.add(new Timestamp(tsStart, tsEnd - tsStart, date.getTime(), usedFormatter.toPattern()));
                 } catch (java.text.ParseException e) {
-                    patternBuilder.append(tsString);
+                    throw new ParseException("Failed to parse timestamp: " + tsString, e);
                 }
             }
 
-            // 2. Tokenize and process the rest
-            String remainingMessage = tsEnd >= 0 ? rawMessage.substring(tsEnd) : rawMessage;
-            String[] tokens = remainingMessage.split("\\s+");
-            for (int i = 0; i < tokens.length; i++) {
-                String token = tokens[i];
-                if (IPV4_PATTERN.matcher(token).matches()) {
-                    patternBuilder.append("%4");
-                    String[] octets = token.split("\\.");
+            // 2. Process the rest of the message for IP addresses and integers
+            String remaining = tsEnd >= 0 ? rawMessage.substring(tsEnd) : rawMessage;
+
+            // Find IP addresses
+            Matcher ipMatcher = IPV4_PATTERN.matcher(remaining);
+            while (ipMatcher.find()) {
+                String ipStr = ipMatcher.group();
+                int startPos = tsEnd + ipMatcher.start();
+                int length = ipMatcher.end() - ipMatcher.start();
+
+                // Only add if not overlapping with existing arguments
+                if (isOverlappingWithExistingArguments(arguments, startPos, length) == false) {
+                    String[] octets = ipStr.split("\\.");
                     int[] octetValues = new int[4];
                     for (int j = 0; j < 4; j++) {
                         octetValues[j] = Integer.parseInt(octets[j]);
                     }
-                    arguments.add(new IPv4Argument(octetValues));
-                } else if (INTEGER_PATTERN.matcher(token).matches()) {
-                    patternBuilder.append("%I");
-                    arguments.add(new IntegerArgument(Integer.parseInt(token)));
-                } else {
-                    patternBuilder.append(token);
-                }
-                if (i != tokens.length - 1) {
-                    patternBuilder.append(" ");
+                    arguments.add(new IPv4Argument(startPos, length, octetValues));
                 }
             }
 
-            return new PatternedMessage(patternBuilder.toString(), timestampArg, arguments.toArray(new Argument<?>[0]));
+            // Find integers
+            Matcher intMatcher = INTEGER_PATTERN.matcher(remaining);
+            while (intMatcher.find()) {
+                String intStr = intMatcher.group();
+                int startPos = tsEnd + intMatcher.start();
+                int length = intMatcher.end() - intMatcher.start();
+
+                // Only add if not overlapping with existing arguments
+                if (isOverlappingWithExistingArguments(arguments, startPos, length) == false) {
+                    int value = Integer.parseInt(intStr);
+                    arguments.add(new IntegerArgument(startPos, length, value));
+                }
+            }
+
+            return arguments;
         }
     }
 }

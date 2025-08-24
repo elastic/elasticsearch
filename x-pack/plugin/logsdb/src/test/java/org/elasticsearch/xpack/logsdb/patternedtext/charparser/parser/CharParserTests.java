@@ -8,18 +8,8 @@
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.SchemaCompiler;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.Schema;
 
 public class CharParserTests extends ESTestCase {
-
-    private static CharParser parser;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        parser = new CharParser(SchemaCompiler.compile(Schema.getInstance()));
-    }
 
     public void testFindBitmaskForInteger() {
         int[] integerSubTokenBitmaskArrayRanges = { 10, 20, 30, Integer.MAX_VALUE };

@@ -16,16 +16,32 @@ import java.util.Base64;
  * It handles the storage of the byte array and provides a Base64 encoder for the `encode()` method.
  */
 public abstract class ByteEncodedArgument implements Argument<byte[]> {
+
+    protected final int textStartPosition;
+    protected final int textLength;
+
     protected final byte[] encodedBytes;
     protected final Base64.Encoder encoder = Base64.getEncoder().withoutPadding();
 
-    protected ByteEncodedArgument(int length) {
-        this.encodedBytes = new byte[length];
+    protected ByteEncodedArgument(int textStartPosition, int textLength, int numBytes) {
+        this.textStartPosition = textStartPosition;
+        this.textLength = textLength;
+        this.encodedBytes = new byte[numBytes];
     }
 
     @Override
     public byte[] value() {
         return encodedBytes;
+    }
+
+    @Override
+    public int startPosition() {
+        return textStartPosition;
+    }
+
+    @Override
+    public int length() {
+        return textLength;
     }
 
     @Override

@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingTy
  */
 public final class IPv4Argument extends ByteEncodedArgument {
 
-    public IPv4Argument(int[] octets) {
-        super(4);
+    public IPv4Argument(int startPosition, int length, int[] octets) {
+        super(startPosition, length, 4);
         for (int i = 0; i < 4; i++) {
             if (octets[i] < 0 || octets[i] > 255) {
                 throw new IllegalArgumentException("Each octet of an IPv4 address must be between 0 and 255.");

@@ -20,9 +20,13 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingTy
  * for high cardinality arguments as well.
  */
 public final class KeywordArgument implements Argument<String> {
+    private final int startPosition;
+    private final int length;
     private final StringBuilder value;
 
     public KeywordArgument(String s, int start, int length) {
+        this.startPosition = start;
+        this.length = length;
         this.value = new StringBuilder(length);
         this.value.append(s, start, start + length);
     }
@@ -35,6 +39,16 @@ public final class KeywordArgument implements Argument<String> {
     @Override
     public EncodingType type() {
         return EncodingType.TEXT;
+    }
+
+    @Override
+    public int startPosition() {
+        return startPosition;
+    }
+
+    @Override
+    public int length() {
+        return length;
     }
 
     @Override

@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingTy
  */
 public final class HexadecimalArgument extends ByteEncodedArgument {
 
-    public HexadecimalArgument(String s, int start, int length) {
-        super((length + 1) / 2);
-        int endIndex = start + length;
-        for (int i = start, j = 0; i < endIndex; i += 2, j++) {
+    public HexadecimalArgument(String s, int startPosition, int length) {
+        super(startPosition, length, (length + 1) / 2);
+        int endIndex = startPosition + length;
+        for (int i = startPosition, j = 0; i < endIndex; i += 2, j++) {
             int high = Character.digit(s.charAt(i), 16);
             if (i + 1 < endIndex) {
                 int low = Character.digit(s.charAt(i + 1), 16);

@@ -54,8 +54,10 @@
  * <p>The main entry point for using the parser is the
  * {@link org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory ParserFactory} class.
  * The factory provides a static method to create a new parser instance.
- * The parser can then be used to parse text lines into a
- * {@link org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage PatternedMessage}.
+ * The parser can then be used to parse text lines and return an ordered list of typed arguments. Each argument includes its type,
+ * extracted value, and its position within the original text, allowing the caller to construct the template if needed.
+ * A reference implementation for constructing the template from the original text and the list of arguments is provided by the
+ * {@link org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser#constructPattern Parser.constructPattern} static method.
  *
  * <pre>{@code
  * import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;

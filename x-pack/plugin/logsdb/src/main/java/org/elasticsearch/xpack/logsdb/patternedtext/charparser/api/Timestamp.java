@@ -19,21 +19,24 @@ import java.util.Base64;
  * It also holds the format of the timestamp as a string.
  */
 public final class Timestamp implements Argument<Long> {
-
-    private final long timestamp;
+    private final int startPosition;
+    private final int length;
+    private final long timestampMillis;
     private final String format;
 
     // for encoding
     private final byte[] millisBytes = new byte[8];
     private final Base64.Encoder encoder = Base64.getEncoder().withoutPadding();
 
-    public Timestamp(long timestamp, String format) {
-        this.timestamp = timestamp;
+    public Timestamp(int startPosition, int length, long timestampMillis, String format) {
+        this.startPosition = startPosition;
+        this.length = length;
+        this.timestampMillis = timestampMillis;
         this.format = format;
     }
 
-    public long getTimestamp() {
-        return timestamp;
+    public long getTimestampMillis() {
+        return timestampMillis;
     }
 
     public String getFormat() {
@@ -46,7 +49,7 @@ public final class Timestamp implements Argument<Long> {
      */
     @Override
     public Long value() {
-        return timestamp;
+        return timestampMillis;
     }
 
     @Override
@@ -55,13 +58,23 @@ public final class Timestamp implements Argument<Long> {
     }
 
     @Override
+    public int startPosition() {
+        return startPosition;
+    }
+
+    @Override
+    public int length() {
+        return length;
+    }
+
+    @Override
     public String encode() {
-        ByteUtils.writeLongLE(timestamp, millisBytes, 0);
+        ByteUtils.writeLongLE(timestampMillis, millisBytes, 0);
         return encoder.encodeToString(millisBytes);
     }
 
     @Override
     public String toString() {
-        return "Timestamp{" + "timestamp=" + timestamp + ", format='" + format + '\'' + '}';
+        return "Timestamp{" + "timestamp=" + timestampMillis + ", format='" + format + '\'' + '}';
     }
 }

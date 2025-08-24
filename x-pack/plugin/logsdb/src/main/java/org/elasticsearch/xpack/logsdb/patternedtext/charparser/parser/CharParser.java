@@ -8,21 +8,19 @@
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Argument;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.DataLossParseException;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.HexadecimalArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IPv4Argument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IntegerArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.KeywordArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseException;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.PatternedMessage;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Timestamp;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.UUIDArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.CompiledSchema;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -40,8 +38,6 @@ import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.Cha
  */
 @SuppressWarnings("ExtractMethodRecommender")
 public final class CharParser implements Parser {
-
-    private static final char ARGUMENT_PLACEHOLDER_PREFIX = '%';
 
     // this is the compiled schema information
     private final CompiledSchema compiledSchema;
@@ -65,37 +61,6 @@ public final class CharParser implements Parser {
     private final int allTokenBitmask;
     private final int allMultiTokenBitmask;
 
-    // todo: using char array is ~20X faster than using StringBuilder, good if we restrict ourselves to ASCII characters only for now
-    // even if we want to support non-ASCII characters, writing to a char array and then appending the entire array to a StringBuilder
-    // is still ~7X faster than using StringBuilder directly, so we can default to using char array and then convert it to StringBuilder
-    // only if we encounter a non-ASCII character. For this, we can keep both a final char[] and a StringBuilder, and convert to
-    // using the StringBuilder only when we encounter a non-ASCII character or we reach the maximum length of the char array and
-    // recall the index of the last character written to the char array.
-
-    // todo: another option is to not create a template during parsing, only keep references to start and end indexes of the static parts
-    // and the arguments, and then create the template only at the end of parsing. This also provides a way to maintain a state
-    // that remember the length of the template as well as whether a non-ASCII character was encountered, so that only when
-    // required we decide whether to use a char array or a StringBuilder.
-
-    // ongoing updated parsing results
-    private final StringBuilder patternedMessage = new StringBuilder();
-    private final List<Argument<?>> arguments = new ArrayList<>();
-    private Timestamp timestamp = null;
-    // a character counter that is used to verify data integrity
-    int totalCharsAttributedToArgs;
-
-    // trimmed characters buffer
-    private char[] trimmedCharsBuffer;
-    private int[] trimmedCharsPositions;
-    private int trimmedCharsCount;
-    private int nextTrimmedCharIndex;
-
-    // final arguments and their positions
-    private List<Argument<?>> finalArguments;
-    private int[] argumentStartIndices;
-    private int[] argumentEndIndices;
-    private int finalArgumentsCount;
-
     // current subToken state
     private int currentSubTokenStartIndex;
     private int currentSubTokenLength;
@@ -111,7 +76,6 @@ public final class CharParser implements Parser {
     private final int[] bufferedSubTokenIntValues;
     private final int[] bufferedSubTokenStartIndexes;
     private final int[] bufferedSubTokenLengths;
-    private final char[] bufferedSubTokenDelimiters;
 
     // current multi-token state
     private int currentMultiTokenStartIndex;
@@ -121,7 +85,6 @@ public final class CharParser implements Parser {
     final int[] bufferedTokenBitmasks;
     final int[] bufferedTokenStartIndexes;
     final int[] bufferedTokenLengths;
-    private final char[] bufferedTokenDelimiters;
     private final int[] currentMultiTokenSubTokenValues;
     private int currentMultiTokenSubTokenIndex;
 
@@ -139,7 +102,6 @@ public final class CharParser implements Parser {
         this.allTokenBitmask = tokenBitmaskRegistry.getCombinedBitmask();
         this.allMultiTokenBitmask = multiTokenBitmaskRegistry.getCombinedBitmask();
         this.currentMultiTokenSubTokenValues = new int[compiledSchema.maxSubTokensPerMultiToken];
-        bufferedSubTokenDelimiters = new char[compiledSchema.maxSubTokensPerToken + 1];
         bufferedSubTokenBitmasks = new int[compiledSchema.maxSubTokensPerToken + 1];
         bufferedSubTokenIntValues = new int[compiledSchema.maxSubTokensPerToken + 1];
         bufferedSubTokenStartIndexes = new int[compiledSchema.maxSubTokensPerToken + 1];
@@ -148,11 +110,6 @@ public final class CharParser implements Parser {
         bufferedTokenBitmasks = new int[compiledSchema.maxTokensPerMultiToken + 1];
         bufferedTokenStartIndexes = new int[compiledSchema.maxTokensPerMultiToken + 1];
         bufferedTokenLengths = new int[compiledSchema.maxTokensPerMultiToken + 1];
-        bufferedTokenDelimiters = new char[compiledSchema.maxTokensPerMultiToken + 1];
-        trimmedCharsBuffer = new char[8];
-        trimmedCharsPositions = new int[8];
-        argumentStartIndices = new int[8];
-        argumentEndIndices = new int[8];
     }
 
     private void resetSubTokenState() {
@@ -179,20 +136,13 @@ public final class CharParser implements Parser {
     }
 
     private void reset() {
-        patternedMessage.setLength(0);
-        finalArguments = new ArrayList<>();
-        finalArgumentsCount = 0;
-        timestamp = null;
-        totalCharsAttributedToArgs = 0;
-        trimmedCharsCount = 0;
-        nextTrimmedCharIndex = 0;
         resetSubTokenState();
         resetTokenState();
         resetMultiTokenState();
     }
 
     /**
-     * Parses a raw message into a structured pattern with typed arguments using a hierarchical approach.
+     * Parses a raw text message and extracts an ordered list of typed arguments.
      *
      * <p>The algorithm operates on three levels: sub-tokens → tokens → multi-tokens, using bitmasks to track
      * which entity types remain valid as parsing progresses. Each level eliminates invalid possibilities
@@ -244,14 +194,15 @@ public final class CharParser implements Parser {
      * </ul>
      *
      * @param rawMessage the input message to parse
-     * @return a {@link PatternedMessage} containing the pattern template, timestamp, and typed arguments
+     * @return an ordered list of typed arguments extracted from the message
      */
-    public PatternedMessage parse(String rawMessage) throws ParseException {
+    public List<Argument<?>> parse(String rawMessage) throws ParseException {
         if (rawMessage == null || rawMessage.isEmpty()) {
-            return new PatternedMessage("", null, new Argument<?>[0]);
+            return Collections.emptyList();
         }
         reset();
         SubstringView substringView = new SubstringView(rawMessage);
+        List<Argument<?>> finalArguments = new ArrayList<>();
         for (int indexWithinRawMessage = 0; indexWithinRawMessage <= rawMessage.length(); indexWithinRawMessage++) {
             byte charType;
             char currentChar;
@@ -297,7 +248,6 @@ public final class CharParser implements Parser {
                     // breaking from this case without writing the buffered info should happen only when we are still within a token
                     // parsing, or within a multi-token parsing.
                     currentSubTokenIndex++;
-                    bufferedSubTokenDelimiters[currentSubTokenIndex] = currentChar;
                     bufferedSubTokenStartIndexes[currentSubTokenIndex] = currentSubTokenStartIndex;
                     currentSubTokenLength = indexWithinRawMessage - currentSubTokenStartIndex;
                     bufferedSubTokenLengths[currentSubTokenIndex] = currentSubTokenLength;
@@ -397,7 +347,6 @@ public final class CharParser implements Parser {
                             TokenType currentToken = tokenBitmaskRegistry.getHighestPriorityType(currentTokenBitmask);
                             currentTokenIndex++;
                             bufferedTokens[currentTokenIndex] = currentToken;
-                            bufferedTokenDelimiters[currentTokenIndex] = currentChar;
                             bufferedTokenBitmasks[currentTokenIndex] = currentTokenBitmask;
                             bufferedTokenStartIndexes[currentTokenIndex] = currentTokenStartIndex;
                             bufferedTokenLengths[currentTokenIndex] = currentTokenLength;
@@ -477,8 +426,15 @@ public final class CharParser implements Parser {
                                 }
                                 if (multiTokenType.encodingType() == EncodingType.TIMESTAMP) {
                                     int multiTokenLength = formerMultiTokenEndIndex - currentMultiTokenStartIndex;
-                                    createAndStoreTimestamp(multiTokenType, currentMultiTokenStartIndex, multiTokenLength);
-                                    totalCharsAttributedToArgs += multiTokenLength - 2; // deducting 2 for the %T placeholder
+                                    long timestampMillis = multiTokenType.getTimestampFormat().toTimestamp(currentMultiTokenSubTokenValues);
+                                    finalArguments.addLast(
+                                        new Timestamp(
+                                            currentMultiTokenStartIndex,
+                                            multiTokenLength,
+                                            timestampMillis,
+                                            multiTokenType.getTimestampFormat().getJavaTimeFormat()
+                                        )
+                                    );
                                 } else {
                                     throw new ParseException("Unknown multi-token type: " + multiTokenType.name());
                                 }
@@ -488,7 +444,6 @@ public final class CharParser implements Parser {
                                 bufferedTokenBitmasks[0] = bufferedTokenBitmasks[currentTokenIndex];
                                 bufferedTokenStartIndexes[0] = bufferedTokenStartIndexes[currentTokenIndex];
                                 bufferedTokenLengths[0] = bufferedTokenLengths[currentTokenIndex];
-                                bufferedTokenDelimiters[0] = bufferedTokenDelimiters[currentTokenIndex];
                                 currentTokenIndex = 0;
                                 currentMultiTokenSubTokenIndex = 0;
                             } else {
@@ -501,11 +456,23 @@ public final class CharParser implements Parser {
                             for (int i = 0; i <= currentTokenIndex; i++) {
                                 TokenType tokenType = bufferedTokens[i];
                                 if (tokenType.encodingType == EncodingType.TIMESTAMP) {
-                                    createAndStoreTimestamp(tokenType, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
+                                    long timestampMillis = tokenType.getTimestampFormat().toTimestamp(currentMultiTokenSubTokenValues);
+                                    finalArguments.addLast(
+                                        new Timestamp(
+                                            bufferedTokenStartIndexes[i],
+                                            bufferedTokenLengths[i],
+                                            timestampMillis,
+                                            tokenType.getTimestampFormat().getJavaTimeFormat()
+                                        )
+                                    );
                                 } else {
                                     Argument<?> argument = switch (tokenType.encodingType) {
                                         // integer and hexadecimal arguments always contain a single subToken
-                                        case INTEGER -> new IntegerArgument(bufferedSubTokenIntValues[0]);
+                                        case INTEGER -> new IntegerArgument(
+                                            bufferedTokenStartIndexes[i],
+                                            bufferedTokenLengths[i],
+                                            bufferedSubTokenIntValues[0]
+                                        );
                                         case HEX -> new HexadecimalArgument(
                                             rawMessage,
                                             bufferedTokenStartIndexes[i],
@@ -514,7 +481,11 @@ public final class CharParser implements Parser {
                                         case IPV4 -> {
                                             if (currentTokenIndex == 0) {
                                                 // IPv4 tokens can only be part of a single token, so we can safely create an IPv4 argument
-                                                yield new IPv4Argument(bufferedSubTokenIntValues);
+                                                yield new IPv4Argument(
+                                                    bufferedTokenStartIndexes[i],
+                                                    bufferedTokenLengths[i],
+                                                    bufferedSubTokenIntValues
+                                                );
                                             } else {
                                                 throw new ParseException(
                                                     "IPV4 token cannot be part of a multi-token, but found at position " + i
@@ -525,12 +496,7 @@ public final class CharParser implements Parser {
                                         default -> null;
                                     };
                                     if (argument != null) {
-                                        addArgument(
-                                            argument,
-                                            bufferedTokenStartIndexes[i],
-                                            bufferedTokenStartIndexes[i] + bufferedTokenLengths[i]
-                                        );
-                                        totalCharsAttributedToArgs += bufferedTokenLengths[i] - 2; // 2 for symbols
+                                        finalArguments.addLast(argument);
                                     } else {
                                         // todo
                                     }
@@ -553,7 +519,11 @@ public final class CharParser implements Parser {
                                 if (subTokenBitmask != 0) {
                                     SubTokenType subTokenType = subTokenBitmaskRegistry.getHighestPriorityType(subTokenBitmask);
                                     argument = switch (subTokenType.encodingType) {
-                                        case INTEGER -> new IntegerArgument(bufferedSubTokenIntValues[i]);
+                                        case INTEGER -> new IntegerArgument(
+                                            bufferedSubTokenStartIndexes[i],
+                                            bufferedSubTokenLengths[i],
+                                            bufferedSubTokenIntValues[i]
+                                        );
                                         case HEX -> new HexadecimalArgument(
                                             rawMessage,
                                             bufferedSubTokenStartIndexes[i],
@@ -566,12 +536,7 @@ public final class CharParser implements Parser {
                                 }
 
                                 if (argument != null) {
-                                    addArgument(
-                                        argument,
-                                        bufferedSubTokenStartIndexes[i],
-                                        bufferedSubTokenStartIndexes[i] + bufferedSubTokenLengths[i]
-                                    );
-                                    totalCharsAttributedToArgs += bufferedSubTokenLengths[i] - 2; // deducting 2 for the % prefix and symbol
+                                    finalArguments.addLast(argument);
                                 } else {
                                     // A sub-token that is not an argument is a literal.
                                     // Its handling will be done in the final assembly phase.
@@ -583,81 +548,12 @@ public final class CharParser implements Parser {
                     resetSubTokenState();
                     break;
                 case TRIMMED_CHAR_CODE:
-                    if (trimmedCharsCount == trimmedCharsBuffer.length) {
-                        trimmedCharsBuffer = Arrays.copyOf(trimmedCharsBuffer, trimmedCharsBuffer.length * 2);
-                        trimmedCharsPositions = Arrays.copyOf(trimmedCharsPositions, trimmedCharsPositions.length * 2);
-                    }
-                    trimmedCharsBuffer[trimmedCharsCount] = currentChar;
-                    trimmedCharsPositions[trimmedCharsCount] = indexWithinRawMessage;
-                    trimmedCharsCount++;
+                    // todo - check if this trimmed code in this position within a multi-token is valid
                     break;
                 default:
             }
         }
-
-        // Final assembly phase
-        int currentIndex = 0;
-        for (int i = 0; i < finalArgumentsCount; i++) {
-            int start = argumentStartIndices[i];
-            int end = argumentEndIndices[i];
-
-            // Append the literal region before this argument
-            appendLiteralRegion(rawMessage, currentIndex, start);
-
-            // Append the argument placeholder
-            patternedMessage.append(ARGUMENT_PLACEHOLDER_PREFIX).append(finalArguments.get(i).type().getSymbol());
-
-            currentIndex = end;
-        }
-
-        // Append the final literal region after the last argument
-        appendLiteralRegion(rawMessage, currentIndex, rawMessage.length());
-
-        int consumedCharsForPatternedMessage = patternedMessage.length() + totalCharsAttributedToArgs;
-        if (consumedCharsForPatternedMessage != rawMessage.length()) {
-            throw new DataLossParseException("Data loss detected during parsing", rawMessage.length(), consumedCharsForPatternedMessage);
-        }
-        return new PatternedMessage(patternedMessage.toString(), timestamp, finalArguments.toArray(new Argument<?>[0]));
-    }
-
-    private void appendLiteralRegion(String rawMessage, int from, int to) {
-        int lastAppendedIndex = from;
-        while (nextTrimmedCharIndex < trimmedCharsCount && trimmedCharsPositions[nextTrimmedCharIndex] < to) {
-            int trimmedCharPos = trimmedCharsPositions[nextTrimmedCharIndex];
-            if (trimmedCharPos >= from) {
-                if (trimmedCharPos > lastAppendedIndex) {
-                    patternedMessage.append(rawMessage, lastAppendedIndex, trimmedCharPos);
-                }
-                patternedMessage.append(trimmedCharsBuffer[nextTrimmedCharIndex]);
-                lastAppendedIndex = trimmedCharPos + 1;
-            }
-            nextTrimmedCharIndex++;
-        }
-
-        if (to > lastAppendedIndex) {
-            patternedMessage.append(rawMessage, lastAppendedIndex, to);
-        }
-    }
-
-    private void addArgument(Argument<?> arg, int start, int end) {
-        if (finalArgumentsCount == argumentStartIndices.length) {
-            argumentStartIndices = Arrays.copyOf(argumentStartIndices, argumentStartIndices.length * 2);
-            argumentEndIndices = Arrays.copyOf(argumentEndIndices, argumentEndIndices.length * 2);
-        }
-        finalArguments.add(arg);
-        argumentStartIndices[finalArgumentsCount] = start;
-        argumentEndIndices[finalArgumentsCount] = end;
-        finalArgumentsCount++;
-    }
-
-    private void createAndStoreTimestamp(ParsingType parsingType, int start, int length) {
-        TimestampFormat timestampFormat = parsingType.getTimestampFormat();
-        long timestampMillis = timestampFormat.toTimestamp(currentMultiTokenSubTokenValues);
-        Timestamp tmp = new Timestamp(timestampMillis, parsingType.getTimestampFormat().getJavaTimeFormat());
-        if (timestamp == null) {
-            timestamp = tmp;
-        }
-        addArgument(tmp, start, start + length);
+        return finalArguments;
     }
 
     /**

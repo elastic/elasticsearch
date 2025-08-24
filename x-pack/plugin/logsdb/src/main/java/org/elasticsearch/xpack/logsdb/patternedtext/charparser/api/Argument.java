@@ -32,6 +32,18 @@ public interface Argument<T> {
     EncodingType type();
 
     /**
+     * Returns the start position (first character) of the text that was used to extract this argument in the original text.
+     * @return the start position (inclusive)
+     */
+    int startPosition();
+
+    /**
+     * Returns the length (number of characters) of the text that was used to extract this argument in the original text.
+     * @return the length
+     */
+    int length();
+
+    /**
      * Returns a string representation of the argument's value.
      *
      * @return the string representation of the value

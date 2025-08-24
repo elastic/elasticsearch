@@ -7,43 +7,63 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
+import java.util.List;
+
 /**
  * Interface for parsing raw text messages into structured patterns with typed arguments.
  *
- * <p>Implementations of this interface are responsible for analyzing input text and extracting
- * meaningful patterns, timestamps, and parameter values.
- * The parsing process converts unstructured log messages into a standardized format that
- * separates the static template from the variable data.
+ * <p>Implementations of this interface are responsible for analyzing input text, identifying static parts and extracting
+ * dynamic parts into arguments (like timestamps, numbers, hexadecimal etc.).
  *
- * <p>The parser operates by recognizing tokens and sub-tokens within the input text,
- * matching them against configured patterns, and producing a structured representation
- * that includes:
+ * <p>The parser operates by recognizing tokens and sub-tokens within the input text, matching them against configured patterns, and
+ * producing an ordered list of typed arguments, where the details about each argument include:
  * <ul>
- *     <li>A template string with parameter placeholders</li>
- *     <li>Extracted timestamp information (if present)</li>
- *     <li>Typed arguments corresponding to the template parameters</li>
+ *     <li>the type of the argument</li>
+ *     <li>the extracted value (e.g. number for numeric arguments, millis since epoch for timestamps etc.)</li>
+ *     <li>the start and end position of the text that was used for argument extraction within the input message</li>
  * </ul>
  */
 public interface Parser {
 
+    char PLACEHOLDER_PREFIX = '%';
+
     /**
-     * Parses a raw text message into a structured pattern with extracted components.
+     * Parses a raw text message and extracts an ordered list of typed arguments. The first argument of type {@link Timestamp} is THE
+     * timestamp of the message.
      *
-     * <p>This method analyzes the input message and extracts variable data while preserving the overall structure as a template.
-     *
-     * <p><strong>Example:</strong>
-     * <pre>
-     * Input:  "2023-10-05 14:30:25 INFO received 305 packets from 135.122.123.222"
-     * Output: PatternedMessage with:
-     *         - template: "%T INFO received %I packets from %4"
-     *         - timestamp: parsed datetime value
-     *         - arguments: [Integer:{305}, IPv4:{135.122.123.222}]
-     * </pre>
-     *
-     * @param rawMessage the input text message to parse, must not be null
-     * @return a {@link PatternedMessage} containing the extracted template, timestamp, and typed arguments
-     * @throws IllegalArgumentException if rawMessage is null
-     * @throws ParseException if a parsing error occurs
+     * @param rawMessage the raw text message to parse
+     * @return an ordered list of typed arguments extracted from the message, including start and end positions within the original text
+     * @throws ParseException if the message cannot be parsed
      */
-    PatternedMessage parse(String rawMessage) throws ParseException;
+    List<Argument<?>> parse(String rawMessage) throws ParseException;
+
+    /**
+     * Constructs a pattern string from the raw message and the list of extracted arguments.
+     * @param rawMessage the original raw message
+     * @param arguments the list of extracted arguments
+     * @param patternedMessage a StringBuilder to append the constructed pattern to
+     * @param putPlaceholders if true, placeholders will be used for arguments; if false, the argument parts will be omitted from the
+     *                        pattern
+     */
+    static void constructPattern(String rawMessage, List<Argument<?>> arguments, StringBuilder patternedMessage, boolean putPlaceholders) {
+        patternedMessage.setLength(0);
+        int currentIndex = 0;
+        for (Argument<?> argument : arguments) {
+            int argStart = argument.startPosition();
+            int argEnd = argStart + argument.length();
+            // Append the static part before the argument
+            if (currentIndex < argStart) {
+                patternedMessage.append(rawMessage, currentIndex, argStart);
+            }
+            // Append the argument placeholder or skip it
+            if (putPlaceholders) {
+                patternedMessage.append(PLACEHOLDER_PREFIX).append(argument.type().getSymbol());
+            }
+            currentIndex = argEnd;
+        }
+        // Append any remaining static part after the last argument
+        if (currentIndex < rawMessage.length()) {
+            patternedMessage.append(rawMessage, currentIndex, rawMessage.length());
+        }
+    }
 }

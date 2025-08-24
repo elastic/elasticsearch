@@ -16,13 +16,17 @@ import java.util.Base64;
  * Represents an integer argument extracted from a text message.
  */
 public final class IntegerArgument implements Argument<Integer> {
+    private final int startPosition;
+    private final int length;
     private final int value;
 
     // for encoding
     private final byte[] integerBytes = new byte[4];
     private final Base64.Encoder encoder = Base64.getEncoder().withoutPadding();
 
-    public IntegerArgument(int value) {
+    public IntegerArgument(int startPosition, int length, int value) {
+        this.startPosition = startPosition;
+        this.length = length;
         this.value = value;
     }
 
@@ -38,6 +42,16 @@ public final class IntegerArgument implements Argument<Integer> {
     @Override
     public EncodingType type() {
         return EncodingType.INTEGER;
+    }
+
+    @Override
+    public int startPosition() {
+        return startPosition;
+    }
+
+    @Override
+    public int length() {
+        return length;
     }
 
     @Override

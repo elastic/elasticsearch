@@ -43,10 +43,14 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
     private final Expression str;
     private final Expression substr;
 
-    @FunctionInfo(returnType = "boolean", description = """
-        Returns true if a keyword substring is within another string.
-        Returns false if the substring cannot be found.""", examples = @Example(file = "string", tag = "contains"),
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version="9.2.0") })
+    @FunctionInfo(
+        returnType = "boolean",
+        description = """
+            Returns true if a keyword substring is within another string.
+            Returns false if the substring cannot be found.""",
+        examples = @Example(file = "string", tag = "contains"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
+    )
     public Contains(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,

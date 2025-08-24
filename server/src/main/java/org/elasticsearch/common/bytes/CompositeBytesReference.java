@@ -181,8 +181,8 @@ public final class CompositeBytesReference extends AbstractBytesReference {
             final int i = Arrays.binarySearch(offsets, offset);
             return i < 0 ? (-(i + 1)) - 1 : i;
         }
-//        final int i = Arrays.binarySearch(offsets, offset);
-//        return i < 0 ? (-(i + 1)) - 1 : i;
+        // final int i = Arrays.binarySearch(offsets, offset);
+        // return i < 0 ? (-(i + 1)) - 1 : i;
     }
 
     @Override

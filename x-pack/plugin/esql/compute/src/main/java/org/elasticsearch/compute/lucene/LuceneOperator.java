@@ -162,36 +162,56 @@ public abstract class LuceneOperator extends SourceOperator {
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
-        while (currentScorer == null || currentScorer.isDone()) {
-            if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
-                sliceIndex = 0;
-                currentSlice = sliceQueue.nextSlice(currentSlice);
-                if (currentSlice == null) {
-                    doneCollecting = true;
+        while (true) {
+            while (currentScorer == null || currentScorer.isDone()) {
+                var partialLeaf = nextPartialLeaf();
+                if (partialLeaf == null) {
+                    assert doneCollecting;
                     return null;
                 }
-                processedSlices++;
-                processedShards.add(currentSlice.shardContext().shardIdentifier());
+                logger.trace("Starting {}", partialLeaf);
+                loadScorerForNewPartialLeaf(partialLeaf);
             }
-            final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
-            logger.trace("Starting {}", partialLeaf);
-            final LeafReaderContext leaf = partialLeaf.leafReaderContext();
-            if (currentScorer == null // First time
-                || currentScorer.leafReaderContext() != leaf // Moved to a new leaf
-                || currentScorer.weight != currentSlice.weight() // Moved to a new query
-            ) {
-                final Weight weight = currentSlice.weight();
-                processedQueries.add(weight.getQuery());
-                currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
+            // Has the executing thread changed? If so, we need to reinitialize the scorer. The reinitialized bulkScorer
+            // can be null even if it was non-null previously, due to lazy initialization in Weight#bulkScorer.
+            // Hence, we need to check the previous condition again.
+            if (currentScorer.executingThread == Thread.currentThread()) {
+                return currentScorer;
+            } else {
+                currentScorer.reinitialize();
             }
-            assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
-            currentScorer.maxPosition = partialLeaf.maxDoc();
-            currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
         }
-        if (Thread.currentThread() != currentScorer.executingThread) {
-            currentScorer.reinitialize();
+    }
+
+    private PartialLeafReaderContext nextPartialLeaf() {
+        if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
+            sliceIndex = 0;
+            currentSlice = sliceQueue.nextSlice(currentSlice);
+            if (currentSlice == null) {
+                doneCollecting = true;
+                return null;
+            }
+            processedSlices++;
+            processedShards.add(currentSlice.shardContext().shardIdentifier());
         }
-        return currentScorer;
+        return currentSlice.getLeaf(sliceIndex++);
+    }
+
+    private void loadScorerForNewPartialLeaf(PartialLeafReaderContext partialLeaf) {
+        final LeafReaderContext leaf = partialLeaf.leafReaderContext();
+        // the current Weight can be reused with the current slice
+        if (currentScorer != null && currentSlice.isWeightCompatible(currentScorer.weight)) {
+            if (currentScorer.leafReaderContext != leaf) {
+                currentScorer = new LuceneScorer(currentSlice.shardContext(), currentScorer.weight, currentSlice.tags(), leaf);
+            }
+        } else {
+            final var weight = currentSlice.createWeight();
+            processedQueries.add(weight.getQuery());
+            currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
+        }
+        assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
+        currentScorer.maxPosition = partialLeaf.maxDoc();
+        currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
     }
 
     /**

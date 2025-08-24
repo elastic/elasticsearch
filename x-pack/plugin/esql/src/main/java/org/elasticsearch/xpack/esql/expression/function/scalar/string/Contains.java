@@ -103,8 +103,7 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
         if (str == null || substr == null || str.length < substr.length) {
             return false;
         }
-        String utf8ToString = str.utf8ToString();
-        return utf8ToString.contains(substr.utf8ToString());
+        return str.utf8ToString().contains(substr.utf8ToString());
     }
 
     @Override

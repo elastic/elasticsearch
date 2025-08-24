@@ -174,7 +174,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 right()
             );
         }
-        if(supersetType == ElementType.NULL || subsetType == ElementType.NULL) {
+        if (supersetType == ElementType.NULL || subsetType == ElementType.NULL) {
             return new MvContainsNullEvaluator(toEvaluator.apply(right()));
         }
         return switch (supersetType) {
@@ -342,9 +342,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
 
-        public MvContainsBooleanEvaluator(EvalOperator.ExpressionEvaluator field1,
-                                          EvalOperator.ExpressionEvaluator field2,
-                                          DriverContext driverContext) {
+        public MvContainsBooleanEvaluator(
+            EvalOperator.ExpressionEvaluator field1,
+            EvalOperator.ExpressionEvaluator field2,
+            DriverContext driverContext
+        ) {
             this.field1 = field1;
             this.field2 = field2;
             this.driverContext = driverContext;
@@ -360,7 +362,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         }
 
         public BooleanBlock eval(int positionCount, BooleanBlock field1Block, BooleanBlock field2Block) {
-            try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     MvContains.process(result, p, field1Block, field2Block);
                 }
@@ -383,8 +385,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             private final EvalOperator.ExpressionEvaluator.Factory field1;
             private final EvalOperator.ExpressionEvaluator.Factory field2;
 
-            public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
-                           EvalOperator.ExpressionEvaluator.Factory field2) {
+            public Factory(
+                Source source,
+                EvalOperator.ExpressionEvaluator.Factory field1,
+                EvalOperator.ExpressionEvaluator.Factory field2
+            ) {
                 this.source = source;
                 this.field1 = field1;
                 this.field2 = field2;
@@ -417,9 +422,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
 
-        public MvContainsBytesRefEvaluator(EvalOperator.ExpressionEvaluator field1,
-                                          EvalOperator.ExpressionEvaluator field2,
-                                          DriverContext driverContext) {
+        public MvContainsBytesRefEvaluator(
+            EvalOperator.ExpressionEvaluator field1,
+            EvalOperator.ExpressionEvaluator field2,
+            DriverContext driverContext
+        ) {
             this.field1 = field1;
             this.field2 = field2;
             this.driverContext = driverContext;
@@ -435,7 +442,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         }
 
         public BooleanBlock eval(int positionCount, BytesRefBlock field1Block, BytesRefBlock field2Block) {
-            try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     MvContains.process(result, p, field1Block, field2Block);
                 }
@@ -458,8 +465,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             private final EvalOperator.ExpressionEvaluator.Factory field1;
             private final EvalOperator.ExpressionEvaluator.Factory field2;
 
-            public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
-                           EvalOperator.ExpressionEvaluator.Factory field2) {
+            public Factory(
+                Source source,
+                EvalOperator.ExpressionEvaluator.Factory field1,
+                EvalOperator.ExpressionEvaluator.Factory field2
+            ) {
                 this.source = source;
                 this.field1 = field1;
                 this.field2 = field2;
@@ -492,9 +502,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
 
-        public MvContainsDoubleEvaluator(EvalOperator.ExpressionEvaluator field1,
-                                           EvalOperator.ExpressionEvaluator field2,
-                                           DriverContext driverContext) {
+        public MvContainsDoubleEvaluator(
+            EvalOperator.ExpressionEvaluator field1,
+            EvalOperator.ExpressionEvaluator field2,
+            DriverContext driverContext
+        ) {
             this.field1 = field1;
             this.field2 = field2;
             this.driverContext = driverContext;
@@ -510,7 +522,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         }
 
         public BooleanBlock eval(int positionCount, DoubleBlock field1Block, DoubleBlock field2Block) {
-            try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     MvContains.process(result, p, field1Block, field2Block);
                 }
@@ -533,8 +545,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             private final EvalOperator.ExpressionEvaluator.Factory field1;
             private final EvalOperator.ExpressionEvaluator.Factory field2;
 
-            public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
-                           EvalOperator.ExpressionEvaluator.Factory field2) {
+            public Factory(
+                Source source,
+                EvalOperator.ExpressionEvaluator.Factory field1,
+                EvalOperator.ExpressionEvaluator.Factory field2
+            ) {
                 this.source = source;
                 this.field1 = field1;
                 this.field2 = field2;
@@ -567,9 +582,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
 
-        public MvContainsIntEvaluator(EvalOperator.ExpressionEvaluator field1,
-                                         EvalOperator.ExpressionEvaluator field2,
-                                         DriverContext driverContext) {
+        public MvContainsIntEvaluator(
+            EvalOperator.ExpressionEvaluator field1,
+            EvalOperator.ExpressionEvaluator field2,
+            DriverContext driverContext
+        ) {
             this.field1 = field1;
             this.field2 = field2;
             this.driverContext = driverContext;
@@ -585,7 +602,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         }
 
         public BooleanBlock eval(int positionCount, IntBlock field1Block, IntBlock field2Block) {
-            try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     MvContains.process(result, p, field1Block, field2Block);
                 }
@@ -608,8 +625,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             private final EvalOperator.ExpressionEvaluator.Factory field1;
             private final EvalOperator.ExpressionEvaluator.Factory field2;
 
-            public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
-                           EvalOperator.ExpressionEvaluator.Factory field2) {
+            public Factory(
+                Source source,
+                EvalOperator.ExpressionEvaluator.Factory field1,
+                EvalOperator.ExpressionEvaluator.Factory field2
+            ) {
                 this.source = source;
                 this.field1 = field1;
                 this.field2 = field2;
@@ -642,9 +662,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
 
-        public MvContainsLongEvaluator(EvalOperator.ExpressionEvaluator field1,
-                                      EvalOperator.ExpressionEvaluator field2,
-                                      DriverContext driverContext) {
+        public MvContainsLongEvaluator(
+            EvalOperator.ExpressionEvaluator field1,
+            EvalOperator.ExpressionEvaluator field2,
+            DriverContext driverContext
+        ) {
             this.field1 = field1;
             this.field2 = field2;
             this.driverContext = driverContext;
@@ -660,7 +682,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         }
 
         public BooleanBlock eval(int positionCount, LongBlock field1Block, LongBlock field2Block) {
-            try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     MvContains.process(result, p, field1Block, field2Block);
                 }
@@ -683,8 +705,11 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             private final EvalOperator.ExpressionEvaluator.Factory field1;
             private final EvalOperator.ExpressionEvaluator.Factory field2;
 
-            public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
-                           EvalOperator.ExpressionEvaluator.Factory field2) {
+            public Factory(
+                Source source,
+                EvalOperator.ExpressionEvaluator.Factory field1,
+                EvalOperator.ExpressionEvaluator.Factory field2
+            ) {
                 this.source = source;
                 this.field1 = field1;
                 this.field2 = field2;

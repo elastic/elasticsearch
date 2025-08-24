@@ -52,11 +52,13 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
         doubles(suppliers);
         bytesRefs(suppliers);
 
-        return parameterSuppliersFromTypedData(anyNullIsNull(
-            suppliers,
-            (nullPosition, nullValueDataType, original) -> original.expectedType(),
-            (nullPosition, nullData, original) -> original
-        ));
+        return parameterSuppliersFromTypedData(
+            anyNullIsNull(
+                suppliers,
+                (nullPosition, nullValueDataType, original) -> original.expectedType(),
+                (nullPosition, nullData, original) -> original
+            )
+        );
     }
 
     @Override
@@ -326,21 +328,26 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
                     typesWithNull.set(nullPosition, DataType.NULL);
                     boolean newSignature = uniqueSignatures.add(typesWithNull);
                     if (newSignature) {
-                        suppliers.add(new TestCaseSupplier(
-                            "G2: " + toSpaceSeparatedString(typesWithNull) + " null in " + nullPosition,
-                            typesWithNull,
-                            () -> {
-                                TestCaseSupplier.TestCase originalTestCase = original.get();
-                                var typeDataWithNull = new ArrayList<>(originalTestCase.getData());
-                                typeDataWithNull.set(nullPosition, typeDataWithNull.get(nullPosition).isMultiRow() ? MULTI_ROW_NULL : NULL);
-                                return new TestCaseSupplier.TestCase(
-                                    typeDataWithNull,
-                                    "MvContainsNullEvaluator[subsetField=Attribute[channel=1]]",
-                                    expectedType.expectedType(nullPosition, DataType.BOOLEAN, originalTestCase),
-                                    equalTo(nullPosition == 1)
-                                );
-                            }
-                        ));
+                        suppliers.add(
+                            new TestCaseSupplier(
+                                "G2: " + toSpaceSeparatedString(typesWithNull) + " null in " + nullPosition,
+                                typesWithNull,
+                                () -> {
+                                    TestCaseSupplier.TestCase originalTestCase = original.get();
+                                    var typeDataWithNull = new ArrayList<>(originalTestCase.getData());
+                                    typeDataWithNull.set(
+                                        nullPosition,
+                                        typeDataWithNull.get(nullPosition).isMultiRow() ? MULTI_ROW_NULL : NULL
+                                    );
+                                    return new TestCaseSupplier.TestCase(
+                                        typeDataWithNull,
+                                        "MvContainsNullEvaluator[subsetField=Attribute[channel=1]]",
+                                        expectedType.expectedType(nullPosition, DataType.BOOLEAN, originalTestCase),
+                                        equalTo(nullPosition == 1)
+                                    );
+                                }
+                            )
+                        );
                     }
                 }
             }
@@ -356,6 +363,6 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
     // We always return a boolean.
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return anyOf(equalTo(false),equalTo(true));
+        return anyOf(equalTo(false), equalTo(true));
     }
 }

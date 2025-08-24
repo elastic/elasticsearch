@@ -55,6 +55,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this.currentPageOffset = pageSize;
         // Always start with a page
         ensureCapacityFromPosition(1);
+        nextPage();
     }
 
     @Override
@@ -66,6 +67,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void writeByte(byte b) {
         if (currentPageOffset == pageSize) {
             ensureCapacity(1);
+            nextPage();
         }
         bytesRefBytes[bytesRefOffset + currentPageOffset] = b;
         ++currentPageOffset;
@@ -188,6 +190,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             ensureCapacity(utf8Bytes.length + vIntLength);
         }
 
+        // TODO: Doesn't work if not enough room in page
         putVInt(utf8Bytes.length, vIntLength);
         writeBytes(utf8Bytes, 0, utf8Bytes.length);
     }
@@ -196,7 +199,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void writeVInt(int i) throws IOException {
         int bytesNeeded = vIntLength(i);
         if (bytesNeeded > pageSize - currentPageOffset) {
-            ensureCapacity(bytesNeeded);
             super.writeVInt(i);
         } else {
             putVInt(i, bytesNeeded);
@@ -458,11 +460,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 }
                 currentCapacity += additionalPagesNeeded * pageSize;
             }
-        }
-
-        // We are at the end of the current page, increment page index
-        if (currentPageOffset == pageSize) {
-            nextPage();
         }
     }
 

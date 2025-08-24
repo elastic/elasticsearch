@@ -148,6 +148,9 @@
       indices.create:
         index: test
         body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
           mappings:
             properties:
               qty:
@@ -158,8 +161,7 @@
         id: "1"
         body: { qty: -1, uuid: 3456 }
   - do:
-      indices.refresh:
-        index: [ test ]
+      indices.refresh: {}
   - do:
       catch: bad_request
       search:

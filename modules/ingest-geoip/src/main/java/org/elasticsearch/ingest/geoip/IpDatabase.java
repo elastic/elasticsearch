@@ -33,6 +33,7 @@ public interface IpDatabase extends AutoCloseable {
      * @param ipAddress the address to lookup
      * @param responseProvider a method for extracting a response from a {@link Reader}, usually this will be a method reference
      * @return a possibly-null response
+     * @param <RESPONSE> the type of response that will be returned
      */
     @Nullable
     // TODO: This change requires a one-line change to an implementation in a logstash filter. Coordinate with that team before merging.
@@ -53,7 +54,7 @@ public interface IpDatabase extends AutoCloseable {
 
     interface Response {
 
-        // TODO: Remove this default implementation and implement in all implementing classes instead before merging
+        // TODO: Remove this default implementation and implement in all implementing classes instead before merging:
         default long sizeInBytes() {
             return 0;
         }

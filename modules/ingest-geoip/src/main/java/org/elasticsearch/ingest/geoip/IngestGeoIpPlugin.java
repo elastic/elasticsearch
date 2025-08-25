@@ -92,14 +92,14 @@ public class IngestGeoIpPlugin extends Plugin
 
     private static final Setting<Long> CACHE_SIZE_COUNT = Setting.longSetting(
         "ingest.geoip.cache_size",
-        -1, // default is never used, we use CACHE_SIZE_BYTES if this is not set
+        0, // default is never used, we use CACHE_SIZE_BYTES if this is not set
         0,
         Setting.Property.NodeScope
     );
 
     private static final Setting<ByteSizeValue> CACHE_SIZE_BYTES = Setting.byteSizeSetting(
         "ingest.geoip.cache_memory_size",
-        // TODO: Think more carefully about this before merging
+        // TODO: Think more carefully about this default before merging:
         ByteSizeValue.ofBytes((long) (0.01 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())),
         Setting.Property.NodeScope
     );
@@ -154,7 +154,6 @@ public class IngestGeoIpPlugin extends Plugin
     }
 
     private static GeoIpCache createGeoIpCache(Settings settings) {
-        // TODO: Maybe think about adding a unit test for this logic before merging
         if (settings.hasValue(CACHE_SIZE_COUNT.getKey())) {
             if (settings.hasValue(CACHE_SIZE_BYTES.getKey())) {
                 // Both CACHE_SIZE_COUNT and CACHE_SIZE_BYTES are set, which is an error:

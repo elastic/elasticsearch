@@ -31,8 +31,6 @@ import java.util.function.LongSupplier;
  */
 public final class GeoIpCache {
 
-    private static final long PROJECT_ID_BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(ProjectId.class);
-
     static GeoIpCache createGeoIpCacheWithMaxCount(long maxSize) {
         if (maxSize < 0) {
             throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
@@ -74,8 +72,8 @@ public final class GeoIpCache {
         }
     };
 
-    private final LongSupplier relativeNanoTimeProvider;
     private final Cache<CacheKey, IpDatabase.Response> cache;
+    private final LongSupplier relativeNanoTimeProvider;
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
 
@@ -168,6 +166,7 @@ public final class GeoIpCache {
     private record CacheKey(ProjectId projectId, String ip, String databasePath) {
 
         private static final long BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(CacheKey.class);
+        private static final long PROJECT_ID_BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(ProjectId.class);
 
         private long sizeInBytes() {
             return keySizeInBytes(projectId, ip, databasePath);
@@ -176,8 +175,9 @@ public final class GeoIpCache {
 
     // visible for testing
     static long keySizeInBytes(ProjectId projectId, String ip, String databasePath) {
-        // TODO: Check this before merging
-        return CacheKey.BASE_BYTES + PROJECT_ID_BASE_BYTES + RamUsageEstimator.sizeOf(projectId.id()) + RamUsageEstimator.sizeOf(ip)
-            + RamUsageEstimator.sizeOf(databasePath);
+        // TODO: Check this size computation before merging:
+        return CacheKey.BASE_BYTES + CacheKey.PROJECT_ID_BASE_BYTES + RamUsageEstimator.sizeOf(projectId.id()) + RamUsageEstimator.sizeOf(
+            ip
+        ) + RamUsageEstimator.sizeOf(databasePath);
     }
 }

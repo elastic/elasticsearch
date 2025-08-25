@@ -45,6 +45,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
         // manually disable dev mode (make it production)
         config.setDevVersion(false);
+        config.setMetricsCommand(false);
         return parser;
     }
 }

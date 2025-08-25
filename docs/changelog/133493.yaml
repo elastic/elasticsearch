@@ -1,0 +1,5 @@
+pr: 133493
+summary: Gate disable norms on text fields for logsdb/tsdb indices
+area: Mapping
+type: bug
+issues: []

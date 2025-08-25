@@ -494,14 +494,6 @@ public final class IngestDocument {
      * Resolves the path elements (up to the limit) within the context. The result of such resolution can either be successful,
      * or can indicate a failure.
      */
-    private static ResolveResult resolve(final String[] pathElements, final int limit, final String fullPath, Object context) {
-        return resolve(pathElements, limit, fullPath, context, IngestPipelineFieldAccessPattern.CLASSIC);
-    }
-
-    /**
-     * Resolves the path elements (up to the limit) within the context. The result of such resolution can either be successful,
-     * or can indicate a failure.
-     */
     private static ResolveResult resolve(
         final String[] pathElements,
         final int limit,

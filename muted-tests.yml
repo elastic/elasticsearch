@@ -354,9 +354,6 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/130821
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLookupJoinAliases
-  issue: https://github.com/elastic/elasticsearch/issues/131166
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test090SecurityCliPackaging
   issue: https://github.com/elastic/elasticsearch/issues/131107
@@ -408,9 +405,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
   method: testReader
   issue: https://github.com/elastic/elasticsearch/issues/131573
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLookupJoinAliasesSkipOld
-  issue: https://github.com/elastic/elasticsearch/issues/131697
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437

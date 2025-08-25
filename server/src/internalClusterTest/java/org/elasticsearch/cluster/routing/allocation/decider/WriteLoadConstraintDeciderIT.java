@@ -201,7 +201,6 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         double shardWriteLoadDefault = 0.2;
         MockTransportService.getInstance(firstDataNodeName)
             .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-
                 List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     shardStats.add(createShardStats(indexMetadata, i, shardWriteLoadDefault, firstDataNodeId));

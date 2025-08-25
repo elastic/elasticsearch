@@ -61,9 +61,10 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
-
-    private static final float MAX_VISIT_INCREASE_RATIO = 0.3f;
-    private static final double MAX_VISIT_DECREASE_RATIO = 0.03f;
+    public static final float MIN_VISIT_RATIO_FOR_AFFINITY_ADJUSTMENT = 0.004f;
+    public static final float MAX_AFFINITY_MULTIPLIER_ADJUSTMENT = 1.5f;
+    public static final float MIN_AFFINITY_MULTIPLIER_ADJUSTMENT = 0.5f;
+    public static final float MIN_AFFINITY = 0.001f;
 
     protected final String field;
     protected final float providedVisitRatio;
@@ -171,47 +172,54 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {
-            // calculate the affinity of each segment to the query vector
-            List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector(), costs);
-            segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
+            if (visitRatio > MIN_VISIT_RATIO_FOR_AFFINITY_ADJUSTMENT) {
+                // calculate the affinity of each segment to the query vector
+                List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector(), costs);
+                segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
 
-            double[] affinityScores = segmentAffinities.stream()
-                .map(SegmentAffinity::affinityScore)
-                .mapToDouble(Double::doubleValue)
-                .filter(x -> Double.isNaN(x) == false && Double.isInfinite(x) == false)
-                .toArray();
+                double[] affinityScores = segmentAffinities.stream()
+                    .map(SegmentAffinity::affinityScore)
+                    .mapToDouble(Double::doubleValue)
+                    .filter(x -> Double.isNaN(x) == false && Double.isInfinite(x) == false)
+                    .toArray();
 
-            double minAffinity = Arrays.stream(affinityScores).min().orElse(Double.NaN);
-            double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
+                double minAffinity = Arrays.stream(affinityScores).min().orElse(Double.NaN);
+                double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
 
-            double[] normalizedAffinityScores = Arrays.stream(affinityScores)
-                .map(d -> (d - minAffinity) / (maxAffinity - minAffinity))
-                .toArray();
+                double[] normalizedAffinityScores = Arrays.stream(affinityScores)
+                    .map(d -> (d - minAffinity) / (maxAffinity - minAffinity))
+                    .toArray();
 
-            // TODO : enable affinity optimization for filtered case
-            if (filterWeight != null
-                || normalizedAffinityScores.length != segmentAffinities.size()
-                || Double.isNaN(minAffinity)
-                || Double.isNaN(maxAffinity)
-                || leafReaderContexts.size() == 1) {
+                // TODO : enable affinity optimization for filtered case
+                if (filterWeight != null
+                    || normalizedAffinityScores.length != segmentAffinities.size()
+                    || Double.isNaN(minAffinity)
+                    || Double.isNaN(maxAffinity)
+                    || leafReaderContexts.size() == 1) {
+                    tasks = new ArrayList<>(leafReaderContexts.size());
+                    for (LeafReaderContext context : leafReaderContexts) {
+                        tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+                    }
+                } else {
+                    tasks = new ArrayList<>(segmentAffinities.size());
+                    int j = 0;
+                    for (SegmentAffinity segmentAffinity : segmentAffinities) {
+                        double normalizedAffinityScore = normalizedAffinityScores[j];
+
+                        float adjustedVisitRatio = adjustVisitRatioForSegment(
+                            normalizedAffinityScore,
+                            normalizedAffinityScores[normalizedAffinityScores.length / 2],
+                            visitRatio
+                        );
+
+                        tasks.add(() -> searchLeaf(segmentAffinity.context(), filterWeight, knnCollectorManager, adjustedVisitRatio));
+                        j++;
+                    }
+                }
+            } else {
                 tasks = new ArrayList<>(leafReaderContexts.size());
                 for (LeafReaderContext context : leafReaderContexts) {
                     tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
-                }
-            } else {
-                tasks = new ArrayList<>(segmentAffinities.size());
-                int j = 0;
-                for (SegmentAffinity segmentAffinity : segmentAffinities) {
-                    double normalizedAffinityScore = normalizedAffinityScores[j];
-
-                    float adjustedVisitRatio = adjustVisitRatioForSegment(
-                        normalizedAffinityScore,
-                        normalizedAffinityScores[normalizedAffinityScores.length / 2],
-                        visitRatio
-                    );
-
-                    tasks.add(() -> searchLeaf(segmentAffinity.context(), filterWeight, knnCollectorManager, adjustedVisitRatio));
-                    j++;
                 }
             }
         } else {
@@ -230,15 +238,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, float visitRatio) {
         // for high affinity scores, increase visited ratio
-        float maxAdjustment = visitRatio * 1.5f;
+        float maxAdjustment = visitRatio * MAX_AFFINITY_MULTIPLIER_ADJUSTMENT;
         if (affinityScore > affinityThreshold) {
             int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
-            return Math.min(visitRatio * adjustment, visitRatio * 1.5f);
+            return Math.min(visitRatio * adjustment, visitRatio * MAX_AFFINITY_MULTIPLIER_ADJUSTMENT);
         }
 
         // for low affinity scores, decrease visited ratio
         if (affinityScore <= affinityThreshold) {
-            return Math.max(visitRatio * 0.5f, 0.01f);
+            return Math.max(visitRatio * MIN_AFFINITY_MULTIPLIER_ADJUSTMENT, MIN_AFFINITY);
         }
 
         return visitRatio;

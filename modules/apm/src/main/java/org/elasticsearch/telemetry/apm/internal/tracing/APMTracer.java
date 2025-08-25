@@ -90,7 +90,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.labelFilters = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
 
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
-        this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
+        this.labelFilterAutomaton = buildAutomaton(labelFilters, APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES_EXCLUDES);
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
     }
 

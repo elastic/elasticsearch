@@ -146,6 +146,60 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "geohash",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geohash"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "geohex",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geohex"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "geotile",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geotile"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "integer",
           "optional" : false,
           "description" : "Expression to evaluate."

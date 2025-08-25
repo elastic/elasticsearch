@@ -18,6 +18,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1084,6 +1085,8 @@ public final class DocumentParser {
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
             this.tsid = tsid;
+            assert tsid == null || mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES
+                : "tsid should only be set for time series indices";
             if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {

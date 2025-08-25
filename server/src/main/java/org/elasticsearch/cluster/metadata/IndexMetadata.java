@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccess;
+import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccessor;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -589,7 +589,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * during document parsing, effectively requiring two passes over the document.
      * <p>
      * The condition for this optimization to kick in is that all possible dimension fields can be identified
-     * via a list of wildcard patterns.
+     * via a list of full paths or wildcard patterns.
      * If that's not the case (for example when certain types of dynamic templates are used),
      * the {@link #INDEX_ROUTING_PATH} is populated instead.
      */
@@ -2465,7 +2465,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
             final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
             final List<String> routingPaths = INDEX_ROUTING_PATH.get(settings);
-            final List<String> timeSeriesDimensions = TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(newCustomMetadata);
+            final List<String> timeSeriesDimensions = TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(newCustomMetadata);
             if (isTsdb && routingPaths.isEmpty() && timeSeriesDimensions.isEmpty()) {
                 throw new IllegalArgumentException(IndexMode.tsdbMode() + " requires a non-empty [" + INDEX_ROUTING_PATH.getKey() + "]");
             }

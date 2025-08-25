@@ -11,7 +11,7 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccess;
+import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccessor;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
@@ -131,8 +131,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         );
                         if (dimensions.isEmpty() == false) {
                             if (matchesAllDimensions) {
-                                TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(additionalCustomMetadata, dimensions);
+                                TimeSeriesDimensionsMetadataAccessor.addToCustomMetadata(additionalCustomMetadata, dimensions);
                             } else {
+                                // Fall back to setting index.routing_path if the paths in the dimensions list don't match all potential
+                                // dimension fields (e.g. if a dynamic template matches by type instead of path).
                                 additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                             }
                         }
@@ -167,7 +169,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             return;
         }
         if (matchesAllDimensions) {
-            TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(additionalCustomMetadata, newIndexDimensions);
+            TimeSeriesDimensionsMetadataAccessor.addToCustomMetadata(additionalCustomMetadata, newIndexDimensions);
         } else {
             // If the new dimensions don't match all potential dimension fields, we need to set index.routing_path
             additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions).build();

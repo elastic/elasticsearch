@@ -16,19 +16,19 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
-public class TimeSeriesDimensionsMetadataAccessTests extends ESTestCase {
+public class TimeSeriesDimensionsMetadataAccessorTests extends ESTestCase {
 
     public void testCustomMetadataRoundtrip() {
-        var dimensions = TimeSeriesDimensionsMetadataAccess.toCustomMetadata(List.of("dim1", "dim2"));
+        var dimensions = TimeSeriesDimensionsMetadataAccessor.toCustomMetadata(List.of("dim1", "dim2"));
         assertEquals(Map.of("includes", "dim1,dim2"), dimensions);
     }
 
     public void testFromCustomMetadata() {
         var customMetadata = Map.of(
-            TimeSeriesDimensionsMetadataAccess.TIME_SERIES_DIMENSIONS_METADATA_KEY,
+            TimeSeriesDimensionsMetadataAccessor.TIME_SERIES_DIMENSIONS_METADATA_KEY,
             Map.of("includes", "dim1,dim2")
         );
-        var dimensions = TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadata);
+        var dimensions = TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadata);
         assertEquals(List.of("dim1", "dim2"), dimensions);
     }
 
@@ -36,9 +36,9 @@ public class TimeSeriesDimensionsMetadataAccessTests extends ESTestCase {
         var sourceMetadataBuilder = IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 1, 0));
         var targetMetadataBuilder = IndexMetadata.builder("target").settings(indexSettings(IndexVersion.current(), 1, 0));
 
-        TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(sourceMetadataBuilder::putCustom, List.of("dim1", "dim2"));
-        TimeSeriesDimensionsMetadataAccess.transferCustomMetadata(sourceMetadataBuilder.build(), targetMetadataBuilder);
+        TimeSeriesDimensionsMetadataAccessor.addToCustomMetadata(sourceMetadataBuilder::putCustom, List.of("dim1", "dim2"));
+        TimeSeriesDimensionsMetadataAccessor.transferCustomMetadata(sourceMetadataBuilder.build(), targetMetadataBuilder);
 
-        assertEquals(List.of("dim1", "dim2"), TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(targetMetadataBuilder.build()));
+        assertEquals(List.of("dim1", "dim2"), TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(targetMetadataBuilder.build()));
     }
 }

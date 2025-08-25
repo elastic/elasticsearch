@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccess;
+import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccessor;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -110,7 +110,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(
-            TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadataBuilder.build()),
+            TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadataBuilder.build()),
             containsInAnyOrder("field3", "field4", "field5", "field6")
         );
     }
@@ -239,7 +239,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(
-            TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadataBuilder.build()),
+            TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadataBuilder.build()),
             containsInAnyOrder("field1", "field3")
         );
     }
@@ -541,7 +541,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(
-            TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadataBuilder.build()),
+            TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadataBuilder.build()),
             containsInAnyOrder("host.id", "prometheus.labels.*")
         );
     }
@@ -584,7 +584,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        List<String> routingPathList = TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadataBuilder.build());
+        List<String> routingPathList = TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadataBuilder.build());
         assertThat(routingPathList, containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*"));
         assertEquals(3, routingPathList.size());
     }
@@ -632,7 +632,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        List<String> dimensions = TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadataBuilder.build());
+        List<String> dimensions = TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadataBuilder.build());
         assertThat(dimensions, containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*"));
         assertEquals(3, dimensions.size());
     }
@@ -685,7 +685,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(
-            TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadataBuilder.build()),
+            TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadataBuilder.build()),
             containsInAnyOrder("host.id", "prometheus.labels.*")
         );
     }
@@ -735,7 +735,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = generateTsdbSettings(mapping, now, customMetadataBuilder);
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        List<String> dimensions = TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadataBuilder.build());
+        List<String> dimensions = TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadataBuilder.build());
         assertThat(dimensions, containsInAnyOrder("host.id", "prometheus.labels.*"));
         assertEquals(2, dimensions.size());
     }
@@ -773,7 +773,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        assertThat(TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(customMetadataBuilder.build()), containsInAnyOrder("labels.*"));
+        assertThat(TimeSeriesDimensionsMetadataAccessor.fromCustomMetadata(customMetadataBuilder.build()), containsInAnyOrder("labels.*"));
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now, ImmutableOpenMap.Builder<String, Map<String, String>> builder)

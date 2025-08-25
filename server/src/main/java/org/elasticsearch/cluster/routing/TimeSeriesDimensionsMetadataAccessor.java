@@ -15,9 +15,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class TimeSeriesDimensionsMetadataAccess {
+public class TimeSeriesDimensionsMetadataAccessor {
 
     public static final String TIME_SERIES_DIMENSIONS_METADATA_KEY = "time_series_dimensions";
+    public static final String INCLUDES = "includes";
 
     public static void addToCustomMetadata(
         BiConsumer<String, Map<String, String>> additionalCustomMetadata,
@@ -27,7 +28,9 @@ public class TimeSeriesDimensionsMetadataAccess {
     }
 
     static Map<String, String> toCustomMetadata(List<String> timeSeriesDimensions) {
-        return Map.of("includes", String.join(",", timeSeriesDimensions));
+        // Custom metadata only supports storing String to String maps,
+        // so we join the list into a single comma-separated string and use "includes" as the key.
+        return Map.of(INCLUDES, String.join(",", timeSeriesDimensions));
     }
 
     public static void transferCustomMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata.Builder targetIndexMetadataBuilder) {

@@ -747,7 +747,7 @@ public class IndexRoutingTests extends ESTestCase {
             .settings(settings(createdVersion).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES))
             .numberOfShards(shards)
             .numberOfReplicas(1);
-        TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(builder::putCustom, List.of(path));
+        TimeSeriesDimensionsMetadataAccessor.addToCustomMetadata(builder::putCustom, List.of(path));
         return IndexRouting.fromIndexMetadata(builder.build());
     }
 

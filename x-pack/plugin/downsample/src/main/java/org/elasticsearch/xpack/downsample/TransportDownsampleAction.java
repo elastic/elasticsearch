@@ -39,7 +39,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccess;
+import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccessor;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -975,7 +975,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     true,
                     // Copy index metadata from source index to downsample index
                     (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)),
-                    metadataBuilder -> TimeSeriesDimensionsMetadataAccess.transferCustomMetadata(sourceIndexMetadata, metadataBuilder),
+                    metadataBuilder -> TimeSeriesDimensionsMetadataAccessor.transferCustomMetadata(sourceIndexMetadata, metadataBuilder),
                     delegate.reroute()
                 );
             }

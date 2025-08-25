@@ -68,7 +68,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     }
 
     @FixForMultiProject(description = "we can pass ProjectMetadata here")
-    public IndicesStatsResponse(
+    IndicesStatsResponse(
         ShardStats[] shards,
         int totalShards,
         int successfulShards,

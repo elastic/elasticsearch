@@ -33,7 +33,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
@@ -553,7 +553,7 @@ class IndicesAndAliasesResolver {
 
         @Override
         protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-            if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
+            if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, settings)) {
                 clusters.add(clusterAlias);
             } else {
                 clusters.remove(clusterAlias);

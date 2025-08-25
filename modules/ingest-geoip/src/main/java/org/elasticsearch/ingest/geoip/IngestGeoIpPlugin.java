@@ -154,6 +154,7 @@ public class IngestGeoIpPlugin extends Plugin
     }
 
     private static GeoIpCache createGeoIpCache(Settings settings) {
+        // TODO: Maybe think about adding a unit test for this logic before merging
         if (settings.hasValue(CACHE_SIZE_COUNT.getKey())) {
             if (settings.hasValue(CACHE_SIZE_BYTES.getKey())) {
                 // Both CACHE_SIZE_COUNT and CACHE_SIZE_BYTES are set, which is an error:

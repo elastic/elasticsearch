@@ -19,7 +19,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 
 import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -31,6 +30,8 @@ import java.util.function.LongSupplier;
  * reduction of CPU usage.
  */
 public final class GeoIpCache {
+
+    private static final long PROJECT_ID_BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(ProjectId.class);
 
     static GeoIpCache createGeoIpCacheWithMaxCount(long maxSize) {
         if (maxSize < 0) {
@@ -175,6 +176,8 @@ public final class GeoIpCache {
 
     // visible for testing
     static long keySizeInBytes(ProjectId projectId, String ip, String databasePath) {
-        return CacheKey.BASE_BYTES + projectId.sizeInBytes() + RamUsageEstimator.sizeOf(ip) + RamUsageEstimator.sizeOf(databasePath);
+        // TODO: Check this before merging
+        return CacheKey.BASE_BYTES + PROJECT_ID_BASE_BYTES + RamUsageEstimator.sizeOf(projectId.id()) + RamUsageEstimator.sizeOf(ip)
+            + RamUsageEstimator.sizeOf(databasePath);
     }
 }

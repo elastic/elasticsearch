@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class Sample extends UnaryPlan implements TelemetryAware {
+public class Sample extends UnaryPlan implements SortAgnostic, TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Sample", Sample::new);
 
     private final Expression probability;

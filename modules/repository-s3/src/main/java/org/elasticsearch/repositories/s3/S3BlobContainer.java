@@ -830,7 +830,13 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 .<Void>newForked(l -> ensureOtherUploadsComplete(uploadId, uploadIndex, currentUploads, l))
 
-                // Step 4: Read the current register value.
+                // Step 4: Read the current register value. Note that getRegister only has read-after-write semantics but that's ok here as:
+                // - all earlier uploads are now complete,
+                // - our upload is not completing yet, and
+                // - later uploads can only be completing if they have already aborted ours.
+                // Thus if our operation ultimately succeeds then there cannot have been any concurrent writes in flight, so this read
+                // cannot have observed a stale value, whereas if our operation ultimately fails then it doesn't matter what this read
+                // observes.
 
                 .<OptionalBytesReference>andThen(l -> getRegister(purpose, rawKey, l))
 

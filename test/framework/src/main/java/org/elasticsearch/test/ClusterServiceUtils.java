@@ -109,6 +109,16 @@ public class ClusterServiceUtils {
         return createClusterService(threadPool, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
+    public static ClusterService createClusterService(ThreadPool threadPool, ProjectId projectId) {
+        return createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            projectId
+        );
+    }
+
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
         return createClusterService(threadPool, localNode, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }

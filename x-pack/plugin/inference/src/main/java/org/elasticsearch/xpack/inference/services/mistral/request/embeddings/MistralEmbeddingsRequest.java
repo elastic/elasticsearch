@@ -42,7 +42,7 @@ public class MistralEmbeddingsRequest implements Request {
         HttpPost httpPost = new HttpPost(this.uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new MistralEmbeddingsRequestEntity(embeddingsModel.model(), truncationResult.input()))
+            Strings.toString(new MistralEmbeddingsRequestEntity(embeddingsModel.getServiceSettings().modelId(), truncationResult.input()))
                 .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);

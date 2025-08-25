@@ -52,15 +52,11 @@ public class StdDevFloatAggregator {
         current.add(groupId, value);
     }
 
-    public static void combineStates(StdDevStates.GroupingState current, int groupId, StdDevStates.GroupingState state, int statePosition) {
-        current.combine(groupId, state.getOrNull(statePosition));
-    }
-
     public static void combineIntermediate(StdDevStates.GroupingState state, int groupId, double mean, double m2, long count) {
         state.combine(groupId, mean, m2, count);
     }
 
-    public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateFinal(selected, driverContext);
+    public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.evaluateFinal(selected, ctx.driverContext());
     }
 }

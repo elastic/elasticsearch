@@ -90,10 +90,10 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<MigrateToDataTiersResponse> listener
     ) throws Exception {
+        final var projectId = projectResolver.getProjectId();
         if (request.isDryRun()) {
             MigratedEntities entities = migrateToDataTiersRouting(
-                state,
-                projectResolver,
+                state.projectState(projectId),
                 request.getNodeAttributeName(),
                 request.getLegacyTemplateToDelete(),
                 xContentRegistry,
@@ -131,8 +131,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
-                    currentState,
-                    projectResolver,
+                    currentState.projectState(projectId),
                     request.getNodeAttributeName(),
                     request.getLegacyTemplateToDelete(),
                     xContentRegistry,

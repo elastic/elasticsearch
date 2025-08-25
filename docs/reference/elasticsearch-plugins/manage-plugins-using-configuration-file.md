@@ -25,7 +25,7 @@ plugins:
   - id: analysis-icu
   - id: repository-azure
   - id: custom-mapper
-    location: https://example.com/archive/custom-mapper-1.0.0.zip
+    location: <EXAMPLE_URL>/archive/custom-mapper-1.0.0.zip
 ```
 
 This example installs the official `analysis-icu` and `repository-azure` plugins, and one unofficial plugin. Every plugin must provide an `id`. Unofficial plugins must also provide a `location`. This is typically a URL, but Maven coordinates are also supported. The downloaded plugin’s name must match the ID in the configuration file.
@@ -35,7 +35,7 @@ While {{es}} will respect the [standard Java proxy system properties](https://do
 ```yaml
 plugins:
   - id: custom-mapper
-    location: https://example.com/archive/custom-mapper-1.0.0.zip
+    location: <EXAMPLE_URL>/archive/custom-mapper-1.0.0.zip
 proxy: proxy.example.com:8443
 ```
 

@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -38,24 +37,31 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware, TelemetryAware, SortAgnostic {
+public class Enrich extends UnaryPlan
+    implements
+        GeneratingPlan<Enrich>,
+        PostOptimizationVerificationAware,
+        TelemetryAware,
+        SortAgnostic,
+        ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Enrich",
         Enrich::readFrom
     );
-
+    // policyName can only be a string literal once it's resolved
     private final Expression policyName;
     private final NamedExpression matchField;
     private final EnrichPolicy policy;
@@ -65,6 +71,16 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
     private List<Attribute> output;
 
     private final Mode mode;
+
+    @Override
+    public ExecuteLocation executesOn() {
+        if (mode == Mode.REMOTE) {
+            return ExecuteLocation.REMOTE;
+        } else if (mode == Mode.COORDINATOR) {
+            return ExecuteLocation.COORDINATOR;
+        }
+        return ExecuteLocation.ANY;
+    }
 
     public enum Mode {
         ANY,
@@ -151,7 +167,8 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         out.writeNamedWriteable(policyName());
         out.writeNamedWriteable(matchField());
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeString(BytesRefs.toString(policyName().fold(FoldContext.small() /* TODO remove me */))); // old policy name
+            // policyName can only be a string literal once it's resolved
+            out.writeString(BytesRefs.toString(literalValueOf(policyName()))); // old policy name
         }
         policy().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
@@ -192,6 +209,10 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
 
     public Expression policyName() {
         return policyName;
+    }
+
+    public String resolvedPolicyName() {
+        return BytesRefs.toString(literalValueOf(policyName));
     }
 
     public Mode mode() {
@@ -277,11 +298,6 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         return Objects.hash(super.hashCode(), mode, policyName, matchField, policy, concreteIndices, enrichFields);
     }
 
-    @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return Enrich::checkRemoteEnrich;
-    }
-
     /**
      * Ensure that no remote enrich is allowed after a reduction or an enrich with coordinator mode.
      * <p>
@@ -292,26 +308,24 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
      * In that case, users have to write it as `FROM test | ENRICH _remote: | ORDER @timestamp | LIMIT 10`,
      * which is equivalent to bringing all data to the coordinating cluster.
      * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
-     * retaining the originating cluster and restructing pages for routing, which might be complicated.
+     * retaining the originating cluster and restructuring pages for routing, which might be complicated.
      */
-    private static void checkRemoteEnrich(LogicalPlan plan, Failures failures) {
-        boolean[] agg = { false };
-        boolean[] enrichCoord = { false };
+    private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
+        Set<Source> fails = new HashSet<>();
 
-        plan.forEachUp(UnaryPlan.class, u -> {
-            if (u instanceof Aggregate) {
-                agg[0] = true;
-            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
-                enrichCoord[0] = true;
-            }
-            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (agg[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
-                }
-                if (enrichCoord[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-                }
+        this.forEachUp(LogicalPlan.class, u -> {
+            if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
+                fails.add(u.source());
             }
         });
+
+        fails.forEach(f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source())));
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        if (this.mode == Mode.REMOTE) {
+            checkForPlansForbiddenBeforeRemoteEnrich(failures);
+        }
     }
 }

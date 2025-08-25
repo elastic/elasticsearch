@@ -52,7 +52,7 @@ public class OSQScorerBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    @Param({ "1024" })
+    @Param({ "384", "782", "1024" })
     int dims;
 
     int length;

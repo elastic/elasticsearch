@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -63,6 +64,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
@@ -112,6 +114,7 @@ import static org.mockito.Mockito.when;
 public class DatabaseNodeServiceTests extends ESTestCase {
 
     private Client client;
+    private ProjectClient projectClient;
     private Path geoIpTmpDir;
     private ThreadPool threadPool;
     private DatabaseNodeService databaseNodeService;
@@ -138,7 +141,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
         resourceWatcherService = new ResourceWatcherService(settings, threadPool);
 
+        projectClient = mock(ProjectClient.class);
         client = mock(Client.class);
+        when(client.projectClient(any())).thenReturn(projectClient);
         ingestService = mock(IngestService.class);
         clusterService = mock(ClusterService.class);
         geoIpTmpDir = createTempDir();
@@ -161,6 +166,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         threadPool.shutdownNow();
         Releasables.close(toRelease);
         toRelease.clear();
+        verify(client, Mockito.atLeast(0)).projectClient(any());
+        verifyNoMoreInteractions(client);
     }
 
     public void testCheckDatabases() throws Exception {
@@ -181,7 +188,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         databaseNodeService.checkDatabases(state);
         DatabaseReaderLazyLoader database = databaseNodeService.getDatabaseReaderLazyLoader(projectId, "GeoIP2-City.mmdb");
         assertThat(database, nullValue());
-        verify(client, times(0)).search(any());
+        verify(projectClient, times(0)).search(any());
         verify(ingestService, times(0)).reloadPipeline(any(), anyString());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertEquals(0, files.count());
@@ -199,7 +206,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         databaseNodeService.checkDatabases(state);
         database = databaseNodeService.getDatabaseReaderLazyLoader(projectId, "GeoIP2-City.mmdb");
         assertThat(database, notNullValue());
-        verify(client, times(10)).search(any());
+        verify(projectClient, times(10)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.count(), greaterThanOrEqualTo(1L));
         }
@@ -226,7 +233,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         databaseNodeService.checkDatabases(state);
         assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
-        verify(client, never()).search(any());
+        verify(projectClient, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.toList(), empty());
         }
@@ -246,7 +253,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         databaseNodeService.checkDatabases(state);
         assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
-        verify(client, never()).search(any());
+        verify(projectClient, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.toList(), empty());
         }
@@ -261,7 +268,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         databaseNodeService.checkDatabases(state);
         assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
-        verify(client, never()).search(any());
+        verify(projectClient, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.toList(), empty());
         }
@@ -281,7 +288,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         verify(failureHandler, never()).accept(any());
         verify(chunkConsumer, times(30)).accept(any());
         verify(completedHandler, times(1)).run();
-        verify(client, times(30)).search(any());
+        verify(projectClient, times(30)).search(any());
     }
 
     public void testRetrieveDatabaseCorruption() throws Exception {
@@ -305,7 +312,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         );
         verify(chunkConsumer, times(10)).accept(any());
         verify(completedHandler, times(0)).run();
-        verify(client, times(10)).search(any());
+        verify(projectClient, times(10)).search(any());
     }
 
     public void testUpdateDatabase() throws Exception {
@@ -371,8 +378,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             });
             requestMap.put(databaseName + "_" + i, actionFuture);
         }
-        when(client.projectClient(any())).thenReturn(client);
-        when(client.search(any())).thenAnswer(invocationOnMock -> {
+        when(projectClient.search(any())).thenAnswer(invocationOnMock -> {
             SearchRequest req = (SearchRequest) invocationOnMock.getArguments()[0];
             TermQueryBuilder term = (TermQueryBuilder) req.source().query();
             String id = (String) term.value();

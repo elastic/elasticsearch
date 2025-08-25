@@ -158,7 +158,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
 
     public void testUpdateByQueryIncludeVectors() throws Exception {
         var resp1 = prepareCreate("test").setSettings(
-            Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true).build()
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build()
         ).setMapping("foo", "type=dense_vector,similarity=l2_norm", "bar", "type=sparse_vector").get();
         assertAcked(resp1);
 

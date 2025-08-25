@@ -12,16 +12,15 @@ package org.elasticsearch.entitlement.bootstrap;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
-import org.elasticsearch.entitlement.runtime.policy.TestPathLookup;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,7 +33,6 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,59 +40,43 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static java.util.stream.Collectors.toCollection;
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
-import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 
 public class TestEntitlementBootstrap {
-
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
 
-    private static TestPolicyManager policyManager;
+    private static TestPathLookup TEST_PATH_LOOKUP;
+    private static TestPolicyManager POLICY_MANAGER;
 
     /**
      * Activates entitlement checking in tests.
      */
-    public static void bootstrap(@Nullable Path tempDir, @Nullable Path configDir) throws IOException {
-        if (isEnabledForTest() == false) {
+    public static void bootstrap(Path tempDir) throws IOException {
+        if (isEnabledForTests() == false) {
             return;
         }
-        TestPathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
-        policyManager = createPolicyManager(pathLookup);
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
-        logger.debug("Loading entitlement agent");
-        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
+        assert POLICY_MANAGER == null && TEST_PATH_LOOKUP == null : "Test entitlement bootstrap called multiple times";
+        TEST_PATH_LOOKUP = new TestPathLookup(tempDir);
+        POLICY_MANAGER = createPolicyManager(TEST_PATH_LOOKUP);
+        loadAgent(POLICY_MANAGER, TEST_PATH_LOOKUP);
     }
 
-    private static <T> List<T> zeroOrOne(T item) {
-        if (item == null) {
-            return List.of();
-        } else {
-            return List.of(item);
-        }
-    }
-
-    public static boolean isEnabledForTest() {
+    public static boolean isEnabledForTests() {
         return Booleans.parseBoolean(System.getProperty("es.entitlement.enableForTests", "false"));
     }
 
-    public static void setActive(boolean newValue) {
-        policyManager.setActive(newValue);
+    static TestPolicyManager testPolicyManager() {
+        return POLICY_MANAGER;
     }
 
-    public static void setTriviallyAllowingTestCode(boolean newValue) {
-        policyManager.setTriviallyAllowingTestCode(newValue);
+    static TestPathLookup testPathLookup() {
+        return TEST_PATH_LOOKUP;
     }
 
-    public static void setEntitledTestPackages(String[] entitledTestPackages) {
-        policyManager.setEntitledTestPackages(entitledTestPackages);
-    }
-
-    public static void reset() {
-        if (policyManager != null) {
-            policyManager.reset();
-        }
+    private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
+        logger.debug("Loading entitlement agent");
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
+        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
     private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
@@ -115,7 +97,7 @@ public class TestEntitlementBootstrap {
 
         String separator = System.getProperty("path.separator");
 
-        // In productions, plugins would have access to their respective bundle directories,
+        // In production, plugins would have access to their respective bundle directories,
         // and so they'd be able to read from their jars. In testing, we approximate this
         // by considering the entire classpath to be "source paths" of all plugins. This
         // also has the effect of granting read access to everything on the test-only classpath,
@@ -128,8 +110,6 @@ public class TestEntitlementBootstrap {
         } else {
             classPathEntries = Arrays.stream(classPathProperty.split(separator)).map(PathUtils::get).collect(toCollection(TreeSet::new));
         }
-        Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> classPathEntries));
-
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         String testOnlyPathString = System.getenv("es.entitlement.testOnlyPath");
@@ -148,8 +128,8 @@ public class TestEntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            pluginSourcePaths,
             pathLookup,
+            classPathEntries,
             testOnlyClassPath
         );
     }

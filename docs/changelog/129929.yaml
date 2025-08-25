@@ -1,0 +1,5 @@
+pr: 129929
+summary: Add support for RLIKE (LIST) with pushdown
+area: ES|QL
+type: enhancement
+issues: []

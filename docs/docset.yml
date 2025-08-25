@@ -30,7 +30,6 @@ toc:
   - toc: release-notes
   - toc: extend
 subs:
-  version: 9.0.0
   api-request-title:   "Request"
   api-prereq-title:   "Prerequisites"
   api-description-title:   "Description"
@@ -111,3 +110,6 @@ subs:
   feat-imp:   "feature importance"
   feat-imp-cap:   "Feature importance"
   nlp:   "natural language processing"
+  index-manage-app:   "Index Management"
+  connectors-app:   "Connectors"
+  ingest-pipelines-app:   "Ingest Pipelines"

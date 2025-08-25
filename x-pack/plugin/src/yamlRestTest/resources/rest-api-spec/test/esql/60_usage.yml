@@ -41,6 +41,7 @@ setup:
             - sum_over_time
             - count_over_time
             - distinct_over_time
+            - cosine_vector_similarity_function
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}
@@ -130,7 +131,7 @@ setup:
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
   # Testing for the entire function set isn't feasible, so we just check that we return the correct count as an approximation.
-  - length: {esql.functions: 156} # check the "sister" test below for a likely update to the same esql.functions length check
+  - length: {esql.functions: 157} # check the "sister" test below for a likely update to the same esql.functions length check
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -140,7 +141,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ non_snapshot_test_for_telemetry, fn_byte_length ]
+          capabilities: [ non_snapshot_test_for_telemetry, fn_month_name ]
       reason: "Test that should only be executed on release versions"
 
   - do: {xpack.usage: {}}
@@ -228,7 +229,7 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  - length: {esql.functions: 137} # check the "sister" test above for a likely update to the same esql.functions length check
+  - length: {esql.functions: 139} # check the "sister" test above for a likely update to the same esql.functions length check
 
 ---
 took:

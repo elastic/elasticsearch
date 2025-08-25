@@ -397,7 +397,7 @@ FROM sample_data
 ;
 
 COUNT():long | SUM(event_duration):long | category:keyword
-           7 |                 23231327 |  null
+           7 |                 23231327 | null
 ;
 
 on null row
@@ -799,4 +799,83 @@ COUNT():long | VALUES(str):keyword | category:keyword | str:keyword
            1 | [a, b, c]           | null             | a
            1 | [a, b, c]           | null             | b
            1 | [a, b, c]           | null             | c
+;
+
+with option output_format regex
+required_capability: categorize_options
+
+FROM sample_data
+  | STATS count=COUNT()
+       BY category=CATEGORIZE(message, {"output_format": "regex"})
+  | SORT count DESC, category
+;
+
+count:long | category:keyword
+         3 | .*?Connected.+?to.*?
+         3 | .*?Connection.+?error.*?
+         1 |  .*?Disconnected.*?
+;
+
+with option output_format tokens
+required_capability: categorize_options
+
+FROM sample_data
+  | STATS count=COUNT()
+       BY category=CATEGORIZE(message, {"output_format": "tokens"})
+  | SORT count DESC, category
+;
+
+count:long | category:keyword
+         3 | Connected to
+         3 | Connection error
+         1 | Disconnected
+;
+
+with option similarity_threshold
+required_capability: categorize_options
+
+FROM sample_data
+  | STATS count=COUNT()
+       BY category=CATEGORIZE(message, {"similarity_threshold": 99})
+  | SORT count DESC, category
+;
+
+count:long | category:keyword
+3          | .*?Connection.+?error.*?
+1          | .*?Connected.+?to.+?10\.1\.0\.1.*?
+1          | .*?Connected.+?to.+?10\.1\.0\.2.*?
+1          | .*?Connected.+?to.+?10\.1\.0\.3.*?
+1          | .*?Disconnected.*?
+;
+
+with option analyzer
+required_capability: categorize_options
+
+FROM sample_data
+  | STATS count=COUNT()
+       BY category=CATEGORIZE(message, {"analyzer": "stop"})
+  | SORT count DESC, category
+;
+
+count:long | category:keyword
+3          | .*?connected.*?
+3          | .*?connection.+?error.*?
+1          | .*?disconnected.*?
+;
+
+with all options
+required_capability: categorize_options
+
+FROM sample_data
+  | STATS count=COUNT()
+       BY category=CATEGORIZE(message, {"analyzer": "whitespace", "similarity_threshold": 100, "output_format": "tokens"})
+  | SORT count DESC, category
+;
+
+count:long | category:keyword
+3          | Connection error
+1          | Connected to 10.1.0.1
+1          | Connected to 10.1.0.2
+1          | Connected to 10.1.0.3
+1          | Disconnected
 ;

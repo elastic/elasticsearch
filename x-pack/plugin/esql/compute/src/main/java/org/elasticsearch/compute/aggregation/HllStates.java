@@ -168,10 +168,6 @@ final class HllStates {
             return hll.cardinality(groupId);
         }
 
-        void merge(int groupId, AbstractHyperLogLogPlusPlus other, int otherGroup) {
-            hll.merge(groupId, other, otherGroup);
-        }
-
         void merge(int groupId, BytesRef other, int otherGroup) {
             hll.merge(groupId, deserializeHLL(other), otherGroup);
         }

@@ -453,7 +453,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -486,7 +486,7 @@ public class AnthropicServiceTests extends ESTestCase {
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
@@ -579,7 +579,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
                 getUrl(webServer),
                 "secret",
@@ -650,6 +650,15 @@ public class AnthropicServiceTests extends ESTestCase {
                               "updatable": false,
                               "type": "str",
                               "supported_task_types": ["completion"]
+                          },
+                        "max_tokens": {
+                              "description": "The maximum number of tokens to generate before stopping.",
+                              "label": "Max Tokens",
+                              "required": true,
+                              "sensitive": false,
+                              "updatable": false,
+                              "type": "int",
+                              "supported_task_types": ["completion"]
                           }
                       }
                   }
@@ -670,13 +679,13 @@ public class AnthropicServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
     }
 
     private AnthropicService createServiceWithMockSender() {
-        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 }

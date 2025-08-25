@@ -182,12 +182,12 @@ capabilities.
 
 ## Serializations
 
-## Settings
+# Settings
 
 Elasticsearch supports [cluster-level settings][] and [index-level settings][], configurable via [node-level file settings][]
 (e.g. `elasticsearch.yml` file), command line arguments and REST APIs.
 
-### Declaring a Setting
+## Declaring a Setting
 
 [cluster-level settings]: https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html
 [index-level settings]: https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html
@@ -222,7 +222,7 @@ settings.
 [SettingsModule constructor]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/node/NodeConstruction.java#L491-L495
 [getSettings()]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/plugins/Plugin.java#L203-L208
 
-### Dynamically updating a Setting
+## Dynamically updating a Setting
 
 Externally, [TransportClusterUpdateSettingsAction][] and [TransportUpdateSettingsAction][] (and the corresponding REST endpoints)
 allow users to dynamically change cluster and index settings, respectively. Internally, `AbstractScopedSettings` (parent class
@@ -244,9 +244,9 @@ state must ever be reloaded from persisted state.
 [Metadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L212-L213
 [applied here]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L2437
 
-## Deprecations
+# Deprecations
 
-## Backwards Compatibility
+# Backwards Compatibility
 
 major releases are mostly about breaking compatibility and dropping deprecated functionality.
 
@@ -292,18 +292,32 @@ See the [public upgrade docs][] for the upgrade process.
 
 [public upgrade docs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html
 
-## Plugins
+# Plugins
 
 (what warrants a plugin?)
 
 (what plugins do we have?)
 
-## Testing
+# Observability
+
+Elasticsearch emits logs as described in the [public logging docs][], and exposes a good deal of information about its inner workings using
+all its management and stats APIs. Elasticsearch also integrates with the [Elastic APM Java agent][] to perform distributed tracing (as
+described in [TRACING.md][]) and metrics collection (as described in [METERING.md][]). This agent exposes the data it collects to an
+[OpenTelemetry][] service such as [Elastic APM Server][].
+
+[public logging docs]: https://www.elastic.co/docs/deploy-manage/monitor/logging-configuration
+[Elastic APM Java agent]: https://www.elastic.co/docs/reference/apm/agents/java
+[OpenTelemetry]: https://opentelemetry.io/
+[Elastic APM Server]: https://www.elastic.co/docs/solutions/observability/apm
+[TRACING.md]: https://github.com/elastic/elasticsearch/blob/v8.18.3/TRACING.md
+[METERING.md]: https://github.com/elastic/elasticsearch/blob/v8.18.3/modules/apm/METERING.md
+
+# Testing
 
 (Overview of our testing frameworks. Discuss base test classes.)
 
-### Unit Testing
+## Unit Testing
 
-### REST Testing
+## REST Testing
 
-### Integration Testing
+## Integration Testing

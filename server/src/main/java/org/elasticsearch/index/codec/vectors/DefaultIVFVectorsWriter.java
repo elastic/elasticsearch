@@ -22,6 +22,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -154,6 +155,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -166,10 +168,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
         String quantizedVectorsTempName = null;
-        IndexOutput quantizedVectorsTemp = null;
         boolean success = false;
-        try {
-            quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "qvec_", IOContext.DEFAULT);
+        try (
+            IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
+                mergeState.segmentInfo.name,
+                "qvec_",
+                IOContext.DEFAULT
+            )
+        ) {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
             OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
             int[] quantized = new int[fieldInfo.getVectorDimension()];
@@ -202,12 +208,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                     writeQuantizedValue(quantizedVectorsTemp, binary, zeroResult);
                 }
             }
-            // close the temporary file so we can read it later
-            quantizedVectorsTemp.close();
             success = true;
         } finally {
-            if (success == false && quantizedVectorsTemp != null) {
-                mergeState.segmentInfo.dir.deleteFile(quantizedVectorsTemp.getName());
+            if (success == false && quantizedVectorsTempName != null) {
+                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, quantizedVectorsTempName);
             }
         }
         int[] centroidVectorCount = new int[centroidSupplier.size()];
@@ -298,6 +302,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 printClusterQualityStatistics(assignmentsByCluster);
             }
             return new CentroidOffsetAndLength(offsets.build(), lengths.build());
+        } finally {
+            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, quantizedVectorsTempName);
         }
     }
 

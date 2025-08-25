@@ -1389,7 +1389,12 @@ public class EsqlCapabilities {
         /**
          * Support for vector Hamming distance.
          */
-        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot());
+        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for the EXTRACT_SNIPPETS function.
+         */
+        EXTRACT_SNIPPETS_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

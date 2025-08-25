@@ -12,8 +12,8 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightSnippetUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankShardResult;
@@ -73,20 +73,17 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     public void prepareForFetch(SearchContext context) {
         if (snippetRankInput != null) {
             try {
-                HighlightBuilder highlightBuilder = new HighlightBuilder();
-                highlightBuilder.highlightQuery(snippetRankInput.snippetQueryBuilder());
-                // Stripping pre/post tags as they're not useful for snippet creation
-                highlightBuilder.field(field).preTags("").postTags("");
-                // Return highest scoring fragments
-                highlightBuilder.order(HighlightBuilder.Order.SCORE);
                 int numSnippets = snippetRankInput.numSnippets() != null ? snippetRankInput.numSnippets() : DEFAULT_NUM_SNIPPETS;
-                highlightBuilder.numOfFragments(numSnippets);
                 // Rely on the model to determine the fragment size
                 int tokenSizeLimit = snippetRankInput.tokenSizeLimit();
                 int fragmentSize = tokenSizeLimit * TOKEN_SIZE_LIMIT_MULTIPLIER;
-                highlightBuilder.fragmentSize(fragmentSize);
-                highlightBuilder.noMatchSize(fragmentSize);
-                SearchHighlightContext searchHighlightContext = highlightBuilder.build(context.getSearchExecutionContext());
+                SearchHighlightContext searchHighlightContext = HighlightSnippetUtils.buildSearchHighlightContextForSnippets(
+                    context.getSearchExecutionContext(),
+                    field,
+                    numSnippets,
+                    fragmentSize,
+                    snippetRankInput.snippetQueryBuilder()
+                );
                 context.highlight(searchHighlightContext);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to generate snippet request", e);

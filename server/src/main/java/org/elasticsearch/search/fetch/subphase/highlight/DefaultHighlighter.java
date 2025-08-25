@@ -114,7 +114,7 @@ public class DefaultHighlighter implements Highlighter {
 
     CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) {
         IndexSettings indexSettings = fieldContext.context.getSearchExecutionContext().getIndexSettings();
-        Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
+        Encoder encoder = "html".equals(fieldContext.field.fieldOptions().encoder())
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
 

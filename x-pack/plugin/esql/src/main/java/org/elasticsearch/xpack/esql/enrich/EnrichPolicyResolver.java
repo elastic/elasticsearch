@@ -449,7 +449,7 @@ public class EnrichPolicyResolver {
                             } else {
                                 failures.put(policyName, indexResult.toString());
                             }
-                        }));
+                        }), false);
                     }
                 }
             }

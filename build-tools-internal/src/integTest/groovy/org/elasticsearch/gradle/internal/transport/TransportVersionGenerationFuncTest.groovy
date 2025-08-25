@@ -135,18 +135,52 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         where:
         branchesParam  | latestFilesModified | name
-        null           | ["9.2"]             | null
-        null           | ["9.2", "9.1"]      | null
-        ["9.2", "9.1"] | ["9.2"]             | null
-        ["9.2"]        | ["9.1"]             | null
         ["9.2"]        | ["9.1"]             | "test_tv" // TODO legitimate bug, need to always clean up latest.
         ["9.2"] | ["9.1"] | null // TODO legitimate bug, need to always clean up latest.
         ["9.2", "9.1"] | ["9.2", "9.1"]      | "test_tv"
 
     }
 
-    // TODO write a test that ensures all latest files are reset when the name is null, rather than have them as scenarios above
+    // TODO write a test that ensures all latest files are reset when the name is null, rather than having them as scenarios above
+    def "Irrelevant changes to the latest file should be reverted"() {
+        when: "We modify the latest files"
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text = "modification,9000000"
 
+        and: "We run the generation task with no name specified"
+        def result = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--branches=9.2"
+        ).build()
+
+        then: "The generation and validation tasks should succeed"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+
+        and: "The latest file should be reverted to its original state on main"
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text.strip() == "existing_92,8123000"
+    }
+
+    def "Irrelevant changes to multiple latest files should be reverted"() {
+        when: "We modify the latest files"
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text = "modification,9000000"
+        file("myserver/src/main/resources/transport/latest/9.1.csv").text = "modification,9000000"
+
+        and: "We run the generation task with no name specified"
+        def result = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--branches=9.2,9.1"
+        ).build()
+
+        then: "The generation and validation tasks should succeed"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+
+        and: "The latest files should be reverted to their original state"
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text.strip() == "existing_92,8123000"
+        file("myserver/src/main/resources/transport/latest/9.1.csv").text.strip() == "existing_92,8012001"
+    }
 
     // TODO this test is finding a legitimate bug
     // TODO remove the first generation call, this can be done with helpers.

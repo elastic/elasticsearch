@@ -788,7 +788,6 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(right, input));
         }
-
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -799,7 +798,8 @@ public class LocalExecutionPlanner {
                 localSourceExec.indexPattern(),
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
-                join.source()
+                join.source(),
+                join.getCandidateRightHandFilters()
             ),
             layout
         );

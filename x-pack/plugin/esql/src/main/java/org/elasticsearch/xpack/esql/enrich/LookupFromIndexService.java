@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.lookup.ExpressionQueryList;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
@@ -32,6 +31,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -88,7 +88,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             null,
             request.extractFields,
             request.matchFields,
-            request.source
+            request.source,
+            request.candidateRightHandFilters
         );
     }
 
@@ -112,10 +113,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
             queryLists.add(q);
         }
-        if (queryLists.size() == 1) {
+        if (queryLists.size() == 1 && (request.candidateRightHandFilters == null || request.candidateRightHandFilters.isEmpty())) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists);
+        return new ExpressionQueryList(queryLists, context, request.candidateRightHandFilters, clusterService);
+
     }
 
     @Override
@@ -130,6 +132,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public static class Request extends AbstractLookupService.Request {
         private final List<MatchConfig> matchFields;
+        private final List<Expression> candidateRightHandFilters;
 
         Request(
             String sessionId,
@@ -138,15 +141,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<MatchConfig> matchFields,
             Page inputPage,
             List<NamedExpression> extractFields,
-            Source source
+            Source source,
+            List<Expression> candidateRightHandFilters
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
+            this.candidateRightHandFilters = candidateRightHandFilters != null ? candidateRightHandFilters : new ArrayList<>();
+            ;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
         private final List<MatchConfig> matchFields;
+        private final List<Expression> candidateRightHandFilters;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -158,10 +165,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page toRelease,
             List<NamedExpression> extractFields,
             List<MatchConfig> matchFields,
-            Source source
+            Source source,
+            List<Expression> candidateRightHandFilters
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
+            this.candidateRightHandFilters = candidateRightHandFilters != null ? candidateRightHandFilters : new ArrayList<>();
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -207,6 +216,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
+            List<Expression> candidateRightHandFilters = new ArrayList<>();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+                candidateRightHandFilters = planIn.readNamedWriteableCollectionAsList(Expression.class);
+            } else {
+                candidateRightHandFilters = new ArrayList<>();
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -215,7 +230,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 inputPage,
                 extractFields,
                 matchFields,
-                source
+                source,
+                candidateRightHandFilters
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -258,11 +274,18 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+                planOut.writeNamedWriteableCollection(candidateRightHandFilters);
+            }
+            // otherwise we will not send the candidateRightHandFilters, as it is optional that is OK
         }
 
         @Override
         protected String extraDescription() {
-            return " ,match_fields=" + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "));
+            return " ,match_fields="
+                + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "))
+                + ", optional_filter="
+                + candidateRightHandFilters.stream().map(Expression::toString).collect(Collectors.joining(", "));
         }
     }
 

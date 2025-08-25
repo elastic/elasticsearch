@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 public class ESONBytesXContentParser extends ESONXContentParser {
 
     private final StreamInput streamInput;
-    private boolean readOpenOject = false;
+    private boolean readOpenObject = false;
 
     public ESONBytesXContentParser(
         BytesReference keyBytes,
@@ -42,7 +42,7 @@ public class ESONBytesXContentParser extends ESONXContentParser {
 
     @Override
     protected ESONEntry nextEntry() throws IOException {
-        if (readOpenOject) {
+        if (readOpenObject) {
             String key;
             if (ESONStack.isObject(containerStack.currentStackValue())) {
                 int stringLength = streamInput.readVInt();
@@ -65,10 +65,12 @@ public class ESONBytesXContentParser extends ESONXContentParser {
                 default -> new ESONEntry.FieldEntry(key, type, offsetOrCount);
             };
         } else {
+            // Skip the number of entries
+            streamInput.readVInt();
             byte startType = streamInput.readByte();
             assert startType == ESONEntry.TYPE_OBJECT;
             int count = streamInput.readInt();
-            readOpenOject = true;
+            readOpenObject = true;
             return new ESONEntry.ObjectEntry(null, count);
 
         }

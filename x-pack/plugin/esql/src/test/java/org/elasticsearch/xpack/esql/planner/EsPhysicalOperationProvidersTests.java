@@ -91,10 +91,10 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
                 IndexMode.STANDARD,
                 Map.of(),
                 List.of(),
-                testCase.query,
                 null,
                 null,
-                10
+                10,
+                List.of(new EsQueryExec.QueryBuilderAndTags(testCase.query, List.of()))
             );
             FieldExtractExec fieldExtractExec = new FieldExtractExec(
                 Source.EMPTY,

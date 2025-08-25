@@ -291,6 +291,63 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Datetime Gaussian
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                1.0
+            )
+        );
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                0.5335935393743785
+            )
+        );
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                0.3791426943809958
+            )
+        );
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                0.27996050542437345
+            )
+        );
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                5.025924031342025E-7
+            )
+        );
+
         // DateNanos
         var dateOne = LocalDateTime.of(2023, 1, 1, 12, 0, 0).atZone(ZoneId.systemDefault()).toInstant();
         var dateTwo = LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant();

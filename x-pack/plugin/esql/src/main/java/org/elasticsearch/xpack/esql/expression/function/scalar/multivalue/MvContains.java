@@ -45,43 +45,22 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-/// Function that takes two multivalued expressions and checks if values of one expression are all present(equals) in the other.
-///
-///    - Set A = {"a","b","c"}
-///    - Set B = {"b","c"}
-///
-///  <table style="border-spacing: 0;">
-///   <th>
-///       <td></td><td colspan=3> Second Argument </td>
-///   </th>
-///   <tr>
-///     <td></td>
-///     <td></td>
-///     <td> A </td>
-///     <td> B </td>
-///     <td> null </td>
-///   </tr>
-///   <tr>
-///     <td rowspan=3> First
-/// Argument</td>
-///     <td> A </td>
-///     <td style="border: thin solid; padding: 5px"> true </td>
-///     <td style="border: thin solid; padding: 5px"> true </td>
-///     <td style="border: thin solid; padding: 5px"> true </td>
-///   </tr>
-///   <tr>
-///     <td> B </td>
-///     <td style="border: thin solid; padding: 5px"> false </td>
-///     <td style="border: thin solid; padding: 5px"> true </td>
-///     <td style="border: thin solid; padding: 5px"> true </td>
-///   </tr>
-///   <tr>
-///     <td> null </td>
-///     <td style="border: thin solid; padding: 5px"> false </td>
-///     <td style="border: thin solid; padding: 5px"> false </td>
-///     <td style="border: thin solid; padding: 5px"> true </td>
-///   </tr>
-/// </table>
+/**
+ * Function that takes two multivalued expressions and checks if values of one expression are all present(equals) in the other.
+ * <p>
+ * Given Set A = {"a","b","c"} and Set B = {"b","c"}, the relationship between first (row) and second (column) arguments is:
+ * <ul>
+ *     <li>A, B &rArr; true  (A &sube; B)</li>
+ *     <li>B, A &rArr; false (A &#8840; B)</li>
+ *     <li>A, A &rArr; true (A &equiv; A)</li>
+ *     <li>B, B &rArr; true (B &equiv; B)</li>
+ *     <li>A, null &rArr; true (B &sube; &empty;)</li>
+ *     <li>null, A &rArr; false (&empty; &#8840; B)</li>
+ *     <li>B, null &rArr; true (B &sube; &empty;)</li>
+ *     <li>null, B &rArr; false (&empty; &#8840; B)</li>
+ *     <li>null, null &rArr; true (&empty; &equiv; &empty;)</li>
+ * </ul>
+ */
 public class MvContains extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

@@ -84,14 +84,18 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         return gradleRunner(":myserver:validateTransportVersionDefinitions").buildAndFail()
     }
 
-    def assertReferencesFailure(BuildResult result, String project, String expectedOutput) {
-        result.task(":${project}:validateTransportVersionReferences").outcome == TaskOutcome.FAILED
+    void assertReferencesFailure(BuildResult result, String project, String expectedOutput) {
+        assert result.task(":${project}:validateTransportVersionReferences").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
     }
 
-    def assertDefinitionsFailure(BuildResult result, String expectedOutput) {
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.FAILED
+    void assertDefinitionsFailure(BuildResult result, String expectedOutput) {
+        assert result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
+    }
+
+    void assertLatest(String releaseBranch, String content) {
+        assert file("myserver/src/main/resources/transport/latest/${releaseBranch}.csv").text.strip() == content
     }
 
     def setup() {

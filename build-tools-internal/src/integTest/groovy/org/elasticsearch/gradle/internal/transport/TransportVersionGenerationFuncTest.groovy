@@ -9,9 +9,24 @@
 
 package org.elasticsearch.gradle.internal.transport
 
+import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 
 class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTest {
+
+    def runGenerateAndValidateTask(String... additionalArgs) {
+        List<String> args = new ArrayList<>()
+        args.add(":myserver:validateTransportVersionDefinitions")
+        args.add(":myserver:generateTransportVersionDefinition")
+        args.addAll(additionalArgs);
+        return gradleRunner(args.toArray()).build()
+    }
+
+    void assertGenerateAndValidateSuccess(BuildResult result) {
+        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        assert result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+    }
+
     def "test setup works"() {
         when:
         def result = gradleRunner(
@@ -141,45 +156,30 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     }
 
-    // TODO write a test that ensures all latest files are reset when the name is null, rather than having them as scenarios above
-    def "Irrelevant changes to the latest file should be reverted"() {
-        when: "We modify the latest files"
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text = "modification,9000000"
+    def "irrelevant changes to the latest file should be reverted"() {
+        given:
+        latestTransportVersion("9.2", "modification", "9000000")
 
-        and: "We run the generation task with no name specified"
-        def result = gradleRunner(
-                ":myserver:validateTransportVersionDefinitions",
-                ":myserver:generateTransportVersionDefinition",
-                "--branches=9.2"
-        ).build()
+        when:
+        def result = runGenerateAndValidateTask("--branches=9.2")
 
-        then: "The generation and validation tasks should succeed"
-        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
-
-        and: "The latest file should be reverted to its original state on main"
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text.strip() == "existing_92,8123000"
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertLatest("9.2", "existing_92,8123000")
     }
 
-    def "Irrelevant changes to multiple latest files should be reverted"() {
-        when: "We modify the latest files"
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text = "modification,9000000"
-        file("myserver/src/main/resources/transport/latest/9.1.csv").text = "modification,9000000"
+    def "irrelevant changes to multiple latest files should be reverted"() {
+        given:
+        latestTransportVersion("9.2", "modification", "9000000")
+        latestTransportVersion("9.1", "modification", "9000000")
 
-        and: "We run the generation task with no name specified"
-        def result = gradleRunner(
-                ":myserver:validateTransportVersionDefinitions",
-                ":myserver:generateTransportVersionDefinition",
-                "--branches=9.2,9.1"
-        ).build()
+        when:
+        def result = runGenerateAndValidateTask("--branches=9.2,9.1")
 
-        then: "The generation and validation tasks should succeed"
-        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
-
-        and: "The latest files should be reverted to their original state"
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text.strip() == "existing_92,8123000"
-        file("myserver/src/main/resources/transport/latest/9.1.csv").text.strip() == "existing_92,8012001"
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertLatest("9.2", "existing_92,8123000")
+        assertLatest("9.1", "existing_92,8012001")
     }
 
     // TODO this test is finding a legitimate bug

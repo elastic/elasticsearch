@@ -48,26 +48,12 @@ public interface IpDatabase extends AutoCloseable {
      * @return a possibly-null response
      */
     @Nullable
-    @Deprecated // use getTypedResponse instead
-    // TODO(pete): If we're allowed to remove this in v10, annotate it to remind us to do that.
-    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider);
-
-    // TODO(pete): If we end up doing this, pick a better name for getTypedResponse() and document why we do this weird thing.
-
-    /**
-     * Returns a response from this database's reader for the given IP address.
-     *
-     * @param ipAddress the address to lookup
-     * @param responseProvider a method for extracting a response from a {@link Reader}, usually this will be a method reference
-     * @return a possibly-null response
-     */
-    @Nullable
-    default <RESPONSE extends Response> RESPONSE getTypedResponse(
+    // TODO: This change requires a one-line change to an implementation in a logstash filter. Coordinate with that team before merging.
+    // https://github.com/elastic/logstash-filter-elastic_integration/blob/main/src/main/java/co/elastic/logstash/filters/elasticintegration/geoip/IpDatabaseAdapter.java
+    <RESPONSE extends Response> RESPONSE getResponse(
         String ipAddress,
         CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
-    ) {
-        return getResponse(ipAddress, responseProvider);
-    }
+    );
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a

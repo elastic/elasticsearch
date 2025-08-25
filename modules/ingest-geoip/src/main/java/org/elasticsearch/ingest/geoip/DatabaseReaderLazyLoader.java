@@ -115,14 +115,7 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
 
     @Override
     @Nullable
-    @Deprecated // use getTypedResponse instead
-    public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
-        throw new UnsupportedOperationException(); // TODO(pete): Write some words of wisdom in an exception message
-    }
-
-    @Override
-    @Nullable
-    public <RESPONSE extends Response> RESPONSE getTypedResponse(
+    public <RESPONSE extends Response> RESPONSE getResponse(
         String ipAddress,
         CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
     ) {

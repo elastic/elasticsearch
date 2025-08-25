@@ -34,7 +34,7 @@ public class ExponentialHistogramUtils {
     public static double estimateSum(BucketIterator negativeBuckets, BucketIterator positiveBuckets) {
         assert negativeBuckets.scale() == positiveBuckets.scale();
 
-        // for each bucket index, sum up the counts, but account for the positive/negative
+        // for each bucket index, sum up the counts, but account for the positive/negative sign
         BucketIterator it = new MergingBucketIterator(negativeBuckets, -1, positiveBuckets, 1, positiveBuckets.scale());
         double sum = 0.0;
         while (it.hasNext()) {

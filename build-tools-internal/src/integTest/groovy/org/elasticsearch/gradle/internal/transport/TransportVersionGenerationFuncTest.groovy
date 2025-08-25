@@ -106,12 +106,12 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         if (branchesParam != null) {
             args.add("--branches=" + branchesParam.join(","))
         }
-        def result = gradleRunner(args.toArray(new String[0])).build()
-
-        and: "If a name is specified, we add a reference so validation succeeds"
         if (name != null) {
             referencedTransportVersion(name)
+            args.add("--name=" + name)
         }
+
+        def result = gradleRunner(args.toArray(new String[0])).build()
 
         then: "The generation and validation tasks should succeed"
         result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
@@ -140,32 +140,23 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ["9.2", "9.1"] | ["9.2"]             | null
         ["9.2"]        | ["9.1"]             | null
         ["9.2"]        | ["9.1"]             | "test_tv" // TODO legitimate bug, need to always clean up latest.
+        ["9.2"] | ["9.1"] | null // TODO legitimate bug, need to always clean up latest.
         ["9.2", "9.1"] | ["9.2", "9.1"]      | "test_tv"
 
     }
 
+    // TODO write a test that ensures all latest files are reset when the name is null, rather than have them as scenarios above
+
+
     // TODO this test is finding a legitimate bug
+    // TODO remove the first generation call, this can be done with helpers.
     def "When a reference is removed after a definition is generated, the definition should be deleted and latest files reverted"(List<String> branches) {
         given:
         String definitionName = "test_tv_patch_ids"
-        referencedTransportVersion(definitionName)
-        List<LatestFile> originalLatestFiles = readLatestFiles(branches)
+        namedTransportVersion(definitionName, "8124000")
+        latestTransportVersion("9.2", definitionName, "8124000")
 
-        when: "The definition is generated"
-        def result = gradleRunner(
-                ":myserver:validateTransportVersionDefinitions",
-                ":myserver:generateTransportVersionDefinition",
-                "--name=" + definitionName,
-                "--branches=" + branches.join(",")
-        ).build()
-
-        then: "The generation task should succeed and create the definition file"
-        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
-        validateDefinitionFile(definitionName, originalLatestFiles)
-
-        when: "The reference is removed and the generation is run again"
-        deleteTransportVersionReference(definitionName)
+        when: "generation is run"
         def secondResult = gradleRunner(
                 ":myserver:validateTransportVersionDefinitions",
                 ":myserver:generateTransportVersionDefinition",
@@ -180,7 +171,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         where:
         branches << [
                 ["9.2"],
-                ["9.2", "9.1"]
+//                ["9.2", "9.1"] // TODO add another test for this, since this is a different setup
         ]
     }
 
@@ -431,12 +422,68 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
+    // TODO when will this be run? Inside the merge conflict resolution? If so, there will be two new definition files and references.
+    //  How do we know which one to apply first? We need to use git to find the branch (main) that is being merged into.
+    //    Will this be different than `main` when not in conflict resolution? e.g. do we need a different git command for this?
+    def "Latest files mangled by a merge conflict should be regenerated, and the most recent definition file should be updated"(List<String> branches) {
+        given:
+        String firstDefinitionName = "first_tv"
+        String secondDefinitionName = "second_tv"
+        List<LatestFile> originalLatestFiles = readLatestFiles(branches)
 
-    def "Latest files mangled by a merge conflict should be regenerated, and the most recent definition file should be updated"() {
-        // TODO when will this be run? Inside the merge conflict resolution? If so, there will be two new definition files and references.
-        //  How do we know which one to apply first? We need to use git to find the branch (main) that is being merged into.
-        //    Will this be different than `main` when not in conflict resolution? e.g. do we need a different git command for this?
+        when: "Two definitions are created and generated from the same latest files"
+        def originalMainLatest = originalLatestFiles.first()
+        definedAndUsedTransportVersion(firstDefinitionName, (originalMainLatest.getId() + 1000).toString())
+        definedAndUsedTransportVersion(secondDefinitionName, (originalMainLatest.getId() + 1000).toString())
+
+        if (branches.size() > 1) {
+            LatestFile originalPatchLatest = originalLatestFiles.last()
+            definedAndUsedTransportVersion(firstDefinitionName, (originalPatchLatest.getId() + 1).toString())
+            definedAndUsedTransportVersion(secondDefinitionName, (originalPatchLatest.getId() + 1).toString())
+        }
+
+        and: "Mangled latest files are produced from a git conflict"
+        file("myserver/src/main/resources/transport/latest/${originalMainLatest.branch}.csv").text =
+                """
+                    <<<<<<< HEAD\n" +
+                    "${firstDefinitionName},${originalMainLatest.id + 1000}
+                    =======
+                    ${secondDefinitionName},${originalMainLatest.id + 1000} 
+                    >>>>>> branch
+                    """.strip()
+
+        if (branches.size() > 1) {
+            LatestFile originalPatchLatest = originalLatestFiles.last()
+            file("myserver/src/main/resources/transport/latest/${originalPatchLatest.branch}.csv").text =
+                    """
+                    <<<<<<< HEAD\n" +
+                    "${firstDefinitionName},${originalPatchLatest.id + 1}
+                    =======
+                    ${secondDefinitionName},${originalPatchLatest.id + 1} 
+                    >>>>>> branch
+                    """.strip()
+        }
+
+        and: "The generation task is run"
+        def result = gradleRunner(
+                ":myserver:validateTransportVersionDefinitions",
+                ":myserver:generateTransportVersionDefinition",
+                "--branches=" + branches.join(",")
+        ).build()
+
+        then: "The generation task should succeed and the latest files should be reverted and incremented correctly"
+        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        validateDefinitionFile(secondDefinitionName, originalLatestFiles)
+
+        where:
+        branches << [
+                ["9.2"],
+                ["9.2", "9.1"]
+        ]
     }
+
+    // TODO do we need a test that has a garbled latest file but Main is OK, and it increments correctly?
 
     List<LatestFile> readLatestFiles(List<String> branches) {
         return branches.stream()

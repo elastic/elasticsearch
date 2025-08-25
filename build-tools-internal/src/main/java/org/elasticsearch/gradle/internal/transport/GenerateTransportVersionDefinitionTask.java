@@ -24,6 +24,7 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
+import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -34,8 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import javax.inject.Inject;
 
 /**
  * This task generates transport version definition files. These files
@@ -67,7 +66,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
      */
     @Input
     @Optional
-    @Option(option = "name", description = "TBD")
+    @Option(option = "name", description = "TBD") // TODO add description
     public abstract Property<String> getTransportVersionName(); // The plugin should always set this, not optional
 
     /**
@@ -106,6 +105,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             : findAddedTransportVersionName(resources, referencedNames, changedDefinitionNames);
 
         if (name.isEmpty()) {
+            // Todo this should reset all the changed latest files regardless of if there's a name or not
             resetAllLatestFiles(resources);
         } else {
             List<TransportVersionId> ids = updateLatestFiles(resources, name);
@@ -137,6 +137,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                     TransportVersionId id = TransportVersionId.fromInt(mainLatest.id().complete() + increment);
                     ids.add(id);
                     resources.writeLatestFile(new TransportVersionLatest(mainLatest.releaseBranch(), name, id));
+                } else {
+                    resources.writeLatestFile(mainLatest);
                 }
             }
         }

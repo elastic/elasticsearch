@@ -35,6 +35,9 @@ public final class RemediateProcessor extends AbstractProcessor {
     @SuppressWarnings("unchecked")
     public IngestDocument execute(IngestDocument document) throws Exception {
         // Get the nested 'document' field, which holds the original document and metadata.
+        if (document.hasField("document") == false) {
+            throw new IllegalArgumentException("field [document] not present as part of path [document]");
+        }
         Map<String, Object> failedDocument = (Map<String, Object>) document.getFieldValue("document", Map.class);
 
         // Copy the original index and routing back to the document's metadata.
@@ -50,6 +53,9 @@ public final class RemediateProcessor extends AbstractProcessor {
 
         // Get the original document's source.
         Map<String, Object> originalSource = (Map<String, Object>) failedDocument.get("source");
+        if (originalSource == null) {
+            throw new IllegalArgumentException("field [source] not present as part of path [document.source]");
+        }
 
         // Remove the 'error' and 'document' fields from the top-level document.
         document.removeField("error");

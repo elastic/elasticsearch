@@ -1,8 +1,8 @@
 {
   "cluster.allocation_explain":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-allocation-explain.html",
-      "description":"Provides explanations for shard allocations in the cluster."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-allocation-explain",
+      "description":"Explain the shard allocations"
     },
     "stability":"stable",
     "visibility":"public",

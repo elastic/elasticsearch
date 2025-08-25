@@ -1,8 +1,8 @@
 {
   "ml.update_data_frame_analytics":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-dfanalytics.html",
-      "description":"Updates certain properties of a data frame analytics job."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-update-data-frame-analytics",
+      "description":"Update a data frame analytics job"
     },
     "stability":"stable",
     "visibility":"public",

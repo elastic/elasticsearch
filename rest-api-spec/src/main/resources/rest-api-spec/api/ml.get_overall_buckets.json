@@ -1,8 +1,8 @@
 {
   "ml.get_overall_buckets":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-overall-buckets.html",
-      "description":"Retrieves overall bucket results that summarize the bucket results of multiple anomaly detection jobs."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-overall-buckets",
+      "description":"Get overall bucket results"
     },
     "stability":"stable",
     "visibility":"public",

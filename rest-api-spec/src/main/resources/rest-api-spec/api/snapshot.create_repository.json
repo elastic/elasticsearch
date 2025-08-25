@@ -1,8 +1,8 @@
 {
   "snapshot.create_repository":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Creates a repository."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-create-repository",
+      "description":"Create or update a snapshot repository"
     },
     "stability":"stable",
     "visibility":"public",

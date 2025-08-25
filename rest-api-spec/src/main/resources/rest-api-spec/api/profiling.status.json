@@ -2,7 +2,7 @@
   "profiling.status":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/observability/current/universal-profiling.html",
-      "description":"Returns basic information about the status of Universal Profiling."
+      "description":"Returns basic information about the status of Universal Profiling"
     },
     "stability":"stable",
     "visibility":"private",

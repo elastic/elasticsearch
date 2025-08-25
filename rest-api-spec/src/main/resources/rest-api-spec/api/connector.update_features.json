@@ -2,7 +2,7 @@
   "connector.update_features": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-features-api.html",
-      "description": "Updates the connector features in the connector document."
+      "description": "Update the connector features"
     },
     "stability": "experimental",
     "visibility": "public",

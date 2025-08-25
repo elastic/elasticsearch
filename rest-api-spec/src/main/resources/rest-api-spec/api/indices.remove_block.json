@@ -2,7 +2,7 @@
   "indices.remove_block": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/index-modules-blocks.html",
-      "description": "Removes a block from an index."
+      "description": "Remove an index block"
     },
     "stability": "stable",
     "visibility": "public",

@@ -1,8 +1,8 @@
 {
   "features.get_features":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-features-api.html",
-      "description":"Gets a list of features which can be included in snapshots using the feature_states field when creating a snapshot"
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-features-get-features",
+      "description":"Get the features"
     },
     "stability":"stable",
     "visibility":"public",

@@ -1,8 +1,8 @@
 {
   "cat.ml_datafeeds":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/cat-datafeeds.html",
-      "description": "Gets configuration and usage information about datafeeds."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-ml-datafeeds",
+      "description": "Get datafeeds"
     },
     "stability":"stable",
     "visibility":"public",

@@ -2,7 +2,7 @@
   "connector.sync_job_delete": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-connector-sync-job-api.html",
-      "description": "Deletes a connector sync job."
+      "description": "Delete a connector sync job"
     },
     "stability": "experimental",
     "visibility": "public",

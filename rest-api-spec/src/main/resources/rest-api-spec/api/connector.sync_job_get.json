@@ -2,7 +2,7 @@
   "connector.sync_job_get": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-connector-sync-job-api.html",
-      "description": "Returns the details about a connector sync job."
+      "description": "Get a connector sync job"
     },
     "stability": "experimental",
     "visibility": "public",

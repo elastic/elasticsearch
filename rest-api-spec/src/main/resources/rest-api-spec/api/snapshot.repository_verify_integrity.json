@@ -1,8 +1,8 @@
 {
   "snapshot.repository_verify_integrity":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Verifies the integrity of the contents of a snapshot repository"
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-verify-integrity",
+      "description":"Verify the repository integrity"
     },
     "stability":"experimental",
     "visibility":"public",

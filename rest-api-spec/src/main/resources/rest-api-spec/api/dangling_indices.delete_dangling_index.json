@@ -2,7 +2,7 @@
   "dangling_indices.delete_dangling_index": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html",
-      "description": "Deletes the specified dangling index"
+      "description": "Delete a dangling index"
     },
     "stability": "stable",
     "visibility":"public",

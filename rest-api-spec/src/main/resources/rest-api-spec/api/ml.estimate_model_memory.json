@@ -1,8 +1,8 @@
 {
   "ml.estimate_model_memory":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html",
-      "description":"Estimates the model memory"
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-estimate-model-memory",
+      "description":"Estimate job model memory usage"
     },
     "stability":"stable",
     "visibility":"public",

@@ -2,7 +2,7 @@
   "inference.put_custom": {
     "documentation": {
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-custom",
-      "description": "Configure a custom inference endpoint"
+      "description": "Create a custom inference endpoint"
     },
     "stability": "stable",
     "visibility": "public",

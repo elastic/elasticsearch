@@ -2,7 +2,7 @@
   "inference.put_mistral": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-mistral.html",
-      "description": "Configure a Mistral inference endpoint"
+      "description": "Create a Mistral inference endpoint"
     },
     "stability": "stable",
     "visibility": "public",

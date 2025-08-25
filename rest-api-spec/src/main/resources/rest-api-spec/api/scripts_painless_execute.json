@@ -1,8 +1,8 @@
 {
   "scripts_painless_execute":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-execute-api.html",
-      "description":"Allows an arbitrary script to be executed and a result to be returned"
+      "url":"https://www.elastic.co/docs/reference/scripting-languages/painless/painless-api-examples",
+      "description":"Run a script"
     },
     "stability":"experimental",
     "visibility":"public",

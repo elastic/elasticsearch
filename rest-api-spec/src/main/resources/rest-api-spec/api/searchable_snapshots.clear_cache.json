@@ -25,7 +25,7 @@
           "parts": {
             "index": {
               "type": "list",
-              "description": "A comma-separated list of index names"
+              "description": "Clear the cache"
             }
           }
         }

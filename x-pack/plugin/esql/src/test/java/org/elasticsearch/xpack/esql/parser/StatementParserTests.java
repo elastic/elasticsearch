@@ -1305,7 +1305,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "from a | enrich countries on foo . * ",
-            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [foo . *]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [foo.*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",

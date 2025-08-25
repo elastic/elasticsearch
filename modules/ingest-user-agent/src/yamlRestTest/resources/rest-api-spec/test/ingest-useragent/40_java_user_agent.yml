@@ -1,0 +1,34 @@
+---
+"Test user agent processor with a Java user agent":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "user_agent" : {
+                  "field" : "field1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: "Java/17.0.11"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "Java/17.0.11" }
+  - match: { _source.user_agent.name: "Java" }
+  - match: { _source.user_agent.original: "Java/17.0.11" }
+  - match: { _source.user_agent.device: {"name":"Spider"} }
+  - match: { _source.user_agent.version: "17.0.11" }

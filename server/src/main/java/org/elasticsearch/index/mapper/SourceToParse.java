@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.action.index.ModernSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -20,7 +20,7 @@ import java.util.Objects;
 
 public class SourceToParse {
 
-    private final BytesReference source;
+    private final ModernSource modernSource;
 
     private final String id;
 
@@ -43,10 +43,28 @@ public class SourceToParse {
         boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator
     ) {
+        this(
+            id,
+            new ModernSource(source, xContentType, source.length(), null),
+            xContentType,
+            routing,
+            dynamicTemplates,
+            includeSourceOnError,
+            meteringParserDecorator
+        );
+    }
+
+    public SourceToParse(
+        @Nullable String id,
+        ModernSource source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates,
+        boolean includeSourceOnError,
+        XContentMeteringParserDecorator meteringParserDecorator
+    ) {
         this.id = id;
-        // we always convert back to byte array, since we store it and Field only supports bytes..
-        // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        this.source = source.hasArray() ? source : new BytesArray(source.toBytesRef());
+        this.modernSource = source;
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
@@ -62,6 +80,10 @@ public class SourceToParse {
         this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
+    public SourceToParse(String id, ModernSource source, XContentType xContentType, String routing) {
+        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+    }
+
     public SourceToParse(
         String id,
         BytesReference source,
@@ -72,8 +94,8 @@ public class SourceToParse {
         this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP);
     }
 
-    public BytesReference source() {
-        return this.source;
+    public ModernSource source() {
+        return this.modernSource;
     }
 
     /**

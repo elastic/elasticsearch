@@ -80,6 +80,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -911,6 +912,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testSingleDoc() throws IOException {
         String docLocation = "/" + index + "/_doc/1";
         String doc = "{\"test\": \"test\"}";
+        String docNoWhiteSpace = "{\"test\":\"test\"}";
 
         if (isRunningAgainstOldCluster()) {
             Request createDoc = new Request("PUT", docLocation);
@@ -919,7 +921,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         }
 
         Request request = new Request("GET", docLocation);
-        assertThat(toStr(client().performRequest(request)), containsString(doc));
+        assertThat(toStr(client().performRequest(request)), either(containsString(doc)).or(containsString(docNoWhiteSpace)));
     }
 
     /**

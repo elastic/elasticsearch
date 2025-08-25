@@ -10,6 +10,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.ingest.MapStructuredSource;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
@@ -30,7 +31,7 @@ import java.util.stream.Collectors;
  */
 public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     protected static final String SOURCE = "_source";
-    protected Map<String, Object> source;
+    protected MapStructuredSource source;
     protected final T metadata;
 
     /**
@@ -39,7 +40,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
      * @param source the source document map
      * @param metadata the metadata map
      */
-    public CtxMap(Map<String, Object> source, T metadata) {
+    public CtxMap(MapStructuredSource source, T metadata) {
         this.source = source;
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
@@ -116,7 +117,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
 
         }
         var oldSource = source;
-        source = castSourceMap(value);
+        source = new MapStructuredSource(castSourceMap(value));
         return oldSource;
     }
 

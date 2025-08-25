@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -90,13 +91,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                if (((IndexRequest) request).source() != null) {
-                    totalSizeInBytes += ((IndexRequest) request).source().length();
-                }
+                totalSizeInBytes += ((IndexRequest) request).sourceSize();
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
                 if (doc != null && doc.source() != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
+                    totalSizeInBytes += ((UpdateRequest) request).doc().sourceSize();
                 }
             }
         }
@@ -108,13 +107,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                if (((IndexRequest) request).source() != null) {
-                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).source().length());
-                }
+                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).sourceSize());
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
                 if (doc != null && doc.source() != null) {
-                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().source().length());
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().sourceSize());
                 }
             }
         }
@@ -215,6 +212,15 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    public void createSharedKeyBytes() {
+        HashMap<String, byte[]> sharedKeyBytes = new HashMap<>();
+        for (BulkItemRequest bulkItemRequest : items) {
+            if (bulkItemRequest.request() instanceof IndexRequest indexRequest) {
+                indexRequest.modernSource().setSharedKeyBytes(sharedKeyBytes);
+            }
+        }
     }
 
     public long largestOperationSize() {

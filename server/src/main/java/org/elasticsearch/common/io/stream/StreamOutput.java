@@ -254,7 +254,7 @@ public abstract class StreamOutput extends OutputStream {
         return putMultiByteVInt(buffer, i, off);
     }
 
-    private static int putMultiByteVInt(byte[] buffer, int i, int off) {
+    protected static int putMultiByteVInt(byte[] buffer, int i, int off) {
         int index = off;
         do {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));

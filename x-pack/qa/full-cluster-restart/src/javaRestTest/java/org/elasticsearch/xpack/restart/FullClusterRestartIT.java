@@ -53,6 +53,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -90,6 +91,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     public void testSingleDoc() throws IOException {
         String docLocation = "/testsingledoc/_doc/1";
         String doc = "{\"test\": \"test\"}";
+        String docNoWhiteSpace = "{\"test\":\"test\"}";
 
         if (isRunningAgainstOldCluster()) {
             Request createDoc = new Request("PUT", docLocation);
@@ -100,7 +102,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         }
 
         Request getRequest = new Request("GET", docLocation);
-        assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
+        assertThat(toStr(client().performRequest(getRequest)), either(containsString(doc)).or(containsString(docNoWhiteSpace)));
     }
 
     public void testSecurityNativeRealm() throws Exception {

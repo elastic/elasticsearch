@@ -17,8 +17,8 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectDeletedListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -264,20 +265,23 @@ public class SecurityMigrations {
 
     public static class Manager {
 
-        private static final int MAX_SECURITY_MIGRATION_RETRY_COUNT = 10;
+        private static final int MAX_SECURITY_MIGRATION_ATTEMPT_COUNT = 10;
 
         private final PersistentTasksService persistentTasksService;
         private final SecuritySystemIndices systemIndices;
 
         // Node local retry count for migration jobs that's checked only on the master node to make sure
-        // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
-        // restart or master node change.
-        private final AtomicInteger nodeLocalMigrationRetryCount;
+        // submit migration jobs doesn't get out of hand and retries forever if they fail.
+        // Reset by a restart or master node change.
+        // This tracks the number of tasks that have been started up until the migration is complete (at which point it is cleared)
+        // It just tracks attempts to start jobs (not whether they completed successfully)
+        private final Map<ProjectId, AtomicInteger> taskSubmissionAttemptCounter;
 
         public Manager(ClusterService clusterService, PersistentTasksService persistentTasksService, SecuritySystemIndices systemIndices) {
             this.persistentTasksService = persistentTasksService;
             this.systemIndices = systemIndices;
-            this.nodeLocalMigrationRetryCount = new AtomicInteger(0);
+            this.taskSubmissionAttemptCounter = new ConcurrentHashMap<>();
+            new ProjectDeletedListener(this::projectDeleted).attach(clusterService);
             systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
                 // Only consider applying migrations if it's the master node and the security index exists
                 if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
@@ -286,12 +290,10 @@ public class SecurityMigrations {
             });
         }
 
-        @FixForMultiProject
-        // TODO : The migration task needs to be project aware
         private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
             // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
             if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
-                submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
+                submitPersistentMigrationTask(projectId, SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
                 return;
             }
 
@@ -300,26 +302,27 @@ public class SecurityMigrations {
             );
 
             // Check if next migration that has not been applied is eligible to run on the current cluster
-            if (nextMigration == null
-                || systemIndices.getMainIndexManager()
-                    .getProject(projectId)
-                    .isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+            if (nextMigration == null || newState.isEligibleSecurityMigration(nextMigration.getValue()) == false) {
                 // Reset retry counter if all eligible migrations have been applied successfully
-                nodeLocalMigrationRetryCount.set(0);
-            } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
-                logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
-            } else if (systemIndices.getMainIndexManager().getProject(projectId).isReadyForSecurityMigration(nextMigration.getValue())) {
-                submitPersistentMigrationTask(newState.migrationsVersion);
+                resetNumberOfAttempts(projectId);
+            } else {
+                var retryCount = getNumberOfAttempts(projectId);
+                if (retryCount > MAX_SECURITY_MIGRATION_ATTEMPT_COUNT) {
+                    logger.warn("Security migration attempted [" + retryCount + "] times, restart node to retry again.");
+                } else if (newState.isReadyForSecurityMigration(nextMigration.getValue())) {
+                    submitPersistentMigrationTask(projectId, newState.migrationsVersion);
+                }
             }
         }
 
-        private void submitPersistentMigrationTask(int migrationsVersion) {
-            submitPersistentMigrationTask(migrationsVersion, true);
+        private void submitPersistentMigrationTask(ProjectId projectId, int migrationsVersion) {
+            submitPersistentMigrationTask(projectId, migrationsVersion, true);
         }
 
-        private void submitPersistentMigrationTask(int migrationsVersion, boolean securityMigrationNeeded) {
-            nodeLocalMigrationRetryCount.incrementAndGet();
-            persistentTasksService.sendStartRequest(
+        private void submitPersistentMigrationTask(ProjectId projectId, int migrationsVersion, boolean securityMigrationNeeded) {
+            incrementAttemptCount(projectId);
+            persistentTasksService.sendProjectStartRequest(
+                projectId,
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams.TASK_NAME,
                 new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
@@ -330,7 +333,7 @@ public class SecurityMigrations {
                     // Do nothing if the task is already in progress
                     if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
                         // Do not count ResourceAlreadyExistsException as failure
-                        nodeLocalMigrationRetryCount.decrementAndGet();
+                        decrementAttemptCount(projectId);
                     } else {
                         logger.warn("Submit security migration task failed: " + exception.getCause());
                     }
@@ -347,5 +350,33 @@ public class SecurityMigrations {
                 SecurityMigrations.MIGRATIONS_BY_VERSION
             );
         }
+
+        private int getNumberOfAttempts(ProjectId project) {
+            var retryCount = taskSubmissionAttemptCounter.get(project);
+            if (retryCount == null) {
+                return 0;
+            }
+            return retryCount.get();
+        }
+
+        private void projectDeleted(ProjectId projectId) {
+            resetNumberOfAttempts(projectId);
+        }
+
+        private void resetNumberOfAttempts(ProjectId project) {
+            taskSubmissionAttemptCounter.remove(project);
+        }
+
+        private void incrementAttemptCount(ProjectId project) {
+            taskSubmissionAttemptCounter.computeIfAbsent(project, ignore -> new AtomicInteger(0)).incrementAndGet();
+        }
+
+        private void decrementAttemptCount(ProjectId project) {
+            final AtomicInteger counter = taskSubmissionAttemptCounter.get(project);
+            if (counter != null) {
+                counter.decrementAndGet();
+            }
+        }
+
     }
 }

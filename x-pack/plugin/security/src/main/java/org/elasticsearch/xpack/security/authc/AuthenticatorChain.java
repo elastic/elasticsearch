@@ -53,6 +53,7 @@ class AuthenticatorChain {
         AnonymousUser anonymousUser,
         AuthenticationContextSerializer authenticationSerializer,
         ServiceAccountAuthenticator serviceAccountAuthenticator,
+        PluggableOAuth2TokenAuthenticator pluggableOAuth2TokenAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
         PluggableApiKeyAuthenticator pluggableApiKeyAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
@@ -67,6 +68,7 @@ class AuthenticatorChain {
         this.realmsAuthenticator = realmsAuthenticator;
         this.allAuthenticators = List.of(
             serviceAccountAuthenticator,
+            pluggableOAuth2TokenAuthenticator,
             oAuth2TokenAuthenticator,
             pluggableApiKeyAuthenticator,
             apiKeyAuthenticator,

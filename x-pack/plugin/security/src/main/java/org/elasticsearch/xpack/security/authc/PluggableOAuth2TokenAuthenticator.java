@@ -15,26 +15,21 @@ import org.elasticsearch.xpack.core.security.authc.apikey.CustomTokenAuthenticat
  * can be plugged into the authenticator chain. Module dependencies prevent us from introducing a direct extension point for
  * an {@link Authenticator}.
  */
-public class PluggableApiKeyAuthenticator extends AbstractPluggableAuthenticator {
-    private final CustomTokenAuthenticator apiKeyAuthenticator;
+public class PluggableOAuth2TokenAuthenticator extends AbstractPluggableAuthenticator {
 
-    public PluggableApiKeyAuthenticator(CustomTokenAuthenticator apiKeyAuthenticator) {
-        this.apiKeyAuthenticator = apiKeyAuthenticator;
+    private CustomTokenAuthenticator customOAuth2TokenAuthenticator;
+
+    public PluggableOAuth2TokenAuthenticator(CustomTokenAuthenticator authenticator) {
+        this.customOAuth2TokenAuthenticator = authenticator;
     }
 
     @Override
-    public String name() {
-        return apiKeyAuthenticator.name();
-    }
-
-    @Override
-    public AuthenticationToken extractCredentials(Authenticator.Context context) {
-        return apiKeyAuthenticator.extractCredentials(context.getApiKeyString());
-
+    public AuthenticationToken extractCredentials(Context context) {
+        return customOAuth2TokenAuthenticator.extractCredentials(context.getBearerString());
     }
 
     @Override
     public CustomTokenAuthenticator getAuthenticator() {
-        return apiKeyAuthenticator;
+        return customOAuth2TokenAuthenticator;
     }
 }

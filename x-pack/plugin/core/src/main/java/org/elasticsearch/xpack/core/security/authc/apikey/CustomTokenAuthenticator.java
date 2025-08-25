@@ -15,28 +15,31 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 /**
- * An extension point to provide a custom API key authenticator implementation.
- * The implementation is wrapped by a core `Authenticator` class and included in the authenticator chain _before_ the
- * default API key authenticator.
+ * An extension point to provide a custom token authenticator implementation. For example, a custom API key or a custom OAuth2 token
+ * implementation. The implementation is wrapped by a core `Authenticator` class and included in the authenticator chain _before_ the
+ * respective "standard" authenticator(s).
  */
-public interface CustomApiKeyAuthenticator {
+public interface CustomTokenAuthenticator {
+
+    String CLIENT_AUTHENTICATION_HEADER = "X-Client-Authentication";
+
     String name();
 
-    AuthenticationToken extractCredentials(@Nullable SecureString apiKeyCredentials);
+    AuthenticationToken extractCredentials(@Nullable SecureString tokenCredentials);
 
     void authenticate(@Nullable AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<Authentication>> listener);
 
     /**
-     * A no-op implementation of {@link CustomApiKeyAuthenticator} that is effectively skipped in the authenticator chain.
+     * A no-op implementation of {@link CustomTokenAuthenticator} that is effectively skipped in the authenticator chain.
      */
-    class Noop implements CustomApiKeyAuthenticator {
+    class Noop implements CustomTokenAuthenticator {
         @Override
         public String name() {
             return "noop";
         }
 
         @Override
-        public AuthenticationToken extractCredentials(@Nullable SecureString apiKeyCredentials) {
+        public AuthenticationToken extractCredentials(@Nullable SecureString tokenCredentials) {
             return null;
         }
 

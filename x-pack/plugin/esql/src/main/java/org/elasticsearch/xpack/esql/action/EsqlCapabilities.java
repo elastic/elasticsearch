@@ -1131,7 +1131,7 @@ public class EsqlCapabilities {
         /**
          * score function
          */
-        SCORE_FUNCTION(Build.current().isSnapshot()),
+        SCORE_FUNCTION,
 
         /**
          * Support for the SAMPLE command

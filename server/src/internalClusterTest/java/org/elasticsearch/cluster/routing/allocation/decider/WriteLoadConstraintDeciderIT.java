@@ -316,8 +316,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     }
 
     /**
-     * Helper to create a dummy {@link ShardStats} for the given index shard with the desired {@code peekWriteLoad} value that the balancer
-     * code will use to make decisions.
+     * Helper to create a dummy {@link ShardStats} for the given index shard with the supplied {@code peekWriteLoad} value.
      */
     private static ShardStats createShardStats(IndexMetadata indexMeta, int shardIndex, double peekWriteLoad, String assignedShardNodeId) {
         ShardId shardId = new ShardId(indexMeta.getIndex(), shardIndex);

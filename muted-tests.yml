@@ -405,9 +405,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
-- class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
-  method: testReader
-  issue: https://github.com/elastic/elasticsearch/issues/131573
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliasesSkipOld
   issue: https://github.com/elastic/elasticsearch/issues/131697

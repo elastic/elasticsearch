@@ -951,7 +951,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertThat(results.columns(), hasSize(1));
             assertThat(results.columns(), contains(new ColumnInfoImpl("a", "integer", null)));
-            assertThat(getValuesList(results), is(empty()));
+            assertThat(getValuesList(results).size(), is(40));
         }
     }
 

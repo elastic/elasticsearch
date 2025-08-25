@@ -92,6 +92,6 @@ redirects:
     many:
       - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
         anchors:
-          'rescore': 'rescore-search-results'
+          'rescore': 'rescore-main'
           'query-rescorer': 'query-rescorer'
           'multiple-rescores': 'multiple-rescores'

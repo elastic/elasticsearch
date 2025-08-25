@@ -36,11 +36,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.CrossProjectResolvable, ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -65,6 +66,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private QueryBuilder indexFilter;
     private Map<String, Object> runtimeFields = Collections.emptyMap();
     private Long nowInMillis;
+    private List<RewrittenExpression> rewrittenExpressions;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
         super(in);
@@ -231,11 +233,6 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     }
 
     @Override
-    public boolean allowsRemoteIndices() {
-        return true;
-    }
-
-    @Override
     public boolean includeDataStreams() {
         return true;
     }
@@ -388,5 +385,20 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
                 return FieldCapabilitiesRequest.this.getDescription();
             }
         };
+    }
+
+    @Override
+    public void setRewrittenExpressions(List<RewrittenExpression> rewrittenExpressions) {
+        this.rewrittenExpressions = rewrittenExpressions;
+        indices(
+            rewrittenExpressions.stream()
+                .flatMap(indexExpression -> indexExpression.canonicalExpressions().stream().map(CanonicalExpression::expression))
+                .toArray(String[]::new)
+        );
+    }
+
+    @Override
+    public List<RewrittenExpression> getRewrittenExpressions() {
+        return rewrittenExpressions;
     }
 }

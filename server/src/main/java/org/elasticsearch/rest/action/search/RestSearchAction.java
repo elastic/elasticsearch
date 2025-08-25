@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -63,6 +65,7 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     public static final String INCLUDE_NAMED_QUERIES_SCORE_PARAM = "include_named_queries_score";
     public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, INCLUDE_NAMED_QUERIES_SCORE_PARAM);
+    private static final Logger log = LogManager.getLogger(RestSearchAction.class);
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
@@ -98,6 +101,7 @@ public class RestSearchAction extends BaseRestHandler {
             client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
         }
         SearchRequest searchRequest = new SearchRequest();
+
         // access the BwC param, but just drop it
         // this might be set by old clients
         request.param("min_compatible_shard_node");
@@ -167,6 +171,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+
         if (requestContentParser != null) {
             if (searchUsageHolder == null) {
                 searchRequest.source().parseXContent(requestContentParser, true, clusterSupportsFeature);

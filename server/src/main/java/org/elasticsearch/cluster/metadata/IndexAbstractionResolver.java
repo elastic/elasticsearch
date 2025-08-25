@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.UnsupportedSelectorException;
@@ -21,17 +24,237 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
 public class IndexAbstractionResolver {
 
+    private static final Logger logger = LogManager.getLogger(IndexAbstractionResolver.class);
+
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public IndexAbstractionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+    }
+
+    public List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> resolveIndexAbstractionsForOrigin(
+        List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> rewrittenExpressions,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
+        boolean includeDataStreams
+    ) {
+        // TODO handle exclusions
+        // TODO consolidate with `resolveIndexAbstractions` somehow, maybe?
+        List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> finalRewrittenExpressions = new ArrayList<>();
+        for (IndicesRequest.CrossProjectResolvable.RewrittenExpression rewrittenExpression : rewrittenExpressions) {
+            // no expressions targeting origin, nothing to rewrite
+            if (false == rewrittenExpression.hasCanonicalExpressionForOrigin()) {
+                logger.info(
+                    "Skipping rewriting of qualified expression [{}] because there are no origin expressions",
+                    rewrittenExpression.original()
+                );
+                finalRewrittenExpressions.add(rewrittenExpression);
+                continue;
+            }
+
+            String indexAbstraction = rewrittenExpression.original();
+
+            // Always check to see if there's a selector on the index expression
+            Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
+            String selectorString = expressionAndSelector.v2();
+            if (indicesOptions.allowSelectors() == false && selectorString != null) {
+                throw new UnsupportedSelectorException(indexAbstraction);
+            }
+            indexAbstraction = expressionAndSelector.v1();
+            IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
+
+            // we always need to check for date math expressions
+            indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
+
+            if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
+                Set<String> resolvedIndices = new HashSet<>();
+                for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
+                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
+                        && isIndexVisible(
+                            indexAbstraction,
+                            selectorString,
+                            authorizedIndex,
+                            indicesOptions,
+                            projectMetadata,
+                            indexNameExpressionResolver,
+                            includeDataStreams
+                        )) {
+                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
+                    }
+                }
+                finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
+            } else {
+                Set<String> resolvedIndices = new HashSet<>();
+                resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
+
+                // TODO not quite right: we need to record if we didn't have access for the fan-out action to throw
+                boolean authorized = isAuthorized.test(indexAbstraction, selector);
+                if (authorized) {
+                    var visible = existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
+                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, visible ? resolvedIndices : Set.of()));
+                } else {
+                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, Set.of()));
+                }
+
+            }
+        }
+        logger.info("Rewrote expressions from [{}] to [{}]", rewrittenExpressions, finalRewrittenExpressions);
+        assert finalRewrittenExpressions.size() == rewrittenExpressions.size()
+            : "finalRewrittenExpressions size ["
+                + finalRewrittenExpressions.size()
+                + "] does not match original size ["
+                + rewrittenExpressions.size()
+                + "]";
+        return finalRewrittenExpressions;
+    }
+
+    private static IndicesRequest.CrossProjectResolvable.RewrittenExpression replaceOriginIndices(
+        IndicesRequest.CrossProjectResolvable.RewrittenExpression rewrittenExpression,
+        Set<String> resolvedIndices
+    ) {
+        logger.info("Replacing origin indices for expression [{}] with [{}]", rewrittenExpression, resolvedIndices);
+        List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> resolvedOriginalExpressions = resolvedIndices.stream()
+            .map(IndicesRequest.CrossProjectResolvable.CanonicalExpression::new)
+            .toList();
+        List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> qualifiedExpressions = rewrittenExpression.canonicalExpressions()
+            .stream()
+            .filter(IndicesRequest.CrossProjectResolvable.CanonicalExpression::isQualified)
+            .toList();
+        List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> combined = new ArrayList<>(resolvedOriginalExpressions);
+        combined.addAll(qualifiedExpressions);
+        var e = new IndicesRequest.CrossProjectResolvable.RewrittenExpression(rewrittenExpression.original(), combined);
+        logger.info("Replaced origin indices for expression [{}] with [{}]", rewrittenExpression, e);
+        return e;
+    }
+
+    public Map<String, List<String>> resolveIndexAbstractionsMapping(
+        Iterable<String> indices,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
+        boolean includeDataStreams
+    ) {
+        if (indicesOptions.ignoreUnavailable() == false) {
+            throw new IllegalArgumentException("`ignoreUnavailable` must be true for this resolver");
+        }
+
+        if (indicesOptions.allowNoIndices() == false) {
+            throw new IllegalArgumentException("`allowNoIndices` must be true for this resolver");
+        }
+
+        final LinkedHashMap<String, List<String>> resolutionMap = new LinkedHashMap<>();
+
+        boolean wildcardSeen = false;
+
+        for (String originalToken : indices) {
+            String indexAbstraction;
+            boolean minus = false;
+
+            if (originalToken.charAt(0) == '-' && wildcardSeen) {
+                indexAbstraction = originalToken.substring(1);
+                minus = true;
+            } else {
+                indexAbstraction = originalToken;
+            }
+
+            // Always check to see if there's a selector on the index expression
+            final Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
+            final String selectorString = expressionAndSelector.v2();
+            if (indicesOptions.allowSelectors() == false && selectorString != null) {
+                throw new UnsupportedSelectorException(indexAbstraction);
+            }
+            indexAbstraction = expressionAndSelector.v1();
+            final IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
+
+            // Always handle date math
+            indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
+
+            final Set<String> resolvedSet = new LinkedHashSet<>();
+
+            if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
+                wildcardSeen = true;
+
+                for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
+                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
+                        && isIndexVisible(
+                            indexAbstraction,
+                            selectorString,
+                            authorizedIndex,
+                            indicesOptions,
+                            projectMetadata,
+                            indexNameExpressionResolver,
+                            includeDataStreams
+                        )) {
+                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedSet, projectMetadata);
+                    }
+                }
+            } else {
+                // Non-wildcard path
+                resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedSet, projectMetadata);
+
+                if (false == minus) {
+                    boolean authorized = isAuthorized.test(indexAbstraction, selector);
+                    if (authorized) {
+                        if (false == existsAndVisible(
+                            indicesOptions,
+                            projectMetadata,
+                            includeDataStreams,
+                            indexAbstraction,
+                            selectorString
+                        )) {
+                            resolvedSet.clear();
+                        }
+                    } else {
+                        resolvedSet.clear();
+                    }
+                }
+            }
+
+            if (false == resolvedSet.isEmpty()) {
+                if (minus) {
+                    for (var entry : resolutionMap.entrySet()) {
+                        entry.getValue().removeAll(resolvedSet);
+                    }
+                } else {
+                    resolutionMap.put(originalToken, new ArrayList<>(resolvedSet));
+                }
+            }
+        }
+
+        return resolutionMap;
+    }
+
+    private boolean existsAndVisible(
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        boolean includeDataStreams,
+        String indexAbstraction,
+        String selectorString
+    ) {
+        var abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
+        return abstraction != null
+            && isIndexVisible(
+                indexAbstraction,
+                selectorString,
+                indexAbstraction,
+                indicesOptions,
+                projectMetadata,
+                indexNameExpressionResolver,
+                includeDataStreams
+            );
     }
 
     public List<String> resolveIndexAbstractions(
@@ -105,6 +328,7 @@ public class IndexAbstractionResolver {
                     // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
                     // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     finalIndices.addAll(resolvedIndices);
+
                 }
             }
         }

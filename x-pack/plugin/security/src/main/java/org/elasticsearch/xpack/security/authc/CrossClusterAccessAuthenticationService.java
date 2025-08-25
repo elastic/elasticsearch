@@ -41,15 +41,23 @@ public class CrossClusterAccessAuthenticationService {
     private final ClusterService clusterService;
     private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
+    // TODO hack hack hack
+    private final boolean skipTransportCheck;
 
     public CrossClusterAccessAuthenticationService(
         ClusterService clusterService,
         ApiKeyService apiKeyService,
-        AuthenticationService authenticationService
+        AuthenticationService authenticationService,
+        boolean skipTransportCheck
     ) {
         this.clusterService = clusterService;
         this.apiKeyService = apiKeyService;
         this.authenticationService = authenticationService;
+        this.skipTransportCheck = skipTransportCheck;
+    }
+
+    public boolean skipTransportCheck() {
+        return skipTransportCheck;
     }
 
     public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {

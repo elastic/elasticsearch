@@ -1,7 +1,7 @@
 {
   "connector.update_error": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-error-api.html",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-error",
       "description": "Update the connector error field"
     },
     "stability": "experimental",

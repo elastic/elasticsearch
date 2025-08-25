@@ -1,7 +1,7 @@
 {
   "inference.put_llama": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-llama.html",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-llama",
       "description": "Create a Llama inference endpoint"
     },
     "stability": "stable",

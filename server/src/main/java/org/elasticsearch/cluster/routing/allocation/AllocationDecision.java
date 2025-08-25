@@ -111,6 +111,7 @@ public enum AllocationDecision implements Writeable {
      */
     public static AllocationDecision fromDecisionType(Decision.Type type) {
         return switch (type) {
+            // TODO: should not_preferred have own variant? ES-12729
             case YES, NOT_PREFERRED -> YES;
             case THROTTLE -> THROTTLED;
             case NO -> NO;

@@ -654,6 +654,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/133498
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133499
 
 # Examples:
 #

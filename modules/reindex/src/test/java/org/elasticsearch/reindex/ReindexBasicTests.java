@@ -235,4 +235,61 @@ public class ReindexBasicTests extends ReindexTestCase {
             searchResponse.decRef();
         }
     }
+
+    public void testReindexAutoIncludeVectors() throws Exception {
+        var resp1 = prepareCreate("test").setSettings(
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build()
+        ).setMapping(
+            Map.of(
+                "_source",
+                Map.of("enabled", true, "excludes", List.of("foo", "bar")),
+                "properties",
+                Map.of(
+                    "foo", Map.of("type", "dense_vector", "similarity", "l2_norm"),
+                    "bar", Map.of("type", "sparse_vector", "store", true)
+                )
+            )
+        ).get();
+        assertAcked(resp1);
+
+        var resp2 = prepareCreate("test_reindex").setSettings(
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build()
+        ).setMapping(
+            Map.of(
+                "_source",
+                Map.of("enabled", true, "excludes", List.of("foo", "bar")),
+                "properties",
+                Map.of(
+                    "foo", Map.of("type", "dense_vector", "similarity", "l2_norm"),
+                    "bar", Map.of("type", "sparse_vector", "store", true)
+                )
+            )
+        ).get();
+        assertAcked(resp2);
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", List.of(3f, 2f, 1.5f), "bar", Map.of("token_1", 4f, "token_2", 7f))
+        );
+
+        // Copy all the docs
+        ReindexRequestBuilder copy = reindex().source("test").destination("test_reindex").refresh(true);
+        var reindexResponse = copy.get();
+        assertThat(reindexResponse, matcher().created(1));
+
+        var searchResponse = prepareSearch("test_reindex").get();
+        try {
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+            var sourceMap = searchResponse.getHits().getAt(0).getSourceAsMap();
+            assertThat(sourceMap.get("foo"), anyOf(equalTo(List.of(3f, 2f, 1.5f)), equalTo(List.of(3d, 2d, 1.5d))));
+            assertThat(
+                sourceMap.get("bar"),
+                anyOf(equalTo(Map.of("token_1", 4f, "token_2", 7f)), equalTo(Map.of("token_1", 4d, "token_2", 7d)))
+            );
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
 }

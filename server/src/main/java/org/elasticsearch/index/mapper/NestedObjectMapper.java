@@ -410,8 +410,11 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
-        var patchLoader = super.syntheticVectorsLoader(sourceFilter);
+    protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(
+        SourceFilter sourceFilter,
+        SourceLoader.SyntheticVectorsLoader.AutoHybridChecker checker
+    ) {
+        var patchLoader = super.syntheticVectorsLoader(sourceFilter, checker);
         if (patchLoader == null) {
             return null;
         }

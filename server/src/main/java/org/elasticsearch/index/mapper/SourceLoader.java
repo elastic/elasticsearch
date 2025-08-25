@@ -548,5 +548,9 @@ public interface SourceLoader {
              */
             void load(int doc, List<SyntheticVectorPatch> acc) throws IOException;
         }
+
+        interface AutoHybridChecker {
+            boolean check(FieldMapper mapper);
+        }
     }
 }

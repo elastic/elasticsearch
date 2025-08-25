@@ -122,9 +122,9 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 
     See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
 
-   ::::{note}
-   Rescoring only makes sense for [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) vectors. The `rescore_vector` option will be ignored for non-quantized `dense_vector` fields, because the original vectors are used for scoring.
-   ::::
+    ::::{note}
+    Rescoring only makes sense for [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) vectors. The `rescore_vector` option will be ignored for non-quantized `dense_vector` fields, because the original vectors are used for scoring.
+    ::::
 
 ## Pre-filters and post-filters in knn query [knn-query-filtering]
 

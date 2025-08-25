@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.util.List;
 
@@ -18,9 +19,7 @@ public final class PruneEmptyAggregates extends OptimizerRules.OptimizerRule<Agg
     @Override
     protected LogicalPlan rule(Aggregate agg) {
         if (agg.aggregates().isEmpty() && agg.groupings().isEmpty()) {
-            // TODO this is wrong, it should return -one- row with -no- columns, but I can't represent it as an array of blocks...
-            // Needs some refactoring to LocalSupplier
-            return new LocalRelation(agg.source(), List.of(), EmptyLocalSupplier.EMPTY);
+            return new LocalRelation(agg.source(), List.of(), LocalSupplier.of(new Page(1)));
         }
         return agg;
     }

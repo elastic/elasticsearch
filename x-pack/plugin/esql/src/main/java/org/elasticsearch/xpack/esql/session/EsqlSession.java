@@ -219,7 +219,7 @@ public class EsqlSession {
             values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
             values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
             var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-            physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
+            physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(new Page(blocks)));
             planRunner.run(physicalPlan, listener);
         } else {
             // TODO: this could be snuck into the underlying listener
@@ -304,7 +304,7 @@ public class EsqlSession {
         List<Attribute> schema = result.schema();
         // if (pages.size() > 1) {
         Block[] blocks = SessionUtils.fromPages(schema, pages);
-        return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
+        return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
@@ -559,8 +559,9 @@ public class EsqlSession {
      * Check whether the lookup index resolves to a single concrete index on all clusters or not.
      * If it's a single index, we are compatible with old pre-9.2 LOOKUP JOIN code and just need to send the same resolution as we did.
      * If there are multiple index names (e.g. due to aliases) then pre-9.2 clusters won't be able to handle it so we need to skip them.
+     *
      * @return An updated `IndexResolution` object if the index resolves to a single concrete index,
-     *         or the original `lookupIndexResolution` if no changes are needed.
+     * or the original `lookupIndexResolution` if no changes are needed.
      */
     private IndexResolution checkSingleIndex(
         String index,

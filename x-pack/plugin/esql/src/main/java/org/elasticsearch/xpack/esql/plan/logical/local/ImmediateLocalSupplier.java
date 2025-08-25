@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * A {@link LocalSupplier} that contains already filled {@link Block}s.
@@ -28,28 +29,49 @@ public class ImmediateLocalSupplier implements LocalSupplier {
         ImmediateLocalSupplier::new
     );
 
-    final Block[] blocks;
+    protected Page page;
 
-    ImmediateLocalSupplier(Block[] blocks) {
-        this.blocks = blocks;
+    ImmediateLocalSupplier(Page page) {
+        this.page = page;
     }
 
     ImmediateLocalSupplier(StreamInput in) throws IOException {
-        this(((PlanStreamInput) in).readCachedBlockArray());
+        this(
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLAN_WITH_NO_COLUMNS)
+                ? new Page(in.readInt(), ((PlanStreamInput) in).readCachedBlockArray())
+                : legacyPage((PlanStreamInput) in)
+        );
+    }
+
+    private static Page legacyPage(PlanStreamInput in) throws IOException {
+        Block[] blocks = in.readCachedBlockArray();
+        if (blocks.length == 0) {
+            // the page can't determine the position count from an empty array
+            return new Page(0, blocks);
+        }
+        return new Page(blocks);
     }
 
     @Override
-    public Block[] get() {
-        return blocks;
+    public Page get() {
+        return page;
     }
 
     @Override
     public String toString() {
-        return Arrays.toString(blocks);
+        return page.toString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLAN_WITH_NO_COLUMNS)) {
+            out.writeInt(page.getPositionCount());
+        }
+
+        Block[] blocks = new Block[page.getBlockCount()];
+        for (int i = 0; i < blocks.length; i++) {
+            blocks[i] = page.getBlock(i);
+        }
         out.writeArray((o, v) -> ((PlanStreamOutput) o).writeCachedBlock(v), blocks);
     }
 
@@ -59,12 +81,12 @@ public class ImmediateLocalSupplier implements LocalSupplier {
             return false;
         }
         ImmediateLocalSupplier other = (ImmediateLocalSupplier) obj;
-        return Arrays.equals(blocks, other.blocks);
+        return page.equals(other.page);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(blocks);
+        return page.hashCode();
     }
 
     @Override

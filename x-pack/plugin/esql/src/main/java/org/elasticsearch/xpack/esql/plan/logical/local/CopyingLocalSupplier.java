@@ -12,13 +12,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * A {@link LocalSupplier} that allways creates a new copy of the {@link Block}s initially provided at creation time.
@@ -62,8 +62,8 @@ public class CopyingLocalSupplier implements LocalSupplier {
 
     private final ImmediateLocalSupplier delegate;
 
-    public CopyingLocalSupplier(Block[] blocks) {
-        delegate = new ImmediateLocalSupplier(blocks);
+    public CopyingLocalSupplier(Page page) {
+        delegate = new ImmediateLocalSupplier(page);
     }
 
     public CopyingLocalSupplier(StreamInput in) throws IOException {
@@ -71,12 +71,12 @@ public class CopyingLocalSupplier implements LocalSupplier {
     }
 
     @Override
-    public Block[] get() {
-        Block[] blockCopies = new Block[delegate.blocks.length];
+    public Page get() {
+        Block[] blockCopies = new Block[delegate.page.getBlockCount()];
         for (int i = 0; i < blockCopies.length; i++) {
-            blockCopies[i] = BlockUtils.deepCopyOf(delegate.blocks[i], PlannerUtils.NON_BREAKING_BLOCK_FACTORY);
+            blockCopies[i] = BlockUtils.deepCopyOf(delegate.page.getBlock(i), PlannerUtils.NON_BREAKING_BLOCK_FACTORY);
         }
-        return blockCopies;
+        return new Page(delegate.page.getPositionCount(), blockCopies);
     }
 
     @Override
@@ -95,7 +95,7 @@ public class CopyingLocalSupplier implements LocalSupplier {
             return false;
         }
         CopyingLocalSupplier other = (CopyingLocalSupplier) obj;
-        return Arrays.equals(delegate.blocks, other.delegate.blocks);
+        return delegate.page.equals(other.delegate.page);
     }
 
     @Override

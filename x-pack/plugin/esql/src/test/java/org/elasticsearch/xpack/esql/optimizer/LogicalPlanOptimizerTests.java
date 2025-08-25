@@ -12,8 +12,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVectorBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
@@ -191,7 +191,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
@@ -225,10 +224,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | stats c = count(salary)
             | drop c
             """);
-        // TODO Wrong! It should return an empty row, not an empty result
-        var relation = as(plan, LocalRelation.class);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), LocalRelation.class);
         assertThat(relation.output(), is(empty()));
-        assertThat(relation.supplier().get(), emptyArray());
+        Page page = relation.supplier().get();
+        assertThat(page.getBlockCount(), is(0));
+        assertThat(page.getPositionCount(), is(1));
     }
 
     /**
@@ -255,8 +256,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         var singleRowRelation = as(limit.child(), LocalRelation.class);
         var singleRow = singleRowRelation.supplier().get();
-        assertThat(singleRow.length, equalTo(1));
-        assertThat(singleRow[0].getPositionCount(), equalTo(1));
+        assertThat(singleRow.getBlockCount(), equalTo(1));
+        assertThat(singleRow.getBlock(0).getPositionCount(), equalTo(1));
 
         var exprs = eval.fields();
         assertThat(exprs.size(), equalTo(1));
@@ -552,10 +553,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var project = as(plan, Limit.class);
         var source = as(project.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("sum(salary) where false"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        assertThat(blocks[0].getPositionCount(), is(1));
-        assertTrue(blocks[0].areAllValuesNull());
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getBlock(0).getPositionCount(), is(1));
+        assertTrue(page.getBlock(0).areAllValuesNull());
     }
 
     /**
@@ -586,10 +587,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), LocalRelation.class);
 
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        assertThat(blocks[0].getPositionCount(), is(1));
-        assertTrue(blocks[0].areAllValuesNull());
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getBlock(0).getPositionCount(), is(1));
+        assertTrue(page.getBlock(0).areAllValuesNull());
     }
 
     /**
@@ -696,9 +697,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("count(salary) where not true"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        var block = as(page.getBlock(0), LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
     }
@@ -738,9 +739,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("count(salary) where false"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        var block = as(page.getBlock(0), LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
     }
@@ -773,9 +774,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), LocalRelation.class);
 
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        var block = as(page.getBlock(0), LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
     }
@@ -840,9 +841,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("count"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        var block = as(page.getBlock(0), LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
     }
@@ -5453,8 +5454,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var eval = as(project.child(), Eval.class);
             var singleRowRelation = as(eval.child(), LocalRelation.class);
             var singleRow = singleRowRelation.supplier().get();
-            assertThat(singleRow.length, equalTo(1));
-            assertThat(singleRow[0].getPositionCount(), equalTo(1));
+            assertThat(singleRow.getBlockCount(), equalTo(1));
+            assertThat(singleRow.getBlock(0).getPositionCount(), equalTo(1));
 
             assertAggOfConstExprs(testCase, eval.fields());
         }

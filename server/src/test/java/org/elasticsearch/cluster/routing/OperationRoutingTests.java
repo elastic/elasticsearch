@@ -9,9 +9,15 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +25,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -463,6 +470,176 @@ public class OperationRoutingTests extends ESTestCase {
         nodeIds.add(groupIterator.get(1).nextOrNull().currentNodeId());
         assertThat(nodeIds, equalTo(Set.of("node_1")));
         assertThat(outstandingRequests.get("node_1"), equalTo(2L));
+
+        IOUtils.close(clusterService);
+        terminate(threadPool);
+    }
+
+    public void testOperationRoutingWithResharding() throws IOException {
+        var threadPool = new TestThreadPool("testOperationRoutingWithResharding");
+        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final String indexName = "test";
+        final int shardCount = 1;
+        final int newShardCount = randomIntBetween(2, 5);
+
+        var indexMetadata = IndexMetadata.builder(indexName)
+            .settings(indexSettings(IndexVersion.current(), newShardCount, 1))
+            .numberOfShards(newShardCount)
+            .numberOfReplicas(1)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(shardCount, newShardCount))
+            .build();
+
+        ClusterState.Builder initialStateBuilder = ClusterState.builder(new ClusterName("test"));
+        initialStateBuilder.metadata(
+            Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).generateClusterUuidIfNeeded()
+        );
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+        for (int i = 0; i < newShardCount; i++) {
+            final ShardId shardId = new ShardId(indexName, "_na_", i);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(indexName, i, "node0", null, true, ShardRoutingState.STARTED)
+            );
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(indexName, i, "node1", null, false, ShardRoutingState.STARTED)
+            );
+            indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
+        }
+        initialStateBuilder.routingTable(
+            GlobalRoutingTable.builder().put(projectId, RoutingTable.builder().add(indexRoutingTableBuilder.build())).build()
+        );
+
+        var initialState = initialStateBuilder.build();
+        ClusterServiceUtils.setState(clusterService, initialState);
+
+        var initialSearchShards = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
+        assertEquals(shardCount, initialSearchShards.size());
+        assertEquals(0, initialSearchShards.get(0).shardId().id());
+
+        // We are testing a case when there is routing configuration but not for the index in question.
+        // Actual routing behavior is tested in IndexRoutingTests.
+        var initialSearchShardsWithRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount, initialSearchShardsWithRouting.size());
+        assertEquals(0, initialSearchShardsWithRouting.get(0).shardId().id());
+
+        var initialWriteableShards = clusterService.operationRouting()
+            .allWritableShards(clusterService.state().projectState(projectId), indexName);
+        assertEquals(0, initialWriteableShards.next().shardId().id());
+        assertFalse(initialWriteableShards.hasNext());
+
+        final Index index = clusterService.state().metadata().getProject(projectId).index(indexName).getIndex();
+
+        var shardChangingSplitTargetState = randomIntBetween(1, newShardCount - 1);
+
+        var currentIndexMetadata = clusterService.state().projectState(projectId).metadata().index(indexName);
+        var updatedReshardingMetadataOneShardInHandoff = IndexMetadata.builder(currentIndexMetadata)
+            .reshardingMetadata(
+                currentIndexMetadata.getReshardingMetadata()
+                    .transitionSplitTargetToNewState(
+                        new ShardId(index, shardChangingSplitTargetState),
+                        IndexReshardingState.Split.TargetShardState.HANDOFF
+                    )
+            )
+            .build();
+        var newState = ClusterState.builder(initialState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(initialState.projectState(projectId).metadata())
+                    .put(updatedReshardingMetadataOneShardInHandoff, true)
+                    .build()
+            );
+        ClusterServiceUtils.setState(clusterService, newState);
+
+        var searchShardsWithOneShardHandoff = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
+        assertEquals(shardCount, searchShardsWithOneShardHandoff.size());
+        assertEquals(0, searchShardsWithOneShardHandoff.get(0).shardId().id());
+
+        var searchShardsWithOneShardHandoffAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount, searchShardsWithOneShardHandoffAndRouting.size());
+        assertEquals(0, searchShardsWithOneShardHandoffAndRouting.get(0).shardId().id());
+
+        var writeableShardsWithOneShardHandoff = clusterService.operationRouting()
+            .allWritableShards(clusterService.state().projectState(projectId), indexName);
+        assertEquals(0, writeableShardsWithOneShardHandoff.next().shardId().id());
+        assertEquals(shardChangingSplitTargetState, writeableShardsWithOneShardHandoff.next().shardId().id());
+        assertFalse(writeableShardsWithOneShardHandoff.hasNext());
+
+        currentIndexMetadata = clusterService.state().projectState(projectId).metadata().index(indexName);
+        var updatedReshardingMetadataOneShardInSplit = IndexMetadata.builder(currentIndexMetadata)
+            .reshardingMetadata(
+                currentIndexMetadata.getReshardingMetadata()
+                    .transitionSplitTargetToNewState(
+                        new ShardId(index, shardChangingSplitTargetState),
+                        IndexReshardingState.Split.TargetShardState.SPLIT
+                    )
+            )
+            .build();
+        newState = ClusterState.builder(initialState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(initialState.projectState(projectId).metadata())
+                    .put(updatedReshardingMetadataOneShardInSplit, true)
+                    .build()
+            );
+        ClusterServiceUtils.setState(clusterService, newState);
+
+        var searchShardsWithOneShardSplit = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardSplit.size());
+        assertEquals(0, searchShardsWithOneShardSplit.get(0).shardId().id());
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardSplit.get(1).shardId().id());
+
+        var searchShardsWithOneShardSplitAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardSplitAndRouting.size());
+        assertEquals(0, searchShardsWithOneShardSplitAndRouting.get(0).shardId().id());
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardSplitAndRouting.get(1).shardId().id());
+
+        var writeableShardsWithOneShardSplit = clusterService.operationRouting()
+            .allWritableShards(clusterService.state().projectState(projectId), indexName);
+        assertEquals(0, writeableShardsWithOneShardSplit.next().shardId().id());
+        assertEquals(shardChangingSplitTargetState, writeableShardsWithOneShardSplit.next().shardId().id());
+        assertFalse(writeableShardsWithOneShardSplit.hasNext());
+
+        currentIndexMetadata = clusterService.state().projectState(projectId).metadata().index(indexName);
+        var updatedReshardingMetadataOneShardInDone = IndexMetadata.builder(currentIndexMetadata)
+            .reshardingMetadata(
+                currentIndexMetadata.getReshardingMetadata()
+                    .transitionSplitTargetToNewState(
+                        new ShardId(index, shardChangingSplitTargetState),
+                        IndexReshardingState.Split.TargetShardState.DONE
+                    )
+            )
+            .build();
+        newState = ClusterState.builder(initialState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(initialState.projectState(projectId).metadata())
+                    .put(updatedReshardingMetadataOneShardInDone, true)
+                    .build()
+            );
+        ClusterServiceUtils.setState(clusterService, newState);
+
+        var searchShardsWithOneShardDone = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardDone.size());
+        assertEquals(0, searchShardsWithOneShardDone.get(0).shardId().id());
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardDone.get(1).shardId().id());
+
+        var searchShardsWithOneShardDoneAndRouting = clusterService.operationRouting()
+            .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
+        assertEquals(shardCount + 1, searchShardsWithOneShardDoneAndRouting.size());
+        assertEquals(0, searchShardsWithOneShardDoneAndRouting.get(0).shardId().id());
+        assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardDoneAndRouting.get(1).shardId().id());
+
+        var writeableShardsWithOneShardDone = clusterService.operationRouting()
+            .allWritableShards(clusterService.state().projectState(projectId), indexName);
+        assertEquals(0, writeableShardsWithOneShardDone.next().shardId().id());
+        assertEquals(shardChangingSplitTargetState, writeableShardsWithOneShardDone.next().shardId().id());
+        assertFalse(writeableShardsWithOneShardDone.hasNext());
 
         IOUtils.close(clusterService);
         terminate(threadPool);

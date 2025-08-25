@@ -1186,6 +1186,7 @@ public class Stateless extends Plugin
             StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED,
             EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
             EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
+            EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
             SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
             SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
             SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,

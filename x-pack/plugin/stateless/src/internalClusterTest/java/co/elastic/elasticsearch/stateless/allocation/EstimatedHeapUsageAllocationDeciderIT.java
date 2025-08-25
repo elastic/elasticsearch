@@ -73,7 +73,10 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessInte
         return super.nodeSettings().put(
             "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
             TimeValue.timeValueMillis(10)
-        ).put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
+        )
+            .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+            // Ensure it's enabled for this test
+            .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), "100mb");
     }
 
     public void testEstimatedHeapAllocationDecider() {

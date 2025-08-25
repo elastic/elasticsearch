@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -46,6 +47,16 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(EstimatedHeapUsageAllocationDecider.class);
     private static final String NAME = "estimated_heap";
+
+    /**
+     * Below the specified heap size the decider will not intervene
+     */
+    public static final Setting<ByteSizeValue> MINIMUM_HEAP_SIZE_FOR_ENABLEMENT = Setting.byteSizeSetting(
+        "cluster.routing.allocation.estimated_heap.minimum_heap_size_for_enablement",
+        ByteSizeValue.ofGb(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     public static final Setting<RatioValue> CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK = new Setting<>(
         "cluster.routing.allocation.estimated_heap.watermark.low",
@@ -77,6 +88,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
     private final FrequencyCappedAction logInterventionMessage;
     private volatile boolean enabled;
     private volatile RatioValue estimatedHeapLowWatermark;
+    private volatile ByteSizeValue minimumHeapSizeForEnabled;
 
     public EstimatedHeapUsageAllocationDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
@@ -86,6 +98,10 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         logInterventionMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, logInterventionMessage::setMinInterval);
         clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK, this::setEstimatedHeapLowWatermark);
+        clusterSettings.initializeAndWatch(
+            MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
+            byteSizeValue -> this.minimumHeapSizeForEnabled = byteSizeValue
+        );
     }
 
     private void setEnabled(boolean enabled) {
@@ -113,6 +129,15 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
                 NAME,
                 "no estimated heap estimation available for node [%s], either a new or restarted node",
                 node.nodeId()
+            );
+        }
+
+        if (estimatedHeapUsage.totalBytes() < minimumHeapSizeForEnabled.getBytes()) {
+            return new Decision.Single(
+                Decision.Type.YES,
+                NAME,
+                "estimated heap decider will not intervene if heap size is below [%s]",
+                minimumHeapSizeForEnabled
             );
         }
 

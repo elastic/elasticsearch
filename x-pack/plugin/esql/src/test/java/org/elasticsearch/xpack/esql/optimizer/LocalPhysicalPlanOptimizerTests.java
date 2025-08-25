@@ -172,7 +172,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public static final String MATCH_OPERATOR_QUERY = "from test | where %s:%s";
     public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
-    private TestPlannerOptimizer plannerOptimizer;
+    protected TestPlannerOptimizer plannerOptimizer;
     private TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
     private Analyzer timeSeriesAnalyzer;
     private final Configuration config;
@@ -261,7 +261,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         );
     }
 
-    private Analyzer makeAnalyzer(String mappingFileName) {
+    protected Analyzer makeAnalyzer(String mappingFileName) {
         return makeAnalyzer(mappingFileName, new EnrichResolution());
     }
 
@@ -2509,7 +2509,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
-    private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
+    protected static QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(query, inner, fieldName, source);
     }
 

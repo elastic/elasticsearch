@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns true if a keyword substring is within another string. Returns false if the substring cannot be found.
+Returns a boolean that indicates whether a keyword substring is within another string. Returns `null` if either parameter is null.
 

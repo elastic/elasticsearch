@@ -86,7 +86,7 @@ redirects:
         anchors: {'esql-stats-by'}
       - to: 'reference/query-languages/esql/commands/where.md'
         anchors: {'esql-where'}
-
+  
   # Dummy redirects for deleted snippets to get round a bug in redirects validation
   'reference/query-languages/esql/_snippets/functions/description/st_geohash_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/_snippets/functions/description/st_geotile_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'

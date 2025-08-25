@@ -184,9 +184,17 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 documents = new ArrayList<>();
             }
             documents.add(document);
-            var indexRequest = client().prepareIndex(DATASTREAM_NAME).setOpType(DocWriteRequest.OpType.CREATE).setSource(document);
-            indexRequest.setRefreshPolicy(org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE);
-            indexRequest.get();
+            try {
+                var indexRequest = client().prepareIndex(DATASTREAM_NAME).setOpType(DocWriteRequest.OpType.CREATE).setSource(document);
+                indexRequest.setRefreshPolicy(org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE);
+                indexRequest.get();
+            } catch (Exception e) {
+                // Ignore version conflicts, which can happen due to retries on the client side
+                if (e.getMessage() != null && e.getMessage().contains("version conflict")) {
+                    continue;
+                }
+                throw e;
+            }
         }
     }
 

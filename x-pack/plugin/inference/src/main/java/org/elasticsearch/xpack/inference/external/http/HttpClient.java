@@ -17,6 +17,7 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -158,6 +159,8 @@ public class HttpClient implements Closeable {
                     e
                 );
                 listener.onFailure(e);
+            } finally {
+                EntityUtils.consumeQuietly(response.getEntity());
             }
         });
     }

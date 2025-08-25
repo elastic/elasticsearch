@@ -21,6 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import java.util.function.LongBinaryOperator;
+
 /**
  * An iterator that merges two bucket iterators, aligning them to a common scale and combining buckets with the same index.
  */
@@ -33,8 +35,7 @@ final class MergingBucketIterator implements BucketIterator {
     private long currentIndex;
     private long currentCount;
 
-    private final long factorA;
-    private final long factorB;
+    private final LongBinaryOperator countMergeOperator;
 
     /**
      * Creates a new merging iterator.
@@ -44,24 +45,22 @@ final class MergingBucketIterator implements BucketIterator {
      * @param targetScale the histogram scale to which both iterators should be aligned
      */
     MergingBucketIterator(BucketIterator itA, BucketIterator itB, int targetScale) {
-        this(itA, 1, itB, 1, targetScale);
+        this(itA, itB, targetScale, Long::sum);
     }
 
     /**
-     * Creates a new merging iterator, multiplying counts from each iterator with the provided factors.
-     * Note that the factors can be negative, in which case {@link #peekCount()} can return zero or negative values.
+     * Creates a new merging iterator, using the provided operator to merge the counts.
+     * Note that the resulting count can be negative if the operator produces negative results.
      *
      * @param itA         the first iterator to merge
-     * @param factorA     a factor to multiply counts from the first iterator with
      * @param itB         the second iterator to merge
-     * @param factorB     a factor to multiply counts from the second iterator with
+     * @param countMergeOperator the operator to use to merge counts of buckets with the same index
      * @param targetScale the histogram scale to which both iterators should be aligned
      */
-    MergingBucketIterator(BucketIterator itA, long factorA, BucketIterator itB, long factorB, int targetScale) {
+    MergingBucketIterator(BucketIterator itA, BucketIterator itB, int targetScale, LongBinaryOperator countMergeOperator) {
         this.itA = new ScaleAdjustingBucketIterator(itA, targetScale);
         this.itB = new ScaleAdjustingBucketIterator(itB, targetScale);
-        this.factorA = factorA;
-        this.factorB = factorB;
+        this.countMergeOperator = countMergeOperator;
         endReached = false;
         advance();
     }
@@ -83,19 +82,21 @@ final class MergingBucketIterator implements BucketIterator {
             idxB = itB.peekIndex();
         }
 
-        currentCount = 0;
         boolean advanceA = hasNextA && (hasNextB == false || idxA <= idxB);
         boolean advanceB = hasNextB && (hasNextA == false || idxB <= idxA);
+        long countA = 0;
+        long countB = 0;
         if (advanceA) {
             currentIndex = idxA;
-            currentCount += itA.peekCount() * factorA;
+            countA = itA.peekCount();
             itA.advance();
         }
         if (advanceB) {
             currentIndex = idxB;
-            currentCount += itB.peekCount() * factorB;
+            countB = itB.peekCount();
             itB.advance();
         }
+        currentCount = countMergeOperator.applyAsLong(countA, countB);
     }
 
     @Override
@@ -125,4 +126,5 @@ final class MergingBucketIterator implements BucketIterator {
             throw new IllegalStateException("Iterator has no more buckets");
         }
     }
+
 }

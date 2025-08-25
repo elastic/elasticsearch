@@ -35,7 +35,12 @@ public class ExponentialHistogramUtils {
         assert negativeBuckets.scale() == positiveBuckets.scale();
 
         // for each bucket index, sum up the counts, but account for the positive/negative sign
-        BucketIterator it = new MergingBucketIterator(negativeBuckets, -1, positiveBuckets, 1, positiveBuckets.scale());
+        BucketIterator it = new MergingBucketIterator(
+            positiveBuckets,
+            negativeBuckets,
+            positiveBuckets.scale(),
+            (positiveCount, negativeCount) -> positiveCount - negativeCount
+        );
         double sum = 0.0;
         while (it.hasNext()) {
             long countWithSign = it.peekCount();

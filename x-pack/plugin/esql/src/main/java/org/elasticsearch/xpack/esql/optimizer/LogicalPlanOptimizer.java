@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.IgnoreNullMetrics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
@@ -130,6 +131,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
+            new IgnoreNullMetrics(),
             new SubstituteSurrogatePlans(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.

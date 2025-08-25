@@ -50,6 +50,11 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
+    public boolean isMetric() {
+        return false;
+    }
+
+    @Override
     public boolean resolved() {
         return true;
     }

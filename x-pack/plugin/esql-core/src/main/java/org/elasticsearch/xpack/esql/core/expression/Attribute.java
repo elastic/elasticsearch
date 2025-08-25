@@ -154,4 +154,9 @@ public abstract class Attribute extends NamedExpression {
      * @return true if the attribute represents a TSDB dimension type
      */
     public abstract boolean isDimension();
+
+    /**
+     * @return true if the attribute represents a TSDB metric type
+     */
+    public abstract boolean isMetric();
 }

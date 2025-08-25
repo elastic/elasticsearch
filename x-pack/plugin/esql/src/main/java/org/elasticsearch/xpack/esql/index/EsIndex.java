@@ -21,6 +21,7 @@ import static java.util.stream.Collectors.toMap;
 
 public record EsIndex(
     String name,
+    /** Map of field names to {@link EsField} instances representing that field */
     Map<String, EsField> mapping,
     Map<String, IndexMode> indexNameWithModes,
     /** Fields mapped only in some (but *not* all) indices. Since this is only used by the analyzer, it is not serialized. */

@@ -323,7 +323,7 @@ spec:
       name: elasticsearch / pull-request / performance-benchmark
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/pipelines/pull-request/performance-benchmark.yml
+      pipeline_file: .buildkite/pipelines/pull-request-performance-benchmark.yml
       env:
         ELASTIC_PR_COMMENTS_ENABLED: "true"
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"

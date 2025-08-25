@@ -136,6 +136,7 @@ public class IngestDocumentTests extends ESTestCase {
         dots.put("foo.bar.null", null);
         document.put("dots", dots);
         document.put("dotted.bar.baz", true);
+        document.put("dotted.foo.bar.baz", new HashMap<>(Map.of("qux.quux", true)));
         document.put("dotted.bar.baz_null", null);
 
         this.document = new IngestDocument("index", "id", 1, null, null, document);
@@ -531,6 +532,9 @@ public class IngestDocumentTests extends ESTestCase {
                 assertFalse(doc.hasField("dots.single_fieldname.multiple.fieldnames.single_fieldname_again.multiple.fieldnames"));
                 assertTrue(doc.hasField("dots.single_fieldname.multiple.fieldnames.single_fieldname_again.multiple.fieldnames.again"));
             }
+
+            assertFalse(doc.hasField("dotted.foo.bar.baz.qux"));
+            assertTrue(doc.hasField("dotted.foo.bar.baz.qux.quux"));
         });
     }
 
@@ -668,6 +672,10 @@ public class IngestDocumentTests extends ESTestCase {
             // Metadata contains timestamp, both fields added above, and the pipeline that is synthesized from doWithRandomAccessPattern
             assertThat(doc.getIngestMetadata().size(), equalTo(4));
             assertThat(doc.getIngestMetadata().get("dotted.bar.buzz"), equalTo("fizz"));
+
+            doc.setFieldValue("dotted.foo", "foo");
+            assertThat(doc.getSourceAndMetadata().get("dotted.foo"), instanceOf(String.class));
+            assertThat(doc.getSourceAndMetadata().get("dotted.foo"), equalTo("foo"));
         });
     }
 
@@ -702,6 +710,12 @@ public class IngestDocumentTests extends ESTestCase {
             doc.setFieldValue("dotted.a.b.c.d", "foo");
             assertThat(doc.getSourceAndMetadata().get("dotted.a.b.c.d"), instanceOf(String.class));
             assertThat(doc.getSourceAndMetadata().get("dotted.a.b.c.d"), equalTo("foo"));
+
+            doc.setFieldValue("dotted.foo.bar.baz.blank", "foo");
+            assertThat(doc.getSourceAndMetadata().get("dotted.foo.bar.baz"), instanceOf(Map.class));
+            Map<String, Object> dottedFooBarBaz = (Map<String, Object>) doc.getSourceAndMetadata().get("dotted.foo.bar.baz");
+            assertThat(dottedFooBarBaz.get("blank"), instanceOf(String.class));
+            assertThat(dottedFooBarBaz.get("blank"), equalTo("foo"));
         });
     }
 
@@ -1468,25 +1482,25 @@ public class IngestDocumentTests extends ESTestCase {
     public void testRemoveField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("foo");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
             assertThat(doc.getSourceAndMetadata().containsKey("foo"), equalTo(false));
             doc.removeField("_index");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
             assertThat(doc.getSourceAndMetadata().containsKey("_index"), equalTo(false));
             doc.removeField("_source.fizz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(11));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
             assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
             assertThat(doc.getIngestMetadata().size(), equalTo(2));
             doc.removeField("_ingest.timestamp");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(11));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
             assertThat(doc.getIngestMetadata().size(), equalTo(1));
             doc.removeField("_ingest.pipeline");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(11));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
             assertThat(doc.getIngestMetadata().size(), equalTo(0));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.removeField("dotted.bar.baz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(10));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(11));
             assertThat(doc.getSourceAndMetadata().containsKey("dotted.bar.baz"), equalTo(false));
         });
     }
@@ -1494,10 +1508,10 @@ public class IngestDocumentTests extends ESTestCase {
     public void testRemoveFieldIgnoreMissing() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("foo", randomBoolean());
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
             assertThat(doc.getSourceAndMetadata().containsKey("foo"), equalTo(false));
             doc.removeField("_index", randomBoolean());
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
             assertThat(doc.getSourceAndMetadata().containsKey("_index"), equalTo(false));
         });
 
@@ -1560,7 +1574,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testRemoveInnerField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("fizz.buzz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
             assertThat(doc.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) doc.getSourceAndMetadata().get("fizz");
@@ -1569,22 +1583,22 @@ public class IngestDocumentTests extends ESTestCase {
 
             doc.removeField("fizz.foo_null");
             assertThat(map.size(), equalTo(2));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
             assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
             doc.removeField("fizz.1");
             assertThat(map.size(), equalTo(1));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
             assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
             doc.removeField("fizz.list");
             assertThat(map.size(), equalTo(0));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
             assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.removeField("dots.foo.bar.baz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
             assertThat(doc.getSourceAndMetadata().get("dots"), instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> dots = (Map<String, Object>) doc.getSourceAndMetadata().get("dots");
@@ -1594,7 +1608,7 @@ public class IngestDocumentTests extends ESTestCase {
             doc.removeField("dots.foo.bar.null");
             assertThat(dots.size(), equalTo(4));
             assertThat(dots.containsKey("foo.bar.null"), equalTo(false));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
             assertThat(doc.getSourceAndMetadata().containsKey("dots"), equalTo(true));
 
             doc.removeField("dots.arrays.dotted.strings");
@@ -1603,7 +1617,7 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(dots.size(), equalTo(4));
             assertThat(arrays.size(), equalTo(2));
             assertThat(arrays.containsKey("dotted.strings"), equalTo(false));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
             assertThat(doc.getSourceAndMetadata().containsKey("dots"), equalTo(true));
         });
     }
@@ -1665,7 +1679,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testRemoveIngestObject() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("_ingest");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
             assertThat(doc.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
         });
     }
@@ -1689,7 +1703,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListRemoveField() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.removeField("list.0.field");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
             assertThat(doc.getSourceAndMetadata().containsKey("list"), equalTo(true));
             Object object = doc.getSourceAndMetadata().get("list");
             assertThat(object, instanceOf(List.class));

@@ -364,12 +364,8 @@ public abstract class IndexRouting {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
             try (
-                ESONXContentParser esonxContentParser = new ESONXContentParser(
-                    structuredSource.esonFlat(),
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.IGNORE_DEPRECATIONS,
-                    sourceType
-                );
+                ESONXContentParser esonxContentParser = structuredSource.esonFlat()
+                    .parser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.IGNORE_DEPRECATIONS, sourceType);
                 XContentParser parser = new MapXContentParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.IGNORE_DEPRECATIONS,

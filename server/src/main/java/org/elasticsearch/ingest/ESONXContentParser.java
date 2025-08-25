@@ -24,7 +24,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.Base64;
-import java.util.List;
 
 /**
  * Simplified XContentParser for flattened ESON structures.
@@ -35,14 +34,10 @@ import java.util.List;
  * The parser performs a single iteration through the key array, using a stack
  * to track container boundaries and maintain proper state.
  */
-public class ESONXContentParser extends AbstractXContentParser {
+public abstract class ESONXContentParser extends AbstractXContentParser {
 
     private final ESONSource.Values values;
     private final XContentType xContentType;
-
-    // Key array iteration state
-    private final List<ESONEntry> keyArray;
-    private int currentIndex = 0;
 
     // Current token state
     private Token currentToken = null;
@@ -50,21 +45,19 @@ public class ESONXContentParser extends AbstractXContentParser {
     private ESONEntry currentEntry = null;
     private Object currentValue = null;
 
-    private final ESONStack containerStack = new ESONStack();
+    protected final ESONStack containerStack = new ESONStack();
 
     private boolean closed = false;
 
     public ESONXContentParser(
-        ESONFlat esonFlat,
+        ESONSource.Values values,
         NamedXContentRegistry registry,
         DeprecationHandler deprecationHandler,
         XContentType xContentType
     ) {
         super(registry, deprecationHandler);
-        this.values = esonFlat.values();
+        this.values = values;
         this.xContentType = xContentType;
-
-        this.keyArray = esonFlat.getKeys();
     }
 
     @Override
@@ -95,14 +88,13 @@ public class ESONXContentParser extends AbstractXContentParser {
         return currentToken;
     }
 
-    private Token advanceInContainer() {
+    private Token advanceInContainer() throws IOException {
         int stackValue = containerStack.currentStackValue();
         int remainingFields = ESONStack.fieldsRemaining(stackValue);
         if (remainingFields > 0) {
-            currentEntry = keyArray.get(currentIndex);
+            currentEntry = nextEntry();
             currentValue = null;
             containerStack.updateRemainingFields(stackValue - 1);
-            ++currentIndex;
 
             byte type = currentEntry.type();
             final Token token = switch (type) {
@@ -134,21 +126,22 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
     }
 
-    private Token handleInitial() {
+    private Token handleInitial() throws IOException {
         if (closed) {
             return null;
         }
 
         if (currentToken == null) {
             // First token logic
-            currentEntry = keyArray.get(currentIndex);
+            currentEntry = nextEntry();
             currentValue = null;
             containerStack.pushObject(currentEntry.offsetOrCount());
-            currentIndex++;
             return currentToken = Token.START_OBJECT;
         }
         return null;
     }
+
+    protected abstract ESONEntry nextEntry() throws IOException;
 
     private void newContainer(byte type) {
         if (type == ESONEntry.TYPE_OBJECT) {
@@ -210,7 +203,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         int toSkip = currentEntry.offsetOrCount();
 
         while (toSkip-- > 0) {
-            ESONEntry entry = keyArray.get(currentIndex++);
+            ESONEntry entry = nextEntry();
 
             // Only check containers - most entries are primitives in typical JSON
             if (entry.type() >= ESONEntry.TYPE_OBJECT) {

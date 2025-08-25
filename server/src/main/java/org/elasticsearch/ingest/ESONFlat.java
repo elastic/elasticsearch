@@ -16,6 +16,9 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,6 +37,14 @@ public record ESONFlat(
 
     public ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
         this(new AtomicReference<>(keys), values, new AtomicReference<>(), new AtomicReference<>());
+    }
+
+    public ESONXContentParser parser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, XContentType xContentType) {
+        if (keys.get() != null) {
+            return new ESONFlatXContentParser(keys.get(), values, registry, deprecationHandler, xContentType);
+        } else {
+            return new ESONBytesXContentParser(serializedKeyBytes.get(), values, registry, deprecationHandler, xContentType);
+        }
     }
 
     public static ESONFlat readFrom(StreamInput in) throws IOException {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -294,6 +295,8 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     }
 
     private static class Evaluator implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
+
         private final BlockFactory blockFactory;
         private final EvalOperator.ExpressionEvaluator field;
         private final boolean order;
@@ -327,6 +330,13 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         }
 
         @Override
-        public void close() {}
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            field.close();
+        }
     }
 }

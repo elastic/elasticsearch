@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CIDRMatchEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator ip;
@@ -67,6 +70,16 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         return eval(page.getPositionCount(), ipVector, cidrsVectors).asBlock();
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += ip.baseRamBytesUsed();
+    for (EvalOperator.ExpressionEvaluator e : cidrs) {
+      baseRamBytesUsed += e.baseRamBytesUsed();
+    }
+    return baseRamBytesUsed;
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {

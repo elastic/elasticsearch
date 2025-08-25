@@ -2313,7 +2313,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     settings,
                     clusterSettings,
                     masterService,
-                    new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
+                    new ClusterApplierService(node.getName(), clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                             return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> new Runnable() {

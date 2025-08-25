@@ -101,7 +101,7 @@ public class GatewayServiceTests extends ESTestCase {
             settings,
             clusterSettings,
             new FakeThreadPoolMasterService(initialState.nodes().getLocalNodeId(), threadPool, deterministicTaskQueue::scheduleNow),
-            new ClusterApplierService(initialState.nodes().getLocalNodeId(), settings, clusterSettings, threadPool) {
+            new ClusterApplierService(initialState.nodes().getLocalNodeId(), clusterSettings, threadPool) {
                 @Override
                 protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                     return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();

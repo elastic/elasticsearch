@@ -55,6 +55,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.ProjectScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -1123,11 +1124,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable))
                 );
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+                final ProjectScopedSettings projectScopedSettings = new ProjectScopedSettings(Collections.emptySet());
                 clusterApplierService = new DisruptableClusterApplierService(
                     localNode.getId(),
                     localNode.getEphemeralId(),
-                    settings,
                     clusterSettings,
+                    projectScopedSettings,
                     deterministicTaskQueue,
                     this::onNode,
                     threadPool
@@ -1823,13 +1825,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         DisruptableClusterApplierService(
             String nodeName,
             String nodeId,
-            Settings settings,
             ClusterSettings clusterSettings,
+            ProjectScopedSettings projectScopedSettings,
             DeterministicTaskQueue deterministicTaskQueue,
             UnaryOperator<Runnable> taskWrapper,
             ThreadPool threadPool
         ) {
-            super(nodeName, settings, clusterSettings, threadPool);
+            super(nodeName, clusterSettings, projectScopedSettings, threadPool);
             this.nodeName = nodeName;
             this.nodeId = nodeId;
             this.deterministicTaskQueue = deterministicTaskQueue;

@@ -37,7 +37,8 @@ public interface IpDatabase extends AutoCloseable {
      */
     @Nullable
     // TODO: This change requires a one-line change to an implementation in a logstash filter. Coordinate with that team before merging.
-    // https://github.com/elastic/logstash-filter-elastic_integration/blob/main/src/main/java/co/elastic/logstash/filters/elasticintegration/geoip/IpDatabaseAdapter.java
+    // See repo https://github.com/elastic/logstash-filter-elastic_integration,
+    // class co.elastic.logstash.filters.elasticintegration.geoip.IpDatabaseAdapter.
     <RESPONSE extends Response> RESPONSE getResponse(
         String ipAddress,
         CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider

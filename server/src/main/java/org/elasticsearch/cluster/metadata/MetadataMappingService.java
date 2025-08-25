@@ -225,8 +225,10 @@ public class MetadataMappingService {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
                         .mappingsUpdatedVersion(IndexVersion.current());
                     for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
-                        Settings newAdditionalSettings = provider.onUpdateMappings(indexMetadata, customMetadataBuilder, docMapper);
-                        if (newAdditionalSettings != null && newAdditionalSettings.isEmpty() == false) {
+                        Settings.Builder newAdditionalSettingsBuilder = Settings.builder();
+                        provider.onUpdateMappings(indexMetadata, docMapper, newAdditionalSettingsBuilder, customMetadataBuilder::put);
+                        if (newAdditionalSettingsBuilder.keys().isEmpty() == false) {
+                            Settings newAdditionalSettings = newAdditionalSettingsBuilder.build();
                             MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
                             additionalIndexSettings.put(newAdditionalSettings);
                             updatedSettings = true;

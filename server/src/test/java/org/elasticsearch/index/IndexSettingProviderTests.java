@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 public class IndexSettingProviderTests extends ESSingleNodeTestCase {
 
@@ -87,7 +88,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Settings getAdditionalIndexSettings(
+        public void provideAdditionalMetadata(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
@@ -95,16 +96,14 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+            Settings.Builder additionalSettings,
+            BiConsumer<String, Map<String, String>> additionalCustomMetadata
         ) {
             if (enabled.get()) {
-                var builder = Settings.builder().put("index.refresh_interval", intervalValue);
+                additionalSettings.put("index.refresh_interval", intervalValue);
                 if (INDEX_SETTING_DEPTH_ENABLED.get()) {
-                    builder.put("index.mapping.depth.limit", 100);
+                    additionalSettings.put("index.mapping.depth.limit", 100);
                 }
-                return builder.build();
-            } else {
-                return Settings.EMPTY;
             }
         }
 

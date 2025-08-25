@@ -1166,7 +1166,8 @@ public class MetadataCreateIndexService {
             final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
             Set<String> overrulingSettings = new HashSet<>();
             for (IndexSettingProvider provider : indexSettingProviders) {
-                var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                Settings.Builder builder = Settings.builder();
+                provider.provideAdditionalMetadata(
                     request.index(),
                     request.dataStreamName(),
                     templateIndexMode,
@@ -1174,8 +1175,10 @@ public class MetadataCreateIndexService {
                     resolvedAt,
                     templateAndRequestSettings,
                     combinedTemplateMappings,
-                    customMetadataBuilder
+                    builder,
+                    customMetadataBuilder::put
                 );
+                var newAdditionalSettings = builder.build();
                 validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
                 additionalIndexSettings.put(newAdditionalSettings);
                 if (provider.overrulesTemplateAndRequestSettings()) {

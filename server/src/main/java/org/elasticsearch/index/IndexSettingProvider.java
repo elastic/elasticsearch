@@ -12,7 +12,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
@@ -24,15 +23,15 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
- * An {@link IndexSettingProvider} is a provider for index level settings that can be set
+ * An {@link IndexSettingProvider} is a provider for index level settings and custom index metadata that can be set
  * explicitly as a default value (so they show up as "set" for newly created indices)
  */
 public interface IndexSettingProvider {
     /**
-     * Returns explicitly set default index {@link Settings} for the given index. This should not
-     * return null.
+     * Allows to provide default index {@link Settings} and custom index metadata for a newly created index.
      *
      * @param indexName                             The name of the new index being created
      * @param dataStreamName                        The name of the data stream if the index being created is part of a data stream
@@ -44,9 +43,12 @@ public interface IndexSettingProvider {
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
      *                                              defined on the create index request
      * @param combinedTemplateMappings              All the mappings resolved from the template that matches
-     * @param extraCustomMetadata                 A builder for custom metadata that can be used to add custom index metadata
+     * @param additionalSettings                    A settings builder to which additional settings can be added
+     * @param additionalCustomMetadata              A consumer to which additional
+     *                                              {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
+     *                                              can be added
      */
-    Settings getAdditionalIndexSettings(
+    void provideAdditionalMetadata(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -54,27 +56,27 @@ public interface IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
     );
 
     /**
-     * Called when the mappings for an index are updated.
-     * This method can be used to update index settings based on the new mappings.
+     * Called when the mappings for an existing index are updated, before the new index metadata is created.
+     * This method can be used to update index settings and to provide custom metadata based on the new mappings.
      *
-     * @param indexMetadata        the index metadata for the index being updated
-     * @param extraCustomMetadata  a builder for custom metadata that can be used to add custom index metadata
-     * @param documentMapper       the document mapper containing the updated mappings
-     * @return additional settings to be applied to the index
-     * or {@link Settings#EMPTY}/{@code null} if no additional settings are needed
+     * @param indexMetadata            The index metadata for the index being updated
+     * @param documentMapper           The document mapper containing the updated mappings
+     * @param additionalSettings       A settings builder to which additional settings can be added
+     * @param additionalCustomMetadata A consumer to which additional
+     *                                 {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
+     *                                 can be added
      */
-    @Nullable
-    default Settings onUpdateMappings(
+    default void onUpdateMappings(
         IndexMetadata indexMetadata,
-        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata,
-        DocumentMapper documentMapper
-    ) {
-        return Settings.EMPTY;
-    }
+        DocumentMapper documentMapper,
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
+    ) {}
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

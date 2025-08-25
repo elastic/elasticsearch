@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
@@ -92,7 +93,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public Settings getAdditionalIndexSettings(
+    public void provideAdditionalMetadata(
         final String indexName,
         final String dataStreamName,
         IndexMode templateIndexMode,
@@ -100,9 +101,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final Instant resolvedAt,
         Settings settings,
         final List<CompressedXContent> combinedTemplateMappings,
-        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+        final Settings.Builder additionalSettings,
+        final BiConsumer<String, Map<String, String>> additionalCustomMetadata
     ) {
-        Settings.Builder settingsBuilder = null;
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
@@ -113,7 +114,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             && dataStreamName != null
             && resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == null
             && matchesLogsPattern(dataStreamName)) {
-            settingsBuilder = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
+            additionalSettings.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
             settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).put(settings).build();
             isLogsDB = true;
         }
@@ -131,10 +132,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             );
             if (licenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
                 LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-                settingsBuilder = getBuilder(settingsBuilder).put(
-                    IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
-                    SourceFieldMapper.Mode.STORED.toString()
-                );
+                additionalSettings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
             }
         }
 
@@ -143,9 +141,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             if (mappingHints.sortOnHostName) {
                 if (mappingHints.addHostNameField) {
                     // Inject keyword field [host.name] too.
-                    settingsBuilder = getBuilder(settingsBuilder).put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true);
+                    additionalSettings.put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true);
                 }
-                settingsBuilder = getBuilder(settingsBuilder).put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true);
+                additionalSettings.put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true);
             }
 
             // Inject routing path matching sort fields.
@@ -181,17 +179,15 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                             );
                         }
                     } else {
-                        settingsBuilder = getBuilder(settingsBuilder).putList(INDEX_ROUTING_PATH.getKey(), sortFields);
+                        additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), sortFields);
                     }
                 } else {
                     // Routing on sort fields is not allowed, reset the corresponding index setting.
                     LOGGER.debug("creation of index [{}] with logsdb mode and routing on sort fields without it being allowed", indexName);
-                    settingsBuilder = getBuilder(settingsBuilder).put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false);
+                    additionalSettings.put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false);
                 }
             }
         }
-
-        return settingsBuilder == null ? Settings.EMPTY : settingsBuilder.build();
     }
 
     record MappingHints(boolean hasSyntheticSourceUsage, boolean sortOnHostName, boolean addHostNameField) {
@@ -204,14 +200,6 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     private static IndexMode resolveIndexMode(final String mode) {
         return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
-    }
-
-    // Returned value needs to be reassigned to the passed arg, to track the created builder.
-    private static Settings.Builder getBuilder(Settings.Builder builder) {
-        if (builder == null) {
-            return Settings.builder();
-        }
-        return builder;
     }
 
     MappingHints getMappingHints(

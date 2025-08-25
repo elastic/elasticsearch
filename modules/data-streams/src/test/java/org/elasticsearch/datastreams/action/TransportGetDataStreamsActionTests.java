@@ -500,7 +500,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                         resolvedAt,
                         indexTemplateAndCreateRequestSettings,
                         combinedTemplateMappings,
-                        customMetadataBuilder) -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()
+                        additionalSettings,
+                        additionalCustomMetadata) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)
                 )
             ),
             null

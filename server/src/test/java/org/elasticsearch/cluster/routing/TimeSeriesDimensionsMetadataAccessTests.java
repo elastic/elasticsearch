@@ -36,7 +36,7 @@ public class TimeSeriesDimensionsMetadataAccessTests extends ESTestCase {
         var sourceMetadataBuilder = IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 1, 0));
         var targetMetadataBuilder = IndexMetadata.builder("target").settings(indexSettings(IndexVersion.current(), 1, 0));
 
-        TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(sourceMetadataBuilder, List.of("dim1", "dim2"));
+        TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(sourceMetadataBuilder::putCustom, List.of("dim1", "dim2"));
         TimeSeriesDimensionsMetadataAccess.transferCustomMetadata(sourceMetadataBuilder.build(), targetMetadataBuilder);
 
         assertEquals(List.of("dim1", "dim2"), TimeSeriesDimensionsMetadataAccess.fromCustomMetadata(targetMetadataBuilder.build()));

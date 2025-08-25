@@ -279,7 +279,8 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         Settings.Builder additionalSettings = Settings.builder();
         Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
-            Settings result = provider.getAdditionalIndexSettings(
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalMetadata(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
                 simulatedProject.retrieveIndexModeFromTemplate(template),
@@ -287,8 +288,10 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
                 now,
                 templateSettings,
                 mappings,
-                ImmutableOpenMap.builder()
+                builder,
+                (k, v) -> {}
             );
+            Settings result = builder.build();
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);

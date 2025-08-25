@@ -10,25 +10,20 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 
 public class TimeSeriesDimensionsMetadataAccess {
 
     public static final String TIME_SERIES_DIMENSIONS_METADATA_KEY = "time_series_dimensions";
 
-    public static void addToCustomMetadata(IndexMetadata.Builder indexMetadataBuilder, List<String> timeSeriesDimensions) {
-        indexMetadataBuilder.putCustom(TIME_SERIES_DIMENSIONS_METADATA_KEY, toCustomMetadata(timeSeriesDimensions));
-    }
-
     public static void addToCustomMetadata(
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata,
         List<String> timeSeriesDimensions
     ) {
-        customMetadataBuilder.put(TIME_SERIES_DIMENSIONS_METADATA_KEY, toCustomMetadata(timeSeriesDimensions));
+        additionalCustomMetadata.accept(TIME_SERIES_DIMENSIONS_METADATA_KEY, toCustomMetadata(timeSeriesDimensions));
     }
 
     static Map<String, String> toCustomMetadata(List<String> timeSeriesDimensions) {

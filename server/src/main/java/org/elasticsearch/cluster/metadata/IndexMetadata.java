@@ -2162,8 +2162,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public Builder putCustom(Map<String, ? extends Map<String, String>> customIndexMetadata) {
-            customIndexMetadata.forEach(this::putCustom);
+        public Builder putCustom(Map<String, ? extends Map<String, String>> customMetadata) {
+            customMetadata.forEach(this::putCustom);
             return this;
         }
 

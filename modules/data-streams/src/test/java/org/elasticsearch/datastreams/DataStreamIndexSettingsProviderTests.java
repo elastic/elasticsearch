@@ -89,7 +89,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -97,8 +98,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent(mapping)),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -139,7 +142,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -147,8 +151,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent(mapping)),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -212,7 +218,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -220,8 +227,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3)),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -242,7 +251,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         Settings settings = Settings.EMPTY;
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -250,8 +260,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -270,7 +282,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -278,8 +291,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent("{}")),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -298,7 +313,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         TimeValue lookBackTime = TimeValue.timeValueHours(12);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_back_time", lookBackTime.getStringRep()).build();
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -306,8 +322,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent("{}")),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -332,8 +350,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
+        Settings.Builder additionalSettings = builder();
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        var result = provider.getAdditionalIndexSettings(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -341,8 +360,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent("{}")),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        var result = additionalSettings.build();
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
         assertThat(
@@ -372,7 +393,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
         Exception e = expectThrows(
             IllegalStateException.class,
-            () -> provider.getAdditionalIndexSettings(
+            () -> provider.provideAdditionalMetadata(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
                 IndexMode.TIME_SERIES,
@@ -380,7 +401,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 now,
                 settings,
                 null,
-                ImmutableOpenMap.builder()
+                builder(),
+                (k, v) -> {}
             )
         );
         assertThat(
@@ -400,7 +422,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Settings settings = Settings.EMPTY;
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             null,
@@ -408,8 +431,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             null,
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         assertThat(result.size(), equalTo(0));
         assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
@@ -425,7 +450,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Settings settings = Settings.EMPTY;
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -433,8 +459,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -456,18 +484,20 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             1
         );
 
-        Settings settings = Settings.EMPTY;
+        Settings.Builder additionalSettings = builder();
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = provider.getAdditionalIndexSettings(
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
             projectMetadata,
             Instant.ofEpochMilli(1L),
-            settings,
+            Settings.EMPTY,
             List.of(),
-            customMetadataBuilder
+            additionalSettings,
+            customMetadataBuilder::put
         );
+        Settings result = additionalSettings.build();
         assertThat(result.size(), equalTo(0));
         assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
@@ -752,7 +782,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
         Settings settings = Settings.EMPTY;
 
-        var result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -760,8 +791,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent(mapping)),
-            builder
+            additionalSettings,
+            builder::put
         );
+        var result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         return builder().put(result).put("index.mode", "time_series").build();

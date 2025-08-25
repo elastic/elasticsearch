@@ -2547,7 +2547,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(
                     clusterService,
                     indicesService,
-                    new IndexSettingProviders(Set.of())
+                    IndexSettingProviders.EMPTY
                 );
 
                 peerRecoverySourceService = new PeerRecoverySourceService(

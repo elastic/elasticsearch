@@ -199,7 +199,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     ) {
         IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
         for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
-            Settings addlSettinsg = provider.getAdditionalIndexSettings(
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalMetadata(
                 MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
                 dataStream.getName(),
                 indexMode,
@@ -207,9 +208,11 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 Instant.now(),
                 settings,
                 List.of(),
-                ImmutableOpenMap.builder()
+                builder,
+                (k, v) -> {}
             );
-            var rawMode = addlSettinsg.get(IndexSettings.MODE.getKey());
+            Settings addlSettings = builder.build();
+            var rawMode = addlSettings.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {
                 indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
             }

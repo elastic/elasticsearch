@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -614,7 +615,7 @@ public enum IndexMode {
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
         @Override
-        public Settings getAdditionalIndexSettings(
+        public void provideAdditionalMetadata(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
@@ -622,7 +623,8 @@ public enum IndexMode {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+            Settings.Builder additionalSettings,
+            BiConsumer<String, Map<String, String>> additionalCustomMetadata
         ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {
@@ -632,9 +634,7 @@ public enum IndexMode {
                 }
             }
             if (indexMode == LOOKUP) {
-                return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
-            } else {
-                return Settings.EMPTY;
+                additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
             }
         }
     }

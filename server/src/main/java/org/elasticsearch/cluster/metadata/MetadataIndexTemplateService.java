@@ -792,7 +792,8 @@ public class MetadataIndexTemplateService {
         var finalSettings = Settings.builder();
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         for (var provider : indexSettingProviders) {
-            var newAdditionalSettings = provider.getAdditionalIndexSettings(
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalMetadata(
                 VALIDATE_INDEX_NAME,
                 indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
                 projectMetadata.retrieveIndexModeFromTemplate(indexTemplate),
@@ -800,8 +801,10 @@ public class MetadataIndexTemplateService {
                 now,
                 combinedSettings,
                 combinedMappings,
-                customMetadataBuilder
+                builder,
+                customMetadataBuilder::put
             );
+            var newAdditionalSettings = builder.build();
             MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
             finalSettings.put(newAdditionalSettings);
         }

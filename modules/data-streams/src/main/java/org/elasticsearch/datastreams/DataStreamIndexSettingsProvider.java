@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccess;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -58,7 +58,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public Settings getAdditionalIndexSettings(
+    public void provideAdditionalMetadata(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -66,7 +66,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
@@ -89,7 +90,6 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             }
             if (indexMode != null) {
                 if (indexMode == IndexMode.TIME_SERIES) {
-                    Settings.Builder builder = Settings.builder();
                     TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
                     TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
                     final Instant start;
@@ -117,8 +117,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         }
                     }
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
-                    builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                    builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
+                    additionalSettings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
+                    additionalSettings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
@@ -131,18 +131,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         );
                         if (dimensions.isEmpty() == false) {
                             if (matchesAllDimensions) {
-                                TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(extraCustomMetadata, dimensions);
+                                TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(additionalCustomMetadata, dimensions);
                             } else {
-                                builder.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
+                                additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                             }
                         }
                     }
-                    return builder.build();
                 }
             }
         }
-
-        return Settings.EMPTY;
     }
 
     /**
@@ -153,27 +150,27 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
      * dimension fields via a wildcard pattern.
      */
     @Override
-    public Settings onUpdateMappings(
+    public void onUpdateMappings(
         IndexMetadata indexMetadata,
-        ImmutableOpenMap.Builder<String, Map<String, String>> extraCustomMetadata,
-        DocumentMapper documentMapper
+        DocumentMapper documentMapper,
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
     ) {
         List<String> indexDimensions = indexMetadata.getTimeSeriesDimensions();
         if (indexDimensions.isEmpty()) {
-            return Settings.EMPTY;
+            return;
         }
         assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES;
         List<String> newIndexDimensions = new ArrayList<>(indexDimensions.size());
         boolean matchesAllDimensions = findDimensionFields(newIndexDimensions, documentMapper);
         if (indexDimensions.equals(newIndexDimensions)) {
-            return Settings.EMPTY;
+            return;
         }
         if (matchesAllDimensions) {
-            TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(extraCustomMetadata, newIndexDimensions);
-            return Settings.EMPTY;
+            TimeSeriesDimensionsMetadataAccess.addToCustomMetadata(additionalCustomMetadata, newIndexDimensions);
         } else {
             // If the new dimensions don't match all potential dimension fields, we need to set index.routing_path
-            return Settings.builder().putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions).build();
+            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions).build();
         }
     }
 

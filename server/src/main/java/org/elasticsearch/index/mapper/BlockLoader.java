@@ -398,6 +398,11 @@ public interface BlockLoader {
         DoubleBuilder doubles(int expectedCount);
 
         /**
+         * Creates a block from an array of doubles
+         */
+        Block doubles(double[] values, int expectedCount);
+
+        /**
          * Build a builder to load dense vectors without any loading constraints.
          */
         FloatBuilder denseVectors(int expectedVectorsCount, int dimensions);

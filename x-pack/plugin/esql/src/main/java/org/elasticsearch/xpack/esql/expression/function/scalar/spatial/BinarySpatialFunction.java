@@ -191,15 +191,14 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
                 return isSpatial(otherExpression, otherParamOrdinal);
             }
             TypeResolution resolution = isSameSpatialType(spatialExpression.dataType(), otherExpression, sourceText(), otherParamOrdinal);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
             // TODO Remove these grid checks once we support geo_shape relation to geoGrid
-            if (resolution.resolved() && DataType.isGeoGrid(spatialExpression.dataType())) {
-                resolution = isGeoPoint(otherExpression, otherParamOrdinal);
-            }
-            if (resolution.resolved() && DataType.isGeoGrid(otherExpression.dataType())) {
-                resolution = isGeoPoint(spatialExpression, otherParamOrdinal == FIRST ? SECOND : FIRST);
+            if (resolution.resolved()) {
+                if (DataType.isGeoGrid(spatialExpression.dataType())) {
+                    resolution = isGeoPoint(otherExpression, otherParamOrdinal);
+                }
+                if (DataType.isGeoGrid(otherExpression.dataType())) {
+                    resolution = isGeoPoint(spatialExpression, otherParamOrdinal == FIRST ? SECOND : FIRST);
+                }
             }
             if (resolution.unresolved()) {
                 return resolution;

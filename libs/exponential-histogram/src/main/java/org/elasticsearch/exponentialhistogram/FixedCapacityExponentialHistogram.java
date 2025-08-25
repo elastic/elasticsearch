@@ -242,6 +242,11 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
             }
             return cachedValueSum;
         }
+
+        @Override
+        public int bucketCount() {
+            return numBuckets;
+        }
     }
 
 }

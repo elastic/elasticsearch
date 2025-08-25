@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
@@ -156,6 +158,14 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(aggregateMetricDoubleBlockToString((AggregateMetricDoubleBlock) block, valueIndex));
+                }
+            };
+            case EXPONENTIAL_HISTOGRAM -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    // TODO: shouldn't this be a subobject instead of a string?
+                    return builder.value(exponentialHistogramBlockToString((ExponentialHistogramBlock) block, valueIndex));
                 }
             };
             case NULL -> new PositionToXContent(block) {

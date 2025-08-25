@@ -465,6 +465,10 @@ public class BlockFactory {
         }
     }
 
+    public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {
+        return new ExponentialHistogramBlockBuilder(estimatedSize, this);
+    }
+
     /**
      * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */

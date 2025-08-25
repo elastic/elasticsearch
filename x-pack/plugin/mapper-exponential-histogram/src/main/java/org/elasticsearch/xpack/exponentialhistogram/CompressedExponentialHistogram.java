@@ -109,6 +109,7 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
         private final boolean isForPositiveBuckets; // false if for negative buckets
         private long cachedValueCount;
         private long cachedMaxIndex;
+        private int cachedBucketCount;
 
         private Buckets(boolean isForPositiveBuckets) {
             this.isForPositiveBuckets = isForPositiveBuckets;
@@ -123,10 +124,12 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
         private void computeCachedDataIfRequired() {
             if (cachedValueCount == -1) {
                 cachedValueCount = 0;
+                cachedBucketCount = 0;
                 BucketIterator it = iterator();
                 while (it.hasNext()) {
                     cachedMaxIndex = it.peekIndex();
                     cachedValueCount += it.peekCount();
+                    cachedBucketCount++;
                     it.advance();
                 }
             }
@@ -151,6 +154,12 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
         public long valueCount() {
             computeCachedDataIfRequired();
             return cachedValueCount;
+        }
+
+        @Override
+        public int bucketCount() {
+            computeCachedDataIfRequired();
+            return cachedBucketCount;
         }
 
         private class CompressedBucketsIterator implements CopyableBucketIterator {

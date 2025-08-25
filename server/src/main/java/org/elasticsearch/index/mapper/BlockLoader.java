@@ -15,6 +15,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -462,6 +463,8 @@ public interface BlockLoader {
         SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
+
+        ExponentialHistogramBuilder exponentialHistogramBuilder(int count);
     }
 
     /**
@@ -575,5 +578,11 @@ public interface BlockLoader {
         DoubleBuilder sum();
 
         IntBuilder count();
+    }
+
+    interface ExponentialHistogramBuilder extends Builder {
+
+        ExponentialHistogramBuilder append(ExponentialHistogram value);
+
     }
 }

@@ -114,6 +114,8 @@ public interface ExponentialHistogram extends Accountable {
          */
         long valueCount();
 
+        int bucketCount();
+
     }
 
     static ExponentialHistogram empty() {

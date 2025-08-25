@@ -636,6 +636,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/133496
 
 # Examples:
 #

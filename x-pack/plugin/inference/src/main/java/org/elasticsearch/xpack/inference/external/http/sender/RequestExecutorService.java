@@ -452,10 +452,10 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         private TimeValue executeEnqueuedTaskInternal() {
-            var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
-            if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
-                return timeBeforeAvailableToken;
-            }
+            // var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
+            // if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
+            // return timeBeforeAvailableToken;
+            // }
 
             var task = queue.poll();
 

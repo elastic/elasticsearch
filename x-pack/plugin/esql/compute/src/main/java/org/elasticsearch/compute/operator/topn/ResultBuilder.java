@@ -11,8 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
@@ -37,23 +36,17 @@ interface ResultBuilder extends Releasable {
     void decodeValue(BytesRef values);
 
     /**
-     * Sets the RefCounted value, which was extracted by {@link ValueExtractor#getRefCountedForShard(int)}. By default, this is a no-op,
-     * since most builders do not the shard ref counter.
-     */
-    default void setNextRefCounted(@Nullable RefCounted nextRefCounted) { /* no-op */ }
-
-    /**
      * Build the result block.
      */
     Block build();
 
     static ResultBuilder resultBuilderFor(
         BlockFactory blockFactory,
+        IndexedByShardId<? extends RefCounted> refCounteds,
         ElementType elementType,
         TopNEncoder encoder,
         boolean inKey,
-        int positions,
-        DriverContext.Phase phase
+        int positions
     ) {
         return switch (elementType) {
             case BOOLEAN -> new ResultBuilderForBoolean(blockFactory, encoder, inKey, positions);
@@ -63,7 +56,7 @@ interface ResultBuilder extends Releasable {
             case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
-            case DOC -> new ResultBuilderForDoc(blockFactory, positions, phase);
+            case DOC -> new ResultBuilderForDoc(blockFactory, refCounteds, positions);
             case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
             default -> {
                 assert false : "Result builder for [" + elementType + "]";

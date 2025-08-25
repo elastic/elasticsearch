@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
@@ -164,7 +165,6 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final PhysicalOperationProviders physicalOperationProviders;
-    private final List<ShardContext> shardContexts;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -179,8 +179,7 @@ public class LocalExecutionPlanner {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
-        PhysicalOperationProviders physicalOperationProviders,
-        List<ShardContext> shardContexts
+        PhysicalOperationProviders physicalOperationProviders
     ) {
 
         this.sessionId = sessionId;
@@ -196,13 +195,17 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
         this.physicalOperationProviders = physicalOperationProviders;
-        this.shardContexts = shardContexts;
     }
 
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan, DriverContext.Phase phase) {
+    public LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts
+    ) {
         var context = new LocalExecutionPlannerContext(
             description,
             new ArrayList<>(),
@@ -211,7 +214,6 @@ public class LocalExecutionPlanner {
             bigArrays,
             blockFactory,
             foldCtx,
-            phase,
             settings,
             new Holder<>(
                 localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec)
@@ -237,9 +239,9 @@ public class LocalExecutionPlanner {
                     Node.NODE_NAME_SETTING.get(settings),
                     context.bigArrays,
                     context.blockFactory,
+                    context.shardContexts,
                     physicalOperation,
                     statusInterval,
-                    phase,
                     settings
                 ),
                 context.driverParallelism().get()
@@ -471,9 +473,9 @@ public class LocalExecutionPlanner {
                         Node.NODE_NAME_SETTING.get(settings),
                         context.bigArrays,
                         context.blockFactory,
+                        context.shardContexts,
                         sinkOperator,
                         statusInterval,
-                        context.phase,
                         settings
                     ),
                     DriverParallelism.SINGLE
@@ -530,7 +532,14 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
         return source.with(
-            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
+            new TopNOperatorFactory(
+                context.shardContexts,
+                limit,
+                asList(elementTypes),
+                asList(encoders),
+                orders,
+                context.pageSize(rowSize)
+            ),
             source.layout
         );
     }
@@ -844,7 +853,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
         PhysicalOperation filterOperation = source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
+            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, context.shardContexts)),
             source.layout
         );
         if (PlannerUtils.usesScoring(filter)) {
@@ -861,7 +870,7 @@ public class LocalExecutionPlanner {
             }
 
             filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), shardContexts), scoreBlock),
+                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), context.shardContexts), scoreBlock),
                 filterOperation.layout
             );
         }
@@ -1021,10 +1030,9 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         FoldContext foldCtx,
-        DriverContext.Phase phase,
         Settings settings,
         Holder<DataPartitioning.AutoStrategy> autoPartitioningStrategy,
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -1054,9 +1062,9 @@ public class LocalExecutionPlanner {
         String nodeName,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        IndexedByShardId<? extends ShardContext> shardContexts,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
-        DriverContext.Phase phase,
         Settings settings
     ) implements Function<String, Driver>, Describable {
         @Override
@@ -1071,7 +1079,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), phase);
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), description);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

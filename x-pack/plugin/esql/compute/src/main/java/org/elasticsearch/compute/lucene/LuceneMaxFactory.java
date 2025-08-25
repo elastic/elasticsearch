@@ -108,12 +108,12 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
         abstract long bytesToLong(byte[] bytes);
     }
 
-    private final List<? extends ShardContext> contexts;
+    private final IndexedByShardId<? extends ShardContext> contexts;
     private final String fieldName;
     private final NumberType numberType;
 
     public LuceneMaxFactory(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         int taskConcurrency,

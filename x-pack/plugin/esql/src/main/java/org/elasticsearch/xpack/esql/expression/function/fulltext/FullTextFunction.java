@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
@@ -380,10 +381,10 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
+        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.collection().size()];
         int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
+        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts.collection()) {
             shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
@@ -391,10 +392,10 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
+        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.collection().size()];
         int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
+        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts.collection()) {
             shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryScoreEvaluator.Factory(shardConfigs);

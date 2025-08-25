@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -24,7 +24,6 @@ import java.util.function.Consumer;
 public final class DocVector extends AbstractVector implements Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
-    public static int NO_GLOBAL_SHARD = -1;
 
     /**
      * Per position memory cost to build the shard segment doc map required
@@ -33,8 +32,6 @@ public final class DocVector extends AbstractVector implements Vector {
     public static final int SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD = Integer.BYTES * 2;
 
     private final IntVector shards;
-    /** See {@link org.elasticsearch.compute.lucene.ShardContext#globalIndex()} */
-    private final int globalShard;
     private final IntVector segments;
     private final IntVector docs;
 
@@ -54,24 +51,42 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     private int[] shardSegmentDocMapBackwards;
 
-    private final ShardRefCounted shardRefCounters;
+    private final IndexedByShardId<? extends RefCounted> refCounteds;
 
-    public ShardRefCounted shardRefCounted() {
-        return shardRefCounters;
+    public RefCounted shardRefCounted(int position) {
+        return refCounteds.get(shards.getInt(position));
     }
 
     public DocVector(
-        ShardRefCounted shardRefCounters,
+        IndexedByShardId<? extends RefCounted> refCounteds,
         IntVector shards,
-        int globalShard,
         IntVector segments,
         IntVector docs,
         Boolean singleSegmentNonDecreasing
     ) {
+        this(refCounteds, shards, segments, docs, singleSegmentNonDecreasing, true);
+    }
+
+    public static DocVector withoutIncrementingRefCounts(
+        IndexedByShardId<? extends RefCounted> refCounteds,
+        IntVector shards,
+        IntVector segments,
+        IntVector docs
+    ) {
+        return new DocVector(refCounteds, shards, segments, docs, null, false);
+    }
+
+    private DocVector(
+        IndexedByShardId<? extends RefCounted> refCounteds,
+        IntVector shards,
+        IntVector segments,
+        IntVector docs,
+        Boolean singleSegmentNonDecreasing,
+        boolean incrementRefCounts
+    ) {
         super(shards.getPositionCount(), shards.blockFactory());
-        this.shardRefCounters = shardRefCounters;
+        this.refCounteds = refCounteds;
         this.shards = shards;
-        this.globalShard = globalShard;
         this.segments = segments;
         this.docs = docs;
         this.singleSegmentNonDecreasing = singleSegmentNonDecreasing;
@@ -87,29 +102,26 @@ public final class DocVector extends AbstractVector implements Vector {
         }
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
 
-        forEachShardRefCounter(RefCounted::mustIncRef);
+        if (incrementRefCounts) {
+            forEachShardRefCounter(RefCounted::mustIncRef);
+        }
     }
 
     public DocVector(
-        ShardRefCounted shardRefCounters,
+        IndexedByShardId<? extends RefCounted> refCounteds,
         IntVector shards,
-        int globalShard,
         IntVector segments,
         IntVector docs,
         int[] docMapForwards,
         int[] docMapBackwards
     ) {
-        this(shardRefCounters, shards, globalShard, segments, docs, null);
+        this(refCounteds, shards, segments, docs, null);
         this.shardSegmentDocMapForwards = docMapForwards;
         this.shardSegmentDocMapBackwards = docMapBackwards;
     }
 
     public IntVector shards() {
         return shards;
-    }
-
-    public int globalShard() {
-        return globalShard;
     }
 
     public IntVector segments() {
@@ -279,7 +291,7 @@ public final class DocVector extends AbstractVector implements Vector {
             filteredShards = shards.filter(positions);
             filteredSegments = segments.filter(positions);
             filteredDocs = docs.filter(positions);
-            result = new DocVector(shardRefCounters, filteredShards, globalShard, filteredSegments, filteredDocs, null);
+            result = new DocVector(refCounteds, filteredShards, filteredSegments, filteredDocs, null);
             return result;
         } finally {
             if (result == null) {
@@ -310,7 +322,7 @@ public final class DocVector extends AbstractVector implements Vector {
 
     @Override
     public int hashCode() {
-        return Objects.hash(shards, globalShard, segments, docs);
+        return Objects.hash(shards, segments, docs);
     }
 
     @Override
@@ -319,10 +331,17 @@ public final class DocVector extends AbstractVector implements Vector {
             return false;
         }
         DocVector other = (DocVector) obj;
-        return shards.equals(other.shards)
-            && globalShard == other.globalShard
-            && segments.equals(other.segments)
-            && docs.equals(other.docs);
+        return shards.equals(other.shards) && segments.equals(other.segments) && docs.equals(other.docs);
+    }
+
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("DocVector{");
+        sb.append("shards=").append(shards);
+        sb.append(", segments=").append(segments);
+        sb.append(", docs=").append(docs);
+        sb.append('}');
+        return sb.toString();
     }
 
     private static long ramBytesOrZero(int[] array) {
@@ -366,13 +385,13 @@ public final class DocVector extends AbstractVector implements Vector {
 
     private void forEachShardRefCounter(Consumer<RefCounted> consumer) {
         switch (shards) {
-            case ConstantIntVector constantIntVector -> consumer.accept(shardRefCounters.get(constantIntVector.getInt(0)));
+            case ConstantIntVector constantIntVector -> consumer.accept(refCounteds.get(constantIntVector.getInt(0)));
             case ConstantNullVector ignored -> {
                 // Noop
             }
             default -> {
                 for (int i = 0; i < shards.getPositionCount(); i++) {
-                    consumer.accept(shardRefCounters.get(shards.getInt(i)));
+                    consumer.accept(refCounteds.get(shards.getInt(i)));
                 }
             }
         }

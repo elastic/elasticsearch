@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -37,10 +39,12 @@ public class RemoveProjectAfterTopN extends PhysicalOptimizerRules.Parameterized
     /**
      * We don't support this optimization for multi-index queries at the moment, since the reduce coordinator doesn't actually have access
      * to each individual table's schema, and thus cannot determine the correct output of the data node's physical plan. Similarly, we don't
-     * handle enrich yet.
+     * handle enrich or join yet.
      */
     public static boolean isTopNCompatible(PhysicalPlan topN) {
         return topN.anyMatch(plan -> plan instanceof EsQueryExec eqe && eqe.indexNameWithModes().size() > 1) == false
-            && topN.anyMatch(plan -> plan instanceof EnrichExec) == false;
+            && topN.anyMatch(plan -> plan instanceof EnrichExec) == false
+            && topN.anyMatch(plan -> plan instanceof LookupJoinExec) == false
+            && topN.anyMatch(plan -> plan instanceof HashJoinExec) == false;
     }
 }

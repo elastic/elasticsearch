@@ -48,12 +48,12 @@ import java.util.stream.Collectors;
 public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     public static class Factory extends LuceneOperator.Factory {
-        private final List<? extends ShardContext> contexts;
+        private final IndexedByShardId<? extends ShardContext> contexts;
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
 
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
@@ -113,13 +113,13 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private int offset = 0;
 
     private PerShardCollector perShardCollector;
-    private final List<? extends ShardContext> contexts;
+    private final IndexedByShardId<? extends ShardContext> contexts;
     private final List<SortBuilder<?>> sorts;
     private final int limit;
     private final boolean needsScore;
 
     public LuceneTopNSourceOperator(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         BlockFactory blockFactory,
         int maxPageSize,
         List<SortBuilder<?>> sorts,
@@ -241,8 +241,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             shard = blockFactory.newConstantIntBlockWith(shardId, size).asVector();
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
-            ShardRefCounted shardRefCounted = ShardRefCounted.single(shardId, contexts.get(shardId));
-            docBlock = new DocVector(shardRefCounted, shard, shardContext.globalIndex(), segments, docs, null).asBlock();
+            docBlock = new DocVector(refCounteds, shard, segments, docs, null).asBlock();
             shard = null;
             segments = null;
             docs = null;

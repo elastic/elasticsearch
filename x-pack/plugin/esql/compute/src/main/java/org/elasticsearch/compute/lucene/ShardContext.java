@@ -25,12 +25,6 @@ import java.util.Optional;
  */
 public interface ShardContext extends RefCounted {
     /**
-     * The index of this shard in the global list, which is held by the reduce coordinator. This is used by the reduce-side
-     * {@link org.elasticsearch.compute.operator.topn.TopNOperator} to convert the local index (see {@link #index()}) to the global index.
-     */
-    int globalIndex();
-
-    /**
      * The index of this shard in the list of shards being processed.
      */
     int index();

@@ -27,11 +27,11 @@ import java.util.function.Function;
  * in order to read tsdb indices in parallel.
  */
 public class TimeSeriesSourceOperatorFactory extends LuceneOperator.Factory {
-    private final List<? extends ShardContext> contexts;
+    private final IndexedByShardId<? extends ShardContext> contexts;
     private final int maxPageSize;
 
     private TimeSeriesSourceOperatorFactory(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         int taskConcurrency,
         int maxPageSize,
@@ -65,7 +65,7 @@ public class TimeSeriesSourceOperatorFactory extends LuceneOperator.Factory {
         int limit,
         int maxPageSize,
         int taskConcurrency,
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction
     ) {
         return new TimeSeriesSourceOperatorFactory(contexts, queryFunction, taskConcurrency, maxPageSize, limit);

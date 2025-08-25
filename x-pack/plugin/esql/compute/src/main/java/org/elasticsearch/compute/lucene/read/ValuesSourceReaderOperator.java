@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -43,7 +44,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel)
+    public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, IndexedByShardId<ShardContext> shardContexts, int docChannel)
         implements
             OperatorFactory {
         public Factory {
@@ -101,7 +102,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     final long jumboBytes;
     final FieldWork[] fields;
-    final List<ShardContext> shardContexts;
+    final IndexedByShardId<? extends ShardContext> shardContexts;
     private final int docChannel;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
@@ -119,7 +120,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         BlockFactory blockFactory,
         long jumboBytes,
         List<FieldInfo> fields,
-        List<ShardContext> shardContexts,
+        IndexedByShardId<? extends ShardContext> shardContexts,
         int docChannel
     ) {
         if (fields.isEmpty()) {

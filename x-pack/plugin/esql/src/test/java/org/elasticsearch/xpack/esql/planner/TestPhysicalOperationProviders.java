@@ -23,7 +23,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -162,10 +161,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             var page = pageIndex.page;
             BlockFactory blockFactory = driverContext.blockFactory();
             DocVector docVector = new DocVector(
-                ShardRefCounted.ALWAYS_REFERENCED,
+                ConstantRefCountedIndexedByShardId.INSTANCE,
                 // The shard ID is used to encode the index ID.
                 blockFactory.newConstantIntVector(index, page.getPositionCount()),
-                DocVector.NO_GLOBAL_SHARD,
                 blockFactory.newConstantIntVector(0, page.getPositionCount()),
                 blockFactory.newIntArrayVector(IntStream.range(0, page.getPositionCount()).toArray(), page.getPositionCount()),
                 true

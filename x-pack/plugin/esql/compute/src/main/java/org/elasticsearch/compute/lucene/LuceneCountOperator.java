@@ -41,10 +41,10 @@ public class LuceneCountOperator extends LuceneOperator {
     private final LeafCollector leafCollector;
 
     public static class Factory extends LuceneOperator.Factory {
-        private final List<? extends RefCounted> shardRefCounters;
+        private final IndexedByShardId<? extends RefCounted> shardRefCounters;
 
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
@@ -75,7 +75,7 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     public LuceneCountOperator(
-        List<? extends RefCounted> shardRefCounters,
+        IndexedByShardId<? extends RefCounted> shardRefCounters,
         BlockFactory blockFactory,
         LuceneSliceQueue sliceQueue,
         int limit

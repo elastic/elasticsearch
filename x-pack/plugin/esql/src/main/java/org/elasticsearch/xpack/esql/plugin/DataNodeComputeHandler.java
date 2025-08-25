@@ -18,6 +18,8 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromArray;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -45,7 +47,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -55,7 +56,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -238,7 +238,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
         private final Map<ShardId, Exception> shardLevelFailures;
-        private final List<ComputeSearchContext> reduceNodeSearchContexts;
+        private final IndexedByShardIdFromArray<ComputeSearchContext> searchContexts;
 
         DataNodeRequestExecutor(
             EsqlFlags flags,
@@ -249,8 +249,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             boolean failFastOnShardFailure,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
-            List<ComputeSearchContext> reduceNodeSearchContexts
-
+            IndexedByShardIdFromArray<ComputeSearchContext> searchContexts
         ) {
             this.flags = flags;
             this.request = request;
@@ -261,7 +260,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.failFastOnShardFailure = failFastOnShardFailure;
             this.shardLevelFailures = shardLevelFailures;
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
-            this.reduceNodeSearchContexts = reduceNodeSearchContexts;
+            this.searchContexts = searchContexts;
         }
 
         void start() {
@@ -305,25 +304,31 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     }
                 }
             };
-            acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
-                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
-                if (searchContexts.isEmpty()) {
-                    batchListener.onResponse(DriverCompletionInfo.EMPTY);
-                    return;
-                }
-                var computeContext = new ComputeContext(
-                    sessionId,
-                    ComputeService.DATA_DESCRIPTION,
-                    clusterAlias,
-                    flags,
-                    FunctionList.fromImmutableList(searchContexts),
-                    configuration,
-                    configuration.newFoldContext(),
-                    null,
-                    () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
-                );
-                computeService.runCompute(parentTask, computeContext, request.plan(), getProjectAfterTopN(request), batchListener);
-            }, batchListener::onFailure));
+            acquireSearchContexts(
+                clusterAlias,
+                shardIds,
+                configuration,
+                request.aliasFilters(),
+                ActionListener.wrap(acquiredSearchContexts -> {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
+                    if (acquiredSearchContexts.isEmpty()) {
+                        batchListener.onResponse(DriverCompletionInfo.EMPTY);
+                        return;
+                    }
+                    var computeContext = new ComputeContext(
+                        sessionId,
+                        ComputeService.DATA_DESCRIPTION,
+                        clusterAlias,
+                        flags,
+                        acquiredSearchContexts,
+                        configuration,
+                        configuration.newFoldContext(),
+                        null,
+                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                    );
+                    computeService.runCompute(parentTask, computeContext, request.plan(), getProjectAfterTopN(request), batchListener);
+                }, batchListener::onFailure)
+            );
         }
 
         private void acquireSearchContexts(
@@ -331,7 +336,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             List<ShardId> shardIds,
             Configuration configuration,
             Map<Index, AliasFilter> aliasFilters,
-            ActionListener<List<ComputeSearchContext>> listener
+            ActionListener<IndexedByShardId<ComputeSearchContext>> listener
         ) {
             final List<IndexShard> targetShards = new ArrayList<>();
             for (ShardId shardId : shardIds) {
@@ -346,38 +351,40 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
-                var searchContexts = new ArrayList<ComputeSearchContext>(targetShards.size());
-                for (int i = 0; i < targetShards.size(); i++) {
-                    IndexShard shard = targetShards.get(i);
-                    SearchContext context = null;
-                    try {
-                        var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
-                        var shardRequest = new ShardSearchRequest(
-                            shard.shardId(),
-                            configuration.absoluteStartedTimeInMillis(),
-                            aliasFilter,
-                            clusterAlias
-                        );
-                        // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
-                        // we need to limit the number of active search contexts here or in SearchService
-                        context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
-                        context.preProcess();
-                        synchronized (reduceNodeSearchContexts) {
-                            int globalIndex = reduceNodeSearchContexts.size();
-                            ComputeSearchContext cse = new ComputeSearchContext(i, globalIndex, context);
-                            reduceNodeSearchContexts.add(cse);
+                // We synchronize here to ensure the added search contexts are continuous in the list.
+                synchronized (searchContexts) {
+                    int startingIndex = searchContexts.length();
+                    int endingIndex = startingIndex;
+                    for (int i = 0; i < targetShards.size(); i++) {
+                        IndexShard shard = targetShards.get(i);
+                        SearchContext context = null;
+                        try {
+                            var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
+                            var shardRequest = new ShardSearchRequest(
+                                shard.shardId(),
+                                configuration.absoluteStartedTimeInMillis(),
+                                aliasFilter,
+                                clusterAlias
+                            );
+                            // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
+                            // we need to limit the number of active search contexts here or in SearchService
+                            context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
+                            context.preProcess();
+                            ComputeSearchContext cse = new ComputeSearchContext(endingIndex, context);
+                            endingIndex++;
                             searchContexts.add(cse);
-                        }
-                    } catch (Exception e) {
-                        if (addShardLevelFailure(shard.shardId(), e)) {
-                            IOUtils.close(context);
-                        } else {
-                            IOUtils.closeWhileHandlingException(context, () -> IOUtils.close(searchContexts));
-                            throw e;
+                        } catch (Exception e) {
+                            if (addShardLevelFailure(shard.shardId(), e)) {
+                                IOUtils.close(context);
+                            } else {
+                                var subList = searchContexts.subRange(startingIndex, endingIndex);
+                                IOUtils.closeWhileHandlingException(context, () -> IOUtils.close(subList.collection()));
+                                throw e;
+                            }
                         }
                     }
+                    return searchContexts.subRange(startingIndex, endingIndex);
                 }
-                return searchContexts;
             });
             final AtomicBoolean waitedForRefreshes = new AtomicBoolean();
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
@@ -428,7 +435,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         PhysicalPlan reducePlan,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
-        List<ComputeSearchContext> reduceNodeSearchContexts,
+        IndexedByShardIdFromArray<ComputeSearchContext> searchContexts,
         ActionListener<DataNodeComputeResponse> listener
     ) {
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
@@ -458,7 +465,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     failFastOnShardFailure,
                     shardLevelFailures,
                     computeListener,
-                    reduceNodeSearchContexts
+                    searchContexts
                 );
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction
@@ -472,7 +479,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         ComputeService.REDUCE_DESCRIPTION,
                         request.clusterAlias(),
                         flags,
-                        FunctionList.fromMutableList(reduceNodeSearchContexts),
+                        searchContexts,
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         exchangeSource::createExchangeSource,
@@ -506,7 +513,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
         PhysicalPlan reductionPlan;
         Configuration configuration = request.configuration();
-        List<ComputeSearchContext> reduceNodeSearchContexts = Collections.synchronizedList(new ArrayList<>(request.shardIds().size()));
+        // We can avoid synchronization (for the most part) since the array elements are never modified, and the array is only added to,
+        // with its size being known before we start the computation.
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(
                 computeService.createFlags(),
@@ -533,14 +541,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
+        ComputeSearchContext[] computeSearchContexts = new ComputeSearchContext[request.shardIds().size()];
         runComputeOnDataNode(
             (CancellableTask) task,
             sessionId,
             reductionPlan,
             request,
             failFastOnShardFailures,
-            reduceNodeSearchContexts,
-            ActionListener.releaseAfter(listener, Releasables.wrap(reduceNodeSearchContexts))
+            new IndexedByShardIdFromArray<>(computeSearchContexts),
+            ActionListener.releaseAfter(listener, Releasables.wrap(computeSearchContexts))
         );
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -49,7 +50,7 @@ import java.util.List;
  */
 public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator {
 
-    public record Factory(List<ValuesSourceReaderOperator.FieldInfo> fields, List<? extends ShardContext> shardContexts)
+    public record Factory(List<ValuesSourceReaderOperator.FieldInfo> fields, IndexedByShardId<? extends ShardContext> shardContexts)
         implements
             OperatorFactory {
         @Override
@@ -80,14 +81,14 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
 
     private final BlockFactory blockFactory;
     private final List<ValuesSourceReaderOperator.FieldInfo> fields;
-    private final List<? extends ShardContext> shardContexts;
+    private final IndexedByShardId<? extends ShardContext> shardContexts;
 
     private ShardLevelFieldsReader fieldsReader;
 
     public TimeSeriesExtractFieldOperator(
         BlockFactory blockFactory,
         List<ValuesSourceReaderOperator.FieldInfo> fields,
-        List<? extends ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         this.blockFactory = blockFactory;
         this.fields = fields;

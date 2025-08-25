@@ -53,6 +53,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.esql.common.IndexedByShardIdFromSingleton;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -272,13 +273,12 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         ) {
             ShardContext esqlContext = new EsPhysicalOperationProviders.DefaultShardContext(
                 0,
-                0,
                 searchContext,
                 searchContext.getSearchExecutionContext(),
                 AliasFilter.EMPTY
             );
             LuceneSourceOperator.Factory source = new LuceneSourceOperator.Factory(
-                List.of(esqlContext),
+                new IndexedByShardIdFromSingleton<>(esqlContext),
                 ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
@@ -301,9 +301,11 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 PhysicalSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
                 fieldInfos,
-                List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
-                    throw new IllegalStateException("can't load source here");
-                }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
+                new IndexedByShardIdFromSingleton<>(
+                    new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
+                        throw new IllegalStateException("can't load source here");
+                    }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))
+                ),
                 0
             );
             CancellableTask parentTask = new EsqlQueryTask(

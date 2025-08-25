@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -81,11 +82,11 @@ public class TopNOperator implements Operator, Accountable {
         @Nullable
         RefCounted shardRefCounter;
 
-        void setShardRefCountersAndShard(RefCounted shardRefCounter) {
+        void setShardRefCounted(RefCounted shardRefCounted) {
             if (this.shardRefCounter != null) {
                 this.shardRefCounter.decRef();
             }
-            this.shardRefCounter = shardRefCounter;
+            this.shardRefCounter = shardRefCounted;
             this.shardRefCounter.mustIncRef();
         }
 
@@ -217,7 +218,7 @@ public class TopNOperator implements Operator, Accountable {
             for (ValueExtractor e : valueExtractors) {
                 var refCounted = e.getRefCountedForShard(position);
                 if (refCounted != null) {
-                    destination.setShardRefCountersAndShard(refCounted);
+                    destination.setShardRefCounted(refCounted);
                 }
                 e.writeValue(destination.values, position);
             }
@@ -251,6 +252,7 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     public record TopNOperatorFactory(
+        IndexedByShardId<? extends RefCounted> refCounteds,
         int topCount,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
@@ -270,12 +272,12 @@ public class TopNOperator implements Operator, Accountable {
             return new TopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
+                refCounteds,
                 topCount,
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize,
-                driverContext.phase()
+                maxPageSize
             );
         }
 
@@ -295,6 +297,7 @@ public class TopNOperator implements Operator, Accountable {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
+    private final IndexedByShardId<? extends RefCounted> refCounteds;
     private final Queue inputQueue;
 
     private final int maxPageSize;
@@ -302,7 +305,6 @@ public class TopNOperator implements Operator, Accountable {
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
-    private final DriverContext.Phase phase;
 
     private Row spare;
     private int spareValuesPreAllocSize = 0;
@@ -336,21 +338,21 @@ public class TopNOperator implements Operator, Accountable {
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
+        IndexedByShardId<? extends RefCounted> refCounteds,
         int topCount,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize,
-        DriverContext.Phase phase
+        int maxPageSize
     ) {
         this.blockFactory = blockFactory;
+        this.refCounteds = refCounteds;
         this.breaker = breaker;
         this.maxPageSize = maxPageSize;
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.inputQueue = new Queue(topCount);
-        this.phase = phase;
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -471,11 +473,11 @@ public class TopNOperator implements Operator, Accountable {
                     for (int b = 0; b < builders.length; b++) {
                         builders[b] = ResultBuilder.resultBuilderFor(
                             blockFactory,
+                            refCounteds,
                             elementTypes.get(b),
                             encoders.get(b).toUnsortable(),
                             channelInKey(sortOrders, b),
-                            size,
-                            phase
+                            size
 
                         );
                     }
@@ -500,7 +502,6 @@ public class TopNOperator implements Operator, Accountable {
 
                     BytesRef values = row.values.bytesRefView();
                     for (ResultBuilder builder : builders) {
-                        builder.setNextRefCounted(row.shardRefCounter);
                         builder.decodeValue(values);
                     }
                     if (values.length != 0) {

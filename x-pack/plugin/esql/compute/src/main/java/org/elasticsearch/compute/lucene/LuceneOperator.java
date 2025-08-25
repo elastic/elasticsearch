@@ -53,7 +53,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     public static final int NO_LIMIT = Integer.MAX_VALUE;
 
-    protected final List<? extends RefCounted> shardContextCounters;
+    protected final IndexedByShardId<? extends RefCounted> refCounteds;
     protected final BlockFactory blockFactory;
 
     /**
@@ -80,13 +80,13 @@ public abstract class LuceneOperator extends SourceOperator {
     long rowsEmitted;
 
     protected LuceneOperator(
-        List<? extends RefCounted> shardContextCounters,
+        IndexedByShardId<? extends RefCounted> refCounteds,
         BlockFactory blockFactory,
         int maxPageSize,
         LuceneSliceQueue sliceQueue
     ) {
-        this.shardContextCounters = shardContextCounters;
-        shardContextCounters.forEach(RefCounted::mustIncRef);
+        this.refCounteds = refCounteds;
+        refCounteds.collection().forEach(RefCounted::mustIncRef);
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
@@ -105,7 +105,7 @@ public abstract class LuceneOperator extends SourceOperator {
          * @param needsScore Whether the score is needed.
          */
         protected Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contextsByShardId,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
@@ -117,7 +117,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
-                contexts,
+                contextsByShardId,
                 queryFunction,
                 dataPartitioning,
                 autoStrategy,
@@ -155,7 +155,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
-        shardContextCounters.forEach(RefCounted::decRef);
+        refCounteds.collection().forEach(RefCounted::decRef);
         additionalClose();
     }
 

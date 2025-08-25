@@ -20,8 +20,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -48,7 +48,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -261,7 +260,7 @@ public class ComputeService {
                 "main.final",
                 LOCAL_CLUSTER,
                 flags,
-                FunctionList.empty(),
+                IndexedByShardId.empty(),
                 configuration,
                 foldContext,
                 mainExchangeSource::createExchangeSource,
@@ -366,7 +365,7 @@ public class ComputeService {
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
-                FunctionList.empty(),
+                IndexedByShardId.empty(),
                 configuration,
                 foldContext,
                 null,
@@ -458,7 +457,7 @@ public class ComputeService {
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
-                            FunctionList.empty(),
+                            IndexedByShardId.empty(),
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
@@ -651,15 +650,14 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
-                physicalOperationProviders,
-                shardContexts
+                physicalOperationProviders
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
             var localPlan = PlannerUtils.localPlan(
                 context.flags(),
-                context.searchExecutionContexts(),
+                new ArrayList<>(context.searchExecutionContexts().collection()),
                 context.configuration(),
                 context.foldCtx(),
                 projectAfterTopN,
@@ -675,7 +673,7 @@ public class ComputeService {
                 context.description(),
                 context.foldCtx(),
                 localPlan,
-                context.description().equals(REDUCE_DESCRIPTION) ? DriverContext.Phase.NODE_REDUCE : DriverContext.Phase.OTHER
+                context.searchContexts().map(ComputeSearchContext::shardContext)
             );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
@@ -685,7 +683,7 @@ public class ComputeService {
             // operators will hold a reference to the contexts where relevant. However, we should only do this for the data computations,
             // because in other cases the drivers won't increment the reference count of the contexts (no readers).
             if (context.description().equals(DATA_DESCRIPTION)) {
-                shardContexts.forEach(RefCounted::decRef);
+                shardContexts.collection().forEach(RefCounted::decRef);
             }
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
@@ -723,7 +721,7 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
-            Releasables.close(context.searchContexts());
+            Releasables.close(context.searchContexts().collection());
             LOGGER.fatal("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }

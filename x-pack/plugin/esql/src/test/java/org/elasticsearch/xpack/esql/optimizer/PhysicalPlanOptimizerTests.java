@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -7910,14 +7909,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
-                FunctionList.empty(),
+                IndexedByShardId.empty(),
                 null,
                 new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
-            ),
-            List.of()
+            )
         );
 
-        return planner.plan("test", FoldContext.small(), plan, DriverContext.Phase.OTHER);
+        return planner.plan("test", FoldContext.small(), plan, IndexedByShardId.empty());
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {

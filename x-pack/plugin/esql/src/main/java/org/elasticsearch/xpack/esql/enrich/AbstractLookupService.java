@@ -71,6 +71,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.common.IndexedByShardIdFromSingleton;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -299,11 +300,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 localBreakerSettings.maxOverReservedBytes()
             );
             releasables.add(localBreaker);
-            final DriverContext driverContext = new DriverContext(
-                bigArrays,
-                blockFactory.newChildFactory(localBreaker),
-                DriverContext.Phase.OTHER
-            );
+            final DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
             final ElementType[] mergingTypes = new ElementType[request.extractFields.size()];
             for (int i = 0; i < request.extractFields.size(); i++) {
                 mergingTypes[i] = PlannerUtils.toElementType(request.extractFields.get(i).dataType());
@@ -346,7 +343,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
-                shardContext.context,
+                new IndexedByShardIdFromSingleton<>(shardContext.context),
+                0,
                 warnings
             );
             releasables.add(queryOperator);
@@ -452,7 +450,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             driverContext.blockFactory(),
             Long.MAX_VALUE,
             fields,
-            List.of(
+            new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
                     shardContext.searcher().getIndexReader(),
                     shardContext::newSourceLoader,
@@ -692,7 +690,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         public static LookupShardContext fromSearchContext(SearchContext searchContext) {
             return new LookupShardContext(
                 new EsPhysicalOperationProviders.DefaultShardContext(
-                    0,
                     0,
                     searchContext,
                     searchContext.getSearchExecutionContext(),

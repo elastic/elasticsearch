@@ -18,13 +18,11 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 
 class ComputeSearchContext implements Releasable {
     private final int index;
-    private final int globalIndex;
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
 
-    ComputeSearchContext(int index, int globalIndex, SearchContext searchContext) {
+    ComputeSearchContext(int index, SearchContext searchContext) {
         this.index = index;
-        this.globalIndex = globalIndex;
         this.searchContext = searchContext;
     }
 
@@ -46,7 +44,7 @@ class ComputeSearchContext implements Releasable {
                 return new ReinitializingSourceProvider(super::createSourceProvider);
             }
         };
-        return new DefaultShardContext(index, globalIndex, this, searchExecutionContext, searchContext.request().getAliasFilter());
+        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());
     }
 
     @Override

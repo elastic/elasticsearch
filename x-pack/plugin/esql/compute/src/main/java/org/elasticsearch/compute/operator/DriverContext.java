@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -60,25 +61,24 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
+    private final @Nullable String description;
+
     private Runnable earlyTerminationChecker = () -> {};
 
-    private final Phase phase;
-
-    // Mostly used by tests. Production code should pass an explicit phase.
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, WarningsMode.COLLECT, Phase.OTHER);
+        this(bigArrays, blockFactory, null, WarningsMode.COLLECT);
     }
 
-    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, Phase phase) {
-        this(bigArrays, blockFactory, WarningsMode.COLLECT, phase);
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, String description) {
+        this(bigArrays, blockFactory, description, WarningsMode.COLLECT);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode, Phase phase) {
-        this.phase = phase;
+    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable String description, WarningsMode warningsMode) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.description = description;
         this.warningsMode = warningsMode;
     }
 
@@ -95,6 +95,11 @@ public class DriverContext {
 
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    @Nullable
+    public String description() {
+        return description;
     }
 
     /** A snapshot of the driver context. */
@@ -206,16 +211,6 @@ public class DriverContext {
     public enum WarningsMode {
         COLLECT,
         IGNORE
-    }
-
-    public Phase phase() {
-        return phase;
-    }
-
-    public enum Phase {
-        /** The local reduce phase, where we (might) aggregate data node results. */
-        NODE_REDUCE,
-        OTHER
     }
 
     /**

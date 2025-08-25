@@ -282,7 +282,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             MapperService mapperService = mapperHelper.createMapperService(stringBuilder.toString());
             DirectoryReader reader = DirectoryReader.open(lookupIndexDirectory);
             SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
-            var ctx = new EsPhysicalOperationProviders.DefaultShardContext(0, 0, new NoOpReleasable(), executionCtx, AliasFilter.EMPTY);
+            var ctx = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), executionCtx, AliasFilter.EMPTY);
             return new AbstractLookupService.LookupShardContext(ctx, executionCtx, () -> {
                 try {
                     IOUtils.close(reader, mapperService);

@@ -36,13 +36,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public final class TimeSeriesSourceOperator extends LuceneOperator {
     private final int maxPageSize;
+    private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final BlockFactory blockFactory;
     private final LuceneSliceQueue sliceQueue;
     private int currentPagePos = 0;
@@ -56,13 +56,14 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
     private long tsidsLoaded;
 
     TimeSeriesSourceOperator(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> shardContexts,
         BlockFactory blockFactory,
         LuceneSliceQueue sliceQueue,
         int maxPageSize,
         int limit
     ) {
-        super(contexts, blockFactory, maxPageSize, sliceQueue);
+        super(shardContexts, blockFactory, maxPageSize, sliceQueue);
+        this.shardContexts = shardContexts;
         this.maxPageSize = maxPageSize;
         this.blockFactory = blockFactory;
         this.remainingDocs = limit;
@@ -106,7 +107,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                     throw new UnsupportedOperationException("tags not supported by " + getClass());
                 }
                 iterator = new SegmentsIterator(slice);
-                docCollector = new DocIdCollector(blockFactory, slice.shardContext());
+                docCollector = new DocIdCollector(blockFactory, shardContexts, slice.shardContext().index());
             }
             iterator.readDocsForNextPage();
             if (currentPagePos > 0) {
@@ -391,15 +392,17 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         }
     }
 
-    static final class DocIdCollector implements Releasable {
+    private static final class DocIdCollector implements Releasable {
         private final BlockFactory blockFactory;
+        private final IndexedByShardId<? extends ShardContext> shardContexts;
         private final ShardContext shardContext;
         private IntVector.Builder docsBuilder;
         private IntVector.Builder segmentsBuilder;
 
-        DocIdCollector(BlockFactory blockFactory, ShardContext shardContext) {
+        DocIdCollector(BlockFactory blockFactory, IndexedByShardId<? extends ShardContext> shardContexts, int shardId) {
             this.blockFactory = blockFactory;
-            this.shardContext = shardContext;
+            this.shardContexts = shardContexts;
+            this.shardContext = shardContexts.get(shardId);
         }
 
         void prepareForCollecting(int estimatedSize) {
@@ -415,7 +418,6 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
 
         DocVector build() {
             IntVector shards = null;
-            IntVector globalShards = null;
             IntVector segments = null;
             IntVector docs = null;
             DocVector docVector = null;
@@ -425,14 +427,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                 segments = segmentsBuilder.build();
                 segmentsBuilder = null;
                 shards = blockFactory.newConstantIntVector(shardContext.index(), docs.getPositionCount());
-                docVector = new DocVector(
-                    ShardRefCounted.fromShardContext(shardContext),
-                    shards,
-                    shardContext.globalIndex(),
-                    segments,
-                    docs,
-                    segments.isConstant()
-                );
+                docVector = new DocVector(shardContexts, shards, segments, docs, segments.isConstant());
                 return docVector;
             } finally {
                 if (docVector == null) {

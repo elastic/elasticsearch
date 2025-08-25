@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-@FunctionName("to_Geohex")
+@FunctionName("to_geohex")
 public class ToGeohexTests extends AbstractScalarFunctionTestCase {
     public ToGeohexTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

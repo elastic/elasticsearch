@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -35,7 +36,6 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
 
     @Before
     public void setupIndex() throws Exception {
-        assumeTrue("requires SPATIAL_GRID capability", EsqlCapabilities.Cap.SPATIAL_GRID.isEnabled());
         createAndPopulateIndexes(10);
     }
 
@@ -61,6 +61,13 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
     }
 
     /**
+     * Test that the geo_grid functions are disabled outside of SNAPSHOT.
+     */
+    public void testGeoGridDisabled() {
+        assertGeoGridDisabledWith("index_geo_point");
+    }
+
+    /**
      * This test will fail without a platinum license
      */
     public abstract void testGeoGridWithShapes();
@@ -74,6 +81,7 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
     }
 
     protected void assertGeoGridFromIndex(String index) {
+        assumeTrue("requires SPATIAL_GRID_TYPES capability", EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled());
         assumeTrue("geo_shape capability not yet implemented", index.equals("index_geo_point"));
         var query = String.format(Locale.ROOT, """
             FROM %s
@@ -95,6 +103,7 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
     }
 
     protected void assertGeoGridFailsWith(String index) {
+        assumeTrue("requires SPATIAL_GRID_TYPES capability", EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled());
         assumeTrue("geo_shape capability not yet implemented", index.equals("index_geo_point"));
         var query = String.format(Locale.ROOT, """
             FROM %s
@@ -107,6 +116,18 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
             gridFunction(),
             precision()
         );
+        ElasticsearchException e = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(e.getMessage(), containsString(expectedError));
+    }
+
+    protected void assertGeoGridDisabledWith(String index) {
+        assumeFalse("testing feature is disabled in non-snapshot builds", Build.current().isSnapshot());
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | EVAL gridId = %s(location, %d)
+            | STATS count=COUNT() BY gridId
+            """, index, gridFunction(), precision());
+        var expectedError = String.format(Locale.ROOT, "Unknown function [%s]", gridFunction());
         ElasticsearchException e = expectThrows(VerificationException.class, () -> run(query));
         assertThat(e.getMessage(), containsString(expectedError));
     }

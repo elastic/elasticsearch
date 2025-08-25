@@ -417,10 +417,7 @@ public class EsqlFunctionRegistry {
                 def(StYMax.class, StYMax::new, "st_ymax"),
                 def(StYMin.class, StYMin::new, "st_ymin"),
                 def(StX.class, StX::new, "st_x"),
-                def(StY.class, StY::new, "st_y"),
-                def(StGeohash.class, StGeohash::new, "st_geohash"),
-                def(StGeotile.class, StGeotile::new, "st_geotile"),
-                def(StGeohex.class, StGeohex::new, "st_geohex") },
+                def(StY.class, StY::new, "st_y") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null
@@ -504,6 +501,9 @@ public class EsqlFunctionRegistry {
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
                 def(Knn.class, quad(Knn::new), "knn"),
+                def(StGeohash.class, StGeohash::new, "st_geohash"),
+                def(StGeotile.class, StGeotile::new, "st_geotile"),
+                def(StGeohex.class, StGeohex::new, "st_geohex"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),

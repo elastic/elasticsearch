@@ -47,7 +47,7 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
         returnType = "boolean",
         description = """
             Returns a boolean that indicates whether a keyword substring is within another string.
-            Returns `null` if either parameter is null. """,
+            Returns `null` if either parameter is null.""",
         examples = @Example(file = "string", tag = "contains"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
     )

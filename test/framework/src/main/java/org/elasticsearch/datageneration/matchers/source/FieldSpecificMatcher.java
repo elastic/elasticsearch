@@ -376,11 +376,12 @@ interface FieldSpecificMatcher {
         @Override
         Object convert(Object value, Object nullValue) {
             if (value == null) {
-                return nullValue;
+                return cast(nullValue);
             }
+
             // Special case for number coercion from strings
             if (value instanceof String s && s.isEmpty()) {
-                return nullValue;
+                return  cast(nullValue);
             }
 
             // Attempt to coerce string values into numbers
@@ -394,9 +395,13 @@ interface FieldSpecificMatcher {
                 }
             }
 
-            // When a number mapping is coerced, the expected value will come from the above parser and will have the correct java type.
-            // Whereas, if it fits, the actual value will be in an Integer or a Double. To correctly treat expected and actual values as
-            // equal the actual value must be cast to the appropriate type.
+            return cast(value);
+        }
+
+        // When a number mapping is coerced, the expected value will come from the above parser and will have the correct java type.
+        // Whereas, if it fits, the actual value will be in an Integer or a Double. To correctly treat expected and actual values as
+        // equal the actual value must be cast to the appropriate type.
+        private Object cast(Object value) {
             if (value instanceof Integer v) {
                 return switch (fieldType) {
                     case LONG -> v.longValue();
@@ -408,7 +413,6 @@ interface FieldSpecificMatcher {
             if (value instanceof Double v) {
                 return fieldType == FieldType.FLOAT ? v.floatValue() : value;
             }
-
             return value;
         }
     }

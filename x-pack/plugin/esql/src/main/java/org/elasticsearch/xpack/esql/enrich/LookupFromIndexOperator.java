@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 // TODO rename package
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
@@ -47,7 +49,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndexPattern,
         String lookupIndex,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        List<Expression> candidateRightHandFilters
     ) implements OperatorFactory {
         @Override
         public String describe() {
@@ -61,6 +64,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                     .append(" inputChannel=")
                     .append(matchField.channel());
             }
+            stringBuilder.append(" optional_filter=")
+                .append(candidateRightHandFilters.stream().map(Expression::toString).collect(Collectors.joining(", ")));
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
@@ -77,7 +82,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 lookupIndexPattern,
                 lookupIndex,
                 loadFields,
-                source
+                source,
+                candidateRightHandFilters
             );
         }
     }
@@ -90,7 +96,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final List<NamedExpression> loadFields;
     private final Source source;
     private long totalRows = 0L;
-    private List<MatchConfig> matchFields;
+    private final List<MatchConfig> matchFields;
+    private final List<Expression> candidateRightHandFilters;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
@@ -114,7 +121,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndexPattern,
         String lookupIndex,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        List<Expression> candidateRightHandFilters
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.matchFields = matchFields;
@@ -125,6 +133,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.lookupIndex = lookupIndex;
         this.loadFields = loadFields;
         this.source = source;
+        this.candidateRightHandFilters = candidateRightHandFilters != null ? candidateRightHandFilters : new ArrayList<>();
     }
 
     @Override
@@ -151,7 +160,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             newMatchFields,
             new Page(inputBlockArray),
             loadFields,
-            source
+            source,
+            candidateRightHandFilters
         );
         lookupService.lookupAsync(
             request,
@@ -211,6 +221,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 .append(" inputChannel=")
                 .append(matchField.channel());
         }
+        stringBuilder.append(" optional_filter=")
+            .append(candidateRightHandFilters.stream().map(Expression::toString).collect(Collectors.joining(", ")));
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

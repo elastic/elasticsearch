@@ -14,18 +14,25 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -34,16 +41,23 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FOUR;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.SIX;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -60,6 +74,8 @@ import static org.mockito.Mockito.mock;
 
 public class PushDownAndCombineFiltersTests extends ESTestCase {
 
+    private final LogicalOptimizerContext optimizerContext = new LogicalOptimizerContext(null, FoldContext.small());
+
     public void testCombineFilters() {
         EsRelation relation = relation();
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
@@ -68,7 +84,10 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         Filter fa = new Filter(EMPTY, relation, conditionA);
         Filter fb = new Filter(EMPTY, fa, conditionB);
 
-        assertEquals(new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)), new PushDownAndCombineFilters().apply(fb));
+        assertEquals(
+            new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+            new PushDownAndCombineFilters().apply(fb, optimizerContext)
+        );
     }
 
     public void testCombineFiltersLikeRLike() {
@@ -79,7 +98,10 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         Filter fa = new Filter(EMPTY, relation, conditionA);
         Filter fb = new Filter(EMPTY, fa, conditionB);
 
-        assertEquals(new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)), new PushDownAndCombineFilters().apply(fb));
+        assertEquals(
+            new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+            new PushDownAndCombineFilters().apply(fb, optimizerContext)
+        );
     }
 
     public void testPushDownFilter() {
@@ -93,7 +115,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         Filter fb = new Filter(EMPTY, keep, conditionB);
 
         Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
-        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb, optimizerContext));
     }
 
     public void testPushDownFilterPastRenamingProject() {
@@ -111,7 +133,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         LessThan bRenamedLessThanTwo = lessThanOf(bRenamed.toAttribute(), TWO);
         Filter filter = new Filter(EMPTY, project, Predicates.combineAnd(List.of(aRenamedTwiceGreaterThanOne, bRenamedLessThanTwo)));
 
-        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
 
         Project optimizedProject = as(optimized, Project.class);
         assertEquals(optimizedProject.projections(), project.projections());
@@ -184,7 +206,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
                 Filter filter = new Filter(EMPTY, eval, Predicates.combineAnd(conditions));
 
-                LogicalPlan plan = new PushDownAndCombineFilters().apply(filter);
+                LogicalPlan plan = new PushDownAndCombineFilters().apply(filter, optimizerContext);
 
                 if (numNonPushable > 0) {
                     Filter optimizedFilter = as(plan, Filter.class);
@@ -216,7 +238,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         Filter fb = new Filter(EMPTY, keep, conditionB);
 
         Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
-        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb, optimizerContext));
     }
 
     // from ... | where a > 1 | stats count(1) by b | where count(1) >= 3 and b < 2
@@ -244,7 +266,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
             ),
             aggregateCondition
         );
-        assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
+        assertEquals(expected, new PushDownAndCombineFilters().apply(fb, optimizerContext));
     }
 
     // from ... | where a > 1 | COMPLETION completion = "some prompt" WITH { "inferenceId' : "inferenceId" } | where b < 2 and
@@ -284,7 +306,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
             conditionCompletion
         );
 
-        assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB));
+        assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB, optimizerContext));
     }
 
     // from ... | where a > 1 | RERANK "query" ON title WITH { "inference_id" : "inferenceId" } | where b < 2 and _score > 1
@@ -317,7 +339,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
             scoreCondition
         );
 
-        assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB));
+        assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB, optimizerContext));
     }
 
     private static Completion completion(LogicalPlan child) {
@@ -347,5 +369,173 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
     private static EsRelation relation(List<Attribute> fieldAttributes) {
         return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), fieldAttributes);
+    }
+
+    public void testPushDownFilterPastLeftJoinWithPushable() {
+        Join join = createLeftJoin();
+        EsRelation left = (EsRelation) join.left();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        // Pushable filter
+        Expression pushableCondition = greaterThanOf(c, ONE);
+        Filter filter = new Filter(EMPTY, join, pushableCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        // The filter should still be on top
+        Filter topFilter = as(optimized, Filter.class);
+        assertEquals(pushableCondition, topFilter.condition());
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+        assertEquals(1, optimizedJoin.candidateRightHandFilters().size());
+        assertEquals(pushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
+    }
+
+    public void testPushDownFilterPastLeftJoinWithNonPushable() {
+        Join join = createLeftJoin();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        // Non-pushable filter
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
+        Filter filter = new Filter(EMPTY, join, nonPushableCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        // No optimization should be applied, the plan should be the same
+        assertEquals(filter, optimized);
+        // And the join inside should not have candidate filters
+        Join innerJoin = as(as(optimized, Filter.class).child(), Join.class);
+        assertTrue(innerJoin.candidateRightHandFilters().isEmpty());
+    }
+
+    public void testPushDownFilterPastLeftJoinWithPartiallyPushableAnd() {
+        Join join = createLeftJoin();
+        EsRelation left = (EsRelation) join.left();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        Expression pushableCondition = greaterThanOf(c, ONE);
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
+
+        // Partially pushable filter
+        Expression partialCondition = new And(EMPTY, pushableCondition, nonPushableCondition);
+        Filter filter = new Filter(EMPTY, join, partialCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        Filter topFilter = as(optimized, Filter.class);
+        // The top filter condition should be the original one
+        assertEquals(partialCondition, topFilter.condition());
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+        assertEquals(1, optimizedJoin.candidateRightHandFilters().size());
+        // Only the pushable part should be a candidate
+        assertEquals(pushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
+    }
+
+    public void testPushDownFilterPastLeftJoinWithOr() {
+        Join join = createLeftJoin();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        Expression pushableCondition = greaterThanOf(c, ONE);
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
+
+        // OR of pushable and non-pushable filter
+        Expression orCondition = new Or(EMPTY, pushableCondition, nonPushableCondition);
+        Filter filter = new Filter(EMPTY, join, orCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        // No optimization should be applied, the plan should be the same
+        assertEquals(filter, optimized);
+        // And the join inside should not have candidate filters
+        Join innerJoin = as(as(optimized, Filter.class).child(), Join.class);
+        assertTrue(innerJoin.candidateRightHandFilters().isEmpty());
+    }
+
+    public void testPushDownFilterPastLeftJoinWithNotPushable() {
+        Join join = createLeftJoin();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        Expression pushableCondition = greaterThanOf(c, ONE);
+
+        // NOT pushable filter
+        Expression notPushableCondition = new Not(EMPTY, pushableCondition);
+        Filter filter = new Filter(EMPTY, join, notPushableCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        Filter topFilter = as(optimized, Filter.class);
+        assertEquals(notPushableCondition, topFilter.condition());
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(1, optimizedJoin.candidateRightHandFilters().size());
+        assertEquals(notPushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
+    }
+
+    public void testPushDownFilterPastLeftJoinWithNotNonPushable() {
+        Join join = createLeftJoin();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
+
+        // NOT non-pushable filter
+        Expression notNonPushableCondition = new Not(EMPTY, nonPushableCondition);
+        Filter filter = new Filter(EMPTY, join, notNonPushableCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        Filter topFilter = as(optimized, Filter.class);
+        assertEquals(notNonPushableCondition, topFilter.condition());
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(1, optimizedJoin.candidateRightHandFilters().size());
+        assertEquals(notNonPushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
+    }
+
+    public void testPushDownFilterPastLeftJoinWithComplexMix() {
+        // Setup
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute c = getFieldAttribute("c");
+        FieldAttribute d = getFieldAttribute("d");
+        FieldAttribute e = getFieldAttribute("e");
+        FieldAttribute f = getFieldAttribute("f");
+        FieldAttribute g = getFieldAttribute("g");
+        EsRelation left = relation(List.of(a, getFieldAttribute("b")));
+        EsRelation right = relation(List.of(c, d, e, f, g));
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(a), List.of(c));
+        Join join = new Join(EMPTY, left, right, joinConfig);
+
+        // Predicates
+        Expression p1 = greaterThanOf(c, ONE);                                  // pushable
+        Expression p2 = new Not(EMPTY, new IsNull(EMPTY, d));     // pushable (d IS NOT NULL)
+        Expression p3 = lessThanOf(e, THREE);                                   // pushable
+        Expression p4 = rlike(f, "pat");                                   // pushable
+        Expression p5 = new Not(EMPTY, new IsNull(EMPTY, g));     // pushable (g IS NOT NULL)
+        Expression p6 = greaterThanOf(c, TWO);                                  // pushable
+        Expression p7 = lessThanOf(d, FOUR);                                    // pushable
+        Expression p8 = greaterThanOf(e, FIVE);                                 // pushable
+
+        Expression np1 = new IsNull(EMPTY, c);                           // non-pushable (c IS NULL)
+        Expression np2 = new Equals(EMPTY, new Coalesce(EMPTY, d, List.of(SIX)), SIX); // non-pushable
+
+        // Build a complex condition
+        // np2 AND ((p1 AND p2 AND p3 AND p4 AND p5) AND (np1 OR (p6 AND p7) OR (p8 AND np2))) AND p1 AND p6
+        Expression pushableBranch = Predicates.combineAnd(List.of(p1, p2, p3, p4, p5));
+        Expression nonPushableBranch = new Or(EMPTY, np1, new Or(EMPTY, new And(EMPTY, p6, p7), new And(EMPTY, p8, np2)));
+        Expression complexCondition = new And(EMPTY, pushableBranch, nonPushableBranch);
+        complexCondition = Predicates.combineAnd(List.of(np2, complexCondition, p1, p6));
+
+        Filter filter = new Filter(EMPTY, join, complexCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+
+        // The top filter with the original condition should remain, but the structure of the AND tree might have changed.
+        // So, we flatten the conditions and compare them as a set.
+        Filter topFilter = as(optimized, Filter.class);
+        Set<Expression> actualTopPredicates = new HashSet<>(Predicates.splitAnd(topFilter.condition()));
+        Set<Expression> expectedTopPredicates = new HashSet<>(List.of(p1, p2, p3, p4, p5, nonPushableBranch, np2, p1, p6));
+        assertEquals(expectedTopPredicates, actualTopPredicates);
+
+        // The pushable part of the filter should be added as a candidate to the join
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+        Set<Expression> actualPushable = new HashSet<>(optimizedJoin.candidateRightHandFilters());
+        Set<Expression> expectedPushable = new HashSet<>(List.of(p1, p2, p3, p4, p5, p6));
+        assertEquals(expectedPushable, actualPushable);
+    }
+
+    private Join createLeftJoin() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute c = getFieldAttribute("c");
+        EsRelation left = relation(List.of(a, getFieldAttribute("b")));
+        EsRelation right = relation(List.of(c));
+
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(a), List.of(c));
+        return new Join(EMPTY, left, right, joinConfig);
     }
 }

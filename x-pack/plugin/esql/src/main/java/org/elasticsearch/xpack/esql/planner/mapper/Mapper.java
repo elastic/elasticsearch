@@ -229,7 +229,15 @@ public class Mapper {
             if (right instanceof FragmentExec fragment
                 && fragment.fragment() instanceof EsRelation relation
                 && relation.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+                return new LookupJoinExec(
+                    join.source(),
+                    left,
+                    right,
+                    config.leftFields(),
+                    config.rightFields(),
+                    join.rightOutputFields(),
+                    join.candidateRightHandFilters()
+                );
             }
         }
 

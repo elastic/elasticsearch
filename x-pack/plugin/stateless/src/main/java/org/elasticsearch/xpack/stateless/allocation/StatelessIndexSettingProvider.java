@@ -37,7 +37,9 @@ import org.elasticsearch.logging.Logger;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import static java.lang.Integer.parseInt;
@@ -83,31 +85,36 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
     }
 
     @Override
-    public Settings getAdditionalIndexSettings(
+    public void provideAdditionalMetadata(
         String indexName,
         @Nullable String dataStreamName,
         IndexMode templateIndexMode,
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
-        List<CompressedXContent> combinedTemplateMappings
+        List<CompressedXContent> combinedTemplateMappings,
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
     ) {
         assert systemNamePredicate != null : "object is not initialized properly";
-        Settings.Builder settings = Settings.builder();
         // TODO find a prover way to bypass index template validation
         if (Objects.equals(indexName, "validate-index-name") == false) {
-            settings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME);
+            additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME);
         }
 
-        final Settings indexModeSettings = indexModeSettingsProvider.getAdditionalIndexSettings(
+        final Settings.Builder indexModeSettingsBuilder = Settings.builder();
+        indexModeSettingsProvider.provideAdditionalMetadata(
             indexName,
             dataStreamName,
             templateIndexMode,
             projectMetadata,
             resolvedAt,
             indexTemplateAndCreateRequestSettings,
-            combinedTemplateMappings
+            combinedTemplateMappings,
+            indexModeSettingsBuilder,
+            additionalCustomMetadata
         );
+        Settings indexModeSettings = indexModeSettingsBuilder.build();
 
         if (dataStreamName == null
             && false == INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexTemplateAndCreateRequestSettings)
@@ -129,8 +136,7 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
                     (defaultNumberOfShardsForRegularIndices > 0 ? "is" : "is not")
                 )
             );
-            settings.put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), defaultShards);
+            additionalSettings.put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), defaultShards);
         }
-        return settings.build();
     }
 }

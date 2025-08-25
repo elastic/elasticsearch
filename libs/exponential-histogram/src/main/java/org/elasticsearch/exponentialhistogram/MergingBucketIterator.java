@@ -33,6 +33,9 @@ final class MergingBucketIterator implements BucketIterator {
     private long currentIndex;
     private long currentCount;
 
+    private final long factorA;
+    private final long factorB;
+
     /**
      * Creates a new merging iterator.
      *
@@ -41,8 +44,24 @@ final class MergingBucketIterator implements BucketIterator {
      * @param targetScale the histogram scale to which both iterators should be aligned
      */
     MergingBucketIterator(BucketIterator itA, BucketIterator itB, int targetScale) {
+        this(itA, 1, itB, 1, targetScale);
+    }
+
+    /**
+     * Creates a new merging iterator, multiplying counts from each iterator with the provided factors.
+     * Note that the factors can be negative, in which case {@link #peekCount()} can return zero or negative values.
+     *
+     * @param itA         the first iterator to merge
+     * @param factorA     a factor to multiply counts from the first iterator with
+     * @param itB         the second iterator to merge
+     * @param factorB     a factor to multiply counts from the second iterator with
+     * @param targetScale the histogram scale to which both iterators should be aligned
+     */
+    MergingBucketIterator(BucketIterator itA, long factorA, BucketIterator itB, long factorB, int targetScale) {
         this.itA = new ScaleAdjustingBucketIterator(itA, targetScale);
         this.itB = new ScaleAdjustingBucketIterator(itB, targetScale);
+        this.factorA = factorA;
+        this.factorB = factorB;
         endReached = false;
         advance();
     }
@@ -69,12 +88,12 @@ final class MergingBucketIterator implements BucketIterator {
         boolean advanceB = hasNextB && (hasNextA == false || idxB <= idxA);
         if (advanceA) {
             currentIndex = idxA;
-            currentCount += itA.peekCount();
+            currentCount += itA.peekCount() * factorA;
             itA.advance();
         }
         if (advanceB) {
             currentIndex = idxB;
-            currentCount += itB.peekCount();
+            currentCount += itB.peekCount() * factorB;
             itB.advance();
         }
     }

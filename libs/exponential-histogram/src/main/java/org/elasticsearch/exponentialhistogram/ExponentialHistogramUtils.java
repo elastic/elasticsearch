@@ -33,29 +33,14 @@ public class ExponentialHistogramUtils {
      */
     public static double estimateSum(BucketIterator negativeBuckets, BucketIterator positiveBuckets) {
         assert negativeBuckets.scale() == positiveBuckets.scale();
+
+        // for each bucket index, sum up the counts, but account for the positive/negative
+        BucketIterator it = new MergingBucketIterator(negativeBuckets, -1, positiveBuckets, 1, positiveBuckets.scale());
         double sum = 0.0;
-        while (negativeBuckets.hasNext() || positiveBuckets.hasNext()) {
-            long negativeIndex = negativeBuckets.hasNext() ? negativeBuckets.peekIndex() : Long.MAX_VALUE;
-            long positiveIndex = positiveBuckets.hasNext() ? positiveBuckets.peekIndex() : Long.MAX_VALUE;
-
-            double bucketMidPoint = ExponentialScaleUtils.getPointOfLeastRelativeError(
-                Math.min(negativeIndex, positiveIndex),
-                positiveBuckets.scale()
-            );
-
-            long countWithSign;
-            if (negativeIndex == positiveIndex) {
-                countWithSign = positiveBuckets.peekCount() - negativeBuckets.peekCount();
-                positiveBuckets.advance();
-                negativeBuckets.advance();
-            } else if (negativeIndex < positiveIndex) {
-                countWithSign = -negativeBuckets.peekCount();
-                negativeBuckets.advance();
-            } else { // positiveIndex > negativeIndex
-                countWithSign = positiveBuckets.peekCount();
-                positiveBuckets.advance();
-            }
-            if (countWithSign != 0) {
+        while (it.hasNext()) {
+            long countWithSign = it.peekCount();
+            double bucketMidPoint = ExponentialScaleUtils.getPointOfLeastRelativeError(it.peekIndex(), it.scale());
+            if (countWithSign != 0) { // avoid 0 * INFINITY = NaN
                 double toAdd = bucketMidPoint * countWithSign;
                 if (Double.isFinite(toAdd)) {
                     sum += toAdd;
@@ -65,6 +50,7 @@ public class ExponentialHistogramUtils {
                     sum = toAdd;
                 }
             }
+            it.advance();
         }
         return sum;
     }

@@ -404,9 +404,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/131481
-- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
-  method: test {p0=downsample-with-security/10_basic/Downsample index}
-  issue: https://github.com/elastic/elasticsearch/issues/131513
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/116866

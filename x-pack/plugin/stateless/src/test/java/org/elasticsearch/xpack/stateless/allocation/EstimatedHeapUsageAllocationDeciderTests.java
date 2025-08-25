@@ -54,6 +54,7 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -150,6 +151,38 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         assertThat(decision.getExplanation(), containsString("insufficient estimated heap available on node [" + nodeId + "]"));
     }
 
+    public void testYesDecisionWhenNodeHeapIsBelowMinimumThreshold() {
+        final int minimumHeapSizeForEnablementInGigabytes = between(2, 32);
+        final var decider = createEstimatedHeapUsageAllocationDecider(
+            true,
+            between(0, 100),
+            ByteSizeValue.ofGb(minimumHeapSizeForEnablementInGigabytes)
+        );
+
+        final String nodeId = randomIdentifier();
+        final ShardRouting shardRouting = createShardRouting();
+        final RoutingAllocation routingAllocation = createRoutingAllocation(
+            decider,
+            nodeId,
+            shardRouting,
+            createClusterInfo(
+                Map.of(nodeId, randomLongBetween(0, 100)),
+                () -> ByteSizeValue.ofGb(between(1, minimumHeapSizeForEnablementInGigabytes - 1))
+            )
+        );
+        final Decision decision = decider.canAllocate(shardRouting, routingAllocation.routingNodes().node(nodeId), routingAllocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(
+            decision.getExplanation(),
+            equalTo(
+                Strings.format(
+                    "estimated heap decider will not intervene if heap size is below [%s]",
+                    ByteSizeValue.ofGb(minimumHeapSizeForEnablementInGigabytes)
+                )
+            )
+        );
+    }
+
     public void testAllocationExplain() {
         final var decider = createEstimatedHeapUsageAllocationDecider(true, 85);
 
@@ -227,15 +260,25 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     }
 
     private static EstimatedHeapUsageAllocationDecider createEstimatedHeapUsageAllocationDecider(boolean enabled, int percent) {
+        return createEstimatedHeapUsageAllocationDecider(enabled, percent, ByteSizeValue.ZERO);
+    }
+
+    private static EstimatedHeapUsageAllocationDecider createEstimatedHeapUsageAllocationDecider(
+        boolean enabled,
+        int percent,
+        ByteSizeValue minimumHeapSizeForEnabled
+    ) {
         final var clusterSettings = new ClusterSettings(
             Settings.builder()
+                .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), minimumHeapSizeForEnabled)
                 .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), enabled)
                 .put(EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK.getKey(), percent + "%")
                 .build(),
             Set.of(
                 InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
                 EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
-                EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK
+                EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
+                EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
             )
         );
         return new EstimatedHeapUsageAllocationDecider(clusterSettings);
@@ -281,12 +324,19 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     }
 
     private ClusterInfo createClusterInfo(Map<String, Long> nodeEstimatedHeapUsagePercent) {
+        return createClusterInfo(nodeEstimatedHeapUsagePercent, () -> ByteSizeValue.ofGb(between(1, 32)));
+    }
+
+    private ClusterInfo createClusterInfo(Map<String, Long> nodeEstimatedHeapUsagePercent, Supplier<ByteSizeValue> totalHeapSizeSupplier) {
         final var clusterInfo = mock(ClusterInfo.class);
         when(clusterInfo.getEstimatedHeapUsages()).thenReturn(
             nodeEstimatedHeapUsagePercent.entrySet()
                 .stream()
                 .collect(
-                    Collectors.toUnmodifiableMap(entry -> entry.getKey(), entry -> createNodeHeapUsage(entry.getKey(), entry.getValue()))
+                    Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey,
+                        entry -> createNodeHeapUsage(entry.getKey(), entry.getValue(), totalHeapSizeSupplier.get())
+                    )
                 )
         );
         return clusterInfo;
@@ -330,8 +380,8 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             .build();
     }
 
-    private EstimatedHeapUsage createNodeHeapUsage(String nodeId, long usagePercent) {
-        final var totalInBytes = ByteSizeValue.ofGb(between(1, 32)).getBytes();
+    private EstimatedHeapUsage createNodeHeapUsage(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
+        final var totalInBytes = totalHeapSize.getBytes();
         final var usedInBytes = (long) Math.floor(totalInBytes * usagePercent / 100.0d);
         return new EstimatedHeapUsage(nodeId, totalInBytes, usedInBytes);
     }

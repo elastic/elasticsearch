@@ -1,7 +1,7 @@
 ---
 version: ${xpack.oteldata.template.version}
 index_patterns: ["metrics-service_destination.10m.otel-*"]
-priority: 130
+priority: 131
 data_stream:
   hidden: true
 allow_auto_create: true

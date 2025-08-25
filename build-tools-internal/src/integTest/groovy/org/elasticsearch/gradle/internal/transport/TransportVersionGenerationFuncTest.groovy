@@ -212,36 +212,41 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertLatest("9.1", "existing_92,8012001")
     }
 
-    def "when a reference is renamed after a definition was generated, the original should be removed and latest files updated"(List<String> branches) {
+    def "a reference can be renamed"() {
         given:
-        String firstName = "original_tv_name"
-        namedTransportVersion(firstName, "8124000")
-        latestTransportVersion("9.2", firstName, "8124000")
-        String secondName = "new_tv_name"
-        referencedTransportVersion(secondName)
+        namedTransportVersion("first_tv", "8124000")
+        latestTransportVersion("9.2", "first_tv", "8124000")
+        referencedTransportVersion("renamed_tv")
 
         when:
-        def secondResult = gradleRunner(
-                ":myserver:validateTransportVersionDefinitions",
-                ":myserver:generateTransportVersionDefinition",
-                "--branches=" + branches.join(",")
-        ).build()
+        def result = runGenerateAndValidateTask("--branches=9.2")
 
-        then: "The generation task should succeed and the definition file should be deleted"
-        !file("myserver/src/main/resources/transport/definitions/named/${firstName}.csv").exists()
-        file("myserver/src/main/resources/transport/definitions/named/${secondName}.csv").exists()
-        secondResult.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
-        secondResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text.strip() == "new_tv_name,8124000"
-
-        where:
-        branches << [
-                ["9.2"],
-                ["9.2", "9.1"]
-        ]
+        then:
+        assertGenerateAndValidateSuccess(result)
+        !file("myserver/src/main/resources/transport/definitions/named/first_tv.csv").exists()
+        file("myserver/src/main/resources/transport/definitions/named/renamed_tv.csv").exists()
+        assertLatest("9.2", "renamed_tv,8124000")
     }
 
-    def "when a definition file is deleted and the reference and latest files haven't been changed, the system should regenerate"(List<String> branches) {
+    def "a reference with a patch version can be renamed"() {
+        given:
+        namedTransportVersion("first_tv", "8124000")
+        latestTransportVersion("9.2", "first_tv", "8124000")
+        latestTransportVersion("9.1", "first_tv", "8012002")
+        referencedTransportVersion("renamed_tv")
+
+        when:
+        def result = runGenerateAndValidateTask("--branches=9.2,9.1")
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        !file("myserver/src/main/resources/transport/definitions/named/first_tv.csv").exists()
+        file("myserver/src/main/resources/transport/definitions/named/renamed_tv.csv").exists()
+        assertLatest("9.2", "renamed_tv,8124000")
+        assertLatest("9.1", "renamed_tv,8012002")
+    }
+
+    def "The system should regenerate a deleted definition file"(List<String> branches) {
         given:
         String definitionName = "test_tv"
         referencedTransportVersion(definitionName)

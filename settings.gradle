@@ -177,3 +177,12 @@ if (extraProjects.exists()) {
 }
 
 include 'qa:vector'
+
+gradle.lifecycle.beforeProject {
+  apply plugin:"elasticsearch.all-projects"
+
+  // unfortunately we cannot nest script plugins
+  apply plugin: 'elasticsearch.eclipse'
+  apply plugin: 'elasticsearch.formatting'
+  apply plugin: 'elasticsearch.forbidden-dependencies'
+}

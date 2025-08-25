@@ -50,7 +50,7 @@ public class ToGeoShapeTests extends AbstractScalarFunctionTestCase {
                 "ToGeoShapeFromGeoGridEvaluator[in=Attribute[channel=0], dataType=" + gridType + "]",
                 gridType,
                 DataType.GEO_SHAPE,
-                v -> EsqlDataTypeConverter.geoGridToShape(v, gridType),
+                v -> EsqlDataTypeConverter.geoGridToShape((long) v, gridType),
                 List.of()
             );
         }

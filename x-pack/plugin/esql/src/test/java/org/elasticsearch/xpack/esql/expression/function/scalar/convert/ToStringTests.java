@@ -149,7 +149,7 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
                 "ToStringFromGeoGridEvaluator[gridId=Attribute[channel=0], dataType=" + gridType + "]",
                 gridType,
                 DataType.KEYWORD,
-                v -> new BytesRef(EsqlDataTypeConverter.geoGridToString(v, gridType)),
+                v -> new BytesRef(EsqlDataTypeConverter.geoGridToString((long) v, gridType)),
                 List.of()
             );
         }

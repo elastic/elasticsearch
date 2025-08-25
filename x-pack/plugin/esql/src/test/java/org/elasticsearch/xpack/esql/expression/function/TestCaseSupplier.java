@@ -666,12 +666,41 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     public static void forUnaryGeoGrid(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
-        DataType gridType,
+        DataType sourceType,
         DataType expectedType,
-        Function<Long, Object> expectedValue,
+        Function<Object, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, geoGridCases(gridType), expectedType, n -> expectedValue.apply((long) n), warnings);
+        if (DataType.isGeoGrid(sourceType)) {
+            unary(suppliers, expectedEvaluatorToString, geoGridCases(sourceType), expectedType, expectedValue, warnings);
+
+        } else if (DataType.isGeoGrid(expectedType)) {
+            if (sourceType == DataType.LONG) {
+                unary(
+                    suppliers,
+                    expectedEvaluatorToString,
+                    geoGridCasesAsLongs(expectedType, ESTestCase::randomBoolean),
+                    expectedType,
+                    expectedValue,
+                    warnings
+                );
+            } else if (sourceType.noText() == DataType.KEYWORD) {
+                unary(
+                    suppliers,
+                    expectedEvaluatorToString,
+                    geoGridCasesAsStrings(expectedType, sourceType, ESTestCase::randomBoolean),
+                    expectedType,
+                    expectedValue,
+                    warnings
+                );
+            } else {
+                throw new IllegalArgumentException(
+                    "Expected gro-grid types, got source [" + sourceType + "], expected [" + expectedType + "]"
+                );
+            }
+        } else {
+            throw new IllegalArgumentException("Expected gro-grid types, got source [" + sourceType + "], expected [" + expectedType + "]");
+        }
     }
 
     /**
@@ -1247,6 +1276,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * Generate cases for {@link DataType#GEOHASH}.
      */
     public static List<TypedDataSupplier> geoGridCases(DataType gridType, Supplier<Boolean> hasAlt) {
+        return geoGridCasesAsType(gridType, gridType, hasAlt);
+    }
+
+    public static List<TypedDataSupplier> geoGridCasesAsLongs(DataType gridType, Supplier<Boolean> hasAlt) {
+        return geoGridCasesAsType(gridType, DataType.LONG, hasAlt);
+    }
+
+    private static List<TypedDataSupplier> geoGridCasesAsType(DataType gridType, DataType sourceType, Supplier<Boolean> hasAlt) {
         Supplier<Object> gridId = () -> {
             Point point = GeometryTestUtils.randomPoint(hasAlt.get());
             return switch (gridType) {
@@ -1256,7 +1293,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 default -> throw new IllegalArgumentException("Unsupported grid type: " + gridType);
             };
         };
-        return List.of(new TypedDataSupplier("<" + gridType.esType() + ">", gridId, gridType));
+        return List.of(new TypedDataSupplier("<" + gridType.esType() + ">", gridId, sourceType));
+    }
+
+    public static List<TypedDataSupplier> geoGridCasesAsStrings(DataType gridType, DataType sourceType, Supplier<Boolean> hasAlt) {
+        Supplier<Object> gridId = () -> {
+            Point point = GeometryTestUtils.randomPoint(hasAlt.get());
+            String gridAddress = switch (gridType) {
+                case GEOHASH -> Geohash.stringEncode(point.getX(), point.getY(), randomIntBetween(1, Geohash.PRECISION));
+                case GEOTILE -> GeoTileUtils.stringEncode(
+                    GeoTileUtils.longEncode(point.getX(), point.getY(), randomIntBetween(0, GeoTileUtils.MAX_ZOOM))
+                );
+                case GEOHEX -> H3.geoToH3Address(point.getLat(), point.getLon(), randomIntBetween(0, H3.MAX_H3_RES));
+                default -> throw new IllegalArgumentException("Unsupported grid type: " + gridType);
+            };
+            return new BytesRef(gridAddress);
+        };
+        return List.of(new TypedDataSupplier("<" + gridType.esType() + ">", gridId, sourceType));
     }
 
     /**

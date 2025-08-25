@@ -43,13 +43,14 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 @SuppressWarnings("unchecked")
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
-    private static final Long NUM_DOCS = 2000L;
+    private static final Long NUM_DOCS = 4000L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private List<XContentBuilder> documents = null;
     private TSDataGenerationHelper dataGenerationHelper;
@@ -103,7 +104,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         MAX,
         MIN,
         AVG,
-        SUM
+        SUM,
+        COUNT
     }
 
     static List<Integer> valuesInWindow(List<Map<String, Object>> pointsInGroup, String metricName) {
@@ -115,6 +117,46 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         return values;
     }
 
+    static Map<String, List<Tuple<String, Tuple<Instant, Integer>>>> groupByTimeseries(
+        List<Map<String, Object>> pointsInGroup,
+        String metricName
+    ) {
+        return pointsInGroup.stream()
+            .filter(doc -> doc.containsKey("metrics") && ((Map<String, Object>) doc.get("metrics")).containsKey(metricName))
+            .map(doc -> {
+                String docKey = ((Map<String, Object>) doc.get("attributes")).entrySet()
+                    .stream()
+                    .map(entry -> entry.getKey() + ":" + entry.getValue())
+                    .collect(Collectors.joining(","));
+                var docTs = Instant.parse((String) doc.get("@timestamp"));
+                var docValue = (Integer) ((Map<String, Object>) doc.get("metrics")).get(metricName);
+                return new Tuple<>(docKey, new Tuple<>(docTs, docValue));
+            })
+            .collect(Collectors.groupingBy(Tuple::v1));
+    }
+
+    static Double aggregatePerTimeseries(
+        Map<String, List<Tuple<String, Tuple<Instant, Integer>>>> timeseries,
+        Agg crossAgg,
+        Agg timeseriesAgg
+    ) {
+        var res = timeseries.values().stream().map(timeseriesList -> {
+            List<Integer> values = timeseriesList.stream().map(t -> t.v2().v2()).collect(Collectors.toList());
+            return aggregateValuesInWindow(values, timeseriesAgg);
+        }).filter(Objects::nonNull).toList();
+
+        if (res.isEmpty()) {
+            return null; // No values to aggregate
+        }
+        return switch (crossAgg) {
+            case MAX -> res.stream().mapToDouble(Double::doubleValue).max().orElseThrow();
+            case MIN -> res.stream().mapToDouble(Double::doubleValue).min().orElseThrow();
+            case AVG -> res.stream().mapToDouble(Double::doubleValue).average().orElseThrow();
+            case SUM -> res.stream().mapToDouble(Double::doubleValue).sum();
+            case COUNT -> (double) res.size();
+        };
+    }
+
     static Double aggregateValuesInWindow(List<Integer> values, Agg agg) {
         if (values.isEmpty()) {
             throw new IllegalArgumentException("No values to aggregate for " + agg + " operation");
@@ -124,6 +166,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             case MIN -> Double.valueOf(values.stream().min(Integer::compareTo).orElseThrow());
             case AVG -> values.stream().mapToDouble(Integer::doubleValue).average().orElseThrow();
             case SUM -> values.stream().mapToDouble(Integer::doubleValue).sum();
+            case COUNT -> (double) values.size();
         };
     }
 
@@ -148,6 +191,49 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, AggregateMetricMapperPlugin.class, EsqlPlugin.class);
+    }
+
+    static Double calculateRateAggregation(Collection<List<Tuple<String, Tuple<Instant, Integer>>>> allTimeseries, Agg agg) {
+        List<Long> allRates = allTimeseries.stream().map(timeseries -> {
+            if (timeseries.size() < 2) {
+                return null; // Not enough data points to calculate rate
+            }
+            // Sort the timeseries by timestamp
+            timeseries.sort((t1, t2) -> t1.v2().v1().compareTo(t2.v2().v1()));
+            var firstTs = timeseries.getFirst().v2().v1();
+            var lastTs = timeseries.getLast().v2().v1();
+            Integer lastValue = null;
+            Long counterGrowth = 0L;
+            for (Tuple<String, Tuple<Instant, Integer>> point : timeseries) {
+                var currentValue = point.v2().v2();
+                if (currentValue == null) {
+                    return null; // Skip if the value is null
+                }
+                if (lastValue == null) {
+                    lastValue = point.v2().v2(); // Initialize with the first value
+                    continue;
+                }
+                if (currentValue > lastValue) {
+                    counterGrowth += currentValue - lastValue; // Incremental growth
+                } else if (currentValue < lastValue) {
+                    // If the value decreased, we assume a reset and start counting from the current value
+                    counterGrowth += currentValue;
+                }
+                lastValue = currentValue; // Update last value for next iteration
+            }
+            return counterGrowth / (lastTs.toEpochMilli() - firstTs.toEpochMilli()) * 1000; // Rate per second
+        }).filter(Objects::nonNull).toList();
+        if (allRates.isEmpty() && agg != Agg.COUNT && agg != Agg.SUM) {
+            return null; // No rates to aggregate
+        }
+        return switch (agg) {
+            // TODO: fix the orElse in the stream operations
+            case MAX -> allRates.stream().mapToDouble(Long::doubleValue).max().orElseThrow();
+            case MIN -> allRates.stream().mapToDouble(Long::doubleValue).min().orElseThrow();
+            case AVG -> allRates.stream().mapToDouble(Long::doubleValue).average().orElseThrow();
+            case SUM -> allRates.stream().mapToDouble(Long::doubleValue).sum();
+            case COUNT -> (double) allRates.size();
+        };
     }
 
     void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
@@ -190,6 +276,38 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testCounterRateGroupByNothing() {
+        try (var resp = run(String.format(Locale.ROOT, """
+            TS %s
+            | STATS count(rate(metrics.counter_hdd.bytes.read))
+                BY tbucket=bucket(@timestamp, 1 minute)
+            | SORT tbucket
+            | LIMIT 1000
+            """, DATASTREAM_NAME))) {
+            List<List<Object>> rows = new ArrayList<>();
+            resp.rows().forEach(rowIter -> {
+                List<Object> row = new ArrayList<>();
+                rowIter.forEach(row::add);
+                rows.add(row);
+            });
+            var groups = groupedRows(documents, List.of(), 60);
+            for (List<Object> row : rows) {
+                var windowStart = windowStart(row.get(1), 60);
+                var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
+                var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counter_hdd.bytes.read");
+                var rate = calculateRateAggregation(docsPerTimeseries.values(), Agg.COUNT);
+                if (rate == null) {
+                    assertThat(row.getFirst(), equalTo(null));
+                    continue;
+                } else if (rate == 0) {
+                    assertThat(row.getFirst(), equalTo(0L));
+                    continue; // No data points in the window
+                }
+                assertThat(row.getFirst(), equalTo(rate.longValue()));
+            }
+        }
+    }
+
     /**
      * This test validates Gauge metrics aggregation with grouping by time bucket and a subset of dimensions.
      * The subset of dimensions is a random subset of the dimensions present in the data.
@@ -215,21 +333,22 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, 6);
+                var tsGroups = groupByTimeseries(groups.get(rowKey), "gauge_hdd.bytes.used");
                 var docValues = valuesInWindow(groups.get(rowKey), "gauge_hdd.bytes.used");
                 if (row.get(0) instanceof List) {
                     assertThat(
-                        (Collection<Long>) row.get(0),
+                        (Collection<Long>) row.getFirst(),
                         containsInAnyOrder(docValues.stream().mapToLong(Integer::longValue).boxed().toArray(Long[]::new))
                     );
                 } else {
-                    assertThat(row.get(0), equalTo(docValues.getFirst().longValue()));
+                    assertThat(row.getFirst(), equalTo(docValues.getFirst().longValue()));
                 }
-                assertThat(row.get(1), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MAX))));
-                assertThat(row.get(2), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MIN))));
-                assertThat(row.get(3), equalTo((long) docValues.size()));
-                assertThat(row.get(4), equalTo(aggregateValuesInWindow(docValues, Agg.SUM).longValue()));
-                // TODO: fix then enable
-                // assertThat(row.get(5), equalTo(aggregateValuesInWindow(docValues, Agg.SUM) / (double) docValues.size()));
+                assertThat(row.get(1), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX).longValue()));
+                assertThat(row.get(2), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN).longValue()));
+                assertThat(row.get(3), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT).longValue()));
+                assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM).longValue()));
+                var avg = aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
+                assertThat((Double) row.get(5), closeTo(avg, avg * 0.01));
             }
         }
     }
@@ -258,6 +377,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             for (List<Object> row : rows) {
                 var windowStart = windowStart(row.get(6), 60);
                 List<Integer> docValues = valuesInWindow(groups.get(List.of(Long.toString(windowStart))), "gauge_hdd.bytes.used");
+                var tsGroups = groupByTimeseries(groups.get(List.of(Long.toString(windowStart))), "gauge_hdd.bytes.used");
                 if (row.get(0) instanceof List) {
                     assertThat(
                         (Collection<Long>) row.get(0),
@@ -266,12 +386,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 } else {
                     assertThat(row.get(0), equalTo(docValues.getFirst().longValue()));
                 }
-                assertThat(row.get(1), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MAX))));
-                assertThat(row.get(2), equalTo(Math.round(aggregateValuesInWindow(docValues, Agg.MIN))));
-                assertThat(row.get(3), equalTo((long) docValues.size()));
-                assertThat(row.get(4), equalTo(aggregateValuesInWindow(docValues, Agg.SUM).longValue()));
-                // TODO: fix then enable
-                // assertThat(row.get(5), equalTo(aggregateValuesInWindow(docValues, Agg.SUM) / (double) docValues.size()));
+                assertThat(row.get(1), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX).longValue()));
+                assertThat(row.get(2), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN).longValue()));
+                assertThat(row.get(3), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT).longValue()));
+                assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM).longValue()));
+                var avg = aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
+                assertThat((Double) row.get(5), closeTo(avg, avg * 0.01));
             }
         }
     }

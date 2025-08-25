@@ -24,6 +24,7 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
@@ -170,7 +171,13 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                 LeafReader leafReader = getOnlyLeafReader(reader);
                 StoredFields storedFields = reader.storedFields();
                 float[] queryVector = new float[] { 0.6f, 0.8f };
-                var hits = leafReader.searchNearestVectors("field", queryVector, 3, null, 100);
+                var hits = leafReader.searchNearestVectors(
+                    "field",
+                    queryVector,
+                    3,
+                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                    100
+                );
                 assertEquals(hits.scoreDocs.length, 3);
                 assertEquals("B", storedFields.document(hits.scoreDocs[0].doc).get("id"));
                 assertEquals("A", storedFields.document(hits.scoreDocs[1].doc).get("id"));

@@ -182,29 +182,34 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertLatest("9.1", "existing_92,8012001")
     }
 
-    def "when a reference is removed after a definition is generated, the definition should be deleted and latest files reverted"(List<String> branches) {
+    def "state should be reverted when a reference is removed"() {
         given:
-        String definitionName = "test_tv_patch_ids"
-        namedTransportVersion(definitionName, "8124000")
-        latestTransportVersion("9.2", definitionName, "8124000")
+        namedTransportVersion("test_tv", "8124000")
+        latestTransportVersion("9.2", "test_tv", "8124000")
 
-        when: "generation is run"
-        def secondResult = gradleRunner(
-                ":myserver:validateTransportVersionDefinitions",
-                ":myserver:generateTransportVersionDefinition",
-                "--branches=" + branches.join(",")
-        ).build()
+        when:
+        def result = runGenerateAndValidateTask("--branches=9.2")
 
-        then: "The generation task should succeed and the definition file should be deleted"
-        !file("myserver/src/main/resources/transport/definitions/named/${definitionName}.csv").exists()
-        secondResult.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
-        secondResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        then:
+        assertGenerateAndValidateSuccess(result)
+        !file("myserver/src/main/resources/transport/definitions/named/test_tv.csv").exists()
+        assertLatest("9.2", "existing_92,8123000")
+    }
 
-        where:
-        branches << [
-                ["9.2"],
-//                ["9.2", "9.1"] // TODO add another test for this, since this is a different setup
-        ]
+    def "state on multiple latest files should be reverted when a reference is removed"() {
+        given:
+        namedTransportVersion("test_tv", "8124000")
+        latestTransportVersion("9.2", "test_tv", "8124000")
+        latestTransportVersion("9.1", "test_tv", "8012002")
+
+        when:
+        def result = runGenerateAndValidateTask("--branches=9.2")
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        !file("myserver/src/main/resources/transport/definitions/named/test_tv.csv").exists()
+        assertLatest("9.2", "existing_92,8123000")
+        assertLatest("9.1", "existing_92,8012001")
     }
 
     def "when a reference is renamed after a definition was generated, the original should be removed and latest files updated"(List<String> branches) {

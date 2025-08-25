@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
@@ -368,6 +369,250 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
+    public void testWithRootObjectMapperNamespaceValidator() throws Exception {
+        final String errorMessage = "error 1234";
+
+        RootObjectMapperNamespaceValidator validatorx = new RootObjectMapperNamespaceValidator() {
+            @Override
+            public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
+                System.err.println(">>> XXX subobjects: " + subobjects.toString());
+                String disallowed = "_project";
+                if (name.equals(disallowed)) {
+                    throw new IllegalArgumentException(errorMessage);
+                } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+                    System.err.println(">>> YYYYYYYYYYYYYYYYY subobjects: " + subobjects.toString());
+                    // name here will be something like _project.my_field, rather than just _project
+                    if (name.startsWith(disallowed + ".")) {
+                        throw new IllegalArgumentException(errorMessage);
+                    }
+                }
+            }
+        };
+
+        String notNested = """
+            {
+                "_doc": {
+                    "properties": {
+                        "<FIELD_NAME>": {
+                            "type": "<TYPE>"
+                        }
+                    }
+                }
+            }""";
+
+        // _project should fail, regardless of type
+        {
+            String json = notNested.replace("<FIELD_NAME>", "_project");
+
+            String keyword = json.replace("<TYPE>", "keyword");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(keyword, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+
+            String text = json.replace("<TYPE>", "text");
+            e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(text, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+
+            String object = json.replace("<TYPE>", "object");
+            e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(object, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // _project.subfield should fail
+        {
+            String json = notNested.replace("<FIELD_NAME>", "_project.subfield").replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // _projectx should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", "_projectx").replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // _project_subfield should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", "_project_subfield");
+            json = json.replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // _projectx.subfield should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", "_projectx.subfield");
+            json = json.replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        String nested = """
+            {
+                "_doc": {
+                    "properties": {
+                        "<FIELD_NAME1>": {
+                            "type": "object",
+                            "properties": {
+                                "<FIELD_NAME1>": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        // TODO: this also works - what is the difference?
+        // String nested = """
+        // {
+        // "mappings": {
+        // "properties": {
+        // "<FIELD_NAME1>": {
+        // "type": "object",
+        // "properties": {
+        // "<FIELD_NAME1>": {
+        // "type": "keyword"
+        // }
+        // }
+        // }
+        // }
+        // }
+        // }""";
+
+        // nested _project { my_field } should fail
+        {
+            String json = nested.replace("<FIELD_NAME1>", "_project").replace("<FIELD_NAME2>", "my_field");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // nested my_field { _project } should succeed
+        {
+            String json = nested.replace("<FIELD_NAME1>", "my_field").replace("<FIELD_NAME2>", "_project");
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // nested _projectx { _project } should succeed
+        {
+            String json = nested.replace("<FIELD_NAME1>", "_projectx").replace("<FIELD_NAME2>", "_project");
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // TODO: I'm not allowed to change the subobjects setting for some reason
+        // test with subobjects setting
+        String withSubobjects = """
+            {
+                "_doc": {
+                    "subobjects": "<SUBOBJECTS_SETTING>",
+                    "properties": {
+                        "<FIELD_NAME>": {
+                            "type": "object",
+                            "properties": {
+                                "my_field": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        // String withSubobjects = """
+        // {
+        // "mappings": {
+        // "subobjects": "<SUBOBJECTS_SETTING>",
+        // "properties": {
+        // "<FIELD_NAME>": {
+        // "type": "object",
+        // "properties": {
+        // "my_field": {
+        // "type": "keyword"
+        // }
+        // }
+        // }
+        // }
+        // }
+        // }""";
+        //
+        // {
+        // String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false")//randomFrom("true", "false", "auto"))
+        // .replace("<FIELD_NAME>", "abc");
+        // MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+        // assertNotNull(mapperService);
+        // }
+
+        // {
+        // String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false")
+        // .replace("<FIELD_NAME>", "_project");
+        // // TODO: fails with org.elasticsearch.index.mapper.MapperException: the [subobjects] parameter can't be updated for the object
+        // mapping [_doc]
+        // MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+        // assertNotNull(mapperService);
+        // }
+    }
+
+    public void testRuntimeFieldInMappingWithNamespaceValidator() throws IOException {
+        final String errorMessage = "error 1234";
+
+        RootObjectMapperNamespaceValidator validator = new RootObjectMapperNamespaceValidator() {
+            @Override
+            public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
+                System.err.println(">>> XXX subobjects: " + subobjects);
+                String disallowed = "_project";
+                if (name.equals(disallowed)) {
+                    throw new IllegalArgumentException(errorMessage);
+                } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+                    System.err.println(">>> YYYYYYYYYYYYYYYYY subobjects: " + subobjects);
+                    // name here will be something like _project.my_field, rather than just _project
+                    if (name.startsWith(disallowed + ".")) {
+                        throw new IllegalArgumentException(errorMessage);
+                    }
+                }
+            }
+        };
+
+        // ensure that things close to the disallowed fields that are allowed
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("_project_x").field("type", "ip").endObject();
+                builder.startObject("_projectx").field("type", "date").endObject();
+                builder.startObject("field1._project").field("type", "double").endObject();
+            }));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(mapping, validator);
+            assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+            assertEquals(3, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
+        }
+
+        // _project is rejected
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("field1").field("type", "double").endObject();
+                builder.startObject("_project").field("type", "date").endObject();
+                builder.startObject("field3").field("type", "ip").endObject();
+            }));
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperServiceWithNamespaceValidator(mapping, validator));
+            Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), equalTo(errorMessage));
+        }
+
+        // _project.my_sub_field is rejected
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("field1").field("type", "double").endObject();
+                builder.startObject("_project.my_sub_field").field("type", "keyword").endObject();
+                builder.startObject("field3").field("type", "ip").endObject();
+            }));
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperServiceWithNamespaceValidator(mapping, validator));
+            Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), equalTo(errorMessage));
+        }
     }
 
     public void testSyntheticSourceKeepAllThrows() throws IOException {

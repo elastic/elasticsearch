@@ -21,9 +21,10 @@ public class ServerlessRootObjectMapperNamespaceValidator implements RootObjectM
     private static final String SERVERLESS_RESERVED_NAMESPACE = "_project";
 
     /**
-     *
+     * Throws an error if a top level field with {@code SERVERLESS_RESERVED_NAMESPACE} is found.
+     * If subobjects = false, then it also checks for field names starting with "_project."
      * @param subobjects if null, it will be interpreted as subobjects != ObjectMapper.Subobjects.ENABLED
-     * @param name
+     * @param name field name to evaluation
      */
     @Override
     public void validateNamespace(@Nullable ObjectMapper.Subobjects subobjects, String name) {

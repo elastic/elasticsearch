@@ -68,6 +68,16 @@ public interface BlockLoader {
          */
         @Nullable
         BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset) throws IOException;
+
+        /**
+         * Specialization for doubles.
+         * Returns {@code null} if unable to load values as doubles.
+         */
+        @Nullable
+        default BlockLoader.Block tryReadDoubles(BlockFactory factory, Docs docs, int offset, BlockDocValuesReader.ToDouble toDouble)
+            throws IOException {
+            return null;
+        }
     }
 
     interface RowStrideReader extends Reader {
@@ -537,6 +547,7 @@ public interface BlockLoader {
      * Specialized builder for collecting dense arrays of long values.
      */
     interface SingletonLongBuilder extends Builder {
+        void setToDouble(BlockDocValuesReader.ToDouble toDouble);
 
         SingletonLongBuilder appendLong(long value);
 

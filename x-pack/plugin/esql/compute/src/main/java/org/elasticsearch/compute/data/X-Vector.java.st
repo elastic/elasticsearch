@@ -32,7 +32,7 @@ public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector
     ConstantNullVector {
 $elseif(double)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector {
+    DoubleOverLongArrayVector, ConstantNullVector {
 $else$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector {
 $endif$

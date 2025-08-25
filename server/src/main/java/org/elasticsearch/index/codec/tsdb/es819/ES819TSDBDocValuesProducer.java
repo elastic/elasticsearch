@@ -45,6 +45,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -1372,6 +1373,19 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
+                public BlockLoader.Block tryReadDoubles(
+                    BlockLoader.BlockFactory factory,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    BlockDocValuesReader.ToDouble toDouble
+                ) throws IOException {
+                    try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
+                        builder.setToDouble(toDouble);
+                        return tryRead(builder, docs, offset);
+                    }
+                }
+
+                @Override
                 BlockLoader.Block tryRead(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                     final int docsCount = docs.count();
                     doc = docs.get(docsCount - 1);
@@ -1765,6 +1779,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void setToDouble(BlockDocValuesReader.ToDouble toDouble) {
             throw new UnsupportedOperationException();
         }
 

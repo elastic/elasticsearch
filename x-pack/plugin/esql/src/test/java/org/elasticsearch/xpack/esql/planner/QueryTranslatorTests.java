@@ -11,7 +11,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -326,7 +325,6 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testToDateNanos() {
-        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");

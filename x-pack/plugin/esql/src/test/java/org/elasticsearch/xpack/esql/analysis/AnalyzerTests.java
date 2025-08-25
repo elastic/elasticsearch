@@ -4110,7 +4110,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {
-        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
 

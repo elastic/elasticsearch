@@ -143,7 +143,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
                     throw new IllegalArgumentException("replication does not support document or field level security");
                 }
             } else if (false == Arrays.equals(privileges, CCS_INDICES_PRIVILEGE_NAMES)) {
-                throw new IllegalArgumentException("invalid indices privileges: [" + Strings.arrayToCommaDelimitedString(privileges));
+                throw new IllegalArgumentException("invalid indices privileges: [" + Strings.arrayToCommaDelimitedString(privileges) + "]");
             }
         }
         // Note: we are skipping the check for document or field level security on search (with replication) here, since validate is called

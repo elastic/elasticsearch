@@ -125,7 +125,7 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
                 ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
                 ReservedRolesStore.roleDescriptor("viewer"),
                 ReservedRolesStore.roleDescriptor("editor"),
-                supermanRole("monitor", "read", "view_index_metadata", "read_cross_cluster")
+                supermanRole("monitor", "read", "view_index_metadata")
             )
         );
 
@@ -160,7 +160,7 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
             )
         );
 
-        RoleDescriptor updatedSupermanRole = supermanRole("monitor", "read", "view_index_metadata", "read_cross_cluster");
+        RoleDescriptor updatedSupermanRole = supermanRole("monitor", "read", "view_index_metadata");
         QueryableBuiltInRoles currentBuiltInRoles = buildQueryableBuiltInRoles(
             Set.of(
                 ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
@@ -185,7 +185,7 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
             )
         );
 
-        RoleDescriptor newSupermanRole = supermanRole("monitor", "read", "view_index_metadata", "read_cross_cluster");
+        RoleDescriptor newSupermanRole = supermanRole("monitor", "read", "view_index_metadata");
         QueryableBuiltInRoles currentBuiltInRoles = buildQueryableBuiltInRoles(
             Set.of(
                 ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,

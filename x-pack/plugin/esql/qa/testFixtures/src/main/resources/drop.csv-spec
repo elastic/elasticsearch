@@ -49,29 +49,136 @@ b:integer | x:integer
 ;
 
 dropAllColumns
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1;
 
 x:integer
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
 ;
 
 dropAllColumns_WithLimit
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | limit 3;
 
 x:integer
+1
+1
+1
 ;
 
 dropAllColumns_WithCount
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | stats c=count(x);
 
 c:long
-0
+100
 ;
 
 dropAllColumns_WithStats
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
 
-c:l|mi:i|s:l
-0  |null|null
+c:l  | mi:i | s:l
+100  | 1    | 100
 ;
 
 

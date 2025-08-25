@@ -951,7 +951,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertThat(results.columns(), hasSize(1));
             assertThat(results.columns(), contains(new ColumnInfoImpl("a", "integer", null)));
-            assertThat(getValuesList(results), is(empty()));
+            assertThat(getValuesList(results).size(), is(40));
         }
     }
 
@@ -959,7 +959,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | stats g = count(data) | drop g")) {
             logger.info(results);
             assertThat(results.columns(), is(empty()));
-            assertThat(getValuesList(results), is(empty()));
+            assertThat(getValuesList(results).size(), is(1));
         }
     }
 

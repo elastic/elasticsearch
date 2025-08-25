@@ -237,6 +237,7 @@ public class FieldNameUtils {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return new PreAnalysisResult(enrichResolution, IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
+            fieldNames.add(MetadataAttribute.INDEX);
             fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
             fieldNames.addAll(subfields(enrichPolicyMatchFields));

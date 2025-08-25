@@ -339,6 +339,7 @@ final class DynamicFieldsBuilder {
                     new TextFieldMapper.Builder(
                         name,
                         indexSettings.getIndexVersionCreated(),
+                        indexSettings.getMode(),
                         context.indexAnalyzers(),
                         SourceFieldMapper.isSynthetic(indexSettings),
                         false

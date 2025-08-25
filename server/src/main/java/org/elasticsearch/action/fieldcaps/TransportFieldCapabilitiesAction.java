@@ -477,9 +477,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         task.ensureNotCancelled();
         Map<String, Map<String, FieldCapabilities>> fields = Maps.newMapWithExpectedSize(fieldsBuilder.size());
         if (request.includeUnmapped()) {
-            collectFieldsIncludingUnmapped(indices, fieldsBuilder, fields);
+            collectFieldsIncludingUnmapped(indices, fieldsBuilder, fields, request.includeIndices());
         } else {
-            collectFields(fieldsBuilder, fields);
+            collectFields(fieldsBuilder, fields, request.includeIndices());
         }
 
         // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
@@ -509,7 +509,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void collectFieldsIncludingUnmapped(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder,
-        Map<String, Map<String, FieldCapabilities>> fieldsMap
+        Map<String, Map<String, FieldCapabilities>> fieldsMap,
+        boolean includeIndices
     ) {
         final Set<String> mappedScratch = new HashSet<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : fieldsBuilder.entrySet()) {
@@ -523,7 +524,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             var unmapped = getUnmappedFields(indices, entry.getKey(), mappedScratch);
 
             final int resSize = typeMapBuilder.size() + (unmapped == null ? 0 : 1);
-            final Map<String, FieldCapabilities> res = capabilities(resSize, typeMapBuilder);
+            final Map<String, FieldCapabilities> res = capabilities(resSize, typeMapBuilder, includeIndices);
             if (unmapped != null) {
                 res.put("unmapped", unmapped.apply(resSize > 1));
             }
@@ -533,19 +534,25 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private static void collectFields(
         Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder,
-        Map<String, Map<String, FieldCapabilities>> fields
+        Map<String, Map<String, FieldCapabilities>> fields,
+        boolean includeIndices
     ) {
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : fieldsBuilder.entrySet()) {
             var typeMapBuilder = entry.getValue().entrySet();
-            fields.put(entry.getKey(), Collections.unmodifiableMap(capabilities(typeMapBuilder.size(), typeMapBuilder)));
+            fields.put(entry.getKey(), Collections.unmodifiableMap(capabilities(typeMapBuilder.size(), typeMapBuilder, includeIndices)));
         }
     }
 
-    private static Map<String, FieldCapabilities> capabilities(int resSize, Set<Map.Entry<String, FieldCapabilities.Builder>> builders) {
+    private static Map<String, FieldCapabilities> capabilities(
+        int resSize,
+        Set<Map.Entry<String, FieldCapabilities.Builder>> builders,
+        boolean includeIndices
+    ) {
         boolean multiTypes = resSize > 1;
+        boolean withIndices = multiTypes || includeIndices;
         final Map<String, FieldCapabilities> res = Maps.newHashMapWithExpectedSize(resSize);
         for (Map.Entry<String, FieldCapabilities.Builder> e : builders) {
-            res.put(e.getKey(), e.getValue().build(multiTypes));
+            res.put(e.getKey(), e.getValue().build(withIndices));
         }
         return res;
     }

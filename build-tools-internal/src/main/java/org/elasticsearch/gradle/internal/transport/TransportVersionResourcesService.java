@@ -16,7 +16,6 @@ import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -104,7 +103,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     /** Get a named definition from main if it exists there, or null otherwise */
     TransportVersionDefinition getNamedDefinitionFromMain(String name) {
-        String resourcePath = getNamedDefinitionRelativePath(name).toString();
+        Path resourcePath = getNamedDefinitionRelativePath(name);
         return getMainFile(resourcePath, TransportVersionDefinition::fromString);
     }
 
@@ -130,7 +129,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     /** Get a named definition from main if it exists there, or null otherwise */
     TransportVersionDefinition getUnreferencedDefinitionFromMain(String name) {
-        String resourcePath = getUnreferencedDefinitionRelativePath(name).toString();
+        Path resourcePath = getUnreferencedDefinitionRelativePath(name);
         return getMainFile(resourcePath, TransportVersionDefinition::fromString);
     }
 
@@ -145,7 +144,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         try (var stream = Files.list(transportResourcesDir.resolve(LATEST_DIR))) {
             for (var latestFile : stream.toList()) {
                 String contents = Files.readString(latestFile, StandardCharsets.UTF_8).strip();
-                var latest = TransportVersionLatest.fromString(latestFile.getFileName().toString(), contents);
+                var latest = TransportVersionLatest.fromString(latestFile, contents);
                 latests.put(latest.name(), latest);
             }
         }
@@ -154,7 +153,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     /** Retrieve the latest transport version for the given release branch on main */
     TransportVersionLatest getLatestFromMain(String releaseBranch) {
-        String resourcePath = getLatestRelativePath(releaseBranch).toString();
+        Path resourcePath = getLatestRelativePath(releaseBranch);
         return getMainFile(resourcePath, TransportVersionLatest::fromString);
     }
 
@@ -174,7 +173,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 String output = gitCommand("ls-tree", "--name-only", "-r", "main", ".");
 
                 HashSet<String> resources = new HashSet<>();
-                Collections.addAll(resources, output.split(System.lineSeparator()));
+                Collections.addAll(resources, output.split("\n")); // git always outputs LF
                 mainResources.set(resources);
             }
         }
@@ -188,7 +187,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 String output = gitCommand("diff", "--name-only", "main", ".");
 
                 HashSet<String> resources = new HashSet<>();
-                Collections.addAll(resources, output.split(System.lineSeparator()));
+                Collections.addAll(resources, output.split("\n")); // git always outputs LF
                 changedResources.set(resources);
             }
         }
@@ -196,12 +195,13 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     // Read a transport version resource from the main branch, or return null if it doesn't exist on main
-    private <T> T getMainFile(String resourcePath, BiFunction<String, String, T> parser) {
-        if (getMainResources().contains(resourcePath) == false) {
+    private <T> T getMainFile(Path resourcePath, BiFunction<Path, String, T> parser) {
+        String pathString = resourcePath.toString().replace('\\', '/'); // normalize to forward slash that git uses
+        if (getMainResources().contains(pathString) == false) {
             return null;
         }
 
-        String content = gitCommand("show", "main:." + File.separator + resourcePath).strip();
+        String content = gitCommand("show", "main:./" + pathString).strip();
         return parser.apply(resourcePath, content);
     }
 
@@ -213,7 +213,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         try (var definitionsStream = Files.list(dir)) {
             for (var definitionFile : definitionsStream.toList()) {
                 String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();
-                var definition = TransportVersionDefinition.fromString(definitionFile.getFileName().toString(), contents);
+                var definition = TransportVersionDefinition.fromString(definitionFile, contents);
                 definitions.put(definition.name(), definition);
             }
         }

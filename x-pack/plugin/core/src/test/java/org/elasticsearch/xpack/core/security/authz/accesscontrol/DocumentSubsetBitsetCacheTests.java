@@ -62,7 +62,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -536,6 +538,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             stats.put("hits", 0L);
             stats.put("misses", 0L);
             stats.put("evictions", 0L);
+            stats.put("hits_time_in_millis", 0L);
+            stats.put("misses_time_in_millis", 0L);
             return stats;
         };
 
@@ -551,12 +555,14 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             expectedStats.put("misses", 1L);
             expectedStats.put("memory", EXPECTED_BYTES_PER_BIT_SET + "b");
             expectedStats.put("memory_in_bytes", EXPECTED_BYTES_PER_BIT_SET);
+            expectedStats.put("misses_time_in_millis", 1L);
             assertThat(cache.usageStats(), equalTo(expectedStats));
 
             // second same lookup - hit
             final BitSet bitSet1Again = cache.getBitSet(query1, leafContext);
             assertThat(bitSet1Again, sameInstance(bitSet1));
             expectedStats.put("hits", 1L);
+            expectedStats.put("hits_time_in_millis", 1L);
             assertThat(cache.usageStats(), equalTo(expectedStats));
 
             // second query - miss, should evict the first one
@@ -568,6 +574,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             // see https://github.com/elastic/elasticsearch/issues/132842
             expectedStats.put("misses", 3L);
             expectedStats.put("evictions", 1L);
+            // underlying Cache class tracks hits/misses, but timing is in DLS cache, which is why we have `2L` here,
+            // because DLS cache is only hit once
+            expectedStats.put("misses_time_in_millis", 2L);
             assertBusy(() -> { assertThat(cache.usageStats(), equalTo(expectedStats)); }, 200, TimeUnit.MILLISECONDS);
         });
 
@@ -575,6 +584,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         finalStats.put("hits", 1L);
         finalStats.put("misses", 3L);
         finalStats.put("evictions", 2L);
+        finalStats.put("hits_time_in_millis", 1L);
+        finalStats.put("misses_time_in_millis", 2L);
         assertThat(cache.usageStats(), equalTo(finalStats));
     }
 
@@ -697,6 +708,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     private DocumentSubsetBitsetCache newCache(Settings settings) {
-        return new DocumentSubsetBitsetCache(settings, singleThreadExecutor);
+        final AtomicLong increasingMillisTime = new AtomicLong();
+        final LongSupplier relativeNanoTimeProvider = () -> TimeUnit.MILLISECONDS.toNanos(increasingMillisTime.getAndIncrement());
+        return new DocumentSubsetBitsetCache(settings, singleThreadExecutor, relativeNanoTimeProvider);
     }
 }

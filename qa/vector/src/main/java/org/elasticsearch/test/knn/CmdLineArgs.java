@@ -63,7 +63,6 @@ record CmdLineArgs(
     static final ParseField INDEX_TYPE_FIELD = new ParseField("index_type");
     static final ParseField NUM_CANDIDATES_FIELD = new ParseField("num_candidates");
     static final ParseField K_FIELD = new ParseField("k");
-    // static final ParseField N_PROBE_FIELD = new ParseField("n_probe");
     static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     static final ParseField IVF_CLUSTER_SIZE_FIELD = new ParseField("ivf_cluster_size");
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
@@ -98,7 +97,6 @@ record CmdLineArgs(
         PARSER.declareString(Builder::setIndexType, INDEX_TYPE_FIELD);
         PARSER.declareInt(Builder::setNumCandidates, NUM_CANDIDATES_FIELD);
         PARSER.declareInt(Builder::setK, K_FIELD);
-        // PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
         PARSER.declareDoubleArray(Builder::setVisitPercentages, VISIT_PERCENTAGE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
         PARSER.declareInt(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
@@ -134,7 +132,6 @@ record CmdLineArgs(
         builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
         builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
         builder.field(K_FIELD.getPreferredName(), k);
-        // builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
         builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentages);
         builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
         builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);

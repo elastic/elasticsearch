@@ -43,6 +43,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -201,7 +202,7 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPattern());
         Object context = fieldPath.initialContext(this);
         ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context, getCurrentAccessPatternSafe());
         if (result.wasSuccessful) {
@@ -270,7 +271,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPattern());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -424,7 +425,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPattern());
         Object context = fieldPath.initialContext(this);
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         ResolveResult result = resolve(
@@ -734,7 +735,7 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPattern());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -1288,8 +1289,37 @@ public final class IngestDocument {
 
     private static final class FieldPath {
 
+        private record Element(String fieldName, Integer arrayIndex) {
+            private static final String EMPTY_STRING = "";
+
+            static Element field(String fieldName) {
+                Objects.requireNonNull(fieldName, "fieldName cannot be null");
+                if (fieldName.isEmpty()) {
+                    throw new IllegalArgumentException("fieldName cannot be empty");
+                }
+                return new Element(fieldName, null);
+            }
+
+            static Element index(int arrayIndex) {
+                if (arrayIndex < 0) {
+                    throw new IndexOutOfBoundsException(arrayIndex);
+                }
+                return new Element(EMPTY_STRING, arrayIndex);
+            }
+
+            boolean isFieldName() {
+                return fieldName.isEmpty() == false && arrayIndex == null;
+            }
+
+            boolean isArrayIndex() {
+                return fieldName.isEmpty() &&
+            }
+        }
+
+        private record CacheKey(String path, IngestPipelineFieldAccessPattern accessPattern) {}
+
         private static final int MAX_SIZE = 512;
-        private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        private static final Map<CacheKey, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
         // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
         // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
@@ -1298,27 +1328,28 @@ public final class IngestDocument {
         // do some processing ourselves on the path and path elements to validate and prepare them.
         // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
 
-        static FieldPath of(String path) {
+        static FieldPath of(String path, IngestPipelineFieldAccessPattern accessPattern) {
             if (Strings.isEmpty(path)) {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
-            FieldPath res = CACHE.get(path);
+            CacheKey cacheKey = new CacheKey(path, accessPattern);
+            FieldPath res = CACHE.get(cacheKey);
             if (res != null) {
                 return res;
             }
-            res = new FieldPath(path);
+            res = new FieldPath(path, accessPattern);
             if (CACHE.size() > MAX_SIZE) {
                 CACHE.clear();
             }
-            CACHE.put(path, res);
+            CACHE.put(cacheKey, res);
             return res;
         }
 
-        private final String[] pathElements;
+        private final Element[] pathElements;
         private final boolean useIngestContext;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
-        private FieldPath(String path) {
+        private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
                 useIngestContext = true;
@@ -1331,10 +1362,53 @@ public final class IngestDocument {
                     newPath = path;
                 }
             }
-            this.pathElements = newPath.split("\\.");
-            if (pathElements.length == 1 && pathElements[0].isEmpty()) {
-                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            String[] pathParts = newPath.split("\\.");
+            this.pathElements = processPathParts(path, pathParts, accessPattern);
+        }
+
+        private static Element[] processPathParts(String fullPath, String[] pathParts, IngestPipelineFieldAccessPattern accessPattern) {
+            if (pathParts.length == 1 && pathParts[0].isEmpty()) {
+                throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
             }
+            return Arrays.stream(pathParts)
+                .flatMap(pathPart -> {
+                    int openBracket = pathPart.indexOf('[');
+                    if (openBracket == -1) {
+                        return Stream.of(Element.field(pathPart));
+                    } else if (openBracket == 0) {
+                        throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                    } else {
+                        List<Element> resultElements = new ArrayList<>();
+                        String rootField = pathPart.substring(0, openBracket);
+                        resultElements.add(Element.field(rootField));
+
+                        boolean elementsRemain = true;
+                        while (elementsRemain) {
+                            int closeBracket = pathPart.indexOf(']', openBracket);
+                            if (closeBracket <= openBracket) {
+                                throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                            }
+
+                            String rawIndex = pathPart.substring(openBracket + 1, closeBracket);
+                            try {
+                                resultElements.add(Element.index(Integer.parseInt(rawIndex)));
+                            } catch (NumberFormatException numberFormatException) {
+                                throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                            }
+
+                            if (closeBracket == pathPart.length() - 1) {
+                                elementsRemain = false;
+                            } else {
+                                if (pathPart.charAt(closeBracket + 1) != '[') {
+                                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                                }
+                                openBracket = closeBracket + 1;
+                            }
+                        }
+                        return resultElements.stream();
+                    }
+                })
+                .toArray(Element[]::new);
         }
 
         public Object initialContext(IngestDocument document) {

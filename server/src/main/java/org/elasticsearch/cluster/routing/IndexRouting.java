@@ -406,32 +406,28 @@ public abstract class IndexRouting {
 
         private RoutingHashBuilder hashRoutingFields(XContentType sourceType, BytesReference source) {
             RoutingHashBuilder b = builder();
-            withFilteredParser(sourceType, source, parser -> b.extractObject(null, parser));
-            return b;
-        }
-
-        private BytesRef buildTsid(XContentType sourceType, BytesReference source) {
-            TsidBuilder b = new TsidBuilder();
-            withFilteredParser(sourceType, source, parser -> b.add(parser, XContentParserTsidFunnel.get()));
-            return b.buildTsid();
-        }
-
-        private void withFilteredParser(
-            XContentType sourceType,
-            BytesReference source,
-            CheckedConsumer<XContentParser, IOException> parserConsumer
-        ) {
             try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, source, sourceType)) {
                 parser.nextToken(); // Move to first token
                 if (parser.currentToken() == null) {
                     throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
                 }
                 parser.nextToken();
-                parserConsumer.accept(parser);
+                b.extractObject(null, parser);
                 ensureExpectedToken(null, parser.nextToken(), parser);
             } catch (IOException | ParsingException e) {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }
+            return b;
+        }
+
+        private BytesRef buildTsid(XContentType sourceType, BytesReference source) {
+            TsidBuilder b = new TsidBuilder();
+            try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, source, sourceType)) {
+                b.add(parser, XContentParserTsidFunnel.get());
+            } catch (IOException | ParsingException e) {
+                throw new IllegalArgumentException("Error extracting tsid: " + e.getMessage(), e);
+            }
+            return b.buildTsid();
         }
 
         /**

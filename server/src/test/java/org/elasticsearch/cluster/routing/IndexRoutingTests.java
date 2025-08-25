@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 
 public class IndexRoutingTests extends ESTestCase {
     public void testSimpleRoutingRejectsEmptyId() {
@@ -494,7 +495,7 @@ public class IndexRoutingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> routing.indexShard(randomAlphaOfLength(5), null, null, XContentType.JSON, source(Map.of()))
         );
-        assertThat(e.getMessage(), equalTo("Error extracting routing: source didn't contain any routing fields"));
+        assertThat(e.getMessage(), stringContainsInOrder("Error extracting", "source didn't contain any"));
     }
 
     public void testRoutingPathMismatchSource() throws IOException {
@@ -503,7 +504,7 @@ public class IndexRoutingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> routing.indexShard(randomAlphaOfLength(5), null, null, XContentType.JSON, source(Map.of("bar", "dog")))
         );
-        assertThat(e.getMessage(), equalTo("Error extracting routing: source didn't contain any routing fields"));
+        assertThat(e.getMessage(), stringContainsInOrder("Error extracting", "source didn't contain any"));
     }
 
     public void testRoutingPathUpdate() throws IOException {
@@ -619,7 +620,7 @@ public class IndexRoutingTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("Error extracting routing: Failed to parse object: expecting value token but found [START_OBJECT]")
+            stringContainsInOrder("Error extracting", "Failed to parse object: expecting value token but found [START_OBJECT]")
         );
     }
 
@@ -654,15 +655,15 @@ public class IndexRoutingTests extends ESTestCase {
          */
         assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 5);
         assertIndexShard(routing, Map.of("dim", Map.of("a", "b")), 0);
-        assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 7);
-        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 7);
-        assertIndexShard(routing, Map.of("top", "a"), 2);
+        assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 5);
+        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 4);
+        assertIndexShard(routing, Map.of("top", "a"), 4);
         assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
         assertIndexShard(routing, Map.of("dim.a", "a"), 5);
-        assertIndexShard(routing, Map.of("dim.a", 1), 1);
-        assertIndexShard(routing, Map.of("dim.a", "1"), 4);
-        assertIndexShard(routing, Map.of("dim.a", true), 5);
-        assertIndexShard(routing, Map.of("dim.a", "true"), 7);
+        assertIndexShard(routing, Map.of("dim.a", 1), 2);
+        assertIndexShard(routing, Map.of("dim.a", "1"), 7);
+        assertIndexShard(routing, Map.of("dim.a", true), 4);
+        assertIndexShard(routing, Map.of("dim.a", "true"), 2);
     }
 
     public void testRoutingPathReadWithInvalidString() throws IOException {

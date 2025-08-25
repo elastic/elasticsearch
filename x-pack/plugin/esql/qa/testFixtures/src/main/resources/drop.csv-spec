@@ -50,9 +50,105 @@ b:integer | x:integer
 
 dropAllColumns
 required_capability: fix_no_columns
-from languages | keep language_code | drop language_code | eval x = 1;
+from employees | keep height | drop height | eval x = 1;
 
 x:integer
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
 1
 1
 1
@@ -71,18 +167,18 @@ x:integer
 
 dropAllColumns_WithCount
 required_capability: fix_no_columns
-from languages | keep language_code | drop language_code | eval x = 1 | stats c=count(x);
+from employees | keep height | drop height | eval x = 1 | stats c=count(x);
 
 c:long
-4
+100
 ;
 
 dropAllColumns_WithStats
 required_capability: fix_no_columns
-from languages | keep language_code | drop language_code | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
+from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
 
-c:l|mi:i|s:l
-4  |1   |4
+c:l  | mi:i | s:l
+100  | 1    | 100
 ;
 
 

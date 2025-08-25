@@ -4,6 +4,8 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.gradle.transform.UnzipTransform
+import com.google.protobuf.gradle.GenerateProtoTask
 plugins {
   id 'elasticsearch.internal-es-plugin'
   id 'elasticsearch.internal-yaml-rest-test'
@@ -18,12 +20,39 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
+repositories {
+  ivy {
+    url = uri("https://github.com/open-telemetry/opentelemetry-proto/archive/")
+    patternLayout { artifact("v[revision].[ext]") }
+    metadataSources { artifact() }
+    content {
+      includeModule("open-telemetry", "opentelemetry-proto") // only this GAV comes from here
+    }
+  }
+}
+
+configurations {
+  opentelemetryProtobuf {
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    canBeConsumed = false
+  }
+}
+
+def otlpProtoVersion = "1.7.0"
+
 // Manually update verification-metadata.xml via dev-tools/protoc_exe_sha256.sh when updating the protobuf version.
 // That's because the protobuf gradle plugin is only using the protoc version for the current platform.
 // We need to add all platforms to verification-metadata.xml so that the appropriate metadata for the platform used by
 // CI and other collaborators is present.
 def protobufVersion = "4.32.0"
+
 dependencies {
+  registerTransform(UnzipTransform, transformSpec -> {
+    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+  });
+  opentelemetryProtobuf "open-telemetry:opentelemetry-proto:${otlpProtoVersion}@zip"
+
   compileOnly project(path: xpackModule('core'))
   testImplementation project(path: ':x-pack:plugin:stack')
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -53,67 +82,38 @@ protobuf {
   }
 }
 
-def otlpProtoVersion = "1.7.0"
-
-// To generate the checksum, download the file and run "shasum -a 256 ~/path/to/opentelemetry-proto-<version>.zip"
-def protoChecksum = "ddb80357ff146f5e3bda584907185b1f635412a4b31edf6f96b102a18b8e05dc"
-def protoArchivePath = layout.buildDirectory.file("archives/opentelemetry-proto-${otlpProtoVersion}.zip")
-
-def downloadProtoArchive = tasks.register("downloadProtoArchive") {
-  outputs.file(protoArchivePath)
-  onlyIf { protoArchivePath.get().asFile.exists() == false }
-  doLast {
-    protoArchivePath.get().asFile.parentFile.mkdirs()
-    "https://github.com/open-telemetry/opentelemetry-proto/archive/v${otlpProtoVersion}.zip".toURL()
-      .withInputStream { is ->
-        protoArchivePath.get().asFile.withOutputStream {os -> os << is }
-      }
-  }
-}
-
-def verifyProtoArchive = tasks.register("verifyProtoArchive") {
-  dependsOn(downloadProtoArchive)
-  doLast {
-    protoArchivePath.get().asFile.withInputStream { inputStream ->
-      def sha256 = inputStream.readAllBytes().digest("SHA-256")
-      if (sha256 != protoChecksum) {
-        throw new GradleException("Checksum verification failed for $protoArchivePath: expected $protoChecksum, got $sha256")
-      }
+def extractOtelProtos = tasks.register("extractOtelProtos", Copy) {
+  from(configurations.opentelemetryProtobuf) {
+    include "**/*.proto"
+    eachFile { fileCopyDetails ->
+      // strip the leading directory (opentelemetry-proto-<version>)
+      def segments = fileCopyDetails.path.split('/')
+      fileCopyDetails.path = segments.length > 1 ? segments[1..-1].join('/') : fileCopyDetails.name
     }
+    includeEmptyDirs = false
   }
+  into(layout.buildDirectory.dir("protos/otel"))
 }
 
-def unzipProtoArchive = tasks.register("unzipProtoArchive", Copy) {
-  dependsOn(verifyProtoArchive)
-  from zipTree(protoArchivePath)
-  into layout.buildDirectory.dir("protos")
-}
-
-// Avoid unnecessary String allocations in the generated AnyValue class
-// We always need the ByteString (UTF-8) representation of string attributes
-def adjustAnyValueBuilder = tasks.register("adjustAnyValueBuilder") {
-  doLast {
-    ant.replace(
-      file: 'build/generated/sources/proto/main/java/io/opentelemetry/proto/common/v1/AnyValue.java',
-      token: 'java.lang.String s = input.readStringRequireUtf8();',
-      value: 'com.google.protobuf.ByteString s = input.readBytes();',
-      encoding: 'UTF-8'
-    )
-  }
-}
 
 sourceSets {
   main {
     proto {
-      srcDir layout.buildDirectory.dir("protos/opentelemetry-proto-${otlpProtoVersion}")
+      srcDir(extractOtelProtos)
     }
   }
 }
 
-afterEvaluate {
-  tasks.named("generateProto") {
-    dependsOn(unzipProtoArchive)
-    finalizedBy(adjustAnyValueBuilder)
+tasks.withType(GenerateProtoTask.class).matching { it.name == "generateProto" }.configureEach {
+  // Avoid unnecessary String allocations in the generated AnyValue class
+  // We always need the ByteString (UTF-8) representation of string attributes
+  doLast {
+      ant.replace(
+        file: 'build/generated/sources/proto/main/java/io/opentelemetry/proto/common/v1/AnyValue.java',
+        token: 'java.lang.String s = input.readStringRequireUtf8();',
+        value: 'com.google.protobuf.ByteString s = input.readBytes();',
+        encoding: 'UTF-8'
+      )
   }
 }
 

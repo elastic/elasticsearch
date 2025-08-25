@@ -28,6 +28,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
@@ -123,15 +124,17 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
         throws IOException;
 
+    record CentroidOffsetAndLength(LongValues offsets, LongValues lengths) {}
+
     abstract void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
-        LongValues centroidOffset,
+        CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
     ) throws IOException;
 
-    abstract LongValues buildAndWritePostingsLists(
+    abstract CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -141,7 +144,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         int[] overspillAssignments
     ) throws IOException;
 
-    abstract LongValues buildAndWritePostingsLists(
+    abstract CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -172,7 +175,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final CentroidSupplier centroidSupplier = new OnHeapCentroidSupplier(centroidAssignments.centroids());
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
-            final LongValues offsets = buildAndWritePostingsLists(
+            final CentroidOffsetAndLength centroidOffsetAndLength = buildAndWritePostingsLists(
                 fieldWriter.fieldInfo,
                 centroidSupplier,
                 floatVectorValues,
@@ -184,7 +187,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final long postingListLength = ivfClusters.getFilePointer() - postingListOffset;
             // write centroids
             final long centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
-            writeCentroids(fieldWriter.fieldInfo, centroidSupplier, globalCentroid, offsets, ivfCentroids);
+            writeCentroids(fieldWriter.fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, ivfCentroids);
             final long centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
             // write meta file
             writeMeta(
@@ -293,9 +296,17 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 }
             }
         }
+        // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
+        // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
+        // so the OS can optimize read ahead in low memory situations.
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT);
-            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT)
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
+                tempRawVectorsFileName,
+                IOContext.DEFAULT.withReadAdvice(ReadAdvice.SEQUENTIAL)
+            );
+            IndexInput docs = docsFileName == null
+                ? null
+                : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withReadAdvice(ReadAdvice.SEQUENTIAL))
         ) {
             final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
 
@@ -354,7 +365,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     );
                     // write posting lists
                     postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
-                    final LongValues offsets = buildAndWritePostingsLists(
+                    final CentroidOffsetAndLength centroidOffsetAndLength = buildAndWritePostingsLists(
                         fieldInfo,
                         centroidSupplier,
                         floatVectorValues,
@@ -367,7 +378,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     postingListLength = ivfClusters.getFilePointer() - postingListOffset;
                     // write centroids
                     centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
-                    writeCentroids(fieldInfo, centroidSupplier, calculatedGlobalCentroid, offsets, ivfCentroids);
+                    writeCentroids(fieldInfo, centroidSupplier, calculatedGlobalCentroid, centroidOffsetAndLength, ivfCentroids);
                     centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
                     // write meta
                     writeMeta(

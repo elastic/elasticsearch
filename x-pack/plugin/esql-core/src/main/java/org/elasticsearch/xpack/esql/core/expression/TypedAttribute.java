@@ -42,6 +42,6 @@ public abstract class TypedAttribute extends Attribute {
     @Override
     protected boolean innerEquals(Object o) {
         var other = (TypedAttribute) o;
-        return super.innerEquals(other) && dataType == other.dataType;
+        return super.innerEquals(other) && Objects.equals(id(), other.id()) && dataType == other.dataType;
     }
 }

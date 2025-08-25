@@ -458,6 +458,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // we use the HierarchicalKMeans to partition the space of all vectors across merging segments
         // this are small numbers so we run it wih all the centroids.
         final KMeansResult kMeansResult = new HierarchicalKMeans(
+            null,
+            null,
+            0,
             fieldInfo.getVectorDimension(),
             HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
             HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
@@ -493,13 +496,17 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
-        throws IOException {
+    CentroidAssignments calculateCentroids(
+        FieldInfo fieldInfo,
+        MergeState mergeState,
+        FloatVectorValues floatVectorValues,
+        float[] globalCentroid
+    ) throws IOException {
 
         long nanoTime = System.nanoTime();
 
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
-        CentroidAssignments centroidAssignments = buildCentroidAssignments(floatVectorValues, vectorPerCluster);
+        CentroidAssignments centroidAssignments = buildCentroidAssignments(mergeState, floatVectorValues, vectorPerCluster);
         float[][] centroids = centroidAssignments.centroids();
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
         // preliminary tests suggest recall is good using only centroids but need to do further evaluation
@@ -520,8 +527,22 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         return centroidAssignments;
     }
 
-    static CentroidAssignments buildCentroidAssignments(FloatVectorValues floatVectorValues, int vectorPerCluster) throws IOException {
-        KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
+    static CentroidAssignments buildCentroidAssignments(MergeState mergeState, FloatVectorValues floatVectorValues, int vectorPerCluster)
+        throws IOException {
+        KMeansResult kMeansResult;
+        if (mergeState == null) {
+            kMeansResult = new HierarchicalKMeans(null, null, 0, floatVectorValues.dimension()).cluster(
+                floatVectorValues,
+                vectorPerCluster
+            );
+        } else {
+            kMeansResult = new HierarchicalKMeans(
+                mergeState.segmentInfo.dir,
+                mergeState.segmentInfo.name,
+                HierarchicalKMeans.DEFAULT_OFF_HEAP_MEMORY_MB,
+                floatVectorValues.dimension()
+            ).cluster(floatVectorValues, vectorPerCluster);
+        }
         float[][] centroids = kMeansResult.centroids();
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();

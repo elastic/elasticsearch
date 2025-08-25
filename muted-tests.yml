@@ -666,6 +666,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/133505
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/133507
 
 # Examples:
 #

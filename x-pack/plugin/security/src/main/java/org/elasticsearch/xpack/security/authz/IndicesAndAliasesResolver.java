@@ -472,7 +472,7 @@ public class IndicesAndAliasesResolver {
                             indicesRequest.includeDataStreams()
                         );
                     crossProjectResolvableRequest.setRewrittenExpressions(rewrittenExpressions);
-                    // empty case by calling replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
+                    // handle empty case by calling replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                     return remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
                 }
 
@@ -492,6 +492,19 @@ public class IndicesAndAliasesResolver {
                 );
                 resolvedIndicesBuilder.addLocal(resolved);
                 resolvedIndicesBuilder.addRemote(split.getRemote());
+
+                if (replaceable instanceof IndicesRequest.Resolvable resolvable && resolvable.enabled()) {
+                    resolvable.resolved(
+                        indexAbstractionResolver.resolveIndexAbstractionsMapping(
+                            split.getLocal(),
+                            indicesOptions,
+                            projectMetadata,
+                            authorizedIndices::all,
+                            authorizedIndices::check,
+                            indicesRequest.includeDataStreams()
+                        )
+                    );
+                }
             }
 
             if (resolvedIndicesBuilder.isEmpty()) {

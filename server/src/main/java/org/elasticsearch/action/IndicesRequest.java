@@ -16,6 +16,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -65,6 +66,16 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return false;
         }
+    }
+
+    interface Resolvable extends Replaceable {
+        default boolean enabled() {
+            return false;
+        }
+
+        Map<String, List<String>> resolved();
+
+        void resolved(Map<String, List<String>> resolved);
     }
 
     interface CrossProjectResolvable extends Replaceable {

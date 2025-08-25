@@ -1,7 +1,7 @@
 {
   "_internal.get_desired_nodes":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-desired-nodes.html",
+      "url": null,
       "description": "Gets the latest desired nodes"
     },
     "stability":"experimental",

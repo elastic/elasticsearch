@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
@@ -28,10 +29,20 @@ public final class MatchConfig implements Writeable {
         this.type = type;
     }
 
-    public MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
+    public MatchConfig(TypedAttribute match, Layout.ChannelAndType input) {
         // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
         // indices, so the call to exactAttribute looks redundant now.
-        this(match.exactAttribute().fieldName(), input.channel(), input.type());
+        this(getFieldName(match), input.channel(), input.type());
+    }
+
+    private static FieldAttribute.FieldName getFieldName(TypedAttribute match) {
+        FieldAttribute.FieldName fieldName;
+        if (match instanceof FieldAttribute fieldAttribute) {
+            fieldName = fieldAttribute.exactAttribute().fieldName();
+        } else {
+            fieldName = new FieldAttribute.FieldName(match.name());
+        }
+        return fieldName;
     }
 
     public MatchConfig(StreamInput in) throws IOException {

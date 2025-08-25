@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -781,14 +780,12 @@ public class LocalExecutionPlanner {
         List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
         for (int i = 0; i < join.leftFields().size(); i++) {
             TypedAttribute left = (TypedAttribute) join.leftFields().get(i);
-            FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
             Layout.ChannelAndType input = source.layout.get(left.id());
             if (input == null) {
                 throw new IllegalArgumentException("can't plan [" + join + "][" + left + "]");
             }
-            matchFields.add(new MatchConfig(right, input));
+            matchFields.add(new MatchConfig(left, input));
         }
-
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -799,7 +796,8 @@ public class LocalExecutionPlanner {
                 localSourceExec.indexPattern(),
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
-                join.source()
+                join.source(),
+                join.getCandidateRightHandFilters()
             ),
             layout
         );

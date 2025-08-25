@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -627,12 +628,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // ON only with qualified names
         var predicates = expressions(condition.joinPredicate());
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        List<Expression> joinExpressions = new ArrayList<>(predicates.size());
         for (var f : predicates) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
                 joinFields.add(ua);
             } else {
-                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
+                if (f instanceof EsqlBinaryComparison comparison) {
+                    joinFields.add((Attribute) comparison.left());
+                    joinExpressions.add(f);
+                }
+                // throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
             }
         }
 
@@ -663,7 +669,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
                 throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
             }
-            return new LookupJoin(source, p, right, joinFields, hasRemotes);
+            return new LookupJoin(source, p, right, joinFields, hasRemotes, joinExpressions);
         };
     }
 

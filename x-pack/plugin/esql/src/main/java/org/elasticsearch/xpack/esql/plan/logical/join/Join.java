@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -91,15 +93,24 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private List<Attribute> lazyOutput;
     // Does this join involve remote indices? This is relevant only on the coordinating node, thus transient.
     private transient boolean isRemote = false;
+    private final List<Expression> candidateRightHandFilters;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        this(source, left, right, config, false);
+        this(source, left, right, config, false, null);
     }
 
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote) {
+    public Join(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinConfig config,
+        boolean isRemote,
+        List<Expression> candidateRightHandFilters
+    ) {
         super(source, left, right);
         this.config = config;
         this.isRemote = isRemote;
+        this.candidateRightHandFilters = (candidateRightHandFilters != null) ? candidateRightHandFilters : new ArrayList<>();
     }
 
     public Join(
@@ -109,15 +120,24 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType type,
         List<Attribute> matchFields,
         List<Attribute> leftFields,
-        List<Attribute> rightFields
+        List<Attribute> rightFields,
+        boolean isRemote,
+        List<Expression> candidateRightHandFilters
     ) {
         super(source, left, right);
         this.config = new JoinConfig(type, matchFields, leftFields, rightFields);
+        this.isRemote = isRemote;
+        this.candidateRightHandFilters = (candidateRightHandFilters != null) ? candidateRightHandFilters : new ArrayList<>();
     }
 
     public Join(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+            this.candidateRightHandFilters = in.readNamedWriteableCollectionAsList(Expression.class);
+        } else {
+            this.candidateRightHandFilters = new ArrayList<>();
+        }
     }
 
     @Override
@@ -126,6 +146,11 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
         config.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+            out.writeNamedWriteableCollection(candidateRightHandFilters());
+        }
+        // as the candidateRightHandFilters are optional it is OK to not write them if the node does not support it
+        // The query will still work and produce correct data, but performance might be worse
     }
 
     @Override
@@ -149,7 +174,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             config.type(),
             config.matchFields(),
             config.leftFields(),
-            config.rightFields()
+            config.rightFields(),
+            isRemote(),
+            candidateRightHandFilters()
         );
     }
 
@@ -201,8 +228,13 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
             // right side becomes nullable and overrides left except for join keys, which we preserve from the left
-            AttributeSet rightKeys = AttributeSet.of(config.rightFields());
-            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
+            // AttributeSet rightKeys = AttributeSet.of(config.rightFields());
+            Set<String> leftAttrNames = config.leftFields().stream().map(Attribute::name).collect(java.util.stream.Collectors.toSet());
+            // as we can do (left_key > right_key) now as join condition, we want to preserve the right_key,
+            // unless it is also a key on the left side, but we need to do name equality only
+            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
+                .filter(attr -> leftAttrNames.contains(attr.name()) == false)
+                .toList();
             output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
@@ -247,17 +279,25 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     public Join withConfig(JoinConfig config) {
-        return new Join(source(), left(), right(), config, isRemote);
+        return new Join(source(), left(), right(), config, isRemote, candidateRightHandFilters());
+    }
+
+    public List<Expression> candidateRightHandFilters() {
+        return this.candidateRightHandFilters;
+    }
+
+    public Join withCandidateRightHandFilters(List<Expression> candidateRightHandFilters) {
+        return new Join(source(), left(), right(), config(), isRemote, candidateRightHandFilters);
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config, isRemote);
+        return new Join(source(), left, right, config, isRemote, candidateRightHandFilters());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config, left(), right(), isRemote);
+        return Objects.hash(config, left(), right(), isRemote, candidateRightHandFilters);
     }
 
     @Override
@@ -273,7 +313,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return config.equals(other.config)
             && Objects.equals(left(), other.left())
             && Objects.equals(right(), other.right())
-            && isRemote == other.isRemote;
+            && isRemote == other.isRemote
+            && Objects.equals(candidateRightHandFilters, other.candidateRightHandFilters);
     }
 
     @Override

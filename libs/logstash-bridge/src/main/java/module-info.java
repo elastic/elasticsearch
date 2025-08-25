@@ -23,6 +23,8 @@ module org.elasticsearch.logstashbridge {
     requires org.elasticsearch.redact;
     requires org.elasticsearch.spatial;
     requires org.elasticsearch.wildcard;
+    requires org.elasticsearch.ingest.geoip;
+    requires com.maxmind.db;
 
     exports org.elasticsearch.logstashbridge;
     exports org.elasticsearch.logstashbridge.common;

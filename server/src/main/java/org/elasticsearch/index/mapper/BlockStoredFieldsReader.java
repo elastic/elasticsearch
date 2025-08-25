@@ -48,8 +48,8 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
 
         @Override
-        public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return new StoredFieldsSpec(false, false, Set.of(field));
+        public final FieldsSpec rowStrideFieldSpec() {
+            return new FieldsSpec(new StoredFieldsSpec(false, false, Set.of(field)), IgnoredFieldsSpec.NONE);
         }
 
         @Override

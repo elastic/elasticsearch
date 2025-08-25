@@ -57,7 +57,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -598,8 +597,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return delegate.rowStrideStoredFieldSpec();
+        public FieldsSpec rowStrideFieldSpec() {
+            return delegate.rowStrideFieldSpec();
         }
 
         @Override

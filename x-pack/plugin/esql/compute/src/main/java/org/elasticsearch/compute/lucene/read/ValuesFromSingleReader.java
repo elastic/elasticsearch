@@ -84,7 +84,7 @@ class ValuesFromSingleReader extends ValuesReader {
     private void loadFromSingleLeaf(long jumboBytes, Block[] target, ValuesReaderDocs docs, int offset) throws IOException {
         int firstDoc = docs.get(offset);
         operator.positionFieldWork(shard, segment, firstDoc);
-        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
+        BlockLoader.FieldsSpec storedFieldsSpec = BlockLoader.FieldsSpec.NO_REQUIREMENTS;
         LeafReaderContext ctx = operator.ctx(shard, segment);
 
         List<ColumnAtATimeWork> columnAtATimeReaders = new ArrayList<>(operator.fields.length);
@@ -104,7 +104,7 @@ class ValuesFromSingleReader extends ValuesReader {
                             f
                         )
                     );
-                    storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
+                    storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideFieldSpec());
                 }
             }
 
@@ -130,7 +130,7 @@ class ValuesFromSingleReader extends ValuesReader {
     private void loadFromRowStrideReaders(
         long jumboBytes,
         Block[] target,
-        StoredFieldsSpec storedFieldsSpec,
+        BlockLoader.FieldsSpec fieldsSpec,
         List<RowStrideReaderWork> rowStrideReaders,
         LeafReaderContext ctx,
         ValuesReaderDocs docs,
@@ -138,22 +138,22 @@ class ValuesFromSingleReader extends ValuesReader {
     ) throws IOException {
         SourceLoader sourceLoader = null;
         ValuesSourceReaderOperator.ShardContext shardContext = operator.shardContexts.get(shard);
-        if (storedFieldsSpec.requiresSource()) {
+        if (fieldsSpec.storedFieldsSpec().requiresSource()) {
             sourceLoader = shardContext.newSourceLoader().get();
-            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
+            fieldsSpec = fieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
-        if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
+        if (fieldsSpec.equals(BlockLoader.FieldsSpec.NO_REQUIREMENTS)) {
             throw new IllegalStateException(
-                "found row stride readers [" + rowStrideReaders + "] without stored fields [" + storedFieldsSpec + "]"
+                "found row stride readers [" + rowStrideReaders + "] without stored fields [" + fieldsSpec + "]"
             );
         }
         StoredFieldLoader storedFieldLoader;
         if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
-            storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
-            operator.trackStoredFields(storedFieldsSpec, true);
+            storedFieldLoader = StoredFieldLoader.fromSpec(fieldsSpec, true);
+            operator.trackStoredFields(fieldsSpec, true);
         } else {
-            storedFieldLoader = StoredFieldLoader.fromSpec(storedFieldsSpec);
-            operator.trackStoredFields(storedFieldsSpec, false);
+            storedFieldLoader = StoredFieldLoader.fromSpec(fieldsSpec, false);
+            operator.trackStoredFields(fieldsSpec, false);
         }
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             storedFieldLoader.getLoader(ctx, null),

@@ -12,6 +12,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.SearchService.ReaderContextId;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -56,6 +57,10 @@ public final class ShardSearchContextId implements Writeable {
 
     public String getSearcherId() {
         return searcherId;
+    }
+
+    public ReaderContextId readerContextId() {
+        return new ReaderContextId(sessionId, id);
     }
 
     @Override

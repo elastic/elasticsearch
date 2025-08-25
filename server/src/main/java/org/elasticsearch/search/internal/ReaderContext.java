@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.SearchService.ReaderContextId;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -100,6 +101,10 @@ public class ReaderContext implements Releasable {
         return id;
     }
 
+    public ReaderContextId readerContextId() {
+        return id.readerContextId();
+    }
+
     public IndexService indexService() {
         return indexService;
     }
@@ -114,6 +119,10 @@ public class ReaderContext implements Releasable {
 
     private void tryUpdateKeepAlive(long keepAlive) {
         this.keepAlive.accumulateAndGet(keepAlive, Math::max);
+    }
+
+    public long keepAlive() {
+        return keepAlive.longValue();
     }
 
     /**

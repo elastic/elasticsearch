@@ -149,6 +149,14 @@ public abstract class FieldMapper extends Mapper {
         return builderParams.sourceKeepMode;
     }
 
+    public boolean isSyntheticSourceEnabled() {
+        return fieldType().isSyntheticSourceEnabled();
+    }
+
+    public boolean isWithinMultiField() {
+        return fieldType().isWithinMultiField();
+    }
+
     /**
      * Will this field ignore malformed values for this field and accept the
      * document ({@code true}) or will it reject documents with malformed
@@ -1408,11 +1416,22 @@ public abstract class FieldMapper extends Mapper {
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
 
+        // we're using Boolean here instead of boolean by design - to throw a NPE when users attempt to use these fields without
+        // initializing them first
+        protected final Boolean isSyntheticSourceEnabled;
+        protected final Boolean isWithinMultiField;
+
         /**
          * Creates a new Builder with a field name
          */
         protected Builder(String name) {
+            this(name, null, null);
+        }
+
+        protected Builder(String name, Boolean isSyntheticSourceEnabled, Boolean isWithinMultiField) {
             super(name);
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+            this.isWithinMultiField = isWithinMultiField;
         }
 
         /**

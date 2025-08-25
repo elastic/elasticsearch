@@ -89,7 +89,9 @@ redirects:
 
   # https://github.com/elastic/elasticsearch/pull/133359
   'reference/elasticsearch/rest-apis/filter-search-results.md':
-    to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
-    anchors:
-      'old-anchor': 'rescore'
-      'removed-anchor':
+    many:
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors:
+          'rescore': 'rescore-search-results'
+          'query-rescorer': 'query-rescorer'
+          'multiple-rescores': 'multiple-rescores'

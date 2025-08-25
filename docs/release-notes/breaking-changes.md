@@ -12,7 +12,18 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+```{applies_to}
+stack: coming 9.0.6
+```
+## 9.0.6 [elasticsearch-9.0.6-breaking-changes]
+
+No breaking changes in this version.
+
 ## 9.1.2 [elasticsearch-9.1.2-breaking-changes]
+
+No breaking changes in this version.
+
+## 9.0.5 [elasticsearch-9.0.5-breaking-changes]
 
 No breaking changes in this version.
 
@@ -23,110 +34,18 @@ No breaking changes in this version.
 ## 9.1.0 [elasticsearch-9.1.0-breaking-changes]
 
 Discovery-Plugins:
-:::{dropdown} Migrates `discovery-ec2` plugin to AWS SDK v2
-The `discovery-ec2` plugin now uses AWS SDK v2 instead of v1, as AWS plans to deprecate SDK v1 before the end of Elasticsearch 8.19’s support period. AWS SDK v2 introduces several behavior changes that affect configuration.
-
-**Impact:**
-If you use the `discovery-ec2` plugin, your existing settings may no longer be compatible. Notable changes include, but may not be limited to:
-- AWS SDK v2 does not support the EC2 IMDSv1 protocol.
-- AWS SDK v2 does not support the `aws.secretKey` or `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
-- AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so the `discovery.ec2.protocol` setting is no longer effective.
-- AWS SDK v2 does not accept an access key without a secret key or vice versa.
-
-**Action:**
-Test the upgrade in a non-production environment. Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items:
-- If you use IMDS to determine the availability zone of a node or to obtain credentials for accessing the EC2 API, ensure that it supports the IMDSv2 protocol.
-- If applicable, discontinue use of the `aws.secretKey` and `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
-- If applicable, specify that you wish to use the insecure HTTP protocol to access the EC2 API by setting `discovery.ec2.endpoint` to a URL which starts with `http://`.
-- Either supply both an access key and a secret key using the `discovery.ec2.access_key` and `discovery.ec2.secret_key` keystore settings, or configure neither of these settings.
-
-For more information, view [#122062](https://github.com/elastic/elasticsearch/pull/122062).
-:::
+* Upgrade `discovery-ec2` to AWS SDK v2 [#122062](https://github.com/elastic/elasticsearch/pull/122062)
 
 ES|QL:
-
-:::{dropdown} ES|QL now returns partial results by default
-In previous versions, ES|QL queries failed entirely when any error occurred. As of 8.19.0, ES|QL returns partial results instead.
-
-**Impact:**
-Callers must check the `is_partial` flag in the response to determine whether the result is complete. Relying on full results without checking this flag may lead to incorrect assumptions about the response.
-
-**Action:**
-If partial results are not acceptable for your use case, you can disable this behavior by:
-* Setting `allow_partial_results=false` in the query URL per request, or
-* Setting the `esql.query.allow_partial_results` cluster setting to `false`.
-
-For more information, view [#127351](https://github.com/elastic/elasticsearch/pull/127351) (issue: [#122802](https://github.com/elastic/elasticsearch/issues/122802))
-:::
-
-:::{dropdown} Disallows parentheses in unquoted index patterns in ES|QL
-To avoid ambiguity with subquery syntax, ES|QL no longer allows the use of `(` and `)` in unquoted index patterns.
-
-**Impact:**
-Queries that include parentheses in unquoted index names will now result in a parsing exception.
-
-**Action:**
-Update affected queries to quote index names that contain parentheses. For example, use `FROM "("foo")"` instead of `FROM (foo)`.
-For more information, view [#130427](https://github.com/elastic/elasticsearch/pull/130427) (issue: [#130378](https://github.com/elastic/elasticsearch/issues/130378))
-:::
-
-:::{dropdown} Disallows mixing quoted and unquoted components in `FROM` index patterns
-ES|QL no longer allows mixing quoted and unquoted parts in `FROM` index patterns (e.g. `FROM remote:"index"`). Previously, such patterns were parsed inconsistently and could result in misleading runtime errors.
-
-**Impact:**
-Queries using partially quoted index patterns—such as quoting only the index or only the remote cluster—will now be rejected at parse time. This change simplifies grammar handling and avoids confusing validation failures.
-
-**Action:**
-Ensure index patterns are either fully quoted or fully unquoted. For example:
-* Valid: `FROM "remote:index"` or `FROM remote:index`
-* Invalid: `FROM remote:"index"`, `FROM "remote":index`
-
-For more information, view [#127636](https://github.com/elastic/elasticsearch/pull/127636) (issue: [#122651](https://github.com/elastic/elasticsearch/issues/122651))
-:::
-
-:::{dropdown} `skip_unavailable` now catches all remote cluster runtime errors in ES|QL
-When `skip_unavailable` is set to `true`, ES|QL now treats all runtime errors from that cluster as non-fatal. Previously, this setting only applied to connectivity issues (i.e. when a cluster was unavailable).
-
-**Impact:**
-Errors such as missing indices on a remote cluster will no longer cause the query to fail. Instead, the cluster will appear in the response metadata as `skipped` or `partial`.
-
-**Action:**
-If your workflows rely on detecting remote cluster errors, review your use of `skip_unavailable` and adjust error handling as needed.
-
-For more information, view [#128163](https://github.com/elastic/elasticsearch/pull/128163)
-:::
+* Allow partial results by default in ES|QL [#127351](https://github.com/elastic/elasticsearch/pull/127351) (issue: [#122802](https://github.com/elastic/elasticsearch/issues/122802))
+* Disallow brackets in unquoted index patterns [#130427](https://github.com/elastic/elasticsearch/pull/130427) (issue: [#130378](https://github.com/elastic/elasticsearch/issues/130378))
+* Disallow mixed quoted/unquoted patterns in FROM [#127636](https://github.com/elastic/elasticsearch/pull/127636) (issue: [#122651](https://github.com/elastic/elasticsearch/issues/122651))
+* Make `skip_unavailable` catch all errors [#128163](https://github.com/elastic/elasticsearch/pull/128163)
 
 Snapshot/Restore:
+* Upgrade `repository-s3` to AWS SDK v2 [#126843](https://github.com/elastic/elasticsearch/pull/126843) (issue: [#120993](https://github.com/elastic/elasticsearch/issues/120993))
 
-:::{dropdown} Upgrades `repository-s3` plugin to AWS SDK v2
-The `repository-s3` plugin now uses AWS SDK v2 instead of v1, as AWS will deprecate SDK v1 before the end of Elasticsearch 8.19’s support period. The two SDKs differ in behavior, which may require updates to your configuration.
 
-**Impact:**
-Existing `repository-s3` configurations may no longer be compatible. Notable differences in AWS SDK v2 include, but may not be limited to:
-- AWS SDK v2 requires users to specify the region to use for signing requests, or else to run in an environment in which it can determine the correct region automatically. The older SDK used to determine the region based on the endpoint URL as specified with the `s3.client.${CLIENT_NAME}.endpoint` setting, together with other data drawn from the operating environment, and fell back to `us-east-1` if no better value was found.
-- AWS SDK v2 does not support the EC2 IMDSv1 protocol.
-- AWS SDK v2 does not support the `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
-- AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so the `s3.client.${CLIENT_NAME}.protocol` setting is deprecated and no longer has any effect.
-- AWS SDK v2 does not permit control over throttling for retries, so the `s3.client.${CLIENT_NAME}.use_throttle_retries` setting is deprecated and no longer has any effect.
-- AWS SDK v2 requires the use of the V4 signature algorithm, therefore, the `s3.client.${CLIENT_NAME}.signer_override` setting is deprecated and no longer has any effect.
-- AWS SDK v2 does not support the `log-delivery-write` canned ACL.
-- AWS SDK v2 counts 4xx responses differently in its metrics reporting.
-- AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v1 could use either a regional endpoint or the global `https://sts.amazonaws.com` one.
-
-**Action:**
-Test the upgrade in a non-production environment. Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items:
-- Specify the correct signing region using the `s3.client.${CLIENT_NAME}.region` setting on each node. {es} will try to determine the correct region based on the endpoint URL and other data drawn from the operating environment, but might not do so correctly in all cases.
-- If you use IMDS to determine the availability zone of a node or to obtain credentials for accessing the EC2 API, ensure that it supports the IMDSv2 protocol.
-- If applicable, discontinue use of the `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
-- If applicable, specify that you wish to use the insecure HTTP protocol to access the S3 API by setting `s3.client.${CLIENT_NAME}.endpoint` to a URL which starts with `http://`.
-- If applicable, discontinue use of the `log-delivery-write` canned ACL.
-
-For more information, view [#126843](https://github.com/elastic/elasticsearch/pull/126843) (issue: [#120993](https://github.com/elastic/elasticsearch/issues/120993))
-:::
-
-## 9.0.5 [elasticsearch-9.0.5-breaking-changes]
-
-No breaking changes in this version.
 
 ## 9.0.4 [elasticsearch-9.0.4-breaking-changes]
 

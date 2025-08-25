@@ -76,9 +76,15 @@ public class RootObjectMapper extends ObjectMapper {
         protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
+        protected RootObjectMapperNamespaceValidator namespaceValidator;
 
         public Builder(String name, Optional<Subobjects> subobjects) {
             super(name, subobjects);
+        }
+
+        public Builder addNamespaceValidator(RootObjectMapperNamespaceValidator namespaceValidator) {
+            this.namespaceValidator = namespaceValidator;
+            return this;
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -120,7 +126,8 @@ public class RootObjectMapper extends ObjectMapper {
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
                 dateDetection,
-                numericDetection
+                numericDetection,
+                namespaceValidator
             );
         }
     }
@@ -130,6 +137,7 @@ public class RootObjectMapper extends ObjectMapper {
     private final Explicit<Boolean> numericDetection;
     private final Explicit<DynamicTemplate[]> dynamicTemplates;
     private final Map<String, RuntimeField> runtimeFields;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
 
     RootObjectMapper(
         String name,
@@ -142,7 +150,8 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
         Explicit<Boolean> dateDetection,
-        Explicit<Boolean> numericDetection
+        Explicit<Boolean> numericDetection,
+        RootObjectMapperNamespaceValidator namespaceValidator
     ) {
         super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
         this.runtimeFields = runtimeFields;
@@ -150,6 +159,7 @@ public class RootObjectMapper extends ObjectMapper {
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
+        this.namespaceValidator = namespaceValidator;
         if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
             throw new MapperParsingException(
                 "root object can't be configured with [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + ":" + SourceKeepMode.ALL + "]"
@@ -178,7 +188,8 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicDateTimeFormatters,
             dynamicTemplates,
             dateDetection,
-            numericDetection
+            numericDetection,
+            namespaceValidator
         );
     }
 
@@ -294,7 +305,8 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicDateTimeFormatters,
             dynamicTemplates,
             dateDetection,
-            numericDetection
+            numericDetection,
+            namespaceValidator
         );
     }
 
@@ -451,13 +463,14 @@ public class RootObjectMapper extends ObjectMapper {
         throws MapperParsingException {
         Optional<Subobjects> subobjects = parseSubobjects(node);
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
+        builder.addNamespaceValidator(parserContext.getNamespaceValidator());
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
             String fieldName = entry.getKey();
             Object fieldNode = entry.getValue();
             if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                || processField(builder, fieldName, fieldNode, parserContext)) {
+                || processField(builder, fieldName, fieldNode, parserContext, parserContext.getNamespaceValidator())) {
                 iterator.remove();
             }
         }
@@ -469,7 +482,8 @@ public class RootObjectMapper extends ObjectMapper {
         RootObjectMapper.Builder builder,
         String fieldName,
         Object fieldNode,
-        MappingParserContext parserContext
+        MappingParserContext parserContext,
+        RootObjectMapperNamespaceValidator namespaceValidator
     ) {
         if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
             if (fieldNode instanceof List) {
@@ -527,6 +541,11 @@ public class RootObjectMapper extends ObjectMapper {
         } else if (fieldName.equals("runtime")) {
             if (fieldNode instanceof Map) {
                 Map<String, RuntimeField> fields = RuntimeField.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true);
+                if (namespaceValidator != null) {
+                    for (String runtimeField : fields.keySet()) {
+                        namespaceValidator.validateNamespace(null, runtimeField);
+                    }
+                }
                 builder.addRuntimeFields(fields);
                 return true;
             } else {
@@ -539,5 +558,13 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     public int getTotalFieldsCount() {
         return super.getTotalFieldsCount() - 1 + runtimeFields.size();
+    }
+
+    @Override
+    protected void validateSubField(Mapper mapper, MappingLookup mappers) {
+        if (namespaceValidator != null) {
+            namespaceValidator.validateNamespace(subobjects(), mapper.leafName());
+        }
+        super.validateSubField(mapper, mappers);
     }
 }

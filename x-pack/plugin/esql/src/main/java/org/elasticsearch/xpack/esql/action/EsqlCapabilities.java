@@ -191,6 +191,11 @@ public class EsqlCapabilities {
         FN_REVERSE_GRAPHEME_CLUSTERS,
 
         /**
+         * Support for function {@code CONTAINS}. Done in <a href="https://github.com/elastic/elasticsearch/pull/133016">#133016.</a>
+         */
+        FN_CONTAINS,
+
+        /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,

@@ -173,7 +173,7 @@ public class AuthorizationService {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver, crossProjectTargetResolver);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);
@@ -499,11 +499,7 @@ public class AuthorizationService {
                     var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest, resolvedProjects);
                     return SubscribableListener.newSucceeded(resolvedIndices);
                 }
-                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(
-                    action,
-                    request,
-                    resolvedProjects
-                );
+                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     return SubscribableListener.newSucceeded(resolvedIndices);
                 } else {

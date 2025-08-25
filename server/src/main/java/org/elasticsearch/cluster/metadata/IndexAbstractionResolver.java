@@ -207,17 +207,14 @@ public class IndexAbstractionResolver {
 
                 if (false == minus) {
                     boolean authorized = isAuthorized.test(indexAbstraction, selector);
-                    if (authorized) {
-                        if (false == existsAndVisible(
+                    if (false == authorized
+                        || false == existsAndVisible(
                             indicesOptions,
                             projectMetadata,
                             includeDataStreams,
                             indexAbstraction,
                             selectorString
                         )) {
-                            resolvedSet.clear();
-                        }
-                    } else {
                         resolvedSet.clear();
                     }
                 }

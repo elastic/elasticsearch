@@ -66,18 +66,11 @@ public class IndicesAndAliasesResolver {
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
-    private final CrossProjectTargetResolver crossProjectTargetResolver;
 
-    IndicesAndAliasesResolver(
-        Settings settings,
-        ClusterService clusterService,
-        IndexNameExpressionResolver resolver,
-        CrossProjectTargetResolver crossProjectTargetResolver
-    ) {
+    IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
-        this.crossProjectTargetResolver = crossProjectTargetResolver;
     }
 
     /**
@@ -169,15 +162,12 @@ public class IndicesAndAliasesResolver {
         String[] indices = request.indices();
         logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
 
-        List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> rewrittenExpressions = new ArrayList<>(indices.length);
+        List<IndicesRequest.RewrittenExpression> rewrittenExpressions = new ArrayList<>(indices.length);
         for (String indexExpression : indices) {
             boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
             if (isQualified) {
                 // TODO handle empty case here -- empty means "search all" in ES which is _not_ what we want
-                List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> canonicalExpressions = rewriteQualified(
-                    indexExpression,
-                    projects
-                );
+                List<IndicesRequest.CanonicalExpression> canonicalExpressions = rewriteQualified(indexExpression, projects);
                 // could fail early here in ignore_unavailable and allow_no_indices strict mode if things are empty
                 rewrittenExpressions.add(
                     new IndicesRequest.CrossProjectResolvable.RewrittenExpression(indexExpression, canonicalExpressions)
@@ -185,13 +175,11 @@ public class IndicesAndAliasesResolver {
                 logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             } else {
                 // un-qualified expression, i.e. flat-world
-                List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> canonicalExpressions = rewriteUnqualified(
+                List<IndicesRequest.CanonicalExpression> canonicalExpressions = rewriteUnqualified(
                     indexExpression,
                     resolvedProjects.projects()
                 );
-                rewrittenExpressions.add(
-                    new IndicesRequest.CrossProjectResolvable.RewrittenExpression(indexExpression, canonicalExpressions)
-                );
+                rewrittenExpressions.add(new IndicesRequest.RewrittenExpression(indexExpression, canonicalExpressions));
                 logger.info("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             }
         }
@@ -238,11 +226,7 @@ public class IndicesAndAliasesResolver {
      * @return The {@link ResolvedIndices} or null if wildcard expansion must be performed.
      */
     @Nullable
-    ResolvedIndices tryResolveWithoutWildcards(
-        String action,
-        TransportRequest transportRequest,
-        CrossProjectTargetResolver.ResolvedProjects resolvedProjects
-    ) {
+    ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
         // We only take care of IndicesRequest
         if (false == transportRequest instanceof IndicesRequest) {
             return null;
@@ -252,12 +236,16 @@ public class IndicesAndAliasesResolver {
             return null;
         }
         // It's safe to cast IndicesRequest since the above test guarantees it
-        return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest, resolvedProjects);
+        return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
     }
 
     private static boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
         // IndicesAliasesRequest requires special handling because it can have wildcards in request body
         if (indicesRequest instanceof IndicesAliasesRequest) {
+            return true;
+        }
+        // CrossProjectResolvable requests always require wildcard expansion
+        if (indicesRequest instanceof IndicesRequest.CrossProjectResolvable) {
             return true;
         }
         // Replaceable requests always require wildcard expansion
@@ -268,16 +256,8 @@ public class IndicesAndAliasesResolver {
     }
 
     ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
-        return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest, CrossProjectTargetResolver.ResolvedProjects.VOID);
-    }
-
-    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(
-        String action,
-        IndicesRequest indicesRequest,
-        CrossProjectTargetResolver.ResolvedProjects resolvedProjects
-    ) {
-        // TODO CPS
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
+        assert false == indicesRequest instanceof IndicesRequest.CrossProjectResolvable;
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
             throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");
@@ -462,7 +442,7 @@ public class IndicesAndAliasesResolver {
                     && crossProjectResolvableRequest.crossProjectModeEnabled()) {
                     assert crossProjectResolvableRequest.allowsRemoteIndices();
                     assert crossProjectResolvableRequest.getRewrittenExpressions() != null;
-                    List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> rewrittenExpressions = indexAbstractionResolver
+                    List<IndicesRequest.RewrittenExpression> rewrittenExpressions = indexAbstractionResolver
                         .resolveIndexAbstractionsForOrigin(
                             crossProjectResolvableRequest.getRewrittenExpressions(),
                             indicesOptions,
@@ -472,7 +452,7 @@ public class IndicesAndAliasesResolver {
                             indicesRequest.includeDataStreams()
                         );
                     crossProjectResolvableRequest.setRewrittenExpressions(rewrittenExpressions);
-                    // handle empty case by calling replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
+                    // TODO handle empty case by calling replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                     return remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
                 }
 

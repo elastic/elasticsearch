@@ -664,6 +664,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<IndicesRequest.RewrittenExpression> rewrittenExpressions = resolvable.getRewrittenExpressions();
             assert rewrittenExpressions != null;
             for (IndicesRequest.RewrittenExpression rewrittenExpression : rewrittenExpressions) {
+                // TODO need to handle qualified expressions here, too
                 var original = rewrittenExpression.original();
                 boolean exists = rewrittenExpression.hasCanonicalExpressionForOrigin();
                 if (exists) {

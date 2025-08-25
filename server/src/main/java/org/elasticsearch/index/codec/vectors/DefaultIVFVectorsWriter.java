@@ -67,16 +67,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
-        int[] overspillAssignments
+        int[] overspillAssignments,
+        int[] centroidVectorCount
     ) throws IOException {
-        int[] centroidVectorCount = new int[centroidSupplier.size()];
-        for (int i = 0; i < assignments.length; i++) {
-            centroidVectorCount[assignments[i]]++;
-            // if soar assignments are present, count them as well
-            if (overspillAssignments.length > i && overspillAssignments[i] != -1) {
-                centroidVectorCount[overspillAssignments[i]]++;
-            }
-        }
 
         int maxPostingListSize = 0;
         int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
@@ -164,7 +157,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         long fileOffset,
         MergeState mergeState,
         int[] assignments,
-        int[] overspillAssignments
+        int[] overspillAssignments,
+        int[] centroidVectorCount
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
         String quantizedVectorsTempName = null;
@@ -212,14 +206,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         } finally {
             if (success == false && quantizedVectorsTempName != null) {
                 org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, quantizedVectorsTempName);
-            }
-        }
-        int[] centroidVectorCount = new int[centroidSupplier.size()];
-        for (int i = 0; i < assignments.length; i++) {
-            centroidVectorCount[assignments[i]]++;
-            // if soar assignments are present, count them as well
-            if (overspillAssignments.length > i && overspillAssignments[i] != -1) {
-                centroidVectorCount[overspillAssignments[i]]++;
             }
         }
 
@@ -464,10 +450,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             HierarchicalKMeans.MAXK,
             -1 // disable SOAR assignments
         ).cluster(floatVectorValues, centroidsPerParentCluster);
-        final int[] centroidVectorCount = new int[kMeansResult.centroids().length];
-        for (int i = 0; i < kMeansResult.assignments().length; i++) {
-            centroidVectorCount[kMeansResult.assignments()[i]]++;
-        }
+        final int[] centroidVectorCount = kMeansResult.centroidCounts();
         final int[][] vectorsPerCentroid = new int[kMeansResult.centroids().length][];
         int maxVectorsPerCentroidLength = 0;
         for (int i = 0; i < kMeansResult.centroids().length; i++) {
@@ -522,10 +505,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
     static CentroidAssignments buildCentroidAssignments(FloatVectorValues floatVectorValues, int vectorPerCluster) throws IOException {
         KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
-        float[][] centroids = kMeansResult.centroids();
-        int[] assignments = kMeansResult.assignments();
-        int[] soarAssignments = kMeansResult.soarAssignments();
-        return new CentroidAssignments(centroids, assignments, soarAssignments);
+        return new CentroidAssignments(
+            kMeansResult.centroids(),
+            kMeansResult.assignments(),
+            kMeansResult.soarAssignments(),
+            kMeansResult.centroidCounts()
+        );
     }
 
     static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)

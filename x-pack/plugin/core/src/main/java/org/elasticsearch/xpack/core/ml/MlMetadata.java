@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -247,6 +248,14 @@ public class MlMetadata implements Metadata.ProjectCustom {
     @Deprecated(forRemoval = true)
     public static MlMetadata getMlMetadata(ClusterState state) {
         MlMetadata mlMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
+        if (mlMetadata == null) {
+            return EMPTY_METADATA;
+        }
+        return mlMetadata;
+    }
+
+    public static MlMetadata getMlMetadata(ProjectMetadata project) {
+        MlMetadata mlMetadata = project == null ? null : project.custom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

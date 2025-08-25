@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/rescore-search-results.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 # Rescore search results [rescore-search-results]
 

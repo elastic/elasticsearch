@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.hamcrest.Matchers;
@@ -81,23 +82,32 @@ public final class Utils {
         );
     }
 
-    public static void storeSparseModel(ModelRegistry modelRegistry) throws Exception {
+    public static void storeSparseModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
-            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            inferenceId,
             new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
         );
         storeModel(modelRegistry, model);
     }
 
     public static void storeDenseModel(
+        String inferenceId,
         ModelRegistry modelRegistry,
         int dimensions,
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
     ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
-            TestDenseInferenceServiceExtension.TestInferenceService.NAME,
+            inferenceId,
             new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
+        );
+        storeModel(modelRegistry, model);
+    }
+
+    public static void storeRerankModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {
+        Model model = new TestRerankingServiceExtension.TestRerankingModel(
+            inferenceId,
+            new TestRerankingServiceExtension.TestServiceSettings("rerank-model")
         );
         storeModel(modelRegistry, model);
     }

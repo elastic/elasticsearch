@@ -222,7 +222,10 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromMain(upperBound.branch());
         if (existingUpperBound != null) {
             if (upperBound.id().patch() != 0 && upperBound.id().base() != existingUpperBound.id().base()) {
-                throwUpperBoundFailure(upperBound, "modifies base id from " + existingUpperBound.id().base() + " to " + upperBound.id().base());
+                throwUpperBoundFailure(
+                    upperBound,
+                    "modifies base id from " + existingUpperBound.id().base() + " to " + upperBound.id().base()
+                );
             }
         }
     }

@@ -17,39 +17,62 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 
@@ -63,6 +86,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 100)
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 100)
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 100)
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 100)
+            .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
             .build();
     }
 
@@ -77,6 +105,76 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final TransportService transportService = internalCluster().getInstance(TransportService.class, nodeName);
         assertNotNull(transportService);
         return transportService.getLocalNode();
+    }
+
+    private static ShardStats getShardStats(IndexMetadata indexMeta, int shardIndex, double targetWriteLoad, String assignedShardNodeId) {
+        ShardId shardId = new ShardId(indexMeta.getIndex(), shardIndex);
+        Path path = createTempDir().resolve("indices").resolve(indexMeta.getIndexUUID()).resolve(String.valueOf(shardIndex));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT
+        );
+        shardRouting = shardRouting.initialize(assignedShardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        CommonStats stats = new CommonStats();
+        stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
+        stats.store = new StoreStats();
+        stats.indexing = new IndexingStats(
+            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, targetWriteLoad)
+        );
+        return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
+    }
+
+    public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetadata[] indices) {
+        List<ShardStats> shardStats = new ArrayList<>();
+        for (final IndexMetadata index : indices) {
+            int numShards = index.getNumberOfShards();
+            for (int i = 0; i < numShards; i++) {
+                ShardId shardId = new ShardId(index.getIndex(), i);
+                boolean primary = true;
+                Path path = createTempDir().resolve("indices").resolve(index.getIndexUUID()).resolve(String.valueOf(i));
+                ShardRouting shardRouting = ShardRouting.newUnassigned(
+                    shardId,
+                    primary,
+                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                    ShardRouting.Role.DEFAULT
+                );
+                shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                CommonStats stats = new CommonStats();
+                stats.fieldData = new FieldDataStats();
+                stats.queryCache = new QueryCacheStats();
+                stats.docs = new DocsStats();
+                stats.store = new StoreStats();
+                stats.indexing = new IndexingStats(
+                    new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, 0.2)
+                );
+                stats.search = new SearchStats();
+                stats.segments = new SegmentsStats();
+                stats.merge = new MergeStats();
+                stats.refresh = new RefreshStats();
+                stats.completion = new CompletionStats();
+                stats.requestCache = new RequestCacheStats();
+                stats.get = new GetStats();
+                stats.flush = new FlushStats();
+                stats.warmer = new WarmerStats();
+                stats.denseVectorStats = new DenseVectorStats();
+                stats.sparseVectorStats = new SparseVectorStats();
+                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0));
+            }
+        }
+        return IndicesStatsTests.newIndicesStatsResponse(
+            shardStats.toArray(new ShardStats[shardStats.size()]),
+            shardStats.size(),
+            shardStats.size(),
+            0,
+            emptyList(),
+            ClusterState.EMPTY_STATE
+        );
     }
 
     /**
@@ -96,6 +194,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final String secondDataNodeId = getNodeId(secondDataNodeName);
         final String thirdDataNodeId = getNodeId(thirdDataNodeName);
         ensureStableCluster(4);
+
+        logger.info("---> first node name " + firstDataNodeName + " and ID " + firstDataNodeId + "; second node name "
+            + secondDataNodeName + " and ID " + secondDataNodeId + "; third node name " + thirdDataNodeName + " and ID " + thirdDataNodeId);
 
         /**
          * Exclude assignment of shards to the second and third data nodes via the {@link FilterAllocationDecider} settings.
@@ -151,40 +252,65 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final DiscoveryNode firstDiscoveryNode = getDiscoveryNode(firstDataNodeName);
         final DiscoveryNode secondDiscoveryNode = getDiscoveryNode(secondDataNodeName);
         final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
-        final NodeUsageStatsForThreadPools nonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(firstDiscoveryNode, 2, 0.5f, 0);
-        final NodeUsageStatsForThreadPools hotSpottingNodeStats = createNodeUsageStatsForThreadPools(secondDiscoveryNode, 2, 1.00f, 0);
-
-        final var transportService = internalCluster().getInstance(TransportService.class, firstDataNodeName);
-        final var mockTransportService = asInstanceOf(MockTransportService.class, transportService);
+        final NodeUsageStatsForThreadPools firstNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(firstDiscoveryNode, 2, 0.5f, 0);
+        final NodeUsageStatsForThreadPools secondNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(secondDiscoveryNode, 2, 0.5f, 0);
+        final NodeUsageStatsForThreadPools thirdNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(thirdDiscoveryNode, 2, 1.00f, 0);
 
         MockTransportService.getInstance(firstDataNodeName)
             .<NodeUsageStatsForThreadPoolsAction.NodeRequest>addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
                 (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(firstDiscoveryNode, nonHotSpottingNodeStats)
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(firstDiscoveryNode, firstNodeNonHotSpottingNodeStats)
                 )
             );
         MockTransportService.getInstance(secondDataNodeName)
             .addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
                 (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(secondDiscoveryNode, nonHotSpottingNodeStats)
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(secondDiscoveryNode, secondNodeNonHotSpottingNodeStats)
                 )
             );
         MockTransportService.getInstance(thirdDataNodeName)
             .addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(thirdDiscoveryNode, hotSpottingNodeStats)
-                )
+                (handler, request, channel, task) ->
+                    channel.sendResponse(new NodeUsageStatsForThreadPoolsAction.NodeResponse(thirdDiscoveryNode, thirdNodeHotSpottingNodeStats))
             );
+        // NOMERGE: put into addRequestHandlingBehavior
+        ClusterState cs = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        IndexMetadata indexMetadata = cs.getMetadata().getProject().index(indexName);
+
         double shardWriteLoadDefault = 0.2;
         MockTransportService.getInstance(firstDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", runAndReplaceShardWriteLoadStats(shardWriteLoadDefault));
-        MockTransportService.getInstance(firstDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", runAndReplaceShardWriteLoadStats(shardWriteLoadDefault));
-        MockTransportService.getInstance(firstDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", runAndReplaceShardWriteLoadStats(shardWriteLoadDefault));
+            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
+                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                    shardStats.add(
+                        getShardStats(
+                            indexMetadata,
+                            i,
+                            shardWriteLoadDefault,
+                            firstDataNodeId
+                        )
+                    );
+                }
+                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, firstDataNodeName);
+                channel.sendResponse(instance.new NodeResponse(firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of()));
+            });
+        MockTransportService.getInstance(secondDataNodeName)
+            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                logger.info("~~~secondDataNodeName IndicesStatsAction");
+                // Return no stats for the index because none are assigned to this node.
+                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, firstDataNodeName);
+                channel.sendResponse(instance.new NodeResponse(secondDataNodeId, 0, List.of(), List.of()));
+            });
+        MockTransportService.getInstance(thirdDataNodeName)
+            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                logger.info("~~~thirdDataNodeName IndicesStatsAction");
+                // Return no stats for the index because none are assigned to this node.
+                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, firstDataNodeName);
+                channel.sendResponse(instance.new NodeResponse(thirdDataNodeId, 0, List.of(), List.of()));
+            });
 
         /**
          * Provoke a ClusterInfo stats refresh, update the cluster settings to shuffle shards off of the first node, and initiate
@@ -232,40 +358,48 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
      * load stats with the provided one instead, before returning the result to the waiting network channel. Essentially injects the desired
      * write load stat for all shards on the node.
      */
-    public StubbableTransport.RequestHandlingBehavior<TransportRequest> runAndReplaceShardWriteLoadStats(double shardWriteLoadEstimate) {
-        return (handler, request, channel, task) -> ActionListener.wrap(response -> {
-            var statsResponse = (IndicesStatsResponse) response;
-            ShardStats[] newShardStats = Arrays.stream(statsResponse.getShards()).map(shardStats -> {
-                CommonStats commonStats = new CommonStats();
-                commonStats.store = new StoreStats();
-                commonStats.indexing = new IndexingStats(
-                    new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, shardWriteLoadEstimate)
-                );
-                return new ShardStats(
-                    shardStats.getShardRouting(),
-                    commonStats,
-                    shardStats.getCommitStats(),
-                    shardStats.getSeqNoStats(),
-                    shardStats.getRetentionLeaseStats(),
-                    shardStats.getDataPath(),
-                    shardStats.getStatePath(),
-                    shardStats.isCustomDataPath(),
-                    shardStats.isSearchIdle(),
-                    shardStats.getSearchIdleTime()
-                );
-            }).toArray(ShardStats[]::new);
-            channel.sendResponse(
-                new IndicesStatsResponse(
-                    newShardStats,
-                    statsResponse.getTotalShards(),
-                    statsResponse.getSuccessfulShards(),
-                    statsResponse.getFailedShards(),
-                    null,
-                    Metadata.EMPTY_METADATA,
-                    RoutingTable.EMPTY_ROUTING_TABLE
-                )
+    public StubbableTransport.RequestHandlingBehavior<IndicesStatsRequest> runAndReplaceShardWriteLoadStats(double shardWriteLoadDefault) {
+        return (handler, request, channel, task) -> {
+            handler.messageReceived(
+                request,
+                new TestTransportChannel(
+                    ActionListener.wrap(response -> {
+                        var statsResponse = (IndicesStatsResponse) response;    //// NOMERGE: NOTE: need the same base response class?
+                        ShardStats[] newShardStats = Arrays.stream(statsResponse.getShards()).map(shardStats -> {
+                            CommonStats commonStats = new CommonStats();
+                            commonStats.store = new StoreStats();
+                            commonStats.indexing = new IndexingStats(
+                                new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, shardWriteLoadDefault)
+                            );
+                            return new ShardStats(
+                                shardStats.getShardRouting(),
+                                commonStats,
+                                shardStats.getCommitStats(),
+                                shardStats.getSeqNoStats(),
+                                shardStats.getRetentionLeaseStats(),
+                                shardStats.getDataPath(),
+                                shardStats.getStatePath(),
+                                shardStats.isCustomDataPath(),
+                                shardStats.isSearchIdle(),
+                                shardStats.getSearchIdleTime()
+                            );
+                        }).toArray(ShardStats[]::new);
+                        channel.sendResponse(
+                            new IndicesStatsResponse(
+                                newShardStats,
+                                statsResponse.getTotalShards(),
+                                statsResponse.getSuccessfulShards(),
+                                statsResponse.getFailedShards(),
+                                null,
+                                Metadata.EMPTY_METADATA,
+                                RoutingTable.EMPTY_ROUTING_TABLE
+                            )
+                        );
+                    }, e -> channel.sendResponse(e))
+                ),
+                task
             );
-        }, e -> channel.sendResponse(e));
+        };
     }
 
     private boolean checkShardAssignment(

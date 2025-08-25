@@ -101,6 +101,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -349,7 +350,7 @@ public class MetadataCreateIndexService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false, null, delegate.reroute());
+                    return applyCreateIndexRequest(currentState, request, false, null, metadataBuilder -> {}, delegate.reroute());
                 }
 
                 @Override
@@ -388,6 +389,7 @@ public class MetadataCreateIndexService {
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
         BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer,
+        Consumer<IndexMetadata.Builder> indexMetadataTransformer,
         ActionListener<Void> rerouteListener
     ) throws Exception {
 
@@ -497,6 +499,7 @@ public class MetadataCreateIndexService {
                     silent,
                     v1Templates,
                     metadataTransformer,
+                    indexMetadataTransformer,
                     rerouteListener
                 );
             }
@@ -509,7 +512,7 @@ public class MetadataCreateIndexService {
         boolean silent,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, null, rerouteListener);
+        return applyCreateIndexRequest(currentState, request, silent, null, metadataBuilder -> {}, rerouteListener);
     }
 
     /**
@@ -611,7 +614,8 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings,
         final CreateIndexClusterStateUpdateRequest request,
         final int routingNumShards,
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder
+        final ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder,
+        final Consumer<IndexMetadata.Builder> indexMetadataTransformer
     ) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
@@ -627,6 +631,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
         tmpImdBuilder.putCustom(customMetadataBuilder.build());
+        indexMetadataTransformer.accept(tmpImdBuilder);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -642,6 +647,7 @@ public class MetadataCreateIndexService {
         final boolean silent,
         final List<IndexTemplateMetadata> templates,
         final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final Consumer<IndexMetadata.Builder> indexMetadataTransformer,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug(
@@ -688,7 +694,8 @@ public class MetadataCreateIndexService {
             aggregatedIndexSettings,
             request,
             routingNumShards,
-            customMetadataBuilder
+            customMetadataBuilder,
+            indexMetadataTransformer
         );
 
         return applyCreateIndexWithTemporaryService(
@@ -788,7 +795,8 @@ public class MetadataCreateIndexService {
             aggregatedIndexSettings,
             request,
             routingNumShards,
-            customMetadataBuilder
+            customMetadataBuilder,
+            metadataBuilder -> {}
         );
 
         return applyCreateIndexWithTemporaryService(
@@ -850,7 +858,8 @@ public class MetadataCreateIndexService {
             aggregatedIndexSettings,
             request,
             routingNumShards,
-            customMetadataBuilder
+            customMetadataBuilder,
+            metadataBuilder -> {}
         );
 
         return applyCreateIndexWithTemporaryService(
@@ -924,7 +933,8 @@ public class MetadataCreateIndexService {
             aggregatedIndexSettings,
             request,
             routingNumShards,
-            customMetadataBuilder
+            customMetadataBuilder,
+            metadataBuilder -> {}
         );
 
         return applyCreateIndexWithTemporaryService(
@@ -1040,7 +1050,8 @@ public class MetadataCreateIndexService {
             aggregatedIndexSettings,
             request,
             routingNumShards,
-            customMetadataBuilder
+            customMetadataBuilder,
+            metadataBuilder -> {}
         );
 
         return applyCreateIndexWithTemporaryService(

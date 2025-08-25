@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccessor;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -934,7 +935,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED)
             .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval)
             .put(IndexSettings.MODE.getKey(), sourceIndexMetadata.getIndexMode())
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths())
             .put(
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
@@ -943,6 +943,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 IndexSettings.TIME_SERIES_END_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
             );
+        if (sourceIndexMetadata.getRoutingPaths().isEmpty() == false) {
+            builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths());
+        }
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
@@ -972,6 +975,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     true,
                     // Copy index metadata from source index to downsample index
                     (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)),
+                    metadataBuilder -> TimeSeriesDimensionsMetadataAccessor.transferCustomMetadata(sourceIndexMetadata, metadataBuilder),
                     delegate.reroute()
                 );
             }

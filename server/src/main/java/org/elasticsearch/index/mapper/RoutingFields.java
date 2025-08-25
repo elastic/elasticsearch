@@ -22,8 +22,8 @@ public interface RoutingFields {
     /**
      * Collect routing fields from index settings
      */
-    static RoutingFields fromIndexSettings(IndexSettings indexSettings) {
-        return indexSettings.getMode().buildRoutingFields(indexSettings);
+    static RoutingFields fromIndexSettings(IndexSettings indexSettings, SourceToParse source) {
+        return indexSettings.getMode().buildRoutingFields(indexSettings, source);
     }
 
     /**
@@ -44,6 +44,8 @@ public interface RoutingFields {
     RoutingFields addUnsignedLong(String fieldName, long value);
 
     RoutingFields addBoolean(String fieldName, boolean value);
+
+    boolean isNoop();
 
     /**
      * Noop implementation that doesn't perform validations on routing fields
@@ -80,6 +82,11 @@ public interface RoutingFields {
         @Override
         public RoutingFields addBoolean(String fieldName, boolean value) {
             return this;
+        }
+
+        @Override
+        public boolean isNoop() {
+            return true;
         }
     }
 }

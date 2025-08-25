@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -188,29 +189,28 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
 
     private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
         final TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
-        final Template template = new Template(
-            indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"))
-                .build(),
-            new CompressedXContent("""
-                {
-                    "properties": {
-                        "@timestamp" : {
-                            "type": "date"
-                        },
-                        "routing_field": {
-                            "type": "keyword",
-                            "time_series_dimension": true
-                        },
-                        "counter": {
-                            "type": "long",
-                            "time_series_metric": "counter"
-                        }
+        Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+        boolean manuallyAddedRoutingPathSetting = true;
+        if (manuallyAddedRoutingPathSetting) {
+            settings.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"));
+        }
+        final Template template = new Template(settings.build(), new CompressedXContent("""
+            {
+                "properties": {
+                    "@timestamp" : {
+                        "type": "date"
+                    },
+                    "routing_field": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "counter": {
+                        "type": "long",
+                        "time_series_metric": "counter"
                     }
                 }
-                """),
-            null
-        );
+            }
+            """), null);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
@@ -219,6 +219,15 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+        GetComposableIndexTemplateAction.Response getTemplateResponse = client().execute(
+            GetComposableIndexTemplateAction.INSTANCE,
+            new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, id)
+        ).actionGet();
+        ComposableIndexTemplate composableIndexTemplate = getTemplateResponse.indexTemplates().values().iterator().next();
+        assertThat(
+            composableIndexTemplate.template().settings().hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
+            equalTo(manuallyAddedRoutingPathSetting)
+        );
     }
 
     private void indexDocs(final String dataStream, int numDocs, long startTime) {

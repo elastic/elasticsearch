@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -50,6 +51,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     private Boolean create;
     private Long version;
     private VersionType versionType;
+    private BytesRef tsid;
 
     public IndexRequestBuilder(ElasticsearchClient client) {
         this(client, null);
@@ -270,6 +272,11 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         return this;
     }
 
+    public IndexRequestBuilder setTsid(BytesRef tsid) {
+        this.tsid = tsid;
+        return this;
+    }
+
     @Override
     public IndexRequest request() {
         IndexRequest request = new IndexRequest();
@@ -313,6 +320,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         }
         if (versionType != null) {
             request.versionType(versionType);
+        }
+        if (tsid != null) {
+            request.tsid(tsid);
         }
         return request;
     }

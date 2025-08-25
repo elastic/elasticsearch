@@ -594,7 +594,14 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
             .thenAnswer(objectAnswer);
         when(
-            s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any(), any())
+            s.applyCreateIndexRequest(
+                any(ClusterState.class),
+                any(CreateIndexClusterStateUpdateRequest.class),
+                anyBoolean(),
+                any(),
+                any(),
+                any()
+            )
         ).thenAnswer(objectAnswer);
 
         return s;

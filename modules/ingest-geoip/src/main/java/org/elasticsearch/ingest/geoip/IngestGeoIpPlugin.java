@@ -45,6 +45,7 @@ import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
 import org.elasticsearch.ingest.geoip.stats.RestGeoIpStatsAction;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -91,14 +92,15 @@ public class IngestGeoIpPlugin extends Plugin
 
     private static final Setting<Long> CACHE_SIZE_COUNT = Setting.longSetting(
         "ingest.geoip.cache_size",
-        1000,
+        -1, // default is never used, we use CACHE_SIZE_BYTES if this is not set
         0,
         Setting.Property.NodeScope
     );
 
     private static final Setting<ByteSizeValue> CACHE_SIZE_BYTES = Setting.byteSizeSetting(
         "ingest.geoip.cache_memory_size",
-        ByteSizeValue.MINUS_ONE,
+        // TODO: Think more carefully about this before merging
+        ByteSizeValue.ofBytes((long) (0.01 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())),
         Setting.Property.NodeScope
     );
     private static final int GEOIP_INDEX_MAPPINGS_VERSION = 1;
@@ -152,8 +154,8 @@ public class IngestGeoIpPlugin extends Plugin
     }
 
     private static GeoIpCache createGeoIpCache(Settings settings) {
-        if (settings.hasValue(CACHE_SIZE_BYTES.getKey())) {
-            if (settings.hasValue(CACHE_SIZE_COUNT.getKey())) {
+        if (settings.hasValue(CACHE_SIZE_COUNT.getKey())) {
+            if (settings.hasValue(CACHE_SIZE_BYTES.getKey())) {
                 // Both CACHE_SIZE_COUNT and CACHE_SIZE_BYTES are set, which is an error:
                 throw new IllegalArgumentException(
                     Strings.format(
@@ -166,12 +168,12 @@ public class IngestGeoIpPlugin extends Plugin
                     )
                 );
             } else {
-                // Only CACHE_SIZE_BYTES is set, so use that:
-                return GeoIpCache.createGeoIpCacheWithMaxBytes(CACHE_SIZE_BYTES.get(settings));
+                // Only CACHE_SIZE_COUNT is set, so use that:
+                return GeoIpCache.createGeoIpCacheWithMaxCount(CACHE_SIZE_COUNT.get(settings));
             }
         } else {
-            // CACHE_SIZE_BYTES is not set, so use either the explicit or default value of CACHE_SIZE_COUNT:
-            return GeoIpCache.createGeoIpCacheWithMaxCount(CACHE_SIZE_COUNT.get(settings));
+            // CACHE_SIZE_COUNT is not set, so use either the explicit or default value of CACHE_SIZE_BYTES:
+            return GeoIpCache.createGeoIpCacheWithMaxBytes(CACHE_SIZE_BYTES.get(settings));
         }
     }
 

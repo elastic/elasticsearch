@@ -27,19 +27,6 @@ public interface IpDatabase extends AutoCloseable {
      */
     String getDatabaseType() throws IOException;
 
-    /*
-     * TODO(pete): Add an explanation of all this to the class- and method-level javadocs.
-     *
-     * This class has two related methods, getResponse and a method getTypedResponse. These are identical except that getTypedResponse's
-     * generic type is constrained to extend the Response interface. The getResponse method is abstract. The default implementation of
-     * getTypedResponse delegates to getResponse and that is the only place in the codebase that getResponse is called: everywhere else
-     * calls getTypedResponse (as of ES 9.1.0). Implementing classes therefore have a choice: they can implement getResponse; or they can
-     * override the implementation of getTypedResponse, and make getResponse throw since it will now never be called.
-     *
-     * (The getResponse method only exists because there are implementations of this interface outside of this codebase which haven't yet
-     * been converted to implement getTypedResponse instead.)
-     */
-
     /**
      * Returns a response from this database's reader for the given IP address.
      *
@@ -66,7 +53,7 @@ public interface IpDatabase extends AutoCloseable {
 
     interface Response {
 
-        // TODO PETE: Remove this default implementation and implement in all implementing classes instead
+        // TODO: Remove this default implementation and implement in all implementing classes instead before merging
         default long sizeInBytes() {
             return 0;
         }

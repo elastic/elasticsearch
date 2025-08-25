@@ -168,7 +168,8 @@ public class ShrinkAction implements LifecycleAction {
         StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey checkTargetShardsCountKey = new StepKey(phase, NAME, CheckTargetShardsCountStep.NAME);
-        StepKey cleanupShrinkIndexKey = new StepKey(phase, NAME, CleanupShrinkIndexStep.NAME);
+        StepKey oldCleanupShrinkIndexKey = new StepKey(phase, NAME, CleanupGeneratedIndexStep.OLD_NAME);
+        StepKey cleanupShrinkIndexKey = new StepKey(phase, NAME, CleanupGeneratedIndexStep.NAME);
         StepKey generateShrinkIndexNameKey = new StepKey(phase, NAME, GenerateUniqueIndexNameStep.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, NAME, CheckShrinkReadyStep.NAME);
@@ -240,13 +241,16 @@ public class ShrinkAction implements LifecycleAction {
             cleanupShrinkIndexKey,
             numberOfShards
         );
+        // The cleanup step was renamed, so we need to forward indices in the old step to the new one, i.e. during an upgrade
+        NoopStep oldCleanupShrinkIndexStep = new NoopStep(oldCleanupShrinkIndexKey, cleanupShrinkIndexKey);
         // We generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
         // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and we haven't generated a
         // shrink index name)
-        CleanupShrinkIndexStep cleanupShrinkIndexStep = new CleanupShrinkIndexStep(
+        CleanupGeneratedIndexStep cleanupShrinkIndexStep = new CleanupGeneratedIndexStep(
             cleanupShrinkIndexKey,
             generateShrinkIndexNameKey,
-            client
+            client,
+            ShrinkIndexNameSupplier::getShrinkIndexName
         );
         // generate a unique shrink index name and store it in the ILM execution state
         GenerateUniqueIndexNameStep generateUniqueIndexNameStep = new GenerateUniqueIndexNameStep(
@@ -313,6 +317,7 @@ public class ShrinkAction implements LifecycleAction {
             waitUntilTimeSeriesEndTimeStep,
             readOnlyStep,
             checkTargetShardsCountStep,
+            oldCleanupShrinkIndexStep,
             cleanupShrinkIndexStep,
             generateUniqueIndexNameStep,
             setSingleNodeStep,

@@ -1389,7 +1389,12 @@ public class EsqlCapabilities {
         /**
          * Support for vector Hamming distance.
          */
-        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot());
+        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Introduce SPARKLINE aggregate function.
+         */
+        SPARKLINE;
 
         private final boolean enabled;
 

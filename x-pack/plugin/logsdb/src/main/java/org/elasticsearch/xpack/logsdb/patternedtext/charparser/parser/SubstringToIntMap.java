@@ -11,11 +11,11 @@ import java.util.Map;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 
-public final class StringToIntMap implements ToIntFunction<SubstringView> {
+public final class SubstringToIntMap implements ToIntFunction<SubstringView> {
 
     private final Map<SubstringView, Integer> map;
 
-    public StringToIntMap(Map<String, Integer> map) {
+    public SubstringToIntMap(Map<String, Integer> map) {
         if (map == null || map.isEmpty()) {
             throw new IllegalArgumentException("Map cannot be null or empty");
         }

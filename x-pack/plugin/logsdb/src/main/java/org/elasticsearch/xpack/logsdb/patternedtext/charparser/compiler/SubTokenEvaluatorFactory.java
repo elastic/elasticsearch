@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler;
 
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.StringToIntMap;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.StringToIntSet;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenEvaluator;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
@@ -37,7 +37,7 @@ public class SubTokenEvaluatorFactory {
                 (input) -> input != null && input.length() == lsc.requiredLength() ? 1 : -1
             );
             case StringSetConstraint ssc -> new SubTokenEvaluator<>(bitmask, new StringToIntSet(ssc.keys()));
-            case StringToIntMapConstraint stmc -> new SubTokenEvaluator<>(bitmask, new StringToIntMap(stmc.map()));
+            case StringToIntMapConstraint stmc -> new SubTokenEvaluator<>(bitmask, new SubstringToIntMap(stmc.map()));
             case AndStringConstraint asc -> from(bitmask, asc.first()).and(from(bitmask, asc.second()));
             case OrStringConstraint osc -> from(bitmask, osc.first()).or(from(bitmask, osc.second()));
             case AnyString anyString -> new SubTokenEvaluator<>(bitmask, (input) -> input != null ? 1 : -1);

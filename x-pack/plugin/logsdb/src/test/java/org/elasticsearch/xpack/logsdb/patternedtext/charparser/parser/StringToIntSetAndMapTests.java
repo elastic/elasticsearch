@@ -46,7 +46,7 @@ public class StringToIntSetAndMapTests extends ESTestCase {
 
     // same as the above but for a month Map with StringMapToIntMapper
     public void testMap() {
-        StringToIntMap monthToIntMap = new StringToIntMap(MONTH_MAP);
+        SubstringToIntMap monthToIntMap = new SubstringToIntMap(MONTH_MAP);
         String testString = "I love the month of July!";
         SubstringView input = new SubstringView(testString);
         assertEquals("Value should be -1 for " + input + " in " + testString, -1, monthToIntMap.applyAsInt(input));
@@ -66,7 +66,7 @@ public class StringToIntSetAndMapTests extends ESTestCase {
     }
 
     public void testAllTrueValues() {
-        StringToIntMap monthMap = new StringToIntMap(MONTH_MAP);
+        SubstringToIntMap monthMap = new SubstringToIntMap(MONTH_MAP);
         String testString = "I love the months Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec!";
         SubstringView input = new SubstringView(testString);
         for (int i = 0; i < MONTHS.length; i++) {

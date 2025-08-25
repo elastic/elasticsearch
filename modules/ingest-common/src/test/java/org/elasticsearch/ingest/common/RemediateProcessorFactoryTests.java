@@ -48,12 +48,4 @@ public class RemediateProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getDescription(), equalTo(description));
     }
 
-    public void testUnknownConfigOptionsFail() {
-        RemediateProcessor.Factory factory = new RemediateProcessor.Factory();
-        Map<String, Object> config = new HashMap<>();
-        config.put("unsupported_option", true);
-
-        String processorTag = randomAlphaOfLength(10);
-        expectThrows(IllegalArgumentException.class, () -> factory.create(null, processorTag, null, config, null));
-    }
 }

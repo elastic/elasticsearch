@@ -35,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -195,8 +196,10 @@ public class BulkRequest extends LegacyActionRequest
         if (request.upsertRequest() != null) {
             sizeInBytes += request.upsertRequest().source().length();
         }
-        if (request.script() != null) {
-            sizeInBytes += request.script().getIdOrCode().length() * 2;
+        Script script = request.script();
+        if (script != null) {
+            sizeInBytes += (long) script.getIdOrCode().length() * 2L;
+            sizeInBytes += script.getParams().toString().length();
         }
         indices.add(request.index());
         return this;

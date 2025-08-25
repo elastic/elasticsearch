@@ -648,6 +648,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/132602
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133497
 
 # Examples:
 #

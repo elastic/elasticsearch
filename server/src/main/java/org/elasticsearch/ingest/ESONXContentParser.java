@@ -193,27 +193,37 @@ public abstract class ESONXContentParser extends AbstractXContentParser {
         throw new IllegalStateException("Cannot materialize type: " + type.getClass());
     }
 
+    // TODO: Optimize Skipping for bytes vs. fields
     @Override
     public void skipChildren() throws IOException {
         if (currentToken != Token.START_OBJECT && currentToken != Token.START_ARRAY) {
             return;
         }
 
-        // Fast skip - trust the ESON structure
-        int toSkip = currentEntry.offsetOrCount();
+        Token endToken = (currentToken == Token.START_OBJECT) ? Token.END_OBJECT : Token.END_ARRAY;
 
-        while (toSkip-- > 0) {
-            ESONEntry entry = nextEntry();
+        int targetDepth = containerStack.depth() - 1;
+        while (containerStack.depth() > targetDepth) {
+            int stackValue = containerStack.currentStackValue();
+            if (ESONStack.fieldsRemaining(stackValue) == 0) {
+                while (ESONStack.fieldsRemaining(stackValue) == 0 && containerStack.depth() > targetDepth) {
+                    containerStack.popContainer();
+                    stackValue = containerStack.currentStackValue();
+                }
+            } else {
+                containerStack.updateRemainingFields(stackValue - 1);
+                ESONEntry entry = nextEntry();
 
-            // Only check containers - most entries are primitives in typical JSON
-            if (entry.type() >= ESONEntry.TYPE_OBJECT) {
-                toSkip += entry.offsetOrCount();
+                byte type = entry.type();
+                if (type == ESONEntry.TYPE_OBJECT) {
+                    containerStack.pushObject(entry.offsetOrCount());
+                } else if (type == ESONEntry.TYPE_ARRAY) {
+                    containerStack.pushArray(entry.offsetOrCount());
+                }
             }
         }
 
-        // Clean up parser state
-        containerStack.popContainer();  // Also can skip the isEmpty check if we know we're in a container
-        currentToken = (currentToken == Token.START_OBJECT) ? Token.END_OBJECT : Token.END_ARRAY;
+        currentToken = endToken;
     }
 
     @Override

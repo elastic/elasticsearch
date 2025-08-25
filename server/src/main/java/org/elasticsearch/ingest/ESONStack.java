@@ -61,4 +61,8 @@ class ESONStack {
     public void popContainer() {
         stackTop--;
     }
+
+    public int depth() {
+        return stackTop;
+    }
 }

@@ -16,6 +16,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -259,6 +262,14 @@ public abstract class TransportReplicationAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         assert request.shardId() != null : "request shardId must be set";
+        if (request instanceof BulkShardRequest bulkShardRequest) {
+            for (BulkItemRequest item : bulkShardRequest.items()) {
+                if (item.request() instanceof IndexRequest indexRequest) {
+                    // Ensure serialized to key bytes
+                    indexRequest.modernSource().structuredSource().getSerializedKeyBytes();
+                }
+            }
+        }
         runReroutePhase(task, request, listener, true);
     }
 

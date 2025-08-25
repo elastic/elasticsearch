@@ -228,7 +228,12 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         if (changedDefinitions.isEmpty()) {
             return "";
         } else {
-            return changedDefinitions.getFirst();
+            String changedDefinitionName = changedDefinitions.getFirst();
+            if (referencedNames.contains(changedDefinitionName)) {
+                return changedDefinitionName;
+            } else {
+                return ""; // the changed name is unreferenced, so go into "reset mode"
+            }
         }
     }
 }

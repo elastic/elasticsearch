@@ -147,6 +147,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     void writeNamedDefinition(TransportVersionDefinition definition) throws IOException {
+        System.out.println("Writing definition: " + definition);
         Path path = transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name()));
         Files.writeString(
             path,
@@ -198,6 +199,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     void writeLatestFile(TransportVersionLatest latest) throws IOException {
+        System.out.println("Writing latest file: " + latest);
         Path path = transportResourcesDir.resolve(getLatestRelativePath(latest.releaseBranch()));
         Files.writeString(path, latest.name() + "," + latest.id().complete() + "\n", StandardCharsets.UTF_8);
     }

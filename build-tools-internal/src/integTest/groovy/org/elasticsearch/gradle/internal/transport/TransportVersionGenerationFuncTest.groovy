@@ -178,29 +178,12 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     def "When a reference is renamed after a definition was generated, the original should be removed and latest files updated"(List<String> branches) {
         given:
         String firstName = "original_tv_name"
-        referencedTransportVersion(firstName)
-        List<LatestFile> originalLatestFiles1 = readLatestFiles(branches)
-
-        when: "The definition is generated"
-        def result = gradleRunner(
-                ":myserver:validateTransportVersionDefinitions",
-                ":myserver:generateTransportVersionDefinition",
-                "--name=" + firstName,
-                "--branches=" + branches.join(",")
-        ).build()
-
-        then: "The generation task should succeed and create the definition file"
-        file("myserver/src/main/resources/transport/definitions/named/${firstName}.csv").exists()
-        result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
-        result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
-        validateDefinitionFile(firstName, originalLatestFiles1)
-
-        when: "The reference is renamed and the generation is run again"
-        deleteTransportVersionReference(firstName)
+        namedTransportVersion(firstName, "8124000")
+        latestTransportVersion("9.2", firstName, "8124000")
         String secondName = "new_tv_name"
         referencedTransportVersion(secondName)
-        List<LatestFile> originalLatestFiles2 = readLatestFiles(branches)
 
+        when:
         def secondResult = gradleRunner(
                 ":myserver:validateTransportVersionDefinitions",
                 ":myserver:generateTransportVersionDefinition",
@@ -212,7 +195,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         file("myserver/src/main/resources/transport/definitions/named/${secondName}.csv").exists()
         secondResult.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
         secondResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
-        validateDefinitionFile(secondName, originalLatestFiles2)
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text.strip() == "new_tv_name,8124000"
 
         where:
         branches << [
@@ -425,62 +408,33 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     // TODO when will this be run? Inside the merge conflict resolution? If so, there will be two new definition files and references.
     //  How do we know which one to apply first? We need to use git to find the branch (main) that is being merged into.
     //    Will this be different than `main` when not in conflict resolution? e.g. do we need a different git command for this?
-    def "Latest files mangled by a merge conflict should be regenerated, and the most recent definition file should be updated"(List<String> branches) {
+    def "Latest files mangled by a merge conflict should be regenerated, and the most recent definition file should be updated"() {
         given:
-        String firstDefinitionName = "first_tv"
-        String secondDefinitionName = "second_tv"
-        List<LatestFile> originalLatestFiles = readLatestFiles(branches)
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text =
+            """
+            <<<<<<< HEAD
+            existing_92,8123000
+            =======
+            second_tv,8123000
+            >>>>>> branch
+            """.strip()
 
-        when: "Two definitions are created and generated from the same latest files"
-        def originalMainLatest = originalLatestFiles.first()
-        definedAndUsedTransportVersion(firstDefinitionName, (originalMainLatest.getId() + 1000).toString())
-        definedAndUsedTransportVersion(secondDefinitionName, (originalMainLatest.getId() + 1000).toString())
+        definedAndUsedTransportVersion("second_tv", "8123000")
 
-        if (branches.size() > 1) {
-            LatestFile originalPatchLatest = originalLatestFiles.last()
-            definedAndUsedTransportVersion(firstDefinitionName, (originalPatchLatest.getId() + 1).toString())
-            definedAndUsedTransportVersion(secondDefinitionName, (originalPatchLatest.getId() + 1).toString())
-        }
-
-        and: "Mangled latest files are produced from a git conflict"
-        file("myserver/src/main/resources/transport/latest/${originalMainLatest.branch}.csv").text =
-                """
-                    <<<<<<< HEAD\n" +
-                    "${firstDefinitionName},${originalMainLatest.id + 1000}
-                    =======
-                    ${secondDefinitionName},${originalMainLatest.id + 1000} 
-                    >>>>>> branch
-                    """.strip()
-
-        if (branches.size() > 1) {
-            LatestFile originalPatchLatest = originalLatestFiles.last()
-            file("myserver/src/main/resources/transport/latest/${originalPatchLatest.branch}.csv").text =
-                    """
-                    <<<<<<< HEAD\n" +
-                    "${firstDefinitionName},${originalPatchLatest.id + 1}
-                    =======
-                    ${secondDefinitionName},${originalPatchLatest.id + 1} 
-                    >>>>>> branch
-                    """.strip()
-        }
-
-        and: "The generation task is run"
+        when:
         def result = gradleRunner(
                 ":myserver:validateTransportVersionDefinitions",
                 ":myserver:generateTransportVersionDefinition",
-                "--branches=" + branches.join(",")
+                "--name=second_tv",
+                "--branches=9.2"
         ).build()
 
         then: "The generation task should succeed and the latest files should be reverted and incremented correctly"
         result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
         result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
-        validateDefinitionFile(secondDefinitionName, originalLatestFiles)
-
-        where:
-        branches << [
-                ["9.2"],
-                ["9.2", "9.1"]
-        ]
+        file("myserver/src/main/resources/transport/definitions/named/existing_92.csv").text.strip() == "8123000,8012001"
+        file("myserver/src/main/resources/transport/definitions/named/second_tv.csv").text.strip() == "8124000"
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text.strip() == "second_tv,8124000"
     }
 
     // TODO do we need a test that has a garbled latest file but Main is OK, and it increments correctly?

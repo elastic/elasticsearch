@@ -856,6 +856,14 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final Setting<List<String>> INDEX_MAPPER_SOURCE_AUTO_EXCLUDE_TYPES_SETTING = Setting.listSetting(
+        "index.mapping.source.auto_exclude_types",
+        Collections.emptyList(),
+        String::toString,
+        Setting.Property.Final,
+        Setting.Property.IndexScope
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;

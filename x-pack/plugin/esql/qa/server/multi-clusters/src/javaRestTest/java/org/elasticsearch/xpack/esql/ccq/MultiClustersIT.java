@@ -127,8 +127,14 @@ public class MultiClustersIT extends ESRestTestCase {
                "morecolor": { "type": "keyword" }
              }
             """;
+        var randomDocsData = new ArrayList<Integer>();
         var lookupDocs = IntStream.range(0, between(1, 5))
-            .mapToObj(n -> new Doc(n, randomFrom("red", "yellow", "green"), randomIntBetween(1, 1000)))
+            .mapToObj(n -> {
+                String color = randomFrom("red", "yellow", "green");
+                int data = randomValueOtherThanMany(i -> randomDocsData.contains(i), () -> randomIntBetween(1, 1000));
+                randomDocsData.add(data);
+                return new Doc(n, color, data);
+            })
             .toList();
         createIndex(
             localClient,

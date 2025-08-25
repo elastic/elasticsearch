@@ -126,8 +126,12 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(geoPointTestCaseKeywordScale("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
         testCaseSuppliers.addAll(geoPointOffsetKeywordTestCase("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
 
-        // CartesianPoint
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (5 5)", "POINT (0 0)", 10.0, 0.0, 0.25, "linear", 0.46966991411008935));
+        // CartesianPoint Linear
+        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (0 0)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1 1)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1000 2000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 0.8509433324420796));
+        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (-2000 1000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 0.8508234552350306));
+        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (10000 20000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 0.0));
 
         // Datetime
         testCaseSuppliers.addAll(

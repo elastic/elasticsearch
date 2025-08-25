@@ -146,3 +146,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.UnsafeUtil$MemoryAccessor'
   )
 }
+
+tasks.named("licenseHeaders").configure {
+  excludes << 'io/opentelemetry/proto/**/*'
+}

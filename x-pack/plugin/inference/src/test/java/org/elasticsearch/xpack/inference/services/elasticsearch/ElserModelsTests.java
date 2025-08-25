@@ -19,21 +19,7 @@ public class ElserModelsTests extends ESTestCase {
         assertTrue(org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.isValidModel(randomElserModel()));
     }
 
-    public void testIsValidEisModel() {
-        assertTrue(
-            org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.isValidEisModel(
-                org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL
-            )
-        );
-    }
-
     public void testIsInvalidModel() {
         assertFalse(org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.isValidModel("invalid"));
-    }
-
-    public void testIsInvalidEisModel() {
-        assertFalse(
-            org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.isValidEisModel(ElserModels.ELSER_V2_MODEL_LINUX_X86)
-        );
     }
 }

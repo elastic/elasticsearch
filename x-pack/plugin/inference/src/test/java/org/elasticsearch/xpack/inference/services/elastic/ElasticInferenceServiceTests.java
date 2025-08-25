@@ -86,6 +86,10 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -960,6 +964,18 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     {
                       "model_name": "rainbow-sprinkles",
                       "task_types": ["chat"]
+                    },
+                    {
+                      "model_name": "elser_model_2",
+                      "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "multilingual-embed-v1",
+                      "task_types": ["embed/text/dense"]
+                    },
+                  {
+                      "model_name": "rerank-v1",
+                      "task_types": ["rerank/text/text-similarity"]
                     }
                 ]
             }
@@ -976,15 +992,19 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 service.defaultConfigIds(),
                 is(
                     List.of(
+                        new InferenceService.DefaultConfigId(".elser-2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
                         new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
                     )
                 )
             );
-            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
 
             PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
             service.defaultConfigs(listener);
-            assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+            var models = listener.actionGet(TIMEOUT);
+            assertThat(models.size(), is(2));
+            assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
+            assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
         }
     }
 

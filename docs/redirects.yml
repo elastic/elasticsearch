@@ -88,10 +88,6 @@ redirects:
         anchors: {'esql-where'}
 
   # https://github.com/elastic/elasticsearch/pull/133359
-  'reference/elasticsearch/rest-apis/filter-search-results.md':
-    many:
-      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
-        anchors:
-          'rescore': 'rescore-main'
-          'query-rescorer': 'query-rescorer'
-          'multiple-rescores': 'multiple-rescores'
+  'reference/elasticsearch/rest-apis/filter-search-results.md#rescore': 'reference/elasticsearch/rest-apis/rescore-search-results.md#rescore-main'
+  'reference/elasticsearch/rest-apis/filter-search-results.md#query-rescorer': 'reference/elasticsearch/rest-apis/rescore-search-results.md#query-rescorer'
+  'reference/elasticsearch/rest-apis/filter-search-results.md#multiple-rescores': 'reference/elasticsearch/rest-apis/rescore-search-results.md#multiple-rescores'

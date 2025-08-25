@@ -201,6 +201,13 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-java-ea.template.yml",
       [
         new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(
+          templatePath: ".buildkite/pipelines/periodic-java-ea.bwc.template.yml",
+          versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
+          variable: "BWC_STEPS"
+        ),
       ]
     )
 

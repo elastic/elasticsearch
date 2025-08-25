@@ -137,7 +137,7 @@ steps:
           export amazon_s3_bucket=elasticsearch-ci.us-west-2
           export amazon_s3_base_path=$BUILDKITE_BRANCH
 
-          .ci/scripts/run-gradle.sh-Druntime.java=$$JAVA_EA_VERSION s3ThirdPartyTest
+          .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION s3ThirdPartyTest
         env:
           USE_3RD_PARTY_S3_CREDENTIALS: "true"
         timeout_in_minutes: 30

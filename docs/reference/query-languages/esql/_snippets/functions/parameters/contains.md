@@ -3,8 +3,8 @@
 **Parameters**
 
 `string`
-:   An input string
+:   String expression: input string to check against. If `null`, the function returns `null`.
 
 `substring`
-:   A substring to find in the input string
+:   String expression: A substring to find in the input string. If `null`, the function returns `null`.
 

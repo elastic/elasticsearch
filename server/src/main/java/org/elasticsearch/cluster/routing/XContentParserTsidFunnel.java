@@ -36,13 +36,19 @@ class XContentParserTsidFunnel implements TsidBuilder.ThrowingTsidFunnel<XConten
      * To only extract dimensions, the parser should be configured via
      * {@link XContentParserConfiguration#withFiltering(String, Set, Set, boolean)}.
      *
-     * @param value        the parser from which to read the JSON content
+     * @param parser       the parser from which to read the JSON content
      * @param tsidBuilder  the builder to which dimensions will be added
      * @throws IOException if an error occurs while reading from the parser
      */
     @Override
-    public void add(XContentParser value, TsidBuilder tsidBuilder) throws IOException {
-        extractObject(tsidBuilder, null, value);
+    public void add(XContentParser parser, TsidBuilder tsidBuilder) throws IOException {
+        ensureExpectedToken(null, parser.currentToken(), parser);
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Error extracting tsid: source didn't contain any dimension fields");
+        }
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        extractObject(tsidBuilder, null, parser);
+        ensureExpectedToken(null, parser.nextToken(), parser);
     }
 
     private void extractObject(TsidBuilder tsidBuilder, @Nullable String path, XContentParser source) throws IOException {

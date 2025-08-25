@@ -25,7 +25,7 @@ import java.util.Optional;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 // TODO: Move this test to the Serverless repo once the IT framework is ready there.
-public class CpsClusterStatsShouldNotExposeSkipUnavailableIT extends AbstractMultiClustersTestCase {
+public class ServerlessClusterStatsShouldNotExposeSkipUnavailableIT extends AbstractMultiClustersTestCase {
     private static final String LINKED_CLUSTER_1 = "cluster-a";
 
     public static class CpsPlugin extends Plugin implements ClusterPlugin {
@@ -64,7 +64,7 @@ public class CpsClusterStatsShouldNotExposeSkipUnavailableIT extends AbstractMul
         assertResponse(
             client().execute(TransportClusterStatsAction.TYPE, new ClusterStatsRequest(/* Do include remotes */ true)),
             result -> {
-                // In CPS environment, skip_unavailable should map to `Optional.empty()`.
+                // In the Serverless environment, skip_unavailable should map to `Optional.empty()`.
                 assertThat(result.getRemoteClustersStats().get(LINKED_CLUSTER_1).skipUnavailable(), Matchers.is(Optional.empty()));
                 // When this result is serialised to JSON, it should not mention `skip_unavailable`.
                 assertThat(result.toString().contains("skip_unavailable"), Matchers.is(false));

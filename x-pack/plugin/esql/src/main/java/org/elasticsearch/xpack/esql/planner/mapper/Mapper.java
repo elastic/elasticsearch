@@ -100,6 +100,8 @@ public class Mapper {
             // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
             Holder<Boolean> hasFragment = new Holder<>(false);
 
+            // Remove most plan nodes between this remote ENRICH and the data node's fragment so they're not executed twice;
+            // include the plan up until this ENRICH in the fragment.
             var childTransformed = mappedChild.transformUp(f -> {
                 // Once we reached FragmentExec, we stuff our Enrich under it
                 if (f instanceof FragmentExec) {
@@ -118,7 +120,10 @@ public class Mapper {
                         return unaryExec.child();
                     }
                 }
-                // Currently, it's either UnaryExec or LeafExec. Leaf will either resolve to FragmentExec or we'll ignore it.
+                // Here we have the following possibilities:
+                // 1. LeafExec - should resolve to FragmentExec or we can ignore it
+                // 2. Join - must be remote, and thus will go inside FragmentExec
+                // 3. Fork/MergeExec - not currently allowed with remote enrich
                 return f;
             });
 

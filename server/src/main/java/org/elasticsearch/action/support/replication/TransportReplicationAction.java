@@ -259,14 +259,14 @@ public abstract class TransportReplicationAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         assert request.shardId() != null : "request shardId must be set";
-//        if (request instanceof BulkShardRequest bulkShardRequest) {
-//            for (BulkItemRequest item : bulkShardRequest.items()) {
-//                if (item.request() instanceof IndexRequest indexRequest) {
-//                    // Ensure serialized to key bytes
-//                    indexRequest.modernSource().structuredSource().getSerializedKeyBytes();
-//                }
-//            }
-//        }
+        // if (request instanceof BulkShardRequest bulkShardRequest) {
+        // for (BulkItemRequest item : bulkShardRequest.items()) {
+        // if (item.request() instanceof IndexRequest indexRequest) {
+        // // Ensure serialized to key bytes
+        // indexRequest.modernSource().structuredSource().getSerializedKeyBytes();
+        // }
+        // }
+        // }
         runReroutePhase(task, request, listener, true);
     }
 

@@ -33,7 +33,7 @@ for(bundle in changelogBundles) {
 ## ${unqualifiedVersion} [elasticsearch-${versionForIds}-deprecations]
 <%
     if (!changelogsByTypeByArea['deprecation']) {
-        print "\nNo deprecations in this version.\n"
+        print "\nThere are no deprecations associated with this release.\n"
     } else {
         for (team in (changelogsByTypeByArea['deprecation'] ?: [:]).keySet()) {
             print "\n${team}:\n";

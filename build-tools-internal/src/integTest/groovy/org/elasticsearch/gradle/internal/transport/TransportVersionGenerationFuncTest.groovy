@@ -39,7 +39,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
     }
 
-    def "A definition should be generated when specified by an arg but no code reference exists"(List<String> branches) {
+    def "a definition should be generated when specified by an arg but no code reference exists"(List<String> branches) {
         given:
         String tvName = "test_tv_patch_ids"
         List<LatestFile> latestBranchesToOriginalIds = readLatestFiles(branches)
@@ -69,7 +69,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
-    def "A definition should be generated when the name arg isn't specified but a code reference exists"() {
+    def "a definition should be generated when the name arg isn't specified but a code reference exists"() {
         given:
         String tvName = "test_tv_patch_ids"
         referencedTransportVersion(tvName)
@@ -89,7 +89,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         validateDefinitionFile(tvName, latestBranchesToOriginalIds)
     }
 
-    def "Generation should fail if the branches arg is omitted, the state should remain unaltered"() {
+    def "generation should fail if the branches arg is omitted, the state should remain unaltered"() {
         when:
         def generateResult = gradleRunner("generateTransportVersionDefinition", "--name=no_branches").buildAndFail()
         def validateResult = gradleRunner("validateTransportVersionDefinitions").build()
@@ -99,7 +99,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         validateResult.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
     }
 
-    def "Latest file modifications should be reverted to their original state on main"(
+    def "latest file modifications should be reverted to their original state on main"(
             List<String> branchesParam,
             List<String> latestFilesModified,
             String name
@@ -182,9 +182,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertLatest("9.1", "existing_92,8012001")
     }
 
-    // TODO this test is finding a legitimate bug
-    // TODO remove the first generation call, this can be done with helpers.
-    def "When a reference is removed after a definition is generated, the definition should be deleted and latest files reverted"(List<String> branches) {
+    def "when a reference is removed after a definition is generated, the definition should be deleted and latest files reverted"(List<String> branches) {
         given:
         String definitionName = "test_tv_patch_ids"
         namedTransportVersion(definitionName, "8124000")
@@ -209,7 +207,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
-    def "When a reference is renamed after a definition was generated, the original should be removed and latest files updated"(List<String> branches) {
+    def "when a reference is renamed after a definition was generated, the original should be removed and latest files updated"(List<String> branches) {
         given:
         String firstName = "original_tv_name"
         namedTransportVersion(firstName, "8124000")
@@ -297,7 +295,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
-    def "When a latest file is incorrectly changed and a referenced definition file exists, the latest file should be regenerated"(List<String> branches) {
+    def "when a latest file is incorrectly changed and a referenced definition file exists, the latest file should be regenerated"(List<String> branches) {
         given:
         String definitionName = "test_tv"
         referencedTransportVersion(definitionName)
@@ -348,8 +346,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
-    // TODO legitimate bug, need to always clean up latest for patch versions
-    def "When a definition is created with a patch version, then generation is called without the patch version, the latest patch file should be reverted"() {
+    def "when a definition is created with a patch version, then generation is called without the patch version, the latest patch file should be reverted"() {
         given:
         String definitionName = "test_tv"
         referencedTransportVersion(definitionName)
@@ -392,7 +389,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
 
-    def "When a reference is deleted, the system should delete the definition and revert the latest files"(List<String> branches) {
+    def "when a reference is deleted, the system should delete the definition and revert the latest files"(List<String> branches) {
         given:
         String definitionName = "test_tv"
         referencedTransportVersion(definitionName)
@@ -439,10 +436,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         ]
     }
 
-    // TODO when will this be run? Inside the merge conflict resolution? If so, there will be two new definition files and references.
-    //  How do we know which one to apply first? We need to use git to find the branch (main) that is being merged into.
-    //    Will this be different than `main` when not in conflict resolution? e.g. do we need a different git command for this?
-    def "Latest files mangled by a merge conflict should be regenerated, and the most recent definition file should be updated"() {
+    def "latest files mangled by a merge conflict should be regenerated, and the most recent definition file should be updated"() {
         given:
         file("myserver/src/main/resources/transport/latest/9.2.csv").text =
             """

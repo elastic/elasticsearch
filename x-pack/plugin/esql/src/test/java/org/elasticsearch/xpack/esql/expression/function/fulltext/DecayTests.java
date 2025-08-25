@@ -161,27 +161,60 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (-2000 1000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.9465225092376659));
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (10000 20000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.003935602627423666));
 
-        // Datetime
+        // Datetime Linear
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2023, 1, 1, 12, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                Duration.ofHours(24),
-                Duration.ofSeconds(0),
-                0.5,
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
                 "linear",
-                0.75
+                1.0
             )
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2023, 1, 1, 12, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                Duration.ofHours(24),
-                Duration.ofDays(0),
-                0.5,
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
                 "linear",
-                0.75
+                0.49569100000000005
+            )
+        );
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "linear",
+                0.37334900000000004
+            )
+        );
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "linear",
+                0.28202800000000006
+            )
+        );
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "linear",
+                0.0
             )
         );
 

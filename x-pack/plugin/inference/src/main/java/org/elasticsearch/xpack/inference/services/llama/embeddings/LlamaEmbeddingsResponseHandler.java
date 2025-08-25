@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.llama.embeddings;
 
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.services.llama.response.LlamaErrorResponse;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiResponseHandler;
 
 /**
@@ -24,6 +24,6 @@ public class LlamaEmbeddingsResponseHandler extends OpenAiResponseHandler {
      * @param parseFunction the function to parse the response
      */
     public LlamaEmbeddingsResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, LlamaErrorResponse::fromResponse, false);
+        super(requestType, parseFunction, ErrorResponse::fromResponse, false);
     }
 }

@@ -759,7 +759,7 @@ public final class IngestDocument {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object != NOT_FOUND) {
                             context = object;
-                        } else if (i == (fieldPath.pathElements.length - 2)) {
+                        } else if (i == lastContainerIndex) {
                             // This is our last path element, update the leaf key to use this path element as a dotted prefix.
                             // Leave the context as it is.
                             leafKey = pathElement + "." + leafKey;
@@ -806,7 +806,7 @@ public final class IngestDocument {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object != NOT_FOUND) {
                             context = object;
-                        } else if (i == (fieldPath.pathElements.length - 2)) {
+                        } else if (i == lastContainerIndex) {
                             // This is our last path element, update the leaf key to use this path element as a dotted prefix.
                             // Leave the context as it is.
                             leafKey = pathElement + "." + leafKey;

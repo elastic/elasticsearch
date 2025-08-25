@@ -138,17 +138,17 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return rootDir.relativize(transportResourcesDir.resolve(getUnreferableDefinitionRelativePath(definition.name())));
     }
 
-    /** Read all latest files and return them mapped by their release branch */
+    /** Read all upper bound files and return them mapped by their release branch */
     Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
-        Map<String, TransportVersionUpperBound> latests = new HashMap<>();
+        Map<String, TransportVersionUpperBound> upperBounds = new HashMap<>();
         try (var stream = Files.list(transportResourcesDir.resolve(UPPER_BOUNDS_DIR))) {
             for (var latestFile : stream.toList()) {
                 String contents = Files.readString(latestFile, StandardCharsets.UTF_8).strip();
-                var latest = TransportVersionUpperBound.fromString(latestFile, contents);
-                latests.put(latest.name(), latest);
+                var upperBound = TransportVersionUpperBound.fromString(latestFile, contents);
+                upperBounds.put(upperBound.branch(), upperBound);
             }
         }
-        return latests;
+        return upperBounds;
     }
 
     /** Retrieve the latest transport version for the given release branch on main */

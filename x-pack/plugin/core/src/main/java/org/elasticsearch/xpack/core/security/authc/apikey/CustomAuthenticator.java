@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 /**
- * An extension point to provide a custom token authenticator implementation. For example, a custom API key or a custom OAuth2 token implementation.
- * The implementation is wrapped by a core `Authenticator` class and included in the authenticator chain _before_ the
- * respective "standard" authenticator(s).
+ * An extension point to provide a custom authenticator implementation. For example, a custom API key or a custom OAuth2
+ * token implementation. The implementation is wrapped by a core `Authenticator` class and included in the authenticator chain
+ * _before_ the respective "standard" authenticator(s).
  */
 public interface CustomAuthenticator {
 

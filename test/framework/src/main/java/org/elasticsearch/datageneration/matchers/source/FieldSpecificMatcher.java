@@ -381,7 +381,7 @@ interface FieldSpecificMatcher {
 
             // Special case for number coercion from strings
             if (value instanceof String s && s.isEmpty()) {
-                return  cast(nullValue);
+                return cast(nullValue);
             }
 
             // Attempt to coerce string values into numbers

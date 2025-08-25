@@ -10,6 +10,12 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.ReadAdvice;
+import org.apache.lucene.util.IOUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,23 +30,48 @@ public class HierarchicalKMeans {
     public static final int MAX_ITERATIONS_DEFAULT = 6;
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
+    public static final int DEFAULT_OFF_HEAP_MEMORY_MB = 2048; // 2 Gib
 
     final int dimension;
     final int maxIterations;
     final int samplesPerCluster;
     final int clustersPerNeighborhood;
     final float soarLambda;
+    private final Directory directory;
+    private final String segmentName;
+    private final int minVectorsOffHeap;
 
-    public HierarchicalKMeans(int dimension) {
-        this(dimension, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
+    public HierarchicalKMeans(Directory directory, String segmentName, int offHeapMemoryInMB, int dimension) {
+        this(
+            directory,
+            segmentName,
+            offHeapMemoryInMB,
+            dimension,
+            MAX_ITERATIONS_DEFAULT,
+            SAMPLES_PER_CLUSTER_DEFAULT,
+            MAXK,
+            DEFAULT_SOAR_LAMBDA
+        );
     }
 
-    public HierarchicalKMeans(int dimension, int maxIterations, int samplesPerCluster, int clustersPerNeighborhood, float soarLambda) {
+    public HierarchicalKMeans(
+        Directory directory,
+        String segmentName,
+        int offHeapMemoryInMB,
+        int dimension,
+        int maxIterations,
+        int samplesPerCluster,
+        int clustersPerNeighborhood,
+        float soarLambda
+    ) {
+        this.directory = directory;
+        this.segmentName = segmentName;
         this.dimension = dimension;
         this.maxIterations = maxIterations;
         this.samplesPerCluster = samplesPerCluster;
         this.clustersPerNeighborhood = clustersPerNeighborhood;
         this.soarLambda = soarLambda;
+        this.minVectorsOffHeap = offHeapMemoryInMB * 1024 * 1024 / (dimension * Float.BYTES);
     }
 
     /**
@@ -76,7 +107,7 @@ public class HierarchicalKMeans {
         }
 
         // partition the space
-        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
+        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize, 0);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations);
@@ -86,7 +117,7 @@ public class HierarchicalKMeans {
         return kMeansIntermediate;
     }
 
-    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize) throws IOException {
+    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize, int depth) throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansIntermediate();
         }
@@ -108,6 +139,7 @@ public class HierarchicalKMeans {
         int[] centroidVectorCount = new int[centroids.length];
         int effectiveCluster = -1;
         int effectiveK = 0;
+        int maxCount = 0;
         for (int assigment : assignments) {
             centroidVectorCount[assigment]++;
             // this cluster has received an assignment, its now effective, but only count it once
@@ -115,6 +147,7 @@ public class HierarchicalKMeans {
                 effectiveK++;
                 effectiveCluster = assigment;
             }
+            maxCount = Math.max(maxCount, centroidVectorCount[assigment]);
         }
 
         if (effectiveK == 1) {
@@ -124,19 +157,37 @@ public class HierarchicalKMeans {
             Arrays.fill(kMeansIntermediate.assignments(), 0);
             return kMeansIntermediate;
         }
+        // Recurse for each cluster which is larger than targetSize
+        // Give ourselves 30% margin for the target size
+        int clusterLimit = Math.round(1.34f * targetSize);
+        if (vectors.size() > minVectorsOffHeap
+            && maxCount > clusterLimit
+            && vectors instanceof OffHeapFloatVectorValues offHeapFloatVectorValues) {
+            recurseOffHeap(offHeapFloatVectorValues, centroidVectorCount, clusterLimit, kMeansIntermediate, targetSize, depth);
+        } else {
+            recurseOnHeap(vectors, centroidVectorCount, clusterLimit, kMeansIntermediate, targetSize, depth);
+        }
+        return kMeansIntermediate;
+    }
 
+    private void recurseOnHeap(
+        FloatVectorValues vectors,
+        int[] centroidVectorCount,
+        int clusterLimit,
+        KMeansIntermediate kMeansIntermediate,
+        int targetSize,
+        int depth
+    ) throws IOException {
         int removedElements = 0;
         for (int c = 0; c < centroidVectorCount.length; c++) {
-            // Recurse for each cluster which is larger than targetSize
-            // Give ourselves 30% margin for the target size
             final int count = centroidVectorCount[c];
             final int adjustedCentroid = c - removedElements;
-            if (100 * count > 134 * targetSize) {
-                final FloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
+            if (count > clusterLimit) {
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, clusterAndSplit(sample, targetSize));
+                FloatVectorValues slice = createSlice(count, adjustedCentroid, vectors, kMeansIntermediate.assignments());
+                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, clusterAndSplit(slice, targetSize, depth + 1));
             } else if (count == 0) {
                 // remove empty clusters
                 final int newSize = kMeansIntermediate.centroids().length - 1;
@@ -159,11 +210,84 @@ public class HierarchicalKMeans {
                 removedElements++;
             }
         }
-
-        return kMeansIntermediate;
     }
 
-    static FloatVectorValues createClusterSlice(int clusterSize, int cluster, FloatVectorValues vectors, int[] assignments) {
+    private void recurseOffHeap(
+        OffHeapFloatVectorValues vectors,
+        int[] centroidVectorCount,
+        int clusterLimit,
+        KMeansIntermediate kMeansIntermediate,
+        int targetSize,
+        int depth
+    ) throws IOException {
+        String[] tmpVectorNames = new String[centroidVectorCount.length];
+        String[] tmpDocNames = new String[centroidVectorCount.length];
+        int removedElements = 0;
+        createTmpFiles(vectors, centroidVectorCount, kMeansIntermediate.assignments(), tmpVectorNames, tmpDocNames, depth);
+        try {
+            for (int c = 0; c < centroidVectorCount.length; c++) {
+                final int count = centroidVectorCount[c];
+                final int adjustedCentroid = c - removedElements;
+                if (count > clusterLimit) {
+                    // TODO: consider iterative here instead of recursive
+                    // recursive call to build out the sub partitions around this centroid c
+                    // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
+                    try (
+                        IndexInput input = directory.openInput(
+                            tmpVectorNames[adjustedCentroid],
+                            IOContext.DEFAULT.withReadAdvice(ReadAdvice.SEQUENTIAL)
+                        );
+                        IndexInput docInput = directory.openInput(
+                            tmpDocNames[adjustedCentroid],
+                            IOContext.DEFAULT.withReadAdvice(ReadAdvice.SEQUENTIAL)
+                        )
+                    ) {
+                        FloatVectorValues slice = new OffHeapFloatVectorValues(input, count, dimension, docInput);
+                        updateAssignmentsWithRecursiveSplit(
+                            kMeansIntermediate,
+                            adjustedCentroid,
+                            clusterAndSplit(slice, targetSize, depth + 1)
+                        );
+                    } finally {
+                        IOUtils.deleteFilesIgnoringExceptions(directory, tmpVectorNames[adjustedCentroid]);
+                        IOUtils.deleteFilesIgnoringExceptions(directory, tmpDocNames[adjustedCentroid]);
+                        tmpVectorNames[adjustedCentroid] = null;
+                        tmpDocNames[adjustedCentroid] = null;
+                    }
+
+                } else if (count == 0) {
+                    // remove empty clusters
+                    final int newSize = kMeansIntermediate.centroids().length - 1;
+                    final float[][] newCentroids = new float[newSize][];
+                    System.arraycopy(kMeansIntermediate.centroids(), 0, newCentroids, 0, adjustedCentroid);
+                    System.arraycopy(
+                        kMeansIntermediate.centroids(),
+                        adjustedCentroid + 1,
+                        newCentroids,
+                        adjustedCentroid,
+                        newSize - adjustedCentroid
+                    );
+                    // we need to update the assignments to reflect the new centroid ordinals
+                    for (int i = 0; i < kMeansIntermediate.assignments().length; i++) {
+                        if (kMeansIntermediate.assignments()[i] > adjustedCentroid) {
+                            kMeansIntermediate.assignments()[i]--;
+                        }
+                    }
+                    kMeansIntermediate.setCentroids(newCentroids);
+                    removedElements++;
+                }
+            }
+        } finally {
+            for (int i = 0; i < tmpVectorNames.length; i++) {
+                if (tmpVectorNames[i] != null) {
+                    IOUtils.deleteFilesIgnoringExceptions(directory, tmpVectorNames[i]);
+                    IOUtils.deleteFilesIgnoringExceptions(directory, tmpDocNames[i]);
+                }
+            }
+        }
+    }
+
+    private static FloatVectorValues createSlice(int clusterSize, int cluster, FloatVectorValues vectors, int[] assignments) {
         int[] slice = new int[clusterSize];
         int idx = 0;
         for (int i = 0; i < assignments.length; i++) {
@@ -172,11 +296,60 @@ public class HierarchicalKMeans {
                 idx++;
             }
         }
-
         return new FloatVectorValuesSlice(vectors, slice);
     }
 
-    void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
+    private void createTmpFiles(
+        OffHeapFloatVectorValues vectors,
+        int[] centroidVectorCount,
+        int[] assignments,
+        String[] vectorsTmpName,
+        String[] docTempName,
+        int depth
+    ) throws IOException {
+        IndexOutput[] vectorsOutputs = new IndexOutput[centroidVectorCount.length];
+        IndexOutput[] docOutputs = new IndexOutput[centroidVectorCount.length];
+        boolean success = false;
+        try {
+            for (int i = 0; i < assignments.length; i++) {
+                int cluster = assignments[i];
+                if (vectorsOutputs[cluster] == null) {
+                    vectorsOutputs[cluster] = directory.createTempOutput(
+                        segmentName,
+                        "hkmeans_vectors_" + cluster + "_" + depth,
+                        IOContext.DEFAULT
+                    );
+                    vectorsTmpName[cluster] = vectorsOutputs[cluster].getName();
+                    docOutputs[cluster] = directory.createTempOutput(
+                        segmentName,
+                        "hkmeans_docs_" + cluster + "_" + depth,
+                        IOContext.DEFAULT
+                    );
+                    docTempName[cluster] = docOutputs[cluster].getName();
+                }
+                vectors.writeVector(i, vectorsOutputs[cluster], docOutputs[cluster]);
+            }
+            success = true;
+        } finally {
+            IOUtils.close(vectorsOutputs);
+            IOUtils.close(docOutputs);
+            if (success == false) {
+                for (String tmpName : vectorsTmpName) {
+                    if (tmpName != null) {
+                        IOUtils.deleteFilesIgnoringExceptions(directory, tmpName);
+                    }
+                }
+                for (String tmpName : docTempName) {
+                    if (tmpName != null) {
+                        IOUtils.deleteFilesIgnoringExceptions(directory, tmpName);
+                    }
+                }
+            }
+        }
+
+    }
+
+    private static void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
         if (subPartitions.centroids().length == 0) {
             return; // nothing to do, sub-partitions is empty
         }

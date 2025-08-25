@@ -102,17 +102,7 @@ public class IndexAbstractionResolver {
                 // TODO not quite right: we need to record if we didn't have access for the fan-out action to throw
                 boolean authorized = isAuthorized.test(indexAbstraction, selector);
                 if (authorized) {
-                    var abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
-                    var visible = abstraction != null
-                        && isIndexVisible(
-                            indexAbstraction,
-                            selectorString,
-                            indexAbstraction,
-                            indicesOptions,
-                            projectMetadata,
-                            indexNameExpressionResolver,
-                            includeDataStreams
-                        );
+                    var visible = existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
                     finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, visible ? resolvedIndices : Set.of()));
                 } else {
                     finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, Set.of()));
@@ -218,18 +208,13 @@ public class IndexAbstractionResolver {
                 if (false == minus) {
                     boolean authorized = isAuthorized.test(indexAbstraction, selector);
                     if (authorized) {
-                        var abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
-                        var visible = abstraction != null
-                            && isIndexVisible(
-                                indexAbstraction,
-                                selectorString,
-                                indexAbstraction,
-                                indicesOptions,
-                                projectMetadata,
-                                indexNameExpressionResolver,
-                                includeDataStreams
-                            );
-                        if (false == visible) {
+                        if (false == existsAndVisible(
+                            indicesOptions,
+                            projectMetadata,
+                            includeDataStreams,
+                            indexAbstraction,
+                            selectorString
+                        )) {
                             resolvedSet.clear();
                         }
                     } else {
@@ -250,6 +235,26 @@ public class IndexAbstractionResolver {
         }
 
         return resolutionMap;
+    }
+
+    private boolean existsAndVisible(
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        boolean includeDataStreams,
+        String indexAbstraction,
+        String selectorString
+    ) {
+        var abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
+        return abstraction != null
+            && isIndexVisible(
+                indexAbstraction,
+                selectorString,
+                indexAbstraction,
+                indicesOptions,
+                projectMetadata,
+                indexNameExpressionResolver,
+                includeDataStreams
+            );
     }
 
     public List<String> resolveIndexAbstractions(

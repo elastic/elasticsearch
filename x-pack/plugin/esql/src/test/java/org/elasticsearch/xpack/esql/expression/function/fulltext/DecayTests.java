@@ -143,23 +143,39 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // CartesianPoint Linear
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (0 0)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 1.0));
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1 1)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 1.0));
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1000 2000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 0.8509433324420796));
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (-2000 1000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 0.8508234552350306));
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (1000 2000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 0.8509433324420796)
+        );
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (-2000 1000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 0.8508234552350306)
+        );
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (10000 20000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 0.0));
 
         // CartesianPoint Exponential
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (0 0)", "POINT (1 1)", 10000.0, 10.0, 0.33, "exp", 1.0));
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1 1)", "POINT (1 1)", 10000.0, 10.0, 0.33, "exp", 1.0));
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1000 2000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "exp", 0.7814164075951677));
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (-2000 1000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "exp", 0.7812614186677811));
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (10000 20000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "exp", 0.0839287052363121));
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (1000 2000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "exp", 0.7814164075951677)
+        );
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (-2000 1000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "exp", 0.7812614186677811)
+        );
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (10000 20000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "exp", 0.0839287052363121)
+        );
 
         // CartesianPoint Gaussian
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (0 0)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 1.0));
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1 1)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 1.0));
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1000 2000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.9466060873472042));
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (-2000 1000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.9465225092376659));
-        testCaseSuppliers.addAll(cartesianPointTestCase("POINT (10000 20000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.003935602627423666));
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (1000 2000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.9466060873472042)
+        );
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (-2000 1000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.9465225092376659)
+        );
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (10000 20000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.003935602627423666)
+        );
 
         // Datetime
         testCaseSuppliers.addAll(

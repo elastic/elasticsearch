@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomTokenAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,7 +93,7 @@ public class AuthenticationService {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
-        Collection<CustomTokenAuthenticator> customTokenAuthenticators,
+        List<CustomAuthenticator> customAuthenticators,
         MeterRegistry meterRegistry
     ) {
         this.realms = realms;
@@ -111,23 +110,15 @@ public class AuthenticationService {
         }
 
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
-        CustomTokenAuthenticator oauth2Authenticator = customTokenAuthenticators.stream()
-            .filter(t -> t.name().contains("oauth2"))
-            .findAny()
-            .orElse(new CustomTokenAuthenticator.Noop());
-        CustomTokenAuthenticator apiKeyAuthenticator = customTokenAuthenticators.stream()
-            .filter(t -> t.name().contains("api key"))
-            .findAny()
-            .orElse(new CustomTokenAuthenticator.Noop());
+
         this.authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
+            new PluggableAuthenticatorChain(customAuthenticators),
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
-            new PluggableOAuth2TokenAuthenticator(oauth2Authenticator),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),
-            new PluggableApiKeyAuthenticator(apiKeyAuthenticator),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
             new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
         );

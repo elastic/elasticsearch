@@ -1376,17 +1376,6 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public static Authentication newCloudAccessTokenAuthentication(AuthenticationResult<User> authResult, String nodeName) {
-        assert authResult.isAuthenticated() : "cloud token authn result must be successful";
-        final User user = authResult.getValue();
-        // #TODO is this right?
-        final Authentication.RealmRef authenticatedBy = new RealmRef("cloud-saml-kibana", "saml", nodeName, null);
-        return new Authentication(
-            new Subject(user, authenticatedBy, TransportVersion.current(), authResult.getMetadata()),
-            AuthenticationType.TOKEN
-        );
-    }
-
     public static Authentication newCloudApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
         assert authResult.isAuthenticated() : "cloud API Key authn result must be successful";
         final User apiKeyUser = authResult.getValue();

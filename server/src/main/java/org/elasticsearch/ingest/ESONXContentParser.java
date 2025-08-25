@@ -206,10 +206,7 @@ public abstract class ESONXContentParser extends AbstractXContentParser {
         while (containerStack.depth() > targetDepth) {
             int stackValue = containerStack.currentStackValue();
             if (ESONStack.fieldsRemaining(stackValue) == 0) {
-                while (ESONStack.fieldsRemaining(stackValue) == 0 && containerStack.depth() > targetDepth) {
-                    containerStack.popContainer();
-                    stackValue = containerStack.currentStackValue();
-                }
+                containerStack.popContainer();
             } else {
                 containerStack.updateRemainingFields(stackValue - 1);
                 ESONEntry entry = nextEntry();

@@ -46,7 +46,43 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Reduce a multivalued field to a single valued field containing the count of values.
+ * Function that takes two multi valued expressions and checks if values of one expression are all present(equals) in the other.
+ *  <ul>
+ *      <li>Set A = {"a","b","c"}</li>
+ *      <li>Set B = {"b","c"}</li>
+ *  </ul>
+ *  <table style="border-spacing: 0;">
+ *   <th>
+ *       <td></td><td colspan=3> Second Argument </td>
+ *   </th>
+ *   <tr>
+ *     <td></td>
+ *     <td></td>
+ *     <td> A </td>
+ *     <td> B </td>
+ *     <td> null </td>
+ *   </tr>
+ *   <tr>
+ *     <td rowspan=3> First <br/> Argument</td>
+ *     <td> A </td>
+ *     <td style="border: thin solid; padding: 5px"> true </td>
+ *     <td style="border: thin solid; padding: 5px"> true </td>
+ *     <td style="border: thin solid; padding: 5px"> true </td>
+ *   </tr>
+ *   <tr>
+ *     <td> B </td>
+ *     <td style="border: thin solid; padding: 5px"> false </td>
+ *     <td style="border: thin solid; padding: 5px"> true </td>
+ *     <td style="border: thin solid; padding: 5px"> true </td>
+ *   </tr>
+ *   <tr>
+ *     <td> null </td>
+ *     <td style="border: thin solid; padding: 5px"> false </td>
+ *     <td style="border: thin solid; padding: 5px"> false </td>
+ *     <td style="border: thin solid; padding: 5px"> true </td>
+ *   </tr>
+ * </table>
+ *
  */
 public class MvContains extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

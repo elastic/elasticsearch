@@ -1,7 +1,7 @@
 [[synthetic-source]]
 ==== Synthetic `_source`
 
-NOTE: This feature is only available with a certain subscription license. For more information, refer to https://www.elastic.co/subscriptions[Subscriptions].
+NOTE: This feature requires a https://www.elastic.co/subscriptions[subscription].
 
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you

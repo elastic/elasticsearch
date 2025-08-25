@@ -104,7 +104,17 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings.Builder builder = Settings.builder();
-        provider.provideAdditionalMetadata(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of(), builder, (k, v) -> {});
+        provider.provideAdditionalMetadata(
+            indexName,
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            null,
+            null,
+            settings,
+            List.of(),
+            builder,
+            (k, v) -> {}
+        );
         var result = builder.build();
         assertThat(result.size(), equalTo(0));
     }
@@ -137,7 +147,17 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings.Builder builder = Settings.builder();
-        provider.provideAdditionalMetadata(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of(), builder, (k, v) -> {});
+        provider.provideAdditionalMetadata(
+            indexName,
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            null,
+            null,
+            settings,
+            List.of(),
+            builder,
+            (k, v) -> {}
+        );
         var result = builder.build();
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));

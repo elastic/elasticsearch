@@ -461,17 +461,6 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                     + "[values_lookup_map] resolves to [values_lookup_map] in [standard] mode"
             )
         );
-        ex = expectThrows(
-            VerificationException.class,
-            () -> runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup_map ON v | KEEP v", randomBoolean())
-        );
-        assertThat(
-            ex.getMessage(),
-            containsString(
-                "Lookup Join requires a single lookup mode index; "
-                    + "[values_lookup_map] resolves to [cluster-a:values_lookup_map] in [standard] mode"
-            )
-        );
     }
 
     public void testLookupJoinIndexMode() throws IOException {

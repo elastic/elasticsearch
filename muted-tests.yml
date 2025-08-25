@@ -660,6 +660,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/133503
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/133504
 
 # Examples:
 #

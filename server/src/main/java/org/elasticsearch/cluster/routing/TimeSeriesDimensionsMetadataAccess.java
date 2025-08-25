@@ -14,7 +14,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class TimeSeriesDimensionsMetadataAccess {
 

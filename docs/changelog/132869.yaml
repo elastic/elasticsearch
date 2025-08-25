@@ -1,0 +1,5 @@
+pr: 132869
+summary: Implement url_encode and url_decode functions
+area: ES|QL
+type: enhancement
+issues: []

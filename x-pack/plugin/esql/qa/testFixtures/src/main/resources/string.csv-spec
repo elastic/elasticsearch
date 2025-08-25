@@ -2465,3 +2465,36 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
     @timestamp:date     | message:text
 2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
 ;
+
+url_encode sample for docs
+required_capability: url_decode_encode
+
+// tag::url_encode[]
+ROW u = "http://elastic.co" 
+| EVAL e = URL_ENCODE(u)
+// end::url_encode[]
+;
+
+// tag::url_encode-result[]
+u:keyword           | e:keyword
+http://elastic.co   | http%3A%2F%2Felastic.co
+// end::url_encode-result[]
+;
+
+url_encode mixed functions tests
+FROM employees 
+    | WHERE emp_no == 10001 
+    | EVAL a = TRIM(URL_ENCODE(first_name))
+    | EVAL b = URL_ENCODE(TO_LOWER(first_name))
+    | KEEP a,b;
+
+a:keyword | b:keyword
+Georgi    | georgi 
+;
+
+url_encode mixed input tests
+ROW u = ["hello elastic!", "a+b-c%d", "", "!#$&'()+,/:;=?@[]"] | EVAL u = URL_ENCODE(u);
+
+u:keyword
+["hello+elastic%21", "a%2Bb-c%25d", "", "%21%23%24%26%27%28%29%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"]
+;

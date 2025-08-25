@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -448,7 +449,8 @@ public class EsqlFunctionRegistry {
                 def(ToString.class, ToString::new, "to_string", "to_str"),
                 def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
                 def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
-                def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
+                def(ToVersion.class, ToVersion::new, "to_version", "to_ver"),
+                def(UrlEncode.class, UrlEncode::new, "url_encode"), },
             // multivalue functions
             new FunctionDefinition[] {
                 def(MvAppend.class, MvAppend::new, "mv_append"),

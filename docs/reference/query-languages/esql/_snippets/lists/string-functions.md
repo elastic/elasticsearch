@@ -25,3 +25,4 @@
 * [`TO_LOWER`](../../functions-operators/string-functions.md#esql-to_lower)
 * [`TO_UPPER`](../../functions-operators/string-functions.md#esql-to_upper)
 * [`TRIM`](../../functions-operators/string-functions.md#esql-trim)
+* [`URL_ENCODE`](../../functions-operators/string-functions.md#esql-url_encode)

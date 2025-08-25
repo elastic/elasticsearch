@@ -1401,6 +1401,11 @@ public class EsqlCapabilities {
          */
         NAME_QUALIFIERS(Build.current().isSnapshot());
 
+        /**
+         * URL encoding function.
+         */
+        URL_ENCODE;
+
         private final boolean enabled;
 
         Cap() {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -733,5 +734,41 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
 
         var source = as(aggregate.child(), StubRelation.class);
         assertThat(Expressions.names(source.output()), contains("emp_no", "salary"));
+    }
+
+    /*
+     * EsqlProject[[emp_no{f}#9, count{r}#5, cc{r}#8]]
+     * \_Eval[[0[LONG] AS count#5, 0[LONG] AS cc#8]]
+     *   \_TopN[[Order[emp_no{f}#9,ASC,LAST]],3[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testReplaceTwoConsecutiveInlinestats_WithFalseFilters() {
+        var plan = plan("""
+            from test
+                | keep emp_no
+                | sort emp_no
+                | limit 3
+                | inlinestats count = count(*) where false
+                | inlinestats cc = count_distinct(emp_no) where false
+            """);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), contains("emp_no", "count", "cc"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(2));
+
+        var aliasCount = as(eval.fields().get(0), Alias.class);
+        assertThat(Expressions.name(aliasCount), startsWith("count"));
+        assertTrue(aliasCount.child().foldable());
+        assertThat(aliasCount.child().fold(FoldContext.small()), is(0L));
+
+        var aliasCc = as(eval.fields().get(1), Alias.class);
+        assertThat(Expressions.name(aliasCc), startsWith("cc"));
+        assertTrue(aliasCc.child().foldable());
+        assertThat(aliasCc.child().fold(FoldContext.small()), is(0L));
+
+        var topN = as(eval.child(), TopN.class);
+        as(topN.child(), EsRelation.class);
     }
 }

@@ -77,8 +77,8 @@ public class InlineJoin extends Join {
 
     /**
      * Replaces the stubbed source with the actual source.
-     * NOTE: this will replace all {@link StubRelation}s found with the source and the method is meant to be used to replace one node only
-     * when being called on a plan that has only ONE StubRelation in it.
+     * NOTE: this will replace the first {@link StubRelation}s found with the source and the method is meant to be used to replace one node
+     * only when being called on a plan that has only ONE StubRelation in it.
      */
     public static LogicalPlan replaceStub(LogicalPlan stubReplacement, LogicalPlan stubbedPlan) {
         // here we could have used stubbed.transformUp(StubRelation.class, stubRelation -> source)
@@ -92,12 +92,14 @@ public class InlineJoin extends Join {
                     doneReplacing.set(true);
                     return up.replaceChild(stubReplacement);
                 }
-                assert false : "Expected to replace a single StubRelation in the plan, but found more than one";
+                throw new IllegalStateException("Expected to replace a single StubRelation in the plan, but found more than one");
             }
             return up;
         });
 
-        assert doneReplacing.get() : "Expected to replace a single StubRelation in the plan, but none found";
+        if (doneReplacing.get() == false) {
+            throw new IllegalStateException("Expected to replace a single StubRelation in the plan, but none found");
+        }
 
         return result;
     }

@@ -85,15 +85,12 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                 if (newAggs.isEmpty()) { // the Aggregate node is pruned
                     if (ij != null) { // this is an Aggregate part of right-hand side of an InlineJoin
                         final LogicalPlan leftHandSide = ij.left(); // final so we can use it in the lambda below
-                        // replace the right hand side Aggregate with an Eval
-                        var newRight = ij.right().transformDown(Aggregate.class, agg -> {
-                            LogicalPlan p = agg;
-                            if (agg == aggregate) {
-                                // the aggregate becomes a simple Eval since it's not needed anymore (it was replaced with Literals)
-                                p = new Eval(aggregate.source(), aggregate.child(), newEvals);
-                            }
-                            return p;
-                        });
+                        // the aggregate becomes a simple Eval since it's not needed anymore (it was replaced with Literals)
+                        var newRight = ij.right()
+                            .transformDown(
+                                Aggregate.class,
+                                agg -> agg == aggregate ? new Eval(aggregate.source(), aggregate.child(), newEvals) : agg
+                            );
                         // Remove the StubRelation since the right-hand side of the join is now part of the main plan
                         // and it won't be executed separately by the EsqlSession inlinestats planning.
                         newRight = InlineJoin.replaceStub(leftHandSide, newRight);

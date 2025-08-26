@@ -322,12 +322,6 @@ public class BlockFactory {
         return b;
     }
 
-    public DoubleVector newDoubleOverLongArrayVector(long[] values, BlockUtils.ToDouble toDouble, int positions) {
-        var v = new DoubleOverLongArrayVector(values, toDouble, positions, this);
-        adjustBreaker(v.ramBytesUsed());
-        return v;
-    }
-
     public final LongBlock newConstantLongBlockWith(long value, int positions) {
         return newConstantLongBlockWith(value, positions, 0L);
     }

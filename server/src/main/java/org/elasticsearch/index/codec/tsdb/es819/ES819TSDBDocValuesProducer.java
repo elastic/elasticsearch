@@ -384,7 +384,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
 
             @Override
-            public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+            public BlockLoader.Block tryRead(
+                BlockLoader.BlockFactory factory,
+                BlockLoader.Docs docs,
+                int offset,
+                BlockDocValuesReader.ToDouble toDouble
+            ) throws IOException {
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
                     var block = tryReadAHead(factory, docs, offset);
                     if (block != null) {
@@ -458,7 +463,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+        public BlockLoader.Block tryRead(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            BlockDocValuesReader.ToDouble toDouble
+        ) throws IOException {
             return null;
         }
 
@@ -505,7 +515,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+        public BlockLoader.Block tryRead(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            BlockDocValuesReader.ToDouble toDouble
+        ) throws IOException {
             return null;
         }
 
@@ -1366,21 +1381,19 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
-                    try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
-                        return tryRead(builder, docs, offset);
-                    }
-                }
-
-                @Override
-                public BlockLoader.Block tryReadDoubles(
+                public BlockLoader.Block tryRead(
                     BlockLoader.BlockFactory factory,
                     BlockLoader.Docs docs,
                     int offset,
                     BlockDocValuesReader.ToDouble toDouble
                 ) throws IOException {
+                    if (toDouble != null) {
+                        try (BlockLoader.SingletonDoubleBuilder builder = factory.singletonDoubles(docs.count() - offset)) {
+                            SingletonLongToDoubleDelegate delegate = new SingletonLongToDoubleDelegate(builder, toDouble);
+                            return tryRead(delegate, docs, offset);
+                        }
+                    }
                     try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
-                        builder.setToDouble(toDouble);
                         return tryRead(builder, docs, offset);
                     }
                 }
@@ -1783,7 +1796,53 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public void setToDouble(BlockDocValuesReader.ToDouble toDouble) {
+        public void close() {}
+    }
+
+    // Block builder that consumes long values and converts them to double using the provided converter function.
+    static final class SingletonLongToDoubleDelegate implements BlockLoader.SingletonLongBuilder {
+        private final BlockLoader.SingletonDoubleBuilder doubleBuilder;
+        private final BlockDocValuesReader.ToDouble toDouble;
+        private final double[] buffer = new double[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+
+        // The passed builder is used to store the converted double values and produce the final block containing them.
+        SingletonLongToDoubleDelegate(BlockLoader.SingletonDoubleBuilder doubleBuilder, BlockDocValuesReader.ToDouble toDouble) {
+            this.doubleBuilder = doubleBuilder;
+            this.toDouble = toDouble;
+        }
+
+        @Override
+        public BlockLoader.SingletonLongBuilder appendLong(long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
+            assert length <= buffer.length : "length " + length + " > " + buffer.length;
+            for (int i = 0; i < length; i++) {
+                buffer[i] = toDouble.convert(values[from + i]);
+            }
+            doubleBuilder.appendDoubles(buffer, 0, length);
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            return doubleBuilder.build();
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
             throw new UnsupportedOperationException();
         }
 

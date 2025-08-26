@@ -508,7 +508,7 @@ public enum DataType {
         return t == TIME_DURATION;
     }
 
-    public static boolean isDateNanos(DataType t){
+    public static boolean isDateNanos(DataType t) {
         return t == DATE_NANOS;
     }
 

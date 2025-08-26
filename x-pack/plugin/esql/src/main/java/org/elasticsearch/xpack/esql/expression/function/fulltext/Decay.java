@@ -12,7 +12,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
@@ -35,9 +34,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -310,7 +306,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         // Handle temporal scale conversion - fold temporal amounts to milliseconds or nanos depending on the value type
         EvalOperator.ExpressionEvaluator.Factory scaleFactory;
         if (isTimeDuration(scale.dataType())) {
-            if(isDateNanos(valueDataType)){
+            if (isDateNanos(valueDataType)) {
                 scaleFactory = getTemporalScaleAsNanos(toEvaluator);
             } else {
                 scaleFactory = getTemporalScaleAsMillis(toEvaluator);
@@ -323,7 +319,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         EvalOperator.ExpressionEvaluator.Factory offsetFactory;
         if (offset != null) {
             if (isTimeDuration(offset.dataType())) {
-                if(isDateNanos(valueDataType)){
+                if (isDateNanos(valueDataType)) {
                     offsetFactory = getTemporalOffsetAsNanos(toEvaluator);
                 } else {
                     offsetFactory = getTemporalOffsetAsMillis(toEvaluator);

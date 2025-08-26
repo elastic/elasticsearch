@@ -94,6 +94,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbe
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1023,6 +1024,34 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
         Query existsQuery = ((SemanticTextFieldMapper) mapper).fieldType().existsQuery(searchExecutionContext);
         assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
+    }
+
+    /**
+     * Semantic text version error supersedes deprecated boost warning
+     * @throws IOException
+     */
+    @Override
+    public void testDeprecatedBoostWarning() throws IOException {
+        try {
+            createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
+                minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);
+                b.field("boost", 2.0);
+            }));
+            String[] warnings = Strings.concatStringArrays(
+                getParseMinimalWarnings(DEPRECATED_BOOST_INDEX_VERSION),
+                new String[] { "Parameter [boost] on field [field] is deprecated and has no effect" }
+            );
+            assertWarnings(warnings);
+        } catch (MapperParsingException e) {
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    containsString(UNSUPPORTED_INDEX_MESSAGE),
+                    containsString("Unknown parameter [boost]"),
+                    containsString("[boost : 2.0]")
+                )
+            );
+        }
     }
 
     @Override

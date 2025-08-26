@@ -36,7 +36,7 @@ import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStr
  * <p>The {@link RemoteClusterSettings#toConfig(String, Settings)} and {@link RemoteClusterSettings#toConfig(ProjectId, String, Settings)}
  * methods can be used to read {@link RemoteClusterSettings} to build a concrete {@link LinkedProjectConfig} from {@link Settings}.</p>
  */
-public interface LinkedProjectConfig {
+public sealed interface LinkedProjectConfig {
     ProjectId originProjectId();
 
     ProjectId linkedProjectId();

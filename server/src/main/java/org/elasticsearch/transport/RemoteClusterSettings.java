@@ -377,16 +377,13 @@ public class RemoteClusterSettings {
         @SuppressWarnings("unchecked")
         private static boolean isConnectionEnabled(String clusterAlias, Map<Setting<?>, Object> settings) {
             final var mode = (ConnectionStrategy) settings.get(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias));
-            final var builder = LinkedProjectConfig.buildForAlias(clusterAlias).connectionStrategy(mode);
             return switch (mode) {
-                case SNIFF -> builder.sniffSeedNodes(
-                    (List<String>) settings.get(
-                        SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias)
-                    )
-                ).build().isConnectionEnabled();
-                case PROXY -> builder.proxyAddress(
-                    (String) settings.get(ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias))
-                ).build().isConnectionEnabled();
+                case SNIFF -> ((List<String>) settings.get(
+                    SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias)
+                )).isEmpty() == false;
+                case PROXY -> ((String) settings.get(
+                    ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias)
+                )).isEmpty() == false;
             };
         }
     }

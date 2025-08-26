@@ -179,6 +179,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /failureaccess.*/, to: 'guava'
   mapping from: 'content-type', to: 'nimbus'
+  mapping from: /nimbus.*/, to: 'nimbus'
 }
 
 tasks.named("forbiddenPatterns").configure {

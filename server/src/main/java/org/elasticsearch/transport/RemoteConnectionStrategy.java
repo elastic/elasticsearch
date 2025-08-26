@@ -38,7 +38,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
-    public enum ConnectionStrategy {
+    enum ConnectionStrategy {
         SNIFF(SniffConnectionStrategy.CHANNELS_PER_CONNECTION, SniffConnectionStrategy::infoReader) {
             @Override
             public String toString() {

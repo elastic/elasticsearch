@@ -290,7 +290,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey expectedEighthKey = new StepKey(phase, ShrinkAction.NAME, GenerateUniqueIndexNameStep.NAME);
         StepKey expectedNinthKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
         StepKey expectedTenthKey = new StepKey(phase, ShrinkAction.NAME, CheckShrinkReadyStep.NAME);
-        StepKey expectedEleventhKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
+        StepKey expectedEleventhKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.SHRINK_STEP);
         StepKey expectedTwelveKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
         StepKey expectedThirteenKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
         StepKey expectedFourteenKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
@@ -348,7 +348,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(9).getKey(), equalTo(expectedTenthKey));
         assertThat(steps.get(9).getNextStepKey(), equalTo(expectedEleventhKey));
 
-        assertTrue(steps.get(10) instanceof ShrinkStep);
+        assertTrue(steps.get(10) instanceof ResizeIndexStep);
         assertThat(steps.get(10).getKey(), equalTo(expectedEleventhKey));
         assertThat(steps.get(10).getNextStepKey(), equalTo(expectedTwelveKey));
 

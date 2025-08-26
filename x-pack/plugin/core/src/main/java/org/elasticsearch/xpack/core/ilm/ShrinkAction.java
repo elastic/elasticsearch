@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.shrink.ResizeNumberOfShardsCalculator;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -46,6 +47,7 @@ public class ShrinkAction implements LifecycleAction {
     public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     public static final ParseField ALLOW_WRITE_AFTER_SHRINK = new ParseField("allow_write_after_shrink");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
+    public static final String SHRINK_STEP = "shrink";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER = new ConstructingObjectParser<>(
@@ -172,7 +174,7 @@ public class ShrinkAction implements LifecycleAction {
         StepKey generateShrinkIndexNameKey = new StepKey(phase, NAME, GenerateUniqueIndexNameStep.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, NAME, CheckShrinkReadyStep.NAME);
-        StepKey shrinkKey = new StepKey(phase, NAME, ShrinkStep.NAME);
+        StepKey shrinkKey = new StepKey(phase, NAME, SHRINK_STEP);
         StepKey enoughShardsKey = new StepKey(phase, NAME, ShrunkShardsAllocatedStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
@@ -265,7 +267,24 @@ public class ShrinkAction implements LifecycleAction {
             new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey),
             setSingleNodeKey
         );
-        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize);
+        ResizeIndexStep shrink = new ResizeIndexStep(
+            shrinkKey,
+            enoughShardsKey,
+            client,
+            ResizeType.SHRINK,
+            ShrinkIndexNameSupplier::getShrinkIndexName,
+            indexMetadata -> {
+                Settings.Builder settingsBuilder = Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
+                    // We need to remove the single node allocation so replicas can be allocated.
+                    .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
+                if (numberOfShards != null) {
+                    settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);
+                }
+                return settingsBuilder.build();
+            },
+            maxPrimaryShardSize
+        );
         // wait until the shrunk index is recovered. we again wait until the configured threshold is breached and if the shrunk index has
         // not successfully recovered until then, we rewind to the "cleanup-shrink-index" step to delete this unsuccessful shrunk index
         // and retry the operation by generating a new shrink index name and attempting to shrink again

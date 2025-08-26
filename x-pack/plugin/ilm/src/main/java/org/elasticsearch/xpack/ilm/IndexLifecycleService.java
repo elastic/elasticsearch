@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -84,7 +83,7 @@ public class IndexLifecycleService
         IndexEventListener,
         ShutdownAwarePlugin {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, DownsampleStep.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkAction.SHRINK_STEP, DownsampleStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 
@@ -618,7 +617,7 @@ public class IndexLifecycleService
                     String step = indexToMetadata.getValue().getLifecycleExecutionState().step();
                     return SetSingleNodeAllocateStep.NAME.equals(step)
                         || CheckShrinkReadyStep.NAME.equals(step)
-                        || ShrinkStep.NAME.equals(step)
+                        || ShrinkAction.SHRINK_STEP.equals(step)
                         || ShrunkShardsAllocatedStep.NAME.equals(step);
                 })
                 // Only look at indices where the node picked for the shrink is the node marked as shutting down

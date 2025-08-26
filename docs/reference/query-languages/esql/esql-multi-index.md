@@ -135,6 +135,8 @@ FROM events_*
 | 2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889 | Connected to 10.1.0.2 |
 | 2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233 | Connected to 10.1.0.3 |
 
+### Date and date_nanos union type [esql-multi-index-date-date-nanos-union]
+
 When the type of an {{ES|QL}} field is a *union* of `date` and `date_nanos` across different indices, {{ES|QL}} automatically casts all values to the `date_nanos` type during query execution. This implicit casting ensures that all values are handled with nanosecond precision, regardless of their original type. As a result, users can write queries against such fields without needing to perform explicit type conversions, and the query engine will seamlessly align the types for consistent and precise results.
 
 For example, if the `@timestamp` field is mapped as `date` in one index and `date_nanos` in another, {{ES|QL}} will automatically treat all `@timestamp` values as `date_nanos` during query execution. This allows users to write queries that utilize the `@timestamp` field without encountering type mismatch errors, ensuring accurate time-based operations and comparisons across the combined dataset.

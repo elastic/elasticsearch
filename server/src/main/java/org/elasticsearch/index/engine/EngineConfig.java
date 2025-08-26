@@ -127,8 +127,7 @@ public final class EngineConfig {
     public static final String USE_COMPOUND_FILE = "index.use_compound_file";
 
     /**
-     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
-     * TODO: Remove in 9.0
+     * Legacy index setting, kept for 7.x read-only BWC compatibility. This setting has no effect in 8.x. Do not use.
      */
     @Deprecated
     public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(

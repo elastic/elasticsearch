@@ -163,7 +163,7 @@ public class LinkedProjectConfigTests extends ESTestCase {
         assertThat(config.transportConnectTimeout(), equalTo(TransportSettings.CONNECT_TIMEOUT.getDefault(EMPTY)));
         assertThat(config.connectionCompression(), equalTo(getDefault(REMOTE_CLUSTER_COMPRESS, alias)));
         assertThat(config.connectionCompressionScheme(), equalTo(getDefault(REMOTE_CLUSTER_COMPRESSION_SCHEME, alias)));
-        assertThat(config.clusterPingSchedule().toString(), equalTo(getDefault(REMOTE_CLUSTER_PING_SCHEDULE, alias).toString()));
+        assertThat(config.clusterPingSchedule(), equalTo(getDefault(REMOTE_CLUSTER_PING_SCHEDULE, alias)));
         assertThat(config.initialConnectionTimeout(), equalTo(REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.getDefault(EMPTY)));
         assertThat(config.maxPendingConnectionListeners(), equalTo(REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getDefault(EMPTY)));
         assertThat(config.skipUnavailable(), equalTo(getDefault(REMOTE_CLUSTER_SKIP_UNAVAILABLE, alias)));

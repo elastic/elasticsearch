@@ -81,7 +81,7 @@ public final class TransportSettings {
         Setting.Property.NodeScope
     );
     // the scheduled internal ping interval setting, defaults to disabled (-1)
-    public static final TimeValue DEFAULT_PING_SCHEDULE = TimeValue.timeValueSeconds(-1);
+    public static final TimeValue DEFAULT_PING_SCHEDULE = TimeValue.MINUS_ONE;
     public static final Setting<TimeValue> PING_SCHEDULE = timeSetting(
         "transport.ping_schedule",
         DEFAULT_PING_SCHEDULE,

@@ -114,7 +114,6 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
             .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA))
             .execute();
         awaitClusterState(
-            logger,
             indexNodeA,
             clusterState -> clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId().equals(indexNodeBId)
         );

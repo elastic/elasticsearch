@@ -38,7 +38,7 @@ public class LinkedProjectConfigTests extends ESTestCase {
     private static final Settings EMPTY = Settings.EMPTY;
 
     public void testBuildProxyConnectionStrategyConfig() {
-        final var config = new LinkedProjectConfig.ProxyConnectionStrategyConfig(
+        final var config = new LinkedProjectConfig.ProxyLinkedProjectConfig(
             ProjectId.fromId(randomAlphaOfLength(10)),
             ProjectId.fromId(randomAlphaOfLength(10)),
             randomAlphanumericOfLength(20),
@@ -77,7 +77,7 @@ public class LinkedProjectConfigTests extends ESTestCase {
 
     public void testBuildSniffConnectionStrategyConfig() {
         final var seedNodes = List.of("foo:9400", "bar:9400", "baz:9400");
-        final var config = new LinkedProjectConfig.SniffConnectionStrategyConfig(
+        final var config = new LinkedProjectConfig.SniffLinkedProjectConfig(
             ProjectId.fromId(randomAlphaOfLength(10)),
             ProjectId.fromId(randomAlphaOfLength(10)),
             randomAlphanumericOfLength(20),

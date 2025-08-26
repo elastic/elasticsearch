@@ -49,7 +49,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.LinkedProjectConfig.SniffConnectionStrategyConfig;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfig;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
@@ -66,11 +66,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final String proxyAddress;
     private final Executor managementExecutor;
 
-    SniffConnectionStrategy(
-        SniffConnectionStrategyConfig config,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager
-    ) {
+    SniffConnectionStrategy(SniffLinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
         this(
             config,
             config.seedNodes()
@@ -89,7 +85,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     SniffConnectionStrategy(
-        SniffConnectionStrategyConfig config,
+        SniffLinkedProjectConfig config,
         List<Supplier<DiscoveryNode>> seedNodesSupplier,
         TransportService transportService,
         RemoteConnectionManager connectionManager
@@ -114,8 +110,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
-        assert config instanceof SniffConnectionStrategyConfig : "expected config to be of type " + SniffConnectionStrategyConfig.class;
-        final var sniffConfig = (SniffConnectionStrategyConfig) config;
+        assert config instanceof SniffLinkedProjectConfig : "expected config to be of type " + SniffLinkedProjectConfig.class;
+        final var sniffConfig = (SniffLinkedProjectConfig) config;
         return sniffConfig.maxNumConnections() != maxNumRemoteConnections
             || seedsChanged(configuredSeedNodes, sniffConfig.seedNodes())
             || proxyChanged(proxyAddress, sniffConfig.proxyAddress());

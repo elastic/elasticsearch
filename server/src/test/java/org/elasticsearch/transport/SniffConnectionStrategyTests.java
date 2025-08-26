@@ -58,7 +58,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
-import static org.elasticsearch.transport.LinkedProjectConfig.SniffConnectionStrategyConfig;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfig;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY;
@@ -1212,15 +1212,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    private static SniffConnectionStrategyConfig sniffStrategyConfig(
-        String linkedProjectAlias,
-        int maxNumConnections,
-        List<String> seedNodes
-    ) {
+    private static SniffLinkedProjectConfig sniffStrategyConfig(String linkedProjectAlias, int maxNumConnections, List<String> seedNodes) {
         return sniffStrategyConfig(linkedProjectAlias, maxNumConnections, n -> true, seedNodes);
     }
 
-    private static SniffConnectionStrategyConfig sniffStrategyConfig(
+    private static SniffLinkedProjectConfig sniffStrategyConfig(
         String linkedProjectAlias,
         int maxNumConnections,
         Predicate<DiscoveryNode> nodePredicate,

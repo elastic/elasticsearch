@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.LinkedProjectConfig.ProxyConnectionStrategyConfig;
+import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfig;
 
 public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -53,16 +53,12 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ConnectionManager.ConnectionValidator clusterNameValidator;
 
-    ProxyConnectionStrategy(
-        ProxyConnectionStrategyConfig config,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager
-    ) {
+    ProxyConnectionStrategy(ProxyLinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
         this(config, () -> resolveAddress(config.proxyAddress()), transportService, connectionManager);
     }
 
     ProxyConnectionStrategy(
-        ProxyConnectionStrategyConfig config,
+        ProxyLinkedProjectConfig config,
         Supplier<TransportAddress> address,
         TransportService transportService,
         RemoteConnectionManager connectionManager
@@ -111,8 +107,8 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
-        assert config instanceof ProxyConnectionStrategyConfig : "expected config to be of type " + ProxyConnectionStrategy.class;
-        final var proxyConfig = (ProxyConnectionStrategyConfig) config;
+        assert config instanceof ProxyLinkedProjectConfig : "expected config to be of type " + ProxyConnectionStrategy.class;
+        final var proxyConfig = (ProxyLinkedProjectConfig) config;
         return proxyConfig.maxNumConnections() != maxNumConnections
             || configuredAddress.equals(proxyConfig.proxyAddress()) == false
             || Objects.equals(proxyConfig.serverName(), configuredServerName) == false;

@@ -66,7 +66,7 @@ public sealed interface LinkedProjectConfig {
     /**
      * Configuration for initializing {@link RemoteClusterConnection}s to linked projects using the {@link ProxyConnectionStrategy}.
      */
-    record ProxyConnectionStrategyConfig(
+    record ProxyLinkedProjectConfig(
         ProjectId originProjectId,
         ProjectId linkedProjectId,
         String linkedProjectAlias,
@@ -104,7 +104,7 @@ public sealed interface LinkedProjectConfig {
     /**
      * Configuration for initializing {@link RemoteClusterConnection}s to linked projects using the {@link SniffConnectionStrategy}.
      */
-    record SniffConnectionStrategyConfig(
+    record SniffLinkedProjectConfig(
         ProjectId originProjectId,
         ProjectId linkedProjectId,
         String linkedProjectAlias,
@@ -285,11 +285,11 @@ public sealed interface LinkedProjectConfig {
             };
         }
 
-        public ProxyConnectionStrategyConfig buildProxyConnectionStrategyConfig() {
+        public ProxyLinkedProjectConfig buildProxyConnectionStrategyConfig() {
             if (connectionStrategy != null && ConnectionStrategy.PROXY.equals(connectionStrategy) == false) {
                 throw new IllegalArgumentException("ConnectionStrategy must be PROXY");
             }
-            return new ProxyConnectionStrategyConfig(
+            return new ProxyLinkedProjectConfig(
                 originProjectId,
                 linkedProjectId,
                 linkedProjectAlias,
@@ -306,11 +306,11 @@ public sealed interface LinkedProjectConfig {
             );
         }
 
-        public SniffConnectionStrategyConfig buildSniffConnectionStrategyConfig() {
+        public SniffLinkedProjectConfig buildSniffConnectionStrategyConfig() {
             if (connectionStrategy != null && ConnectionStrategy.SNIFF.equals(connectionStrategy) == false) {
                 throw new IllegalArgumentException("ConnectionStrategy must be SNIFF");
             }
-            return new SniffConnectionStrategyConfig(
+            return new SniffLinkedProjectConfig(
                 originProjectId,
                 linkedProjectId,
                 linkedProjectAlias,

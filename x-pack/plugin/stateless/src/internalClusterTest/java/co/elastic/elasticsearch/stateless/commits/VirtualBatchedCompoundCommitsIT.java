@@ -524,7 +524,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         // Relocate primary, which will make the action retry due to the IndexNotFoundException on the original indexing node
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         awaitClusterState(
-            logger,
             indexNodeA,
             clusterState -> clusterState.routingTable()
                 .index(indexName)
@@ -962,7 +961,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
             final String indexNodeBNodeId = getNodeId(indexNodeB);
             awaitClusterState(
-                logger,
                 indexNodeA,
                 clusterState -> clusterState.routingTable()
                     .index(indexName)

@@ -666,7 +666,7 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
 
         logger.info("--> removing index {}", indexName);
         admin().indices().delete(new DeleteIndexRequest(indexName));
-        awaitClusterState(logger, indexNode, state -> state.getRoutingTable().index(indexName) == null);
+        awaitClusterState(indexNode, state -> state.getRoutingTable().index(indexName) == null);
 
         logger.info("--> resume recovery commit registration");
         waitForChangesOnIndexingSide.countDown();

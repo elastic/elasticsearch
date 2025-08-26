@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
@@ -389,6 +390,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         for (Page page : results) {
             assertThat(page.getPositionCount(), lessThanOrEqualTo(factory.maxPageSize()));
         }
+        assertAllRefCountedSameInstance(results);
 
         for (Page page : results) {
             LongBlock sBlock = page.getBlock(initialBlockIndex(page));
@@ -497,6 +499,19 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         @Override
         public boolean hasReferences() {
             return true;
+        }
+    }
+
+    static void assertAllRefCountedSameInstance(List<Page> results) {
+        ShardRefCounted firstRefCounted = null;
+        for (Page page : results) {
+            DocBlock docs = page.getBlock(0);
+            ShardRefCounted refCounted = docs.asVector().shardRefCounted();
+            if (firstRefCounted == null) {
+                firstRefCounted = refCounted;
+            } else {
+                assertThat(refCounted, sameInstance(firstRefCounted));
+            }
         }
     }
 }

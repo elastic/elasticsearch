@@ -312,14 +312,14 @@ public class RemoteClusterSettings {
         return toConfigBuilder(clusterAlias, settings).originProjectId(originProjectId).build();
     }
 
-    public static LinkedProjectConfig.Builder toConfigBuilder(String clusterAlias, Settings settings) {
+    private static LinkedProjectConfig.Builder toConfigBuilder(String clusterAlias, Settings settings) {
         final var builder = LinkedProjectConfig.buildForAlias(clusterAlias);
         readConnectionSettings(clusterAlias, settings, builder);
         readConnectionStrategySettings(clusterAlias, settings, builder);
         return builder;
     }
 
-    public static void readConnectionSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder builder) {
+    private static void readConnectionSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder builder) {
         builder.transportConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .connectionCompression(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .connectionCompressionScheme(REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(clusterAlias).get(settings))

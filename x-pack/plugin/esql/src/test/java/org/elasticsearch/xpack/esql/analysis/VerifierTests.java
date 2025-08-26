@@ -388,6 +388,14 @@ public class VerifierTests extends ESTestCase {
             "1:19: grouping key [e] already specified in the STATS BY clause",
             error("from test | stats e BY e = languages + emp_no")
         );
+        assertEquals(
+            "1:19: grouping key [[q].[e]] already specified in the STATS BY clause",
+            error("from test | stats [q].[e] BY [q].[e]")
+        );
+        assertEquals(
+            "1:19: Cannot specify grouping expression [[q].[e]] as an aggregate",
+            error("from test | stats [q].[e] BY x = [q].[e]")
+        );
 
         var message = error("from test | stats languages + emp_no BY e = languages + emp_no");
         assertThat(

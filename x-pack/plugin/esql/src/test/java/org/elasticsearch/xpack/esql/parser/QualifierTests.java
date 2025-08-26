@@ -9,22 +9,57 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+
+import java.util.function.Function;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 public class QualifierTests extends AbstractStatementParserTests {
     public void testQualifiersAreDisabledInReleaseBuilds() {
         assumeFalse("Test only release builds", Build.current().isSnapshot());
 
-        // Check that qualifiers are disabled in the qualifiedName grammar rule.
+        // Check that qualifiers are disabled in the qualifiedName grammar rule.field
         expectError("ROW x = 1 | WHERE [qualified].[field]", "no viable alternative at input '['");
         // Check that qualifiers are disabled in the qualifiedNamePattern grammar rule.
         expectError("ROW x = 1 | KEEP [qualified] . [field]", "no viable alternative at input '['");
         // Check that qualifiers are disabled in the LOOKUP JOIN grammar.
         expectError("ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x", "no viable alternative at input 'lu_idx'");
         expectError("ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x", "no viable alternative at input 'lu_idx'");
+    }
+
+    /**
+     * Expects
+     * Filter[?[qualified].[field]]
+     * \_LookupJoin[LEFT OUTER USING [?x],[],[],[],false]
+     *   |_Row[[1[INTEGER] AS x#2]]
+     *   \_UnresolvedRelation[lu_idx]
+     * TODO: LOOKUP JOIN's qualifier will need to make it into the parsed plan node.
+     */
+    public void testSimpleQualifierInExpression() {
+        String query = "ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x | WHERE [qualified].[field]";
+
+        LogicalPlan plan = statement(query);
+        Filter filter = as(plan, Filter.class);
+        LookupJoin join = as(filter.child(), LookupJoin.class);
+        Row row = as(join.left(), Row.class);
+        UnresolvedRelation relation = as(join.right(), UnresolvedRelation.class);
+
+        UnresolvedAttribute filterExpr = as(filter.condition(), UnresolvedAttribute.class);
+        assertEquals(new UnresolvedAttribute(Source.EMPTY, "qualified", "field", null), filterExpr);
+        assertEquals("Unknown column [[qualified].[field]]", filterExpr.unresolvedMessage());
+
+        String referenceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x | WHERE qualified.field";
+        assertQualifiedAttributeInExpressions(query, "qualified", "field", 1, referenceQuery);
     }
 
     /**
@@ -36,65 +71,184 @@ public class QualifierTests extends AbstractStatementParserTests {
         // We do not check the lookup join specifically; it only serves as an example source of qualifiers for the WHERE.
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified ] . [ `field`]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified ] . [ `field`]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field"
+        );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[`field`]> 0", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]== [qualified].[`field`]", "qualified", "field", 2);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]/[qualified].[field] == 1", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[`field`]> 0",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field > 0"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field]== [qualified].[`field`]",
+            "qualified",
+            "field",
+            2,
+            sourceQuery + "WHERE qualified.field == qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field]/[qualified].[field] == 1",
+            "qualified",
+            "field",
+            2,
+            sourceQuery + "WHERE qualified.field/qualified.field == 1"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "WHERE [qualified].[field] - [qualified].[`field`] ==[qualified].[field]",
             "qualified",
             "field",
-            3
+            3,
+            sourceQuery + "WHERE qualified.field - qualified.field == qualified.field"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE -[qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE -[qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE - qualified.field"
+        );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]: \"foo\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field]: \"foo\"",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field: \"foo\""
+        );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT [qualified].[field]", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT ([qualified].[field])", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE NOT ([qualified].[`field`])", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE NOT [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE NOT qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE NOT ([qualified].[field])",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE NOT qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE NOT ([qualified].[`field`])",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE NOT qualified.field"
+        );
 
         assertQualifiedAttributeInExpressions(
             sourceQuery + "WHERE NOT [qualified].[field] AND [qualified].[`field`]",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "WHERE NOT qualified.field AND qualified.field"
         );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "WHERE [qualified].[field] OR [qualified].[field] OR [qualified].[`field`] AND [qualified].[field]",
             "qualified",
             "field",
-            4
+            4,
+            sourceQuery + "WHERE qualified.field OR qualified.field OR qualified.field AND qualified.field"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[`field`] IS NULL", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field] IS NOT NULL", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[`field`] IS NULL",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field IS NULL"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field] IS NOT NULL",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field IS NOT NULL"
+        );
 
         assertQualifiedAttributeInExpressions(
             sourceQuery + "WHERE function([qualified].[`field`]) <= other_function([qualified].[field])",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "WHERE function(qualified.field) <= other_function(qualified.field)"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]::boolean", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[`field`]::boolean", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field] :: boolean", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE ([qualified].[field])::boolean", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field]::boolean",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field::boolean"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[`field`]::boolean",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field::boolean"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field] :: boolean",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field::boolean"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE ([qualified].[field])::boolean",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field::boolean"
+        );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field] IN ([qualified].[field])", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field] IN ([qualified].[field])",
+            "qualified",
+            "field",
+            2,
+            sourceQuery + "WHERE qualified.field IN (qualified.field)"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "WHERE [qualified].[field] IN ([qualified].[`field`], [qualified].[field], [qualified].[`field`])",
             "qualified",
             "field",
-            4
+            4,
+            sourceQuery + "WHERE qualified.field IN (qualified.field, qualified.field, qualified.field)"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field] LIKE (\"foo\", \"bar?\")", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[`field`] RLIKE \"foo\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field] LIKE (\"foo\", \"bar?\")",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field LIKE (\"foo\", \"bar?\")"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[`field`] RLIKE \"foo\"",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field RLIKE \"foo\""
+        );
     }
 
     /**
@@ -110,118 +264,252 @@ public class QualifierTests extends AbstractStatementParserTests {
             sourceQuery + "CHANGE_POINT [qualified].[field] ON [qualified].[field] AS type_name, pvalue_name",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "CHANGE_POINT qualified.field ON qualified.field AS type_name, pvalue_name"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT [qualified].[field] \"%{foo}\"", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT [qualified].[`field`] \"%{foo}\"", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "DISSECT [qualified].[field] \"\"\"%{foo}\"\"\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "DISSECT [qualified].[field] \"%{foo}\"",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "DISSECT qualified.field \"%{foo}\""
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "DISSECT [qualified].[`field`] \"%{foo}\"",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "DISSECT qualified.field \"%{foo}\""
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "DISSECT [qualified].[field] \"\"\"%{foo}\"\"\"",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "DISSECT qualified.field \"%{foo}\""
+        );
 
         String keepDrop = randomBoolean() ? "KEEP" : "DROP";
-        assertQualifiedAttributeInExpressions(sourceQuery + keepDrop + " [qualified].[field]", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + keepDrop + " [qualified].[`field`]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + keepDrop + " [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + keepDrop + " qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + keepDrop + " [qualified].[`field`]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + keepDrop + " qualified.field"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery + keepDrop + " [qualified] . [field], field, [qualified].[`field`], otherfield",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + keepDrop + " qualified.field, field, qualified.field, otherfield"
         );
         assertQualifiedAttributeInExpressions(
             sourceQuery + keepDrop + " pat*ern, [qualified].[field], other_pat*ern, [qualified].[`field`], yet*other*pattern",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + keepDrop + " pat*ern, qualified.field, other_pat*ern, qualified.field, yet*other*pattern"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON [qualified].[field]", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "ENRICH policy ON [qualified].[field] WITH x = y", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "ENRICH policy ON [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "ENRICH policy ON qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "ENRICH policy ON [qualified].[field] WITH x = y",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "ENRICH policy ON qualified.field WITH x = y"
+        );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL [qualified].[field]", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "EVAL [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "EVAL qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "EVAL x = [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "EVAL x = qualified.field"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "EVAL x = [qualified].[field], y = [ qualified ] . [ field ] ",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "EVAL x = qualified.field, y = qualified.field"
         );
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL x = ([qualified].[field])", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "EVAL [qualified].[field]/[qualified].[field]", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "EVAL x = ([qualified].[field])",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "EVAL x = qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "EVAL [qualified].[field]/[qualified].[field]",
+            "qualified",
+            "field",
+            2,
+            sourceQuery + "EVAL qualified.field/qualified.field"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "EVAL x=[qualified].[field]/[qualified].[field], y = foo",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "EVAL x = qualified.field/qualified.field, y = foo"
         );
 
         assertQualifiedAttributeInExpressions(
             sourceQuery + "FORK (WHERE [qualified].[field]) (EVAL [qualified].[field]/2)",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "FORK (WHERE qualified.field) (EVAL qualified.field/2)"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "GROK [qualified].[field] \"%{WORD:foo}\"", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "GROK [qualified].[`field`] \"%{WORD:foo}\"", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "GROK [qualified] . [field] \"\"\"%{WORD:foo}\"\"\"", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "GROK [qualified].[field] \"%{WORD:foo}\"",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "GROK qualified.field \"%{WORD:foo}\""
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "GROK [qualified].[`field`] \"%{WORD:foo}\"",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "GROK qualified.field \"%{WORD:foo}\""
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "GROK [qualified] . [field] \"\"\"%{WORD:foo}\"\"\"",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "GROK qualified.field \"%{WORD:foo}\""
+        );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "MV_EXPAND [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "MV_EXPAND [qualified].[field]",
+            "qualified",
+            "field",
+            2, // input and output attributes are separate
+            sourceQuery + "MV_EXPAND qualified.field"
+        );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME [qualified].[field] AS foo", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RENAME [qualified].[field] AS foo",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "RENAME qualified.field AS foo"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "RENAME [qualified ]. [field ] AS foo, other_field AS bar",
             "qualified",
             "field",
-            1
+            1,
+            sourceQuery + "RENAME qualified.field AS foo, other_field AS bar"
         );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "RENAME other_field AS bar, [ qualified ].[`field`] AS foo",
             "qualified",
             "field",
-            1
+            1,
+            sourceQuery + "RENAME other_field AS bar, qualified.field AS foo"
         );
-        assertQualifiedAttributeInExpressions(sourceQuery + "RENAME bar = other_field, foo = [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RENAME bar = other_field, foo = [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "RENAME bar = other_field, foo = qualified.field"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "RENAME [qualified].[field] AS foo, bar = [qualified].[`field`]",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "RENAME qualified.field AS foo, bar = qualified.field"
         );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "RENAME bar = [qualified].[field], [qualified].[field] AS foo",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "RENAME bar = qualified.field, qualified.field AS foo"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "RERANK score = \"query\" ON [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "RERANK score = \"query\" ON [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "RERANK score = \"query\" ON qualified.field"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "RERANK score = \"query\" ON [qualified].[field], [qualified].[`field`]",
             "qualified",
             "field",
-            2
+            2,
+            sourceQuery + "RERANK score = \"query\" ON qualified.field, qualified.`field`"
         );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "RERANK score = \"query\" ON field, [qualified ].[ field], other_field",
             "qualified",
             "field",
-            1
+            1,
+            sourceQuery + "RERANK score = \"query\" ON field, qualified.field, other_field"
         );
         assertQualifiedAttributeInExpressions(
             sourceQuery + "RERANK score = \"query\" ON [qualified].[field] WITH {\"inference_id\": \"foo\"}",
             "qualified",
             "field",
-            1
+            1,
+            sourceQuery + "RERANK score = \"query\" ON qualified.field WITH {\"inference_id\": \"foo\"}"
         );
 
-        assertQualifiedAttributeInExpressions(sourceQuery + "SORT [qualified].[field]", "qualified", "field", 1);
-        assertQualifiedAttributeInExpressions(sourceQuery + "SORT [qualified].[field]/[qualified].[field]", "qualified", "field", 2);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "SORT [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "SORT qualified.field"
+        );
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "SORT [qualified].[field]/[qualified].[field]",
+            "qualified",
+            "field",
+            2,
+            sourceQuery + "SORT qualified.field/qualified.field"
+        );
         assertQualifiedAttributeInExpressions(
             sourceQuery
                 + "SORT [qualified].[field] ASC, [qualified].[field] DESC, "
                 + "[qualified].[field] NULLS FIRST, [qualified ]. [`field` ] NULLS LAST",
             "qualified",
             "field",
-            4
+            4,
+            sourceQuery + "SORT qualified.field ASC, qualified.field DESC, qualified.field NULLS FIRST, qualified.field NULLS LAST"
         );
 
         // The unresolved attribute in the BY gets also used as an aggregate, so we must count it twice.
@@ -229,7 +517,8 @@ public class QualifierTests extends AbstractStatementParserTests {
             sourceQuery + "STATS avg([qualified].[field]), max(1/[qualified].[field]) by [qualified].[field], 2*[qualified ].[`field` ]",
             "qualified",
             "field",
-            5
+            5,
+            sourceQuery + "STATS avg(qualified.field), max(1/qualified.field) by qualified.field, 2*qualified.`field`"
         );
         assertQualifiedAttributeInExpressions(
             sourceQuery
@@ -237,14 +526,27 @@ public class QualifierTests extends AbstractStatementParserTests {
                 + "count(y) WHERE [ qualified] . [field] != [qualified].[field] BY [qualified].[field]",
             "qualified",
             "field",
-            5
+            5,
+            sourceQuery + "STATS avg(x) WHERE qualified.field, count(y) WHERE qualified.field != qualified.field BY qualified.field"
         );
         // This one's a bit nonsensical because there's no aggregate function, but we still need to parse the qualified attribute as
         // UnresolvedAttribute.
-        assertQualifiedAttributeInExpressions(sourceQuery + "STATS [qualified].[field] by [qualified].[field]", "qualified", "field", 3);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "STATS [qualified].[field] by [qualified].[other_field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "STATS qualified.field BY qualified.other_field"
+        );
 
         // WHERE is tested extensively in testQualifiersReferencedInExpressions, so we don't need to repeat it here.
-        assertQualifiedAttributeInExpressions(sourceQuery + "WHERE [qualified].[field]", "qualified", "field", 1);
+        assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE qualified.field"
+        );
     }
 
     public void testUnsupportedQualifiers() {
@@ -435,7 +737,46 @@ public class QualifierTests extends AbstractStatementParserTests {
         expectError(sourceQuery + "STATS [qualified].[last(x)]", "no viable alternative at input '[qualified].[last'");
     }
 
-    private void assertQualifiedAttributeInExpressions(String query, String qualifier, String name, int expectedCount) {
+    /**
+     * Assert that there is as many {@link UnresolvedAttribute}s with the given fully qualified name as expected. Then, turn all the
+     * matching fully qualified {@link UnresolvedAttribute}s into unqualified attributes by removing the qualifier and prefixing the plain
+     * name with it to check if we end up with the same plan as from the reference query.
+     * <p>
+     * Example: {@code ... | WHERE [qualified].[name] > 10} should yield the same plan as {@code ... | WHERE qualified.name > 10} after
+     * flattening the qualifiers into the plain name.
+     */
+    private void assertQualifiedAttributeInExpressions(
+        String query,
+        String qualifier,
+        String name,
+        int expectedCount,
+        String referenceQuery
+    ) {
+        // A regex that matches any literal brackets [, ], and spaces.
+        String regex = "[\\[\\] ]*";
+
+        assertQualifiedAttributeInExpressions(query, qualifier, name, expectedCount, referenceQuery, (expr) -> {
+            if (expr instanceof UnresolvedAttribute ua) {
+                String newName = ua.qualifiedName().replaceAll(regex, "");
+                return new UnresolvedAttribute(ua.source(), null, newName, null);
+            }
+            // RERANK internally has aliases that derive their name from the score field; we need to update those, too.
+            if (expr instanceof Alias alias) {
+                String newName = alias.name().replaceAll(regex, "");
+                return new Alias(alias.source(), newName, alias.child());
+            }
+            return expr;
+        });
+    }
+
+    private void assertQualifiedAttributeInExpressions(
+        String query,
+        String qualifier,
+        String name,
+        int expectedCount,
+        String referenceQuery,
+        Function<Expression, Expression> normalizeExpressions
+    ) {
         LogicalPlan plan = statement(query);
         Holder<Integer> count = new Holder<>(0);
 
@@ -447,6 +788,12 @@ public class QualifierTests extends AbstractStatementParserTests {
         });
 
         assertEquals(expectedCount, (int) count.get());
+
+        LogicalPlan planWithStrippedQualifiers = plan.transformExpressionsDown(Expression.class, normalizeExpressions);
+
+        LogicalPlan referencePlan = statement(referenceQuery).transformExpressionsDown(Expression.class, normalizeExpressions);
+
+        assertEquals(referencePlan, planWithStrippedQualifiers);
     }
 
     private static int countAttribute(Expression expr, String qualifier, String name) {

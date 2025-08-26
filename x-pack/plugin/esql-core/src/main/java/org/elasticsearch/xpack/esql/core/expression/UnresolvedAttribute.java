@@ -68,7 +68,9 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     ) {
         super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null
+            ? errorMessage(qualifier() != null ? qualifiedName() : name(), null)
+            : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
 

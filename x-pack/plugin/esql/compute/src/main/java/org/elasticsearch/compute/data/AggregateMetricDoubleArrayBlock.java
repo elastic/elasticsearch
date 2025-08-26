@@ -195,6 +195,27 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     }
 
     @Override
+    public Block deepCopy(BlockFactory blockFactory) {
+        AggregateMetricDoubleArrayBlock result = null;
+        DoubleBlock newMinBlock = null;
+        DoubleBlock newMaxBlock = null;
+        DoubleBlock newSumBlock = null;
+        IntBlock newCountBlock = null;
+        try {
+            newMinBlock = minBlock.deepCopy(blockFactory);
+            newMaxBlock = maxBlock.deepCopy(blockFactory);
+            newSumBlock = sumBlock.deepCopy(blockFactory);
+            newCountBlock = countBlock.deepCopy(blockFactory);
+            result = new AggregateMetricDoubleArrayBlock(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
+            }
+        }
+    }
+
+    @Override
     public ReleasableIterator<? extends AggregateMetricDoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         // TODO: support
         throw new UnsupportedOperationException("can't lookup values from AggregateMetricDoubleBlock");

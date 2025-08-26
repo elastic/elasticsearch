@@ -382,42 +382,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         };
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getOffsetFactory(ToEvaluator toEvaluator, DataType valueDataType) {
-        EvalOperator.ExpressionEvaluator.Factory offsetFactory;
-        if (offset != null) {
-            // Handle temporal offset conversion - fold temporal amounts to milliseconds or nanos depending on the value type
-            if (isTimeDuration(offset.dataType())) {
-                if (isDateNanos(valueDataType)) {
-                    offsetFactory = getTemporalOffsetAsNanos(toEvaluator);
-                } else {
-                    offsetFactory = getTemporalOffsetAsMillis(toEvaluator);
-                }
-            } else {
-                offsetFactory = toEvaluator.apply(offset);
-            }
-        } else {
-            offsetFactory = getDefaultOffset();
-        }
-        return offsetFactory;
-    }
-
-    private EvalOperator.ExpressionEvaluator.Factory getScaleFactory(ToEvaluator toEvaluator, DataType valueDataType) {
-        EvalOperator.ExpressionEvaluator.Factory scaleFactory;
-
-        // Handle temporal scale conversion - fold temporal amounts to milliseconds or nanos depending on the value type
-        if (isTimeDuration(scale.dataType())) {
-            if (isDateNanos(valueDataType)) {
-                scaleFactory = getTemporalScaleAsNanos(toEvaluator);
-            } else {
-                scaleFactory = getTemporalScaleAsMillis(toEvaluator);
-            }
-        } else {
-            scaleFactory = toEvaluator.apply(scale);
-        }
-
-        return scaleFactory;
-    }
-
     @Evaluator(extraName = "Int")
     static double process(int value, int origin, int scale, int offset, double decay, BytesRef functionType) {
         return switch (functionType.utf8ToString()) {
@@ -534,6 +498,34 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         long diff = (value >= origin) ? (value - origin) : (origin - value);
         long distance = Math.max(0, diff - offset);
         return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory getOffsetFactory(ToEvaluator toEvaluator, DataType valueDataType) {
+        if (offset == null) {
+            return getDefaultOffset();
+        }
+
+        if (isTimeDuration(offset.dataType()) == false) {
+            return toEvaluator.apply(offset);
+        }
+
+        if (isDateNanos(valueDataType)) {
+            return getTemporalOffsetAsNanos(toEvaluator);
+        }
+
+        return getTemporalOffsetAsMillis(toEvaluator);
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory getScaleFactory(ToEvaluator toEvaluator, DataType valueDataType) {
+        if (isTimeDuration(scale.dataType()) == false) {
+            return toEvaluator.apply(scale);
+        }
+
+        if (isDateNanos(valueDataType)) {
+            return getTemporalScaleAsNanos(toEvaluator);
+        }
+
+        return getTemporalScaleAsMillis(toEvaluator);
     }
 
     private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsMillis(ToEvaluator toEvaluator) {

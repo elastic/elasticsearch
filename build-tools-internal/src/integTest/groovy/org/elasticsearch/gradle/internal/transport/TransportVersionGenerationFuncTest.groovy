@@ -284,4 +284,48 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertReferableDefinition("second_tv", "8124000")
         assertUpperBound("9.2", "second_tv,8124000")
     }
+
+    def "branches param order can be changed"() {
+        given:
+        referableAndReferencedTransportVersion("test_tv", "8124000,8012002")
+        transportVersionUpperBound("9.2", "test_tv", "8124000")
+        transportVersionUpperBound("9.1", "test_tv", "8012002")
+
+        when:
+        def result = runGenerateAndValidateTask("--branches=9.1,9.2").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("test_tv", "8124000,8012002")
+        assertUpperBound("9.2", "test_tv,8124000")
+        assertUpperBound("9.1", "test_tv,8012002")
+    }
+
+    def "if the files for a new definition already exist, no change should occur"() {
+        given:
+        transportVersionUpperBound("9.2", "test_tv", "8124000")
+        referableAndReferencedTransportVersion("test_tv", "8124000")
+
+
+        when:
+        def result = runGenerateAndValidateTask("--name=test_tv", "--branches=9.2").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("test_tv", "8124000")
+        assertUpperBound("9.2", "test_tv,8124000")
+    }
+
+    def "if the files for a committed definition already exist, no change should occur"() {
+        when:
+        def result = runGenerateAndValidateTask("--name=existing_92", "--branches=9.2").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("existing_92", "8123000,8012001")
+        assertUpperBound("9.2", "existing_92,8123000")
+        assertUpperBound("9.1", "existing_92,8012001")
+    }
+
+
 }

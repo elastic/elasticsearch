@@ -12,14 +12,13 @@ package org.elasticsearch.transport;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
 import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfig;
-import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfig;
 import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfigBuilder;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfig;
 import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfigBuilder;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS;

@@ -1732,6 +1732,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
+            assert length <= buffer.length;
             // Unfortunately, no array copy here...
             // Since we need to loop here, let's also keep track of min/max.
             int minOrd = Integer.MAX_VALUE;

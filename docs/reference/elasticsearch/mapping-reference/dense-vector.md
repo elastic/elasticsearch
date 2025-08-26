@@ -308,8 +308,8 @@ $$$dense-vector-similarity$$$
 ::::{dropdown} Valid values for similarity
 `l2_norm`
 :   Computes similarity based on the L2 distance (also known as Euclidean distance) between the vectors. The document `_score` is computed as `1 / (1 + l2_norm(query, vector)^2)`.
-
-For `bit` vectors, instead of using `l2_norm`, the `hamming` distance between the vectors is used. The `_score` transformation is `(numBits - hamming(a, b)) / numBits`
+    
+    For `bit` vectors, instead of using `l2_norm`, the `hamming` distance between the vectors is used. The `_score` transformation is `(numBits - hamming(a, b)) / numBits`
 
 `dot_product`
 :   Computes the dot product of two unit vectors. This option provides an optimized way to perform cosine similarity. The constraints and computed score are defined by `element_type`.
@@ -342,14 +342,14 @@ $$$dense-vector-index-options$$$
 :   (Required, string) The type of kNN algorithm to use. Can be either any of:
     * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
     * `int8_hnsw` - The default index type for some float vectors:
-
+      
       * {applies_to}`stack: ga 9.1` Default for float vectors with less than 384 dimensions.
       * {applies_to}`stack: ga 9.0` Default for float all vectors.
-
+      
       This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
     * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
     * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-
+      
       {applies_to}`stack: ga 9.1` `bbq_hnsw` is the default index type for float vectors with greater than or equal to 384 dimensions.
     * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
     * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports `element_type` of `float`.

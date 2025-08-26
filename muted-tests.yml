@@ -402,9 +402,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
-- class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
-  method: testReader
-  issue: https://github.com/elastic/elasticsearch/issues/131573
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
@@ -678,6 +675,12 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/133520
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testTopNPushedToLucene
+  issue: https://github.com/elastic/elasticsearch/issues/133556
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testFilterNestedFields
+  issue: https://github.com/elastic/elasticsearch/issues/133557
 
 # Examples:
 #

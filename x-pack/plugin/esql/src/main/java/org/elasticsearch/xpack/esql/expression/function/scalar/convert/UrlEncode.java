@@ -79,8 +79,8 @@ public final class UrlEncode extends UnaryScalarFunction {
 
     @ConvertEvaluator()
     static BytesRef process(final BytesRef val) {
-        String s = val.utf8ToString();
-        String encoded = URLEncoder.encode(s, StandardCharsets.UTF_8);
+        String input = val.utf8ToString();
+        String encoded = URLEncoder.encode(input, StandardCharsets.UTF_8);
         return new BytesRef(encoded);
     }
 

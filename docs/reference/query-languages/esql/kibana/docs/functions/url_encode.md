@@ -4,6 +4,5 @@
 URL encodes the input.
 
 ```esql
-ROW u = "http://elastic.co"
-| EVAL e = URL_ENCODE(u)
+ROW u = "https://www.example.com/papers?q=information+retrieval&year=2024&citations=high" | EVAL u = URL_ENCODE(u)
 ```

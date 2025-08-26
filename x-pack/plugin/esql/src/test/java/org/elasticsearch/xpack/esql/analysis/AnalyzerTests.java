@@ -4300,6 +4300,7 @@ public class AnalyzerTests extends ESTestCase {
             """, analyzer);
         assertProjection(plan, "max", "avg", "sum", "min", "count");
 
+        assumeTrue("Metrics command must be available for TS", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var plan2 = analyze("""
             TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
             s2 = sum(avg_over_time(metric_field)),

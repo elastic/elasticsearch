@@ -52,119 +52,118 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
         Releasables.close(blocks);
     }
 
-    public void testBlockEquality() {
+    public void testBlockEqualityRegularBlocks() {
         // all these blocks should be equivalent
-        {
-            // regular blocks
-            AggregateMetricDoubleBlockBuilder builder1 = blockFactory.newAggregateMetricDoubleBlockBuilder(3);
-            appendValues(builder1, 1.23, 68392.1, 99999.1, 5);
-            appendValues(builder1, 582.1, 10942, 209301.4, 25);
-            appendValues(builder1, 8952.564, 30921.23, 18592950.14, 1000);
-            AggregateMetricDoubleBlockBuilder builder2 = blockFactory.newAggregateMetricDoubleBlockBuilder(6);
-            appendValues(builder2, 1.23, 68392.1, 99999.1, 5);
-            appendValues(builder2, 1.23, 68392.1, 99999.1, 10);
-            appendValues(builder2, 582.1, 10942, 209301.4, 25);
-            appendValues(builder2, 999.1, 10942, 209301.4, 50);
-            appendValues(builder2, 10000.564, 30921.23, 18592950.14, 2000);
-            appendValues(builder2, 8952.564, 30921.23, 18592950.14, 1000);
-            AggregateMetricDoubleBlockBuilder builder3 = blockFactory.newAggregateMetricDoubleBlockBuilder(5);
-            builder3.appendNull();
-            builder3.appendNull();
-            appendValues(builder3, 1.23, 68392.1, 99999.1, 5);
-            appendValues(builder3, 582.1, 10942, 209301.4, 25);
-            appendValues(builder3, 8952.564, 30921.23, 18592950.14, 1000);
-            builder3.appendNull();
+        AggregateMetricDoubleBlockBuilder builder1 = blockFactory.newAggregateMetricDoubleBlockBuilder(3);
+        appendValues(builder1, 1.23, 68392.1, 99999.1, 5);
+        appendValues(builder1, 582.1, 10942, 209301.4, 25);
+        appendValues(builder1, 8952.564, 30921.23, 18592950.14, 1000);
+        AggregateMetricDoubleBlockBuilder builder2 = blockFactory.newAggregateMetricDoubleBlockBuilder(6);
+        appendValues(builder2, 1.23, 68392.1, 99999.1, 5);
+        appendValues(builder2, 1.23, 68392.1, 99999.1, 10);
+        appendValues(builder2, 582.1, 10942, 209301.4, 25);
+        appendValues(builder2, 999.1, 10942, 209301.4, 50);
+        appendValues(builder2, 10000.564, 30921.23, 18592950.14, 2000);
+        appendValues(builder2, 8952.564, 30921.23, 18592950.14, 1000);
+        AggregateMetricDoubleBlockBuilder builder3 = blockFactory.newAggregateMetricDoubleBlockBuilder(5);
+        builder3.appendNull();
+        builder3.appendNull();
+        appendValues(builder3, 1.23, 68392.1, 99999.1, 5);
+        appendValues(builder3, 582.1, 10942, 209301.4, 25);
+        appendValues(builder3, 8952.564, 30921.23, 18592950.14, 1000);
+        builder3.appendNull();
 
-            List<AggregateMetricDoubleBlock> blocks = List.of(
-                builder1.build(),
-                builder2.build().filter(0, 2, 5),
-                builder3.build().filter(2, 3, 4)
-            );
-            assertAllEquals(blocks);
-        }
-        {
-            // constant-like blocks
-            AggregateMetricDoubleBlockBuilder builder1 = blockFactory.newAggregateMetricDoubleBlockBuilder(2);
-            appendValues(builder1, 12.3, 987.6, 4821.3, 6);
-            appendValues(builder1, 12.3, 987.6, 4821.3, 6);
-            AggregateMetricDoubleBlockBuilder builder2 = blockFactory.newAggregateMetricDoubleBlockBuilder(3);
-            appendValues(builder2, 12.3, 987.6, 4821.3, 6);
-            appendValues(builder2, 95.2, 10852.2, 20000.5, 5);
-            appendValues(builder2, 12.3, 987.6, 4821.3, 6);
-            appendValues(builder2, 1.1, 2.2, 3.3, 2);
-            DoubleBlock min1 = blockFactory.newDoubleBlockBuilder(4).appendDouble(12.3).appendDouble(12.3).build();
-            DoubleBlock max1 = blockFactory.newDoubleBlockBuilder(4).appendDouble(987.6).appendDouble(987.6).build();
-            DoubleBlock sum1 = blockFactory.newDoubleBlockBuilder(4).appendDouble(4821.3).appendDouble(4821.3).build();
-            IntBlock count1 = blockFactory.newIntBlockBuilder(4).appendInt(6).appendInt(6).build();
-            CompositeBlock compositeBlock1 = new CompositeBlock(new Block[] { min1, max1, sum1, count1 });
-            DoubleBlock min2 = blockFactory.newDoubleBlockBuilder(4)
-                .appendDouble(591.1)
-                .appendDouble(11.1)
-                .appendDouble(12.3)
-                .appendDouble(12.3)
-                .build();
-            DoubleBlock max2 = blockFactory.newDoubleBlockBuilder(4)
-                .appendDouble(198441.1)
-                .appendDouble(89235982.1)
-                .appendDouble(987.6)
-                .appendDouble(987.6)
-                .build();
-            DoubleBlock sum2 = blockFactory.newDoubleBlockBuilder(4)
-                .appendDouble(13498198.2)
-                .appendDouble(4901245982.1)
-                .appendDouble(4821.3)
-                .appendDouble(4821.3)
-                .build();
-            IntBlock count2 = blockFactory.newIntBlockBuilder(4).appendInt(100).appendInt(200).appendInt(6).appendInt(6).build();
-            CompositeBlock compositeBlock2 = new CompositeBlock(new Block[] { min2, max2, sum2, count2 });
+        List<AggregateMetricDoubleBlock> blocks = List.of(
+            builder1.build(),
+            builder2.build().filter(0, 2, 5),
+            builder3.build().filter(2, 3, 4)
+        );
+        assertAllEquals(blocks);
+    }
 
-            List<AggregateMetricDoubleBlock> moreBlocks = List.of(
-                builder1.build(),
-                builder2.build().filter(0, 2),
-                AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock1),
-                AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock2).filter(2, 3),
-                blockFactory.newConstantAggregateMetricDoubleBlock(
-                    new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6),
-                    4
-                ).filter(1, 3),
-                blockFactory.newConstantAggregateMetricDoubleBlock(
-                    new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6),
-                    2
-                )
-            );
-            assertAllEquals(moreBlocks);
-        }
-        {
-            // blocks with partial submetrics appended in different orders (column vs row)
-            AggregateMetricDoubleBlockBuilder builder1 = blockFactory.newAggregateMetricDoubleBlockBuilder(3);
-            builder1.min().appendDouble(1.23).appendDouble(582.1).appendNull();
-            builder1.max().appendDouble(68392.1).appendNull();
-            builder1.max().appendDouble(30921.23);
-            builder1.sum().appendNull();
-            builder1.sum().appendDouble(99999.1).appendNull();
-            builder1.count().appendNull().appendNull();
-            builder1.count().appendInt(1000);
+    public void testBlockEqualityConstantLikeBlocks() {
+        // all these blocks should be equivalent
+        AggregateMetricDoubleBlockBuilder builder1 = blockFactory.newAggregateMetricDoubleBlockBuilder(2);
+        appendValues(builder1, 12.3, 987.6, 4821.3, 6);
+        appendValues(builder1, 12.3, 987.6, 4821.3, 6);
+        AggregateMetricDoubleBlockBuilder builder2 = blockFactory.newAggregateMetricDoubleBlockBuilder(3);
+        appendValues(builder2, 12.3, 987.6, 4821.3, 6);
+        appendValues(builder2, 95.2, 10852.2, 20000.5, 5);
+        appendValues(builder2, 12.3, 987.6, 4821.3, 6);
+        appendValues(builder2, 1.1, 2.2, 3.3, 2);
+        DoubleBlock min1 = blockFactory.newDoubleBlockBuilder(4).appendDouble(12.3).appendDouble(12.3).build();
+        DoubleBlock max1 = blockFactory.newDoubleBlockBuilder(4).appendDouble(987.6).appendDouble(987.6).build();
+        DoubleBlock sum1 = blockFactory.newDoubleBlockBuilder(4).appendDouble(4821.3).appendDouble(4821.3).build();
+        IntBlock count1 = blockFactory.newIntBlockBuilder(4).appendInt(6).appendInt(6).build();
+        CompositeBlock compositeBlock1 = new CompositeBlock(new Block[] { min1, max1, sum1, count1 });
+        DoubleBlock min2 = blockFactory.newDoubleBlockBuilder(4)
+            .appendDouble(591.1)
+            .appendDouble(11.1)
+            .appendDouble(12.3)
+            .appendDouble(12.3)
+            .build();
+        DoubleBlock max2 = blockFactory.newDoubleBlockBuilder(4)
+            .appendDouble(198441.1)
+            .appendDouble(89235982.1)
+            .appendDouble(987.6)
+            .appendDouble(987.6)
+            .build();
+        DoubleBlock sum2 = blockFactory.newDoubleBlockBuilder(4)
+            .appendDouble(13498198.2)
+            .appendDouble(4901245982.1)
+            .appendDouble(4821.3)
+            .appendDouble(4821.3)
+            .build();
+        IntBlock count2 = blockFactory.newIntBlockBuilder(4).appendInt(100).appendInt(200).appendInt(6).appendInt(6).build();
+        CompositeBlock compositeBlock2 = new CompositeBlock(new Block[] { min2, max2, sum2, count2 });
 
-            AggregateMetricDoubleBlockBuilder builder2 = blockFactory.newAggregateMetricDoubleBlockBuilder(6);
-            builder2.appendNull();
-            builder2.appendNull();
-            builder2.min().appendDouble(1.23);
-            builder2.max().appendDouble(68392.1);
-            builder2.sum().appendNull();
-            builder2.count().appendNull();
-            builder2.min().appendDouble(582.1);
-            builder2.max().appendNull();
-            builder2.sum().appendDouble(99999.1);
-            builder2.count().appendNull();
-            builder2.appendNull();
-            builder2.min().appendNull();
-            builder2.max().appendDouble(30921.23);
-            builder2.sum().appendNull();
-            builder2.count().appendInt(1000);
+        List<AggregateMetricDoubleBlock> moreBlocks = List.of(
+            builder1.build(),
+            builder2.build().filter(0, 2),
+            AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock1),
+            AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock2).filter(2, 3),
+            blockFactory.newConstantAggregateMetricDoubleBlock(
+                new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6),
+                4
+            ).filter(1, 3),
+            blockFactory.newConstantAggregateMetricDoubleBlock(
+                new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6),
+                2
+            )
+        );
+        assertAllEquals(moreBlocks);
+    }
 
-            List<AggregateMetricDoubleBlock> evenMoreBlocks = List.of(builder1.build(), builder2.build().filter(2, 3, 5));
-            assertAllEquals(evenMoreBlocks);
-        }
+    public void testBlockEqualityPartialSubmetrics() {
+        // blocks with partial submetrics appended in different orders (column vs row)
+        AggregateMetricDoubleBlockBuilder builder1 = blockFactory.newAggregateMetricDoubleBlockBuilder(3);
+        builder1.min().appendDouble(1.23).appendDouble(582.1).appendNull();
+        builder1.max().appendDouble(68392.1).appendNull();
+        builder1.max().appendDouble(30921.23);
+        builder1.sum().appendNull();
+        builder1.sum().appendDouble(99999.1).appendNull();
+        builder1.count().appendNull().appendNull();
+        builder1.count().appendInt(1000);
+
+        AggregateMetricDoubleBlockBuilder builder2 = blockFactory.newAggregateMetricDoubleBlockBuilder(6);
+        builder2.appendNull();
+        builder2.appendNull();
+        builder2.min().appendDouble(1.23);
+        builder2.max().appendDouble(68392.1);
+        builder2.sum().appendNull();
+        builder2.count().appendNull();
+        builder2.min().appendDouble(582.1);
+        builder2.max().appendNull();
+        builder2.sum().appendDouble(99999.1);
+        builder2.count().appendNull();
+        builder2.appendNull();
+        builder2.min().appendNull();
+        builder2.max().appendDouble(30921.23);
+        builder2.sum().appendNull();
+        builder2.count().appendInt(1000);
+
+        List<AggregateMetricDoubleBlock> evenMoreBlocks = List.of(builder1.build(), builder2.build().filter(2, 3, 5));
+        assertAllEquals(evenMoreBlocks);
     }
 
     public void testBlockInequality() {

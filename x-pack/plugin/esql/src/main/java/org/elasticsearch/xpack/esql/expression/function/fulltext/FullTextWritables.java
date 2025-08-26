@@ -31,9 +31,9 @@ public class FullTextWritables {
         if (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled()) {
             entries.add(Score.ENTRY);
         }
-
-        // TODO: guard behind capability?
-        entries.add(Decay.ENTRY);
+        if(EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled()){
+            entries.add(Decay.ENTRY);
+        }
 
         return Collections.unmodifiableList(entries);
     }

@@ -3,6 +3,7 @@
 #
 
 intLinear
+required_capability: decay_function
 
 ROW value = 5, origin = 10, scale = 10 
 | EVAL decay_result = decay(value, origin, scale, 0, 0.5, "linear") 
@@ -13,6 +14,7 @@ decay_result:double
 ;
 
 intExp
+required_capability: decay_function
 
 ROW value = 5, origin = 10, scale = 10 
 | EVAL decay_result = decay(value, origin, scale, 0, 0.5, "exp") 
@@ -23,6 +25,7 @@ decay_result:double
 ;
 
 intGauss
+required_capability: decay_function
 
 ROW value = 5, origin = 10, scale = 10 
 | EVAL decay_result = decay(value, origin, scale, 0, 0.5, "gauss") 
@@ -33,6 +36,7 @@ decay_result:double
 ;
 
 intLinearWithOffset
+required_capability: decay_function
 
 ROW value = 95, origin = 100, scale = 50 
 | EVAL decay_result = decay(value, origin, scale, 10, 0.3, "linear") 
@@ -43,6 +47,7 @@ decay_result:double
 ;
 
 intExpWithOffset
+required_capability: decay_function
 
 ROW value = 120, origin = 100, scale = 50 
 | EVAL decay_result = decay(value, origin, scale, 5, 0.3, "exp") 
@@ -53,6 +58,7 @@ decay_result:double
 ;
 
 intGaussWithOffset
+required_capability: decay_function
 
 ROW value = 120, origin = 100, scale = 50 
 | EVAL decay_result = decay(value, origin, scale, 5, 0.3, "gauss") 
@@ -63,6 +69,7 @@ decay_result:double
 ;
 
 doubleLinear
+required_capability: decay_function
 
 ROW value = 5.0, origin = 10.0, scale = 10.0 
 | EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "linear") 
@@ -73,6 +80,7 @@ decay_result:double
 ;
 
 doubleExp
+required_capability: decay_function
 
 ROW value = 5.0, origin = 10.0, scale = 10.0 
 | EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "exp") 
@@ -83,6 +91,7 @@ decay_result:double
 ;
 
 doubleGauss
+required_capability: decay_function
 
 ROW value = 5.0, origin = 10.0, scale = 10.0 
 | EVAL decay_result = decay(value, origin, scale, 0.0, 0.5, "gauss") 
@@ -93,6 +102,7 @@ decay_result:double
 ;
 
 longLinear
+required_capability: decay_function
 
 ROW value = 15::long, origin = 10::long, scale = 10::long
 | EVAL decay_result = decay(value, origin, scale, 0::long, 0.5, "linear") 
@@ -103,6 +113,7 @@ decay_result:double
 ;
 
 cartesianPointLinear1
+required_capability: decay_function
 
 ROW value = TO_CARTESIANPOINT("POINT(5 5)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = 10.0
 | EVAL decay_result = decay(value, origin, scale, 0.0, 0.25, "linear") 
@@ -113,6 +124,7 @@ decay_result:double
 ;
 
 cartesianPointLinear2
+required_capability: decay_function
 
 ROW value = TO_CARTESIANPOINT("POINT(10 0)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = 10.0
 | EVAL decay_result = ROUND(decay(value, origin, scale, 0.0, 0.25, "linear"), 10) 
@@ -123,6 +135,7 @@ decay_result:double
 ;
 
 cartesianPointLinearWithOffset
+required_capability: decay_function
 
 ROW value = TO_CARTESIANPOINT("POINT(10 0)"), origin = TO_CARTESIANPOINT("POINT(0 0)"), scale = 10.0
 | EVAL decay_result = ROUND(decay(value, origin, scale, 5.0, 0.25, "linear"), 10) 
@@ -134,6 +147,7 @@ decay_result:double
 
 
 geoPointLinear
+required_capability: decay_function
 
 ROW value = TO_GEOPOINT("POINT(0 0)"), origin = TO_GEOPOINT("POINT(1 1)"), scale = "200km"
 | EVAL decay_result = decay(value, origin, scale, "0km", 0.5, "linear") 
@@ -144,6 +158,7 @@ decay_result:double
 ;
 
 datetimeLinear1
+required_capability: decay_function
 
 ROW value = TO_DATETIME("2023-01-01T00:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z")
 | EVAL decay_result = decay(value, origin, 24 hours, 0 seconds, 0.5, "linear") 
@@ -154,6 +169,7 @@ decay_result:double
 ;
 
 datetimeLinear2
+required_capability: decay_function
 
 ROW value = TO_DATETIME("2023-01-01T12:00:00Z"), origin = TO_DATETIME("2023-01-01T00:00:00Z")
 | EVAL decay_result = decay(value, origin, 24 hours, 0 seconds, 0.5, "linear") 
@@ -164,6 +180,7 @@ decay_result:double
 ;
 
 dateNanosLinear1
+required_capability: decay_function
 
 ROW value = TO_DATE_NANOS("2023-01-01T00:00:00Z"), origin = TO_DATE_NANOS("2023-01-01T00:00:00Z")
 | EVAL decay_result = decay(value, origin, 24 hours, 0 seconds, 0.5, "linear") 
@@ -174,6 +191,7 @@ decay_result:double
 ;
 
 dateNanosLinear2
+required_capability: decay_function
 
 ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z"), origin = TO_DATE_NANOS("2023-01-01T00:00:00Z")
 | EVAL decay_result = decay(value, origin, 24 hours, 0 seconds, 0.5, "linear") 

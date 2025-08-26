@@ -44,7 +44,6 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;

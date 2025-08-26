@@ -9,6 +9,7 @@ dependencies {
   implementation project(':client:rest')
   implementation project(':libs:logging')
   implementation project(':test:framework')
+  implementation project(":libs:exponential-histogram")
   api(testArtifact(project(xpackModule('esql-core'))))
   implementation project(':server')
   implementation "net.sf.supercsv:super-csv:${versions.supercsv}"

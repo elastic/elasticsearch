@@ -871,10 +871,9 @@ public final class EsqlTestUtils {
                 }
             }
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
-            //TODO: implement
-            case UNSUPPORTED, EXPONENTIAL_HISTOGRAM, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
-                "can't make random values for [" + type.typeName() + "]"
-            );
+            // TODO: implement
+            case UNSUPPORTED, EXPONENTIAL_HISTOGRAM, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG ->
+                throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);
     }
 

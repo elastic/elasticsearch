@@ -11,9 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.index.mapper.BlockLoader;
 
-public class ExponentialHistogramBlockBuilder implements BlockLoader.ExponentialHistogramBuilder, Block.Builder {
+public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     private final BytesRefBlock.Builder encodedHistogramsBuilder;
 
@@ -26,7 +25,6 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
         this.tempScratch = new BytesRef(new byte[256], 0, 256);
     }
 
-    @Override
     public ExponentialHistogramBlockBuilder append(@Nullable ExponentialHistogram value) {
         if (value == null) {
             appendNull();
@@ -62,7 +60,7 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
     @Override
     public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {
-            for (int i= beginInclusive; i < endExclusive; i++) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
                 appendNull();
             }
         } else {
@@ -74,7 +72,7 @@ public class ExponentialHistogramBlockBuilder implements BlockLoader.Exponential
 
     @Override
     public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
-        //TODO: does this need implementation?
+        // TODO: does this need implementation?
         return this;
     }
 

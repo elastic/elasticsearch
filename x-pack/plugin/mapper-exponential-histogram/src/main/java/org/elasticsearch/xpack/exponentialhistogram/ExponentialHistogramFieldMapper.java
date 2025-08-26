@@ -19,7 +19,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -93,15 +92,15 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "exponential_histogram";
 
-    public static final ParseField SCALE_FIELD = new ParseField("scale");
-    public static final ParseField ZERO_FIELD = new ParseField("zero");
-    public static final ParseField ZERO_COUNT_FIELD = new ParseField("count");
-    public static final ParseField ZERO_THRESHOLD_FIELD = new ParseField("threshold");
+    public static final ParseField SCALE_FIELD = new ParseField(ExponentialHistogramXContent.SCALE_FIELD);
+    public static final ParseField ZERO_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_FIELD);
+    public static final ParseField ZERO_COUNT_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_COUNT_FIELD);
+    public static final ParseField ZERO_THRESHOLD_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD);
 
-    public static final ParseField POSITIVE_FIELD = new ParseField("positive");
-    public static final ParseField NEGATIVE_FIELD = new ParseField("negative");
-    public static final ParseField BUCKET_INDICES_FIELD = new ParseField("indices");
-    public static final ParseField BUCKET_COUNTS_FIELD = new ParseField("counts");
+    public static final ParseField POSITIVE_FIELD = new ParseField(ExponentialHistogramXContent.POSITIVE_FIELD);
+    public static final ParseField NEGATIVE_FIELD = new ParseField(ExponentialHistogramXContent.NEGATIVE_FIELD);
+    public static final ParseField BUCKET_INDICES_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_INDICES_FIELD);
+    public static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
 
     private static ExponentialHistogramFieldMapper toType(FieldMapper in) {
         return (ExponentialHistogramFieldMapper) in;
@@ -624,8 +623,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             if (binaryValue == null) {
                 return;
             }
+
             histogram.reset(zeroThreshold, valueCount, binaryValue);
-            ExponentialHistogramXContent.write(b, histogram);
+            ExponentialHistogramXContent.serialize(b, histogram);
         }
 
         @Override

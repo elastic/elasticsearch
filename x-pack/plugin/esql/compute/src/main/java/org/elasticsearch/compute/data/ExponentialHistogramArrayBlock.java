@@ -24,7 +24,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramArrayBlock.class);
 
-    //TODO: Add AggregateMetricDoubleBlock for min/max/sum/count
+    // TODO: Add AggregateMetricDoubleBlock for min/max/sum/count
     private final BytesRefBlock encodedHistograms;
 
     public ExponentialHistogramArrayBlock(BytesRefBlock encodedHistograms) {
@@ -164,11 +164,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         return bytes;
     }
 
-    void copyInto(
-        BytesRefBlock.Builder encodedHistogramsBuilder,
-        int beginInclusive,
-        int endExclusive
-    ) {
+    void copyInto(BytesRefBlock.Builder encodedHistogramsBuilder, int beginInclusive, int endExclusive) {
         encodedHistogramsBuilder.copyFrom(this.encodedHistograms, beginInclusive, endExclusive);
     }
 
@@ -176,7 +172,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
         private static final long SIZE = RamUsageEstimator.shallowSizeOfInstance(BlockBackedHistogram.class);
 
-        //TODO: encode all of the ExponentialHistogram data except for min/max/sum/count
+        // TODO: encode all of the ExponentialHistogram data except for min/max/sum/count
         private static final int SCALE_OFFSET = 0;
 
         private final ByteBuffer data;
@@ -218,19 +214,19 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
         @Override
         public ZeroBucket zeroBucket() {
-            //TODO: implement
+            // TODO: implement
             return ZeroBucket.minimalEmpty();
         }
 
         @Override
         public ExponentialHistogram.Buckets positiveBuckets() {
-            //TODO: implement
+            // TODO: implement
             return ExponentialHistogram.empty().positiveBuckets();
         }
 
         @Override
         public ExponentialHistogram.Buckets negativeBuckets() {
-            //TODO: implement
+            // TODO: implement
             return ExponentialHistogram.empty().negativeBuckets();
         }
 

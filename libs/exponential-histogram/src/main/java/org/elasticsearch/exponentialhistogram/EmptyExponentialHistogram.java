@@ -52,11 +52,6 @@ class EmptyExponentialHistogram implements ReleasableExponentialHistogram {
         public long valueCount() {
             return 0;
         }
-
-        @Override
-        public int bucketCount() {
-            return 0;
-        }
     }
 
     @Override

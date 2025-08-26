@@ -29,6 +29,9 @@ Permissions granted to the `Everyone Except External Users` group were previousl
 ## 9.1.0 [connectors-9.1.0-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
+## 9.0.6 [connectors-9.0.6-release-notes]
+No changes since 9.0.5
+
 ## 9.0.5 [connectors-9.0.5-release-notes]
 
 ### Fixes [connectors-9.0.5-fixes]

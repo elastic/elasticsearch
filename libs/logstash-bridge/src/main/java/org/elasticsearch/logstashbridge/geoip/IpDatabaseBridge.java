@@ -10,11 +10,11 @@ package org.elasticsearch.logstashbridge.geoip;
 
 import com.maxmind.db.Reader;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.geoip.IpDatabase;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
+import org.elasticsearch.logstashbridge.core.CheckedBiFunctionBridge;
 
 import java.io.IOException;
 
@@ -25,25 +25,10 @@ public interface IpDatabaseBridge extends StableBridgeAPI<IpDatabase> {
 
     String getDatabaseType() throws IOException;
 
-    MaxMindDbBridge.Reader getDatabaseReader() throws IOException;
-
     @Nullable
-    default <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
-        try {
-            return responseProvider.apply(this.getDatabaseReader().toInternal(), ipAddress);
-        } catch (Exception e) {
-            throw ExceptionsHelper.convertToRuntime(e);
-        }
-    }
+    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunctionBridge<Reader, String, RESPONSE, Exception> responseProvider);
 
     void close() throws IOException;
-
-    static IpDatabaseBridge fromInternal(final IpDatabase internalDatabase) {
-        if (internalDatabase instanceof AbstractExternal.ProxyExternal externalProxy) {
-            return externalProxy.getIpDatabaseBridge();
-        }
-        return new ProxyInternal(internalDatabase);
-    }
 
     /**
      * The {@code IpDatabaseBridge.AbstractExternal} is an abstract base class for implementing
@@ -64,10 +49,6 @@ public interface IpDatabaseBridge extends StableBridgeAPI<IpDatabase> {
 
         private class ProxyExternal implements IpDatabase {
 
-            private AbstractExternal getIpDatabaseBridge() {
-                return AbstractExternal.this;
-            }
-
             @Override
             public String getDatabaseType() throws IOException {
                 return AbstractExternal.this.getDatabaseType();
@@ -78,43 +59,13 @@ public interface IpDatabaseBridge extends StableBridgeAPI<IpDatabase> {
                 String ipAddress,
                 CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
             ) {
-                return AbstractExternal.this.getResponse(ipAddress, responseProvider);
+                return AbstractExternal.this.getResponse(ipAddress, responseProvider::apply);
             }
 
             @Override
             public void close() throws IOException {
                 AbstractExternal.this.close();
             }
-        }
-    }
-
-    /**
-     * An implementation of {@link IpDatabaseBridge} that proxies to an internal {@link IpDatabase}
-     */
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<IpDatabase> implements IpDatabaseBridge {
-
-        public ProxyInternal(final IpDatabase delegate) {
-            super(delegate);
-        }
-
-        @Override
-        public String getDatabaseType() throws IOException {
-            return toInternal().getDatabaseType();
-        }
-
-        @Override
-        public MaxMindDbBridge.Reader getDatabaseReader() throws IOException {
-            return null;
-        }
-
-        @Override
-        public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
-            return toInternal().getResponse(ipAddress, responseProvider);
-        }
-
-        @Override
-        public void close() throws IOException {
-            toInternal().close();
         }
     }
 }

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.logstashbridge.core;
+package org.elasticsearch.logstashbridge.ingest;
 
 import org.elasticsearch.ingest.common.FailProcessorException;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;

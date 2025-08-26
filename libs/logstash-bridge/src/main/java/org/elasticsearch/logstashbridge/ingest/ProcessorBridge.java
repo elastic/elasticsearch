@@ -204,7 +204,7 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
          * An implementation of {@link ProcessorBridge.Factory} that proxies to an internal {@link Processor.Factory}
          */
         class ProxyInternal extends StableBridgeAPI.ProxyInternal<Processor.Factory> implements Factory {
-            private ProxyInternal(final Processor.Factory delegate) {
+            protected ProxyInternal(final Processor.Factory delegate) {
                 super(delegate);
             }
 

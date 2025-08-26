@@ -14,7 +14,7 @@ import org.elasticsearch.ingest.geoip.IpDatabase;
 import org.elasticsearch.ingest.geoip.IpDatabaseProvider;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
-import java.util.Objects;
+import static org.elasticsearch.logstashbridge.StableBridgeAPI.toInternalNullable;
 
 /**
  * An external bridge for {@link Processor}
@@ -24,13 +24,6 @@ public interface IpDatabaseProviderBridge extends StableBridgeAPI<IpDatabaseProv
     Boolean isValid(String name);
 
     IpDatabaseBridge getDatabase(String name);
-
-    static IpDatabaseProviderBridge fromInternal(final IpDatabaseProvider internalProvider) {
-        if (internalProvider instanceof IpDatabaseProviderBridge.AbstractExternal.ProxyExternal externalProxy) {
-            return externalProxy.getIpDatabaseProviderBridge();
-        }
-        return new IpDatabaseProviderBridge.ProxyInternal(internalProvider);
-    }
 
     /**
      * The {@code IpDatabaseProviderBridge.AbstractExternal} is an abstract base class for implementing
@@ -56,34 +49,13 @@ public interface IpDatabaseProviderBridge extends StableBridgeAPI<IpDatabaseProv
 
             @Override
             public Boolean isValid(ProjectId projectId, String name) {
-                return IpDatabaseProviderBridge.AbstractExternal.this.isValid(name);
+                return AbstractExternal.this.isValid(name);
             }
 
             @Override
             public IpDatabase getDatabase(ProjectId projectId, String name) {
-                IpDatabaseBridge bridge = IpDatabaseProviderBridge.AbstractExternal.this.getDatabase(name);
-                return Objects.isNull(bridge) ? null : bridge.toInternal();
+                return toInternalNullable(AbstractExternal.this.getDatabase(name));
             }
-        }
-    }
-
-    /**
-     * An implementation of {@link IpDatabaseProviderBridge} that proxies to an internal {@link IpDatabaseProvider}
-     */
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<IpDatabaseProvider> implements IpDatabaseProviderBridge {
-        public ProxyInternal(final IpDatabaseProvider delegate) {
-            super(delegate);
-        }
-
-        @Override
-        public Boolean isValid(String name) {
-            return toInternal().isValid(ProjectId.DEFAULT, name);
-        }
-
-        @Override
-        public IpDatabaseBridge getDatabase(String name) {
-            IpDatabase ipDatabase = toInternal().getDatabase(ProjectId.DEFAULT, name);
-            return new IpDatabaseBridge.ProxyInternal(ipDatabase);
         }
     }
 }

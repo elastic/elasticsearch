@@ -204,7 +204,7 @@ public final class DefBootstrap {
                         // ClassValue.getFromHashMap wraps checked exceptions as Error, so we
                         // use a sentinel class [PainlessWrapperError] here to work around
                         // this issue and later unwrap the original exception
-                        Def.rethrow(new PainlessWrappedError(t));
+                        Def.rethrow(t instanceof Exception ? new PainlessWrappedException((Exception) t) : t);
                         throw new AssertionError();
                     }
                 }

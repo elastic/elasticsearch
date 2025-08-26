@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -32,11 +31,13 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -70,9 +71,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class PushDownAndCombineFiltersTests extends ESTestCase {
+public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizerTests {
 
     private final LogicalOptimizerContext optimizerContext = new LogicalOptimizerContext(null, FoldContext.small());
 
@@ -389,6 +392,101 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(pushableCondition, rightFilter.condition());
     }
 
+    public void testPushDownFilterPastLeftJoinWithExistingFilter() {
+        Join join = createLeftJoin();
+        EsRelation left = (EsRelation) join.left();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        // Existing filter on the right side
+        Expression existingCondition = lessThanOf(c, FIVE);
+        Filter existingFilter = new Filter(EMPTY, join.right(), existingCondition);
+        join = (Join) join.replaceRight(existingFilter);
+
+        // Pushable filter
+        Expression pushableCondition = greaterThanOf(c, ONE);
+        Filter filter = new Filter(EMPTY, join, pushableCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        // The filter should still be on top
+        Filter topFilter = as(optimized, Filter.class);
+        assertEquals(pushableCondition, topFilter.condition());
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+
+        // The new condition should be merged with the existing one
+        Expression combinedCondition = new And(EMPTY, existingCondition, pushableCondition);
+        assertEquals(combinedCondition, rightFilter.condition());
+
+        // try to apply the filter again, the plan should not change
+        // this verifies that the rule is idempotent
+        // and we will not get in an infinite loop pushing the same filter over and over
+        optimized = new PushDownAndCombineFilters().apply(optimized, optimizerContext);
+
+        topFilter = as(optimized, Filter.class);
+        assertEquals(pushableCondition, topFilter.condition());
+        optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+        rightFilter = as(optimizedJoin.right(), Filter.class);
+
+        // The new condition should be merged with the existing one
+        assertEquals(combinedCondition, rightFilter.condition());
+
+    }
+
+    public void testDoNotPushDownExistingFilterAgain() {
+        Join join = createLeftJoin();
+        EsRelation left = (EsRelation) join.left();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        // Existing filter on the right side
+        Expression existingCondition = greaterThanOf(c, ONE);
+        Filter existingFilter = new Filter(EMPTY, join.right(), existingCondition);
+        join = (Join) join.replaceRight(existingFilter);
+
+        // A filter on top with the same condition
+        Filter filter = new Filter(EMPTY, join, existingCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+
+        // The filter should still be on top
+        Filter topFilter = as(optimized, Filter.class);
+        assertEquals(existingCondition, topFilter.condition());
+
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+
+        // The right side should be the original filter, unchanged.
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(existingFilter, rightFilter);
+        assertEquals(existingCondition, rightFilter.condition());
+    }
+
+    public void testPushDownFilterPastLeftJoinWithExistingFilterCalledTwice() {
+        Join join = createLeftJoin();
+        EsRelation left = (EsRelation) join.left();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        // Pushable filter
+        Expression pushableCondition = greaterThanOf(c, ONE);
+        Filter filter = new Filter(EMPTY, join, pushableCondition);
+
+        // First optimization
+        LogicalPlan optimizedOnce = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+
+        // Second optimization
+        LogicalPlan optimizedTwice = new PushDownAndCombineFilters().apply(optimizedOnce, optimizerContext);
+
+        // The filter should still be on top
+        Filter topFilter = as(optimizedTwice, Filter.class);
+        assertEquals(pushableCondition, topFilter.condition());
+
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+
+        // The right side should have the filter, but not duplicated.
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(pushableCondition, rightFilter.condition());
+    }
+
     public void testPushDownFilterPastLeftJoinWithNonPushable() {
         Join join = createLeftJoin();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
@@ -440,25 +538,25 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         // No optimization should be applied, the plan should be the same
         assertEquals(filter, optimized);
         // And the join inside should not have candidate filters
-        Join innerJoin = as(as(optimized, Filter.class).child(), Join.class);
+        Join innerJoin = as(filter.child(), Join.class);
         assertFalse(innerJoin.right() instanceof Filter);
     }
 
-    public void testPushDownFilterPastLeftJoinWithNotPushable() {
+    public void testPushDownFilterPastLeftJoinWithNotButStillPushable() {
         Join join = createLeftJoin();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         Expression pushableCondition = greaterThanOf(c, ONE);
 
-        // NOT pushable filter
-        Expression notPushableCondition = new Not(EMPTY, pushableCondition);
-        Filter filter = new Filter(EMPTY, join, notPushableCondition);
+        // negation of pushable filter, in this case it remains pushable
+        Expression negationOfPushableCondition = new Not(EMPTY, pushableCondition);
+        Filter filter = new Filter(EMPTY, join, negationOfPushableCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
         Filter topFilter = as(optimized, Filter.class);
-        assertEquals(notPushableCondition, topFilter.condition());
+        assertEquals(negationOfPushableCondition, topFilter.condition());
         Join optimizedJoin = as(topFilter.child(), Join.class);
         Filter rightFilter = as(optimizedJoin.right(), Filter.class);
-        assertEquals(notPushableCondition, rightFilter.condition());
+        assertEquals(negationOfPushableCondition, rightFilter.condition());
     }
 
     public void testPushDownFilterPastLeftJoinWithNotNonPushable() {
@@ -467,15 +565,15 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
         Expression nonPushableCondition = new IsNull(EMPTY, c);
 
-        // NOT non-pushable filter
-        Expression notNonPushableCondition = new Not(EMPTY, nonPushableCondition);
-        Filter filter = new Filter(EMPTY, join, notNonPushableCondition);
+        // negation of non-pushable filter makes it pushable
+        Expression negationOfNonPushableCondition = new Not(EMPTY, nonPushableCondition);
+        Filter filter = new Filter(EMPTY, join, negationOfNonPushableCondition);
         LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
         Filter topFilter = as(optimized, Filter.class);
-        assertEquals(notNonPushableCondition, topFilter.condition());
+        assertEquals(negationOfNonPushableCondition, topFilter.condition());
         Join optimizedJoin = as(topFilter.child(), Join.class);
         Filter rightFilter = as(optimizedJoin.right(), Filter.class);
-        assertEquals(notNonPushableCondition, rightFilter.condition());
+        assertEquals(negationOfNonPushableCondition, rightFilter.condition());
     }
 
     public void testPushDownFilterPastLeftJoinWithComplexMix() {
@@ -528,6 +626,207 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         Set<Expression> actualPushable = new HashSet<>(Predicates.splitAnd(rightFilter.condition()));
         Set<Expression> expectedPushable = new HashSet<>(List.of(p1, p2, p3, p4, p5, p6));
         assertEquals(expectedPushable, actualPushable);
+    }
+
+    /**
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages
+     * {f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Filter[ISNULL(language_name{f}#19)]
+     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18]]
+     *       |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testDoNotPushDownIsNullFilterPastLookupJoin() {
+        var plan = plan("""
+            FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var join = as(filter.child(), Join.class);
+        assertThat(join.right(), instanceOf(EsRelation.class));
+    }
+
+    /**
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages
+     * {f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Filter[language_name{f}#19 > a[KEYWORD]]
+     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18],false]
+     *       |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *       \_Filter[language_name{f}#19 > a[KEYWORD]]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testPushDownGreaterThanFilterPastLookupJoin() {
+        var plan = plan("""
+            FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name > "a"
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var join = as(filter.child(), Join.class);
+        var rightFilter = as(join.right(), Filter.class);
+        assertThat(rightFilter.condition().toString(), is("language_name > \"a\""));
+    }
+
+    /**
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages
+     * {f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Filter[COALESCE(language_name{f}#19,a[KEYWORD]) == a[KEYWORD]]
+     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18]]
+     *       |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testDoNotPushDownCoalesceFilterPastLookupJoin() {
+        var plan = plan("""
+            FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE COALESCE(language_name, "a") == "a"
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var join = as(filter.child(), Join.class);
+        assertThat(join.right(), instanceOf(EsRelation.class));
+    }
+
+    /**
+     *
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages
+     * {f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Filter[ISNOTNULL(language_name{f}#19)]
+     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18],false]
+     *       |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *       \_Filter[ISNOTNULL(language_name{f}#19)]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testPushDownIsNotNullFilterPastLookupJoin() {
+        var plan = plan("""
+            FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name IS NOT NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var join = as(filter.child(), Join.class);
+        var rightFilter = as(join.right(), Filter.class);
+        assertThat(rightFilter.condition().toString(), is("language_name IS NOT NULL"));
+    }
+
+    /**
+     * Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, languages
+     * {f}#14 AS language_code#4, last_name{f}#15, long_noidx{f}#21, salary{f}#16, language_name{f}#23]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Filter[ISNOTNULL(language_name{f}#23) AND language_name{f}#23 > a[KEYWORD] AND LIKE(language_name{f}#23, "*b", false)
+     *  AND COALESCE(language_name{f}#23,c[KEYWORD]) == c[KEYWORD] AND RLIKE(language_name{f}#23, "f.*", false)]
+     *     \_Join[LEFT,[languages{f}#14],[languages{f}#14],[language_code{f}#22]]
+     *       |_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *       \_Filter[ISNOTNULL(language_name{f}#23) AND language_name{f}#23 > a[KEYWORD] AND LIKE(language_name{f}#23, "*b", false)
+     *  AND RLIKE(language_name{f}#23, "f.*", false)]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
+     */
+    public void testPushDownMultipleWhere() {
+        var plan = plan("""
+            FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name IS NOT NULL
+            | WHERE language_name > "a"
+            | WHERE language_name LIKE "*b"
+            | WHERE COALESCE(language_name, "c") == "c"
+            | WHERE language_name RLIKE "f.*"
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var topFilter = as(limit.child(), Filter.class);
+
+        // Verify the top-level filter contains all 5 original conditions combined
+        Set<String> expectedAllFilters = Set.of(
+            "language_name IS NOT NULL",
+            "language_name > \"a\"",
+            "language_name LIKE \"*b\"",
+            "COALESCE(language_name, \"c\") == \"c\"",
+            "language_name RLIKE \"f.*\""
+        );
+
+        Set<String> actualAllFilters = new HashSet<>(Predicates.splitAnd(topFilter.condition()).stream().map(Object::toString).toList());
+        assertEquals(expectedAllFilters, actualAllFilters);
+
+        // Verify the join is below the top-level filter
+        var join = as(topFilter.child(), Join.class);
+
+        // Verify a new filter with only the pushable predicates has been pushed to the right side of the join
+        var rightFilter = as(join.right(), Filter.class);
+        Set<String> expectedPushedFilters = Set.of(
+            "language_name IS NOT NULL",
+            "language_name > \"a\"",
+            "language_name LIKE \"*b\"",
+            "language_name RLIKE \"f.*\""
+        );
+        Set<String> actualPushedFilters = new HashSet<>(
+            Predicates.splitAnd(rightFilter.condition()).stream().map(Object::toString).toList()
+        );
+        assertEquals(expectedPushedFilters, actualPushedFilters);
+    }
+
+    /**
+     *
+     * Project[[$$languages$temp_name$32{r$}#33 AS language_code#4, salary{f}#13, language_name{f}#20, _meta_field{f}#27, emp
+     * _no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30, languages{f}#24, last_name{f}#25, long_noidx{f}#31]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[salary{f}#13],[salary{f}#13],[salary{f}#26]]
+     *     |_Eval[[languages{f}#11 AS $$languages$temp_name$32#33]]
+     *     | \_Limit[1000[INTEGER],false]
+     *     |   \_Filter[language_name{f}#20 > a[KEYWORD]]
+     *     |     \_Join[LEFT,[languages{f}#11],[languages{f}#11],[language_code{f}#19]]
+     *     |       |_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *     |       \_Filter[language_name{f}#20 > a[KEYWORD]]
+     *     |         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     *     \_EsRelation[test_lookup][LOOKUP][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     */
+    public void testPushDownFilterPastTwoLookupJoins() {
+        var plan = plan("""
+            FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | LOOKUP JOIN test_lookup ON salary
+            | WHERE language_name > "a"
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+
+        // The filter is pushed down past the top join, so a Join is now at the top of the plan after the limit
+        var topJoin = as(limit.child(), Join.class);
+        assertThat(topJoin.right(), instanceOf(EsRelation.class)); // No filter on the top lookup join's right side
+
+        // Traverse down the left side of the top join to find the filter and the bottom join
+        var eval = as(topJoin.left(), Eval.class);
+        var innerLimit = as(eval.child(), Limit.class);
+        var topFilter = as(innerLimit.child(), Filter.class);
+        assertThat(topFilter.condition().toString(), is("language_name > \"a\""));
+
+        // make sure that the filter was pushed to the right side of the bottom join
+        var bottomJoin = as(topFilter.child(), Join.class);
+        var rightFilter = as(bottomJoin.right(), Filter.class);
+        assertThat(rightFilter.condition().toString(), is("language_name > \"a\""));
     }
 
     private Join createLeftJoin() {

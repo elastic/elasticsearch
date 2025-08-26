@@ -34,9 +34,10 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 /**
- * A {@link LookupEnrichQueryGenerator} that combines multiple {@link QueryList}s into a single query.
+ * A {@link LookupEnrichQueryGenerator} that combines one or more {@link QueryList}s into a single query.
  * Each query in the resulting query will be a conjunction of all queries from the input lists at the same position.
- * In the future we can extend this to support more complex expressions, such as disjunctions or negations.
+ * In addition, we support an optional pre-join filter that will be applied to all queries if it is pushable.
+ * If the pre-join filter cannot be pushed down to Lucine, it will be ignored.
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private static final Logger logger = LogManager.getLogger(ExpressionQueryList.class);

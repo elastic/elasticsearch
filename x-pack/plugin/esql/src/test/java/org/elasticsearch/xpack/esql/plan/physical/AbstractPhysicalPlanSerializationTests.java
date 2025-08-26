@@ -53,6 +53,7 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()); // Query builders
         entries.add(Add.ENTRY); // Used by the eval tests
         entries.add(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.ENTRY);
+        entries.add(LookupJoinExec.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

@@ -161,13 +161,23 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             }
             // push the right scoped filter down to the right child
             // We don't want to execute this rule more than once per join, so we check if we
-            if (scoped.rightFilters().isEmpty() == false && (join.right() instanceof Filter == false)) {
+            if (scoped.rightFilters().isEmpty() == false) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters(), foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
-                    right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
-                    // update the join with the new right child
-                    join = (Join) join.replaceRight(right);
-                    optimizationApplied = true;
+                    if (join.right() instanceof Filter existingRightFilter) {
+                        // merge the unique AND filter components from rightPushableFilters and existingRightFilter.condition()
+                        List<Expression> existingFilters = new ArrayList<>(Predicates.splitAnd(existingRightFilter.condition()));
+                        rightPushableFilters.stream().filter(e -> existingFilters.contains(e) == false).forEach(existingFilters::add);
+                        right = existingRightFilter.with(Predicates.combineAnd(existingFilters));
+                        join = (Join) join.replaceRight(right);
+                        optimizationApplied = true;
+                    } else {
+                        // create a new filter on top of the right child
+                        right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
+                        // update the join with the new right child
+                        join = (Join) join.replaceRight(right);
+                        optimizationApplied = true;
+                    }
                 }
                 /*
                 We still want to reapply the filters that we just applied to the right child,

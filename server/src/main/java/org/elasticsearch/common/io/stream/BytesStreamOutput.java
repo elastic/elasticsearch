@@ -178,9 +178,7 @@ public class BytesStreamOutput extends BytesStream {
 
     protected void ensureCapacity(long offset) {
         if (offset > this.maximumSize) {
-            throw new IllegalArgumentException(
-                String.format(getClass().getSimpleName() + " has exceeded it's max size of " + this.maximumSize)
-            );
+            throw new IllegalArgumentException(getClass().getSimpleName() + " has exceeded it's max size of " + this.maximumSize);
         }
         if (bytes == null) {
             this.bytes = bigArrays.newByteArray(BigArrays.overSize(offset, PageCacheRecycler.PAGE_SIZE_IN_BYTES, 1), false);

@@ -11,10 +11,14 @@ package org.elasticsearch.search.vectors;
 
 import com.carrotsearch.hppc.IntHashSet;
 
-import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -32,23 +36,35 @@ import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.codec.vectors.DefaultIVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.IVFVectorsReader;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 
+import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
+
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
+    public static final float MIN_VISIT_RATIO_FOR_AFFINITY_ADJUSTMENT = 0.004f;
+    public static final float MAX_AFFINITY_MULTIPLIER_ADJUSTMENT = 1.5f;
+    public static final float MIN_AFFINITY_MULTIPLIER_ADJUSTMENT = 0.5f;
+    public static final float MIN_AFFINITY = 0.001f;
 
     protected final String field;
     protected final float providedVisitRatio;
@@ -124,30 +140,90 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
+        int totalDocsWVectors = 0;
         assert this instanceof IVFKnnFloatVectorQuery;
-        int totalVectors = 0;
+        int[] costs = new int[leafReaderContexts.size()];
+        int i = 0;
         for (LeafReaderContext leafReaderContext : leafReaderContexts) {
             LeafReader leafReader = leafReaderContext.reader();
-            FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
-            if (floatVectorValues != null) {
-                totalVectors += floatVectorValues.size();
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            VectorScorer scorer = createVectorScorer(leafReaderContext, fieldInfo);
+            int cost;
+            if (scorer != null) {
+                cost = (int) scorer.iterator().cost();
+                totalDocsWVectors += cost;
+            } else {
+                cost = 0;
             }
+            costs[i] = cost;
+            i++;
         }
 
         final float visitRatio;
         if (providedVisitRatio == 0.0f) {
             // dynamically set the percentage
             float expected = (float) Math.round(
-                Math.log10(totalVectors) * Math.log10(totalVectors) * (Math.min(10_000, Math.max(numCands, 5 * k)))
+                Math.log10(totalDocsWVectors) * Math.log10(totalDocsWVectors) * (Math.min(10_000, Math.max(numCands, 5 * k)))
             );
-            visitRatio = expected / totalVectors;
+            visitRatio = expected / totalDocsWVectors;
         } else {
             visitRatio = providedVisitRatio;
         }
 
-        List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
-        for (LeafReaderContext context : leafReaderContexts) {
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+        List<Callable<TopDocs>> tasks;
+        if (leafReaderContexts.isEmpty() == false) {
+            if (visitRatio > MIN_VISIT_RATIO_FOR_AFFINITY_ADJUSTMENT) {
+                // calculate the affinity of each segment to the query vector
+                List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector(), costs);
+                segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
+
+                double[] affinityScores = segmentAffinities.stream()
+                    .map(SegmentAffinity::affinityScore)
+                    .mapToDouble(Double::doubleValue)
+                    .filter(x -> Double.isNaN(x) == false && Double.isInfinite(x) == false)
+                    .toArray();
+
+                double minAffinity = Arrays.stream(affinityScores).min().orElse(Double.NaN);
+                double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
+
+                double[] normalizedAffinityScores = Arrays.stream(affinityScores)
+                    .map(d -> (d - minAffinity) / (maxAffinity - minAffinity))
+                    .toArray();
+
+                // TODO : enable affinity optimization for filtered case
+                if (filterWeight != null
+                    || normalizedAffinityScores.length != segmentAffinities.size()
+                    || Double.isNaN(minAffinity)
+                    || Double.isNaN(maxAffinity)
+                    || leafReaderContexts.size() == 1) {
+                    tasks = new ArrayList<>(leafReaderContexts.size());
+                    for (LeafReaderContext context : leafReaderContexts) {
+                        tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+                    }
+                } else {
+                    tasks = new ArrayList<>(segmentAffinities.size());
+                    int j = 0;
+                    for (SegmentAffinity segmentAffinity : segmentAffinities) {
+                        double normalizedAffinityScore = normalizedAffinityScores[j];
+
+                        float adjustedVisitRatio = adjustVisitRatioForSegment(
+                            normalizedAffinityScore,
+                            normalizedAffinityScores[normalizedAffinityScores.length / 2],
+                            visitRatio
+                        );
+
+                        tasks.add(() -> searchLeaf(segmentAffinity.context(), filterWeight, knnCollectorManager, adjustedVisitRatio));
+                        j++;
+                    }
+                }
+            } else {
+                tasks = new ArrayList<>(leafReaderContexts.size());
+                for (LeafReaderContext context : leafReaderContexts) {
+                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+                }
+            }
+        } else {
+            tasks = Collections.emptyList();
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
@@ -159,6 +235,91 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
+
+    private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, float visitRatio) {
+        // for high affinity scores, increase visited ratio
+        float maxAdjustment = visitRatio * MAX_AFFINITY_MULTIPLIER_ADJUSTMENT;
+        if (affinityScore > affinityThreshold) {
+            int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
+            return Math.min(visitRatio * adjustment, visitRatio * MAX_AFFINITY_MULTIPLIER_ADJUSTMENT);
+        }
+
+        // for low affinity scores, decrease visited ratio
+        if (affinityScore <= affinityThreshold) {
+            return Math.max(visitRatio * MIN_AFFINITY_MULTIPLIER_ADJUSTMENT, MIN_AFFINITY);
+        }
+
+        return visitRatio;
+    }
+
+    abstract VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi) throws IOException;
+
+    abstract float[] getQueryVector() throws IOException;
+
+    private IVFVectorsReader unwrapReader(KnnVectorsReader knnVectorsReader) {
+        IVFVectorsReader result = null;
+        if (knnVectorsReader instanceof DefaultIVFVectorsReader IVFVectorsReader) {
+            result = IVFVectorsReader;
+        } else if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader r) {
+            KnnVectorsReader fieldReader = r.getFieldReader(field);
+            if (fieldReader != null) {
+                result = unwrapReader(fieldReader);
+            }
+        }
+        return result;
+    }
+
+    private List<SegmentAffinity> calculateSegmentAffinities(List<LeafReaderContext> leafReaderContexts, float[] queryVector, int[] costs) {
+        List<SegmentAffinity> segmentAffinities = new ArrayList<>(leafReaderContexts.size());
+
+        int i = 0;
+        for (LeafReaderContext context : leafReaderContexts) {
+            LeafReader leafReader = context.reader();
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            if (fieldInfo == null) {
+                continue;
+            }
+            VectorSimilarityFunction similarityFunction = fieldInfo.getVectorSimilarityFunction();
+            if (leafReader instanceof SegmentReader segmentReader) {
+                KnnVectorsReader vectorReader = segmentReader.getVectorReader();
+                IVFVectorsReader reader = unwrapReader(vectorReader);
+                if (reader != null) {
+                    float[] globalCentroid = reader.getGlobalCentroid(fieldInfo);
+
+                    if (similarityFunction == COSINE) {
+                        VectorUtil.l2normalize(queryVector);
+                    }
+
+                    if (queryVector.length != fieldInfo.getVectorDimension()) {
+                        throw new IllegalArgumentException(
+                            "vector query dimension: "
+                                + queryVector.length
+                                + " differs from field dimension: "
+                                + fieldInfo.getVectorDimension()
+                        );
+                    }
+                    // similarity between query vector and global centroid, higher is better
+                    float centroidsScore = similarityFunction.compare(queryVector, globalCentroid);
+
+                    // clusters per vector (< 1), higher is better (better coverage)
+                    int numVectors = costs[i];
+                    int numCentroids = reader.getNumCentroids(fieldInfo);
+                    double centroidDensity = (double) numCentroids / numVectors;
+
+                    // TODO : we may want to include some actual centroids' scores for higher quality estimate
+                    double affinityScore = centroidsScore * (1 + centroidDensity);
+                    segmentAffinities.add(new SegmentAffinity(context, affinityScore, numVectors));
+                } else {
+                    segmentAffinities.add(new SegmentAffinity(context, Float.NaN, 0));
+                }
+            }
+            i++;
+        }
+
+        return segmentAffinities;
+    }
+
+    private record SegmentAffinity(LeafReaderContext context, double affinityScore, int numVectors) {}
 
     private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {

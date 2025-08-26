@@ -314,7 +314,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         // Apply settings resolved from templates.
         dummySettings.put(templateSettings);
 
-        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+        final IndexMetadata indexMetadata = indexMetadataBuilder
             .eventIngestedRange(getEventIngestedRange(indexName, simulatedProject))
             .settings(dummySettings)
             .build();

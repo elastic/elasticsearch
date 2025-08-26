@@ -1051,7 +1051,7 @@ public class MetadataCreateIndexService {
             request,
             routingNumShards,
             customMetadataBuilder,
-            metadataBuilder -> {}
+            metadataBuilder -> metadataBuilder.putCustom(sourceMetadata.getCustomData())
         );
 
         return applyCreateIndexWithTemporaryService(

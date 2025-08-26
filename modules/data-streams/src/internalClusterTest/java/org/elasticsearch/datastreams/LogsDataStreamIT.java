@@ -236,7 +236,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
 
         expectThrows(
-            InvalidIndexTemplateException.class,
+            IllegalArgumentException.class,
             () -> updateComposableIndexTemplate(
                 client(),
                 "custom-composable-template",

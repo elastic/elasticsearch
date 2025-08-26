@@ -53,6 +53,7 @@ import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -76,6 +77,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
     private ShardId shardId;

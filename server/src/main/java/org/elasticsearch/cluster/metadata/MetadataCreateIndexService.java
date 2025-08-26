@@ -410,6 +410,18 @@ public class MetadataCreateIndexService {
                 ? IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())
                 : null;
 
+            ComposableIndexTemplate templateFromRequest = request.matchingTemplate();
+            if (templateFromRequest != null) {
+                return applyCreateIndexRequestWithV2Template(
+                    currentState,
+                    request,
+                    silent,
+                    templateFromRequest,
+                    metadataTransformer,
+                    rerouteListener
+                );
+            }
+
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 currentState.metadata(),
@@ -657,7 +669,8 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        ComposableIndexTemplate template = currentState.getMetadata().templatesV2().get(templateName);
+        final Metadata metadata = currentState.getMetadata();
+        ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         final boolean isDataStream = template.getDataStreamTemplate() != null;
         if (isDataStream && request.dataStreamName() == null) {
             throw new IllegalArgumentException(
@@ -669,18 +682,34 @@ public class MetadataCreateIndexService {
                     + "use create data stream api instead"
             );
         }
+        return applyCreateIndexRequestWithV2Template(currentState, request, silent, template, metadataTransformer, rerouteListener);
+    }
+
+    private ClusterState applyCreateIndexRequestWithV2Template(
+        final ClusterState currentState,
+        final CreateIndexClusterStateUpdateRequest request,
+        final boolean silent,
+        final ComposableIndexTemplate template,
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
+    ) throws Exception {
+
+        final Metadata metadata = currentState.getMetadata();
+        final RoutingTable routingTable = currentState.routingTable();
+
+        final boolean isDataStream = template.getDataStreamTemplate() != null;
 
         final List<CompressedXContent> mappings = collectV2Mappings(
             request.mappings(),
-            currentState,
-            templateName,
+            metadata,
+            template,
             xContentRegistry,
             request.index()
         );
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             currentState,
             request,
-            resolveSettings(currentState.metadata(), templateName),
+            resolveSettings(template, metadata.componentTemplates()),
             mappings,
             null,
             settings,
@@ -702,7 +731,7 @@ public class MetadataCreateIndexService {
                 request.index(),
                 // data stream aliases are created separately in MetadataCreateDataStreamService::createDataStream
                 isDataStream ? Set.of() : request.aliases(),
-                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
+                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template),
                 currentState.metadata(),
                 xContentRegistry,
                 // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
@@ -710,7 +739,7 @@ public class MetadataCreateIndexService {
                 IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
-            Collections.singletonList(templateName),
+            Collections.singletonList("provided in request"),
             metadataTransformer,
             rerouteListener
         );
@@ -837,17 +866,6 @@ public class MetadataCreateIndexService {
         return collectV2Mappings(null, templateMappings, xContentRegistry);
     }
 
-    public static List<CompressedXContent> collectV2Mappings(
-        @Nullable final String requestMappings,
-        final ClusterState currentState,
-        final String templateName,
-        final NamedXContentRegistry xContentRegistry,
-        final String indexName
-    ) throws Exception {
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
-        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
-    }
-
     private static List<CompressedXContent> collectV2Mappings(
         @Nullable final String requestMappings,
         final List<CompressedXContent> templateMappings,
@@ -862,6 +880,21 @@ public class MetadataCreateIndexService {
             }
         }
         return result;
+    }
+
+    public static List<CompressedXContent> collectV2Mappings(
+        @Nullable final String requestMappings,
+        final Metadata metadata,
+        final ComposableIndexTemplate template,
+        final NamedXContentRegistry xContentRegistry,
+        final String indexName
+    ) throws Exception {
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
+            template,
+            metadata.componentTemplates(),
+            indexName
+        );
+        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 
     private ClusterState applyCreateIndexRequestWithExistingMetadata(

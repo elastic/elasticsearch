@@ -107,7 +107,7 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
     private final DenseVectorFieldMapper.ElementType elementType;
 
     CustomElandInternalTextEmbeddingServiceSettings(
-        int numAllocations,
+        Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,

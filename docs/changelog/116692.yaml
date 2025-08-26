@@ -1,5 +1,0 @@
-pr: 116692
-summary: Remove all mentions of eis and gateway and deprecate flags that do
-area: Machine Learning
-type: enhancement
-issues: []

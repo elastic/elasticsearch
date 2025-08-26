@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -14,9 +15,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -32,27 +33,36 @@ import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class EsqlCCSUtils {
 
     private EsqlCCSUtils() {}
 
-    static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
-        Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>();
+    static Map<String, List<FieldCapabilitiesFailure>> groupFailuresPerCluster(List<FieldCapabilitiesFailure> failures) {
+        Map<String, List<FieldCapabilitiesFailure>> perCluster = new HashMap<>();
         for (FieldCapabilitiesFailure failure : failures) {
-            if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
-                for (String indexExpression : failure.getIndices()) {
-                    if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
-                        unavailableRemotes.put(RemoteClusterAware.parseClusterAlias(indexExpression), failure);
-                    }
-                }
+            String cluster = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
+            perCluster.computeIfAbsent(cluster, k -> new ArrayList<>()).add(failure);
+        }
+        return perCluster;
+    }
+
+    static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(Map<String, List<FieldCapabilitiesFailure>> failures) {
+        Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>(failures.size());
+        for (var e : failures.entrySet()) {
+            if (Strings.isEmpty(e.getKey())) {
+                continue;
+            }
+            if (e.getValue().stream().allMatch(f -> ExceptionsHelper.isRemoteUnavailableException(f.getException()))) {
+                unavailableRemotes.put(e.getKey(), e.getValue().get(0));
             }
         }
         return unavailableRemotes;
@@ -76,7 +86,7 @@ public class EsqlCCSUtils {
         public void onFailure(Exception e) {
             if (returnSuccessWithEmptyResult(executionInfo, e)) {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), executionInfo));
+                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), DriverCompletionInfo.EMPTY, executionInfo));
             } else {
                 listener.onFailure(e);
             }
@@ -133,8 +143,8 @@ public class EsqlCCSUtils {
                 } else {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
                     // add this exception to the failures list only if there is no failure already recorded there
-                    if (v.getFailures() == null || v.getFailures().size() == 0) {
-                        builder.setFailures(List.of(new ShardSearchFailure(exceptionForResponse)));
+                    if (v.getFailures().isEmpty()) {
+                        builder.addFailures(List.of(new ShardSearchFailure(exceptionForResponse)));
                     }
                 }
                 return builder.build();
@@ -146,7 +156,8 @@ public class EsqlCCSUtils {
         StringBuilder sb = new StringBuilder();
         for (String clusterAlias : executionInfo.clusterAliases()) {
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            // Exclude clusters which are either skipped or have no indices matching wildcard, or filtered out.
+            if (cluster.getStatus() != Cluster.Status.SKIPPED && cluster.getStatus() != Cluster.Status.SUCCESSFUL) {
                 if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                     sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
                 } else {
@@ -165,7 +176,11 @@ public class EsqlCCSUtils {
         }
     }
 
-    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo execInfo, Map<String, FieldCapabilitiesFailure> unavailable) {
+    static void updateExecutionInfoWithUnavailableClusters(
+        EsqlExecutionInfo execInfo,
+        Map<String, List<FieldCapabilitiesFailure>> failures
+    ) {
+        Map<String, FieldCapabilitiesFailure> unavailable = determineUnavailableRemoteClusters(failures);
         for (Map.Entry<String, FieldCapabilitiesFailure> entry : unavailable.entrySet()) {
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = execInfo.getCluster(clusterAlias).isSkipUnavailable();
@@ -181,17 +196,20 @@ public class EsqlCCSUtils {
         }
     }
 
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
-        Set<String> clustersWithResolvedIndices = new HashSet<>();
-        // determine missing clusters
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
+        EsqlExecutionInfo executionInfo,
+        IndexResolution indexResolution,
+        boolean usedFilter
+    ) {
+        // Get the clusters which are still running, and we will check whether they have any matching indices.
+        // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
+        final Set<String> clustersWithNoMatchingIndices = executionInfo.getClusterStates(Cluster.Status.RUNNING)
+            .map(Cluster::getClusterAlias)
+            .collect(Collectors.toSet());
         for (String indexName : indexResolution.resolvedIndices()) {
-            clustersWithResolvedIndices.add(RemoteClusterAware.parseClusterAlias(indexName));
+            clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
-        Set<String> clustersRequested = executionInfo.clusterAliases();
-        Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
-        clustersWithNoMatchingIndices.removeAll(indexResolution.unavailableClusters().keySet());
-
-        /**
+        /*
          * Rules enforced at planning time around non-matching indices
          * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
          * 2. fail query if a cluster has no matching indices *and* a concrete index was specified - handled here
@@ -203,50 +221,56 @@ public class EsqlCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            if (executionInfo.getCluster(c).getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                // if cluster was already marked SKIPPED during enrich policy resolution, do not overwrite
-                continue;
-            }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
             if (concreteIndexRequested(executionInfo.getCluster(c).getIndexExpression())) {
                 String error = Strings.format(
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
                 );
-                if (fatalErrorMessage == null) {
-                    fatalErrorMessage = error;
-                } else {
-                    fatalErrorMessage += "; " + error;
+                if (executionInfo.isSkipUnavailable(c) == false || usedFilter) {
+                    if (fatalErrorMessage == null) {
+                        fatalErrorMessage = error;
+                    } else {
+                        fatalErrorMessage += "; " + error;
+                    }
+                }
+                if (usedFilter == false) {
+                    // We check for filter since the filter may be the reason why the index is missing, and then we don't want to mark yet
+                    markClusterWithFinalStateAndNoShards(
+                        executionInfo,
+                        c,
+                        executionInfo.isSkipUnavailable(c) ? Cluster.Status.SKIPPED : Cluster.Status.FAILED,
+                        new VerificationException(error)
+                    );
                 }
             } else {
-                // no matching indices and no concrete index requested - just skip it, no error
-                EsqlExecutionInfo.Cluster.Status status;
-                ShardSearchFailure failure;
-                if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    // never mark local cluster as SKIPPED
-                    status = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                    failure = null;
-                } else {
-                    status = EsqlExecutionInfo.Cluster.Status.SKIPPED;
-                    failure = new ShardSearchFailure(new VerificationException("Unknown index [" + indexExpression + "]"));
-                }
-                executionInfo.swapCluster(c, (k, v) -> {
-                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
-                        .setTook(new TimeValue(0))
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0);
-                    if (failure != null) {
-                        builder.setFailures(List.of(failure));
+                // We check for the valid resolution because if we have empty resolution it's still an error.
+                if (indexResolution.isValid()) {
+                    List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
+                    // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
+                    if (failures.isEmpty()) {
+                        markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                    } else {
+                        // skip reporting index_not_found exceptions to avoid spamming users with such errors
+                        // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
+                        Exception nonIndexNotFound = failures.stream()
+                            .map(FieldCapabilitiesFailure::getException)
+                            .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
+                            .findAny()
+                            .orElse(null);
+                        markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
                     }
-                    return builder.build();
-                });
+                }
             }
         }
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage);
         }
+    }
+
+    // Filter-less version, mainly for testing where we don't need filter support
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, false);
     }
 
     // visible for testing
@@ -269,8 +293,8 @@ public class EsqlCCSUtils {
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
+        execInfo.markEndPlanning();
         if (execInfo.isCrossClusterSearch()) {
-            execInfo.markEndPlanning();
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
                 if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
@@ -300,12 +324,13 @@ public class EsqlCCSUtils {
         EsqlExecutionInfo executionInfo,
         List<TableInfo> indices,
         IndicesExpressionGrouper indicesGrouper,
+        Set<String> configuredClusters,
         XPackLicenseState licenseState
     ) {
         for (TableInfo tableInfo : indices) {
             Map<String, OriginalIndices> groupedIndices;
             try {
-                groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().indexPattern());
+                groupedIndices = indicesGrouper.groupIndices(configuredClusters, IndicesOptions.DEFAULT, tableInfo.id().indexPattern());
             } catch (NoSuchRemoteClusterException e) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                     throw e;
@@ -349,11 +374,11 @@ public class EsqlCCSUtils {
             Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
                 .setTook(executionInfo.tookSoFar())
                 .setTotalShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
-                .setSuccessfulShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
-                .setSkippedShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
-                .setFailedShards(Objects.requireNonNullElse(v.getTotalShards(), 0));
+                .setSuccessfulShards(Objects.requireNonNullElse(v.getSuccessfulShards(), 0))
+                .setSkippedShards(Objects.requireNonNullElse(v.getSkippedShards(), 0))
+                .setFailedShards(Objects.requireNonNullElse(v.getFailedShards(), 0));
             if (ex != null) {
-                builder.setFailures(List.of(new ShardSearchFailure(ex)));
+                builder.addFailures(List.of(new ShardSearchFailure(ex)));
             }
             return builder.build();
         });
@@ -363,10 +388,18 @@ public class EsqlCCSUtils {
      * We will ignore the error if it's remote unavailable and the cluster is marked to skip unavailable.
      */
     public static boolean shouldIgnoreRuntimeError(EsqlExecutionInfo executionInfo, String clusterAlias, Exception e) {
-        if (executionInfo.isSkipUnavailable(clusterAlias) == false) {
+        return executionInfo.isSkipUnavailable(clusterAlias);
+    }
+
+    /**
+     * Check whether this exception can be tolerated when partial results are on, or should be treated as fatal.
+     * @return true if the exception can be tolerated, false if it should be treated as fatal.
+     */
+    public static boolean canAllowPartial(Exception e) {
+        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+        if (unwrapped instanceof IndexNotFoundException || unwrapped instanceof ElasticsearchSecurityException) {
             return false;
         }
-
-        return ExceptionsHelper.isRemoteUnavailableException(e);
+        return true;
     }
 }

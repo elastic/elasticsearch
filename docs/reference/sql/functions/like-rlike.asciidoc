@@ -84,6 +84,7 @@ IMPORTANT: Even though `RLIKE` is a valid option when searching or filtering in 
 When using `LIKE`/`RLIKE`, do consider using <<sql-functions-search, full-text search predicates>> which are faster, much more powerful
 and offer the option of sorting by relevancy (results can be returned based on how well they matched).
 
+////
 For example:
 
 [cols="<m,<m"]
@@ -97,3 +98,4 @@ For example:
 |`foo RLIKE 'ba.*'`                  |`MATCH(foo, 'ba', 'fuzziness=AUTO:1,5')`
 |`foo RLIKE 'b.{1}r'`                |`MATCH(foo, 'br', 'fuzziness=1')`
 |===
+////

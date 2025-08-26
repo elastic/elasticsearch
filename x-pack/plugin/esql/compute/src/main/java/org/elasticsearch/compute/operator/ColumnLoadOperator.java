@@ -14,7 +14,7 @@ import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * {@link Block#lookup Looks up} values from a provided {@link Block} and
- * mergeds them into each {@link Page}.
+ * merged them into each {@link Page}.
  */
 public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     public record Values(String name, Block block) {

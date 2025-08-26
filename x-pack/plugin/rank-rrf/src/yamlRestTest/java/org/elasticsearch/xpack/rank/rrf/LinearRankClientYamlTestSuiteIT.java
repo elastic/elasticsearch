@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -25,8 +26,12 @@ public class LinearRankClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("rank-rrf")
         .module("lang-painless")
         .module("x-pack-inference")
+        .systemProperty("tests.seed", System.getProperty("tests.seed"))
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .plugin("inference-service-test")
+        .distribution(DistributionType.DEFAULT)
         .build();
 
     public LinearRankClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

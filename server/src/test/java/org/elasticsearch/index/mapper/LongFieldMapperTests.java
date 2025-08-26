@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -119,17 +118,6 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")
     public void testFetchCoerced() throws IOException {
         assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return n -> {
-            Number number = ((Number) n);
-            if (Integer.MIN_VALUE <= number.longValue() && number.longValue() <= Integer.MAX_VALUE) {
-                return number.intValue();
-            }
-            return number.longValue();
-        };
     }
 
     protected IngestScriptSupport ingestScriptSupport() {

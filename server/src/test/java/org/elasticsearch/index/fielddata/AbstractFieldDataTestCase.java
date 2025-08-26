@@ -106,6 +106,18 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 false,
                 true,
                 IndexVersion.current(),
+                null,
+                null
+            ).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("half_float")) {
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.HALF_FLOAT,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                IndexVersion.current(),
+                null,
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
@@ -116,6 +128,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 false,
                 true,
                 IndexVersion.current(),
+                null,
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
@@ -126,6 +139,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 false,
                 true,
                 IndexVersion.current(),
+                null,
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
@@ -136,6 +150,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 false,
                 true,
                 IndexVersion.current(),
+                null,
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
@@ -146,6 +161,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 false,
                 true,
                 IndexVersion.current(),
+                null,
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
@@ -156,6 +172,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 false,
                 true,
                 IndexVersion.current(),
+                null,
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {

@@ -10,10 +10,10 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -43,11 +43,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction {
 
-    static final ActionType<GrokProcessorGetAction.Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
+    static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
 
     private GrokProcessorGetAction() {/* no instances */}
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final boolean sorted;
         private final String ecsCompatibility;

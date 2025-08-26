@@ -170,7 +170,9 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // we'll rollover the data stream by indexing 2 documents (like ILM expects) and assert that the rollover happens once so the
         // data stream has 3 backing indices, two managed by ILM and one will be managed by the data stream lifecycle
-        DataStreamLifecycle customLifecycle = customEnabledLifecycle();
+        DataStreamLifecycle.Template customLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(randomPositiveTimeValue())
+            .buildTemplate();
         putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.EMPTY, null, customLifecycle);
 
         indexDocs(dataStreamName, 2);
@@ -231,7 +233,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 new String[] { dataStreamName },
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             )
         ).actionGet();
 
@@ -260,7 +262,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 new String[] { dataStreamName },
-                customLifecycle.getDataStreamRetention()
+                customLifecycle.dataRetention().get()
             )
         ).actionGet();
 
@@ -302,7 +304,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
                 assertThat(index.isManagedByLifecycle(), is(true));
-                assertThat(index.getLifecycle(), equalTo(customLifecycle));
+                assertThat(index.getLifecycle(), equalTo(customLifecycle.toDataStreamLifecycle()));
             }
         });
     }
@@ -379,7 +381,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-            new DataStreamLifecycle()
+            DataStreamLifecycle.Template.DATA_DEFAULT
         );
 
         indexDocs(dataStreamName, 2);
@@ -439,7 +441,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List.of(dataStreamName + "*"),
             Settings.builder().put(IndexSettings.PREFER_ILM, false).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
-            new DataStreamLifecycle()
+            DataStreamLifecycle.Template.DATA_DEFAULT
         );
 
         // note that all indices now are still managed by ILM, so we index 2 documents. the new write index will be managed by the data
@@ -562,7 +564,9 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // we'll rollover the data stream by indexing 2 documents (like ILM expects) and assert that the rollover happens once so the
         // data stream has 3 backing indices, 2 managed by ILM and 1 by the default data stream lifecycle
-        DataStreamLifecycle customLifecycle = customEnabledLifecycle();
+        DataStreamLifecycle.Template customLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(randomPositiveTimeValue())
+            .buildTemplate();
         putComposableIndexTemplate(
             indexTemplateName,
             null,
@@ -625,7 +629,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 new String[] { dataStreamName },
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             )
         ).actionGet();
 
@@ -640,7 +644,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 new String[] { dataStreamName },
-                customLifecycle.getDataStreamRetention()
+                customLifecycle.dataRetention().get()
             )
         ).actionGet();
 
@@ -696,7 +700,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
                 assertThat(index.isManagedByLifecycle(), is(true));
-                assertThat(index.getLifecycle(), equalTo(customLifecycle));
+                assertThat(index.getLifecycle(), equalTo(customLifecycle.toDataStreamLifecycle()));
             }
         });
 
@@ -754,7 +758,14 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
     public void testUpdateIndexTemplateToMigrateFromDataStreamLifecycleToIlm() throws Exception {
         // starting with a data stream managed by the data stream lifecycle (rolling over every 1 doc)
-        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), null, null, new DataStreamLifecycle());
+        putComposableIndexTemplate(
+            indexTemplateName,
+            null,
+            List.of(dataStreamName + "*"),
+            null,
+            null,
+            DataStreamLifecycle.Template.DATA_DEFAULT
+        );
 
         // this will create the data stream and trigger a rollover so we will end up with a data stream with 2 backing indices
         indexDocs(dataStreamName, 1);
@@ -1063,7 +1074,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle.Template lifecycle
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(name);
         request.indexTemplate(
@@ -1080,10 +1091,6 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
-    }
-
-    private static DataStreamLifecycle customEnabledLifecycle() {
-        return DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueMillis(randomMillisUpToYear9999())).build();
     }
 
     private List<String> getBackingIndices(String dataStreamName) {

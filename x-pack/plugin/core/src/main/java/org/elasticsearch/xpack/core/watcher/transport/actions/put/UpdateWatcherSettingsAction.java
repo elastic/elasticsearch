@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.Map;
@@ -69,7 +68,6 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
             this.settings = in.readGenericMap();
         }
 
-        @UpdateForV9 // bwc no longer required
         private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
             super(masterNodeTimeout, ackTimeout);
             this.settings = in.readGenericMap();

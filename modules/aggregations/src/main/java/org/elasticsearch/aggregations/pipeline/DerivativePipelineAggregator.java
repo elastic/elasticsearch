@@ -22,8 +22,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -69,11 +67,16 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                 if (xAxisUnits != null) {
                     xDiff = (thisBucketKey.doubleValue() - lastBucketKey.doubleValue()) / xAxisUnits;
                 }
-                final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .collect(Collectors.toCollection(ArrayList::new));
-                aggs.add(new Derivative(name(), gradient, xDiff, formatter, metadata()));
-                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
-                newBuckets.add(newBucket);
+                newBuckets.add(
+                    factory.createBucket(
+                        factory.getKey(bucket),
+                        bucket.getDocCount(),
+                        InternalAggregations.append(
+                            bucket.getAggregations(),
+                            new Derivative(name(), gradient, xDiff, formatter, metadata())
+                        )
+                    )
+                );
             } else {
                 newBuckets.add(bucket);
             }

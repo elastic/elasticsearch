@@ -194,8 +194,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 boundTransportAddressDiscoveryNodeFunction,
                 null,
-                taskManager,
-                Tracer.NOOP
+                taskManager
             );
             taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();

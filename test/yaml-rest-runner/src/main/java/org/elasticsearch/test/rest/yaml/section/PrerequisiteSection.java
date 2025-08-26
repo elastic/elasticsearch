@@ -12,7 +12,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.Features;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -328,7 +327,6 @@ public class PrerequisiteSection {
         parser.nextToken();
     }
 
-    @UpdateForV9
     private static boolean parseRestCompatVersion(XContentParser parser, PrerequisiteSectionBuilder builder) throws IOException {
         // allow skip version only for v7 REST compatibility tests, to be removed for V9
         if ("true".equals(System.getProperty("tests.restCompat"))) return parseString(parser, builder::skipIfVersion);

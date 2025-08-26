@@ -68,7 +68,7 @@ try the https://www.elastic.co/demo-gallery/ai-playground[interactive lab] for h
 
 Learn more about building RAG systems using {es} in these blog posts:
 
-* https://www.elastic.co/blog/beyond-rag-basics-semantic-search-with-elasticsearch[Beyond RAG Basics: Advanced strategies for AI applications]
+* https://www.elastic.co/blog/beyond-rag-basics[Beyond RAG Basics: Advanced strategies for AI applications]
 * https://www.elastic.co/search-labs/blog/building-a-rag-system-with-gemma-hugging-face-elasticsearch[Building a RAG system with Gemma, Hugging Face, and Elasticsearch]
 * https://www.elastic.co/search-labs/blog/rag-agent-tool-elasticsearch-langchain[Building an agentic RAG tool with Elasticsearch and Langchain]
 

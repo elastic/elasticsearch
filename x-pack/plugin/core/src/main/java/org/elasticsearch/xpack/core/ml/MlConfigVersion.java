@@ -304,6 +304,9 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         return fromId(node.getPre811VersionId().orElseThrow(() -> new IllegalStateException("getting legacy version id not possible")));
     }
 
+    // supports fromString below
+    private static final Pattern ML_VERSION_PATTERN = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(?:-\\w+)?$");
+
     // Parse an MlConfigVersion from a string.
     // Note that version "8.10.x" and "8.11.0" are silently converted to "10.0.0".
     // This is to support upgrade scenarios in pre-prod QA environments.
@@ -319,7 +322,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         if (str.startsWith("8.10.") || str.equals("8.11.0")) {
             return V_10;
         }
-        Matcher matcher = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(?:-\\w+)?$").matcher(str);
+        Matcher matcher = ML_VERSION_PATTERN.matcher(str);
         if (matcher.matches() == false) {
             throw new IllegalArgumentException("ML config version [" + str + "] not valid");
         }

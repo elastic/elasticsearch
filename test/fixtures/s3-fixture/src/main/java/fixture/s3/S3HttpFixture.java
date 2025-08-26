@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.BiPredicate;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
@@ -33,7 +34,7 @@ public class S3HttpFixture extends ExternalResource {
     private final BiPredicate<String, String> authorizationPredicate;
 
     public S3HttpFixture(boolean enabled) {
-        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key"));
+        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
     }
 
     public S3HttpFixture(boolean enabled, String bucket, String basePath, BiPredicate<String, String> authorizationPredicate) {

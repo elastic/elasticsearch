@@ -46,7 +46,7 @@ public class ByteLengthTests extends AbstractScalarFunctionTestCase {
     }
 
     private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedByteLength) {
-        return Stream.of(DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT)
+        return Stream.of(DataType.KEYWORD, DataType.TEXT)
             .map(
                 dataType -> new TestCaseSupplier(
                     title + " with " + dataType,

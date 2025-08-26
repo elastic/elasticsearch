@@ -125,7 +125,7 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
 
         // chain each call one at a time
         // because that is what we are doing for ML, and that is all that is supported in the persistentTasksClusterService (for now)
-        SubscribableListener<PersistentTasksCustomMetadata.PersistentTask<?>> chainListener = SubscribableListener.newSucceeded(null);
+        SubscribableListener<PersistentTasksCustomMetadata.PersistentTask<?>> chainListener = SubscribableListener.nullSuccess();
         for (var task : transformTasks) {
             chainListener = chainListener.andThen(executor, threadPool.getThreadContext(), (l, unused) -> {
                 persistentTasksClusterService.unassignPersistentTask(

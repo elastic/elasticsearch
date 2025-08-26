@@ -73,6 +73,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     private static TestFeatureService remoteFeaturesService;
     private static RestClient remoteClusterClient;
+    private static DataLocation dataLocation = null;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -127,6 +128,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("LOOKUP JOIN not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName()));
     }
 
+    @Override
+    protected boolean supportTimeSeriesCommand() {
+        return false;
+    }
+
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
             var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());
@@ -176,8 +182,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
      */
     static RestClient twoClients(RestClient localClient, RestClient remoteClient) throws IOException {
         RestClient twoClients = mock(RestClient.class);
+        assertNotNull("data location was set", dataLocation);
         // write to a single cluster for now due to the precision of some functions such as avg and tests related to updates
-        final RestClient bulkClient = randomFrom(localClient, remoteClient);
+        final RestClient bulkClient = dataLocation == DataLocation.REMOTE_ONLY ? remoteClient : randomFrom(localClient, remoteClient);
         when(twoClients.performRequest(any())).then(invocation -> {
             Request request = invocation.getArgument(0);
             String endpoint = request.getEndpoint();
@@ -200,6 +207,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return null;
         }).when(twoClients).close();
         return twoClients;
+    }
+
+    enum DataLocation {
+        REMOTE_ONLY,
+        ANY_CLUSTER
     }
 
     static Request[] cloneRequests(Request orig, int numClones) throws IOException {
@@ -226,6 +238,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
      * Convert FROM employees ... => FROM *:employees,employees
      */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
+        if (dataLocation == null) {
+            dataLocation = randomFrom(DataLocation.values());
+        }
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
@@ -233,11 +248,17 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
             String fromStatement = parts[0];
-
             String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
-            String remoteIndices = Arrays.stream(localIndices)
-                .map(index -> "*:" + index.trim() + "," + index.trim())
-                .collect(Collectors.joining(","));
+            final String remoteIndices;
+            if (canUseRemoteIndicesOnly() && randomBoolean()) {
+                remoteIndices = Arrays.stream(localIndices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
+                    .collect(Collectors.joining(","));
+            } else {
+                remoteIndices = Arrays.stream(localIndices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))
+                    .collect(Collectors.joining(","));
+            }
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
         }
@@ -245,7 +266,15 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String[] parts = commands[0].split("\\s+");
             assert parts.length >= 2 : commands[0];
             String[] indices = parts[1].split(",");
-            parts[1] = Arrays.stream(indices).map(index -> "*:" + index + "," + index).collect(Collectors.joining(","));
+            if (canUseRemoteIndicesOnly() && randomBoolean()) {
+                parts[1] = Arrays.stream(indices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
+                    .collect(Collectors.joining(","));
+            } else {
+                parts[1] = Arrays.stream(indices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))
+                    .collect(Collectors.joining(","));
+            }
             String newNewMetrics = String.join(" ", parts);
             testCase.query = newNewMetrics + query.substring(first.length());
         }
@@ -262,6 +291,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return testCase;
     }
 
+    static boolean canUseRemoteIndicesOnly() {
+        // If the data is indexed only into the remote cluster, we can query only the remote indices.
+        // However, due to the union types bug in CCS, we must include the local indices in versions without the fix.
+        return dataLocation == DataLocation.REMOTE_ONLY && Clusters.bwcVersion().onOrAfter(Version.V_8_19_0);
+    }
+
     static boolean hasIndexMetadata(String query) {
         String[] commands = query.split("\\|");
         if (commands[0].trim().toLowerCase(Locale.ROOT).startsWith("from")) {
@@ -269,6 +304,40 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
+    }
+
+    /**
+     * Since partial quoting is prohibited, we need to take the index name, unquote it,
+     * convert it to a remote index, and then requote it. For example, "employees" is unquoted,
+     * turned into the remote index *:employees, and then requoted to get "*:employees".
+     * @param index Name of the index.
+     * @param asRemoteIndexOnly If the return needs to be in the form of "*:idx,idx" or "*:idx".
+     * @return A remote index pattern that's requoted.
+     */
+    private static String unquoteAndRequoteAsRemote(String index, boolean asRemoteIndexOnly) {
+        index = index.trim();
+
+        int numOfQuotes = 0;
+        for (; numOfQuotes < index.length(); numOfQuotes++) {
+            if (index.charAt(numOfQuotes) != '"') {
+                break;
+            }
+        }
+
+        String unquoted = unquote(index, numOfQuotes);
+        if (asRemoteIndexOnly) {
+            return quote("*:" + unquoted, numOfQuotes);
+        } else {
+            return quote("*:" + unquoted + "," + unquoted, numOfQuotes);
+        }
+    }
+
+    private static String quote(String index, int numOfQuotes) {
+        return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
+    }
+
+    private static String unquote(String index, int numOfQuotes) {
+        return index.substring(numOfQuotes, index.length() - numOfQuotes);
     }
 
     @Override

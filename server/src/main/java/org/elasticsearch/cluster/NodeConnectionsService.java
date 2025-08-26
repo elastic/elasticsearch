@@ -17,15 +17,19 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -188,6 +192,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
+        transportService.addConnectionListener(new ConnectionChangeListener());
         final ConnectionChecker connectionChecker = new ConnectionChecker();
         this.connectionChecker = connectionChecker;
         connectionChecker.scheduleNextCheck();
@@ -209,11 +214,32 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         });
     }
 
+    // exposed for testing
+    protected DisconnectionHistory disconnectionHistoryForNode(DiscoveryNode node) {
+        synchronized (mutex) {
+            ConnectionTarget connectionTarget = targetsByNode.get(node);
+            if (connectionTarget != null) {
+                return connectionTarget.disconnectionHistory;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Time of disconnect in absolute time ({@link ThreadPool#absoluteTimeInMillis()}),
+     * and disconnect-causing exception, if any
+     */
+    record DisconnectionHistory(long disconnectTimeMillis, @Nullable Exception disconnectCause) {}
+
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
+
+        // access is synchronized by the service mutex
+        @Nullable // null when node is connected or initialized; non-null in between disconnects and connects
+        private DisconnectionHistory disconnectionHistory = null;
 
         // all access to these fields is synchronized
         private List<Releasable> pendingRefs;
@@ -342,8 +368,72 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
+            return "ConnectionTarget{discoveryNode=" + discoveryNode + '}';
+        }
+    }
+
+    /**
+     * Receives connection/disconnection events from the transport, and records them in per-node DisconnectionHistory
+     * structures for logging network issues. DisconnectionHistory records are stored in their node's ConnectionTarget.
+     *
+     * Network issues (that this listener monitors for) occur whenever a reconnection to a node succeeds,
+     * and it has the same ephemeral ID as it did during the last connection; this happens when a connection event
+     * occurs, and its ConnectionTarget entry has a previous DisconnectionHistory stored.
+     */
+    private class ConnectionChangeListener implements TransportConnectionListener {
+        @Override
+        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            DisconnectionHistory disconnectionHistory = null;
             synchronized (mutex) {
-                return "ConnectionTarget{" + "discoveryNode=" + discoveryNode + '}';
+                ConnectionTarget connectionTarget = targetsByNode.get(node);
+                if (connectionTarget != null) {
+                    disconnectionHistory = connectionTarget.disconnectionHistory;
+                    connectionTarget.disconnectionHistory = null;
+                }
+            }
+
+            if (disconnectionHistory != null) {
+                long millisSinceDisconnect = threadPool.absoluteTimeInMillis() - disconnectionHistory.disconnectTimeMillis;
+                TimeValue timeValueSinceDisconnect = TimeValue.timeValueMillis(millisSinceDisconnect);
+                if (disconnectionHistory.disconnectCause != null) {
+                    logger.warn(
+                        () -> format(
+                            """
+                                reopened transport connection to node [%s] \
+                                which disconnected exceptionally [%s/%dms] ago but did not \
+                                restart, so the disconnection is unexpected; \
+                                see [%s] for troubleshooting guidance""",
+                            node.descriptionWithoutAttributes(),
+                            timeValueSinceDisconnect,
+                            millisSinceDisconnect,
+                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                        ),
+                        disconnectionHistory.disconnectCause
+                    );
+                } else {
+                    logger.warn(
+                        """
+                            reopened transport connection to node [{}] \
+                            which disconnected gracefully [{}/{}ms] ago but did not \
+                            restart, so the disconnection is unexpected; \
+                            see [{}] for troubleshooting guidance""",
+                        node.descriptionWithoutAttributes(),
+                        timeValueSinceDisconnect,
+                        millisSinceDisconnect,
+                        ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                    );
+                }
+            }
+        }
+
+        @Override
+        public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
+            DisconnectionHistory disconnectionHistory = new DisconnectionHistory(threadPool.absoluteTimeInMillis(), closeException);
+            synchronized (mutex) {
+                ConnectionTarget connectionTarget = targetsByNode.get(node);
+                if (connectionTarget != null) {
+                    connectionTarget.disconnectionHistory = disconnectionHistory;
+                }
             }
         }
     }

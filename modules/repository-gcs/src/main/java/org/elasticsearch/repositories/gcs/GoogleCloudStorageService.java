@@ -130,12 +130,14 @@ public class GoogleCloudStorageService {
      */
     private Storage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GoogleCloudStorageOperationsStats stats)
         throws IOException {
-        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
-            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            // requires java.lang.RuntimePermission "setFactory"
-            // Pin the TLS trust certificates.
-            // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
-            // store format not compatible with FIPS mode.
+
+        final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+        // requires java.lang.RuntimePermission "setFactory"
+        // Pin the TLS trust certificates.
+        // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
+        // store format not compatible with FIPS mode.
+        final HttpTransport httpTransport;
+        try {
             final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
             try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
                 SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
@@ -146,8 +148,12 @@ public class GoogleCloudStorageService {
                 builder.setProxy(proxy);
                 notifyProxyIsSet(proxy);
             }
-            return builder.build();
-        });
+            httpTransport = builder.build();
+        } catch (RuntimeException | IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
 
@@ -194,7 +200,7 @@ public class GoogleCloudStorageService {
         } else {
             String defaultProjectId = null;
             try {
-                defaultProjectId = SocketAccess.doPrivilegedIOException(ServiceOptions::getDefaultProjectId);
+                defaultProjectId = ServiceOptions.getDefaultProjectId();
                 if (defaultProjectId != null) {
                     storageOptionsBuilder.setProjectId(defaultProjectId);
                 }
@@ -205,12 +211,10 @@ public class GoogleCloudStorageService {
                 try {
                     // fallback to manually load project ID here as the above ServiceOptions method has the metadata endpoint hardcoded,
                     // which makes it impossible to test
-                    SocketAccess.doPrivilegedVoidIOException(() -> {
-                        final String projectId = getDefaultProjectId(gcsClientSettings.getProxy());
-                        if (projectId != null) {
-                            storageOptionsBuilder.setProjectId(projectId);
-                        }
-                    });
+                    final String projectId = getDefaultProjectId(gcsClientSettings.getProxy());
+                    if (projectId != null) {
+                        storageOptionsBuilder.setProjectId(projectId);
+                    }
                 } catch (Exception e) {
                     logger.warn("failed to load default project id fallback", e);
                 }
@@ -218,7 +222,7 @@ public class GoogleCloudStorageService {
         }
         if (gcsClientSettings.getCredential() == null) {
             try {
-                storageOptionsBuilder.setCredentials(SocketAccess.doPrivilegedIOException(GoogleCredentials::getApplicationDefault));
+                storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
             } catch (Exception e) {
                 logger.warn("failed to load Application Default Credentials", e);
             }

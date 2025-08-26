@@ -4,6 +4,14 @@
 <titleabbrev>View events</titleabbrev>
 ++++
 
+++++
+<style>
+  div#url-to-v3 {
+    display: none !important;
+  }
+</style>
+++++
+
 [TIP]
 ====
 Refer to <<behavioral-analytics-event-reference>> for a complete list of the fields logged by events.

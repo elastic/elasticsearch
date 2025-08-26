@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
@@ -51,6 +53,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
@@ -59,7 +62,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.search.SearchService.maybeWrapListenerForStackTrace;
+import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -124,7 +128,8 @@ public class SearchServiceTests extends IndexShardTestCase {
         doTestCanMatch(searchRequest, sortField, true, null, false);
     }
 
-    public void testMaybeWrapListenerForStackTrace() {
+    public void testWrapListenerForErrorHandling() {
+        ShardId shardId = new ShardId("index", "index", 0);
         // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
         AtomicBoolean isWrapped = new AtomicBoolean(false);
         ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
@@ -146,9 +151,84 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), threadPool);
+        listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), "node", shardId, 123L, threadPool);
         isWrapped.set(true);
         listener.onFailure(e);
+    }
+
+    public void testWrapListenerForErrorHandlingDebugLog() {
+        final String nodeId = "node";
+        final String index = "index";
+        ShardId shardId = new ShardId(index, index, 0);
+        final long taskId = 123L;
+
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            Configurator.setLevel(SearchService.class, Level.DEBUG);
+            final String exceptionMessage = "test exception message";
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    format("\"[%s]%s: failed to execute search request for task [%d]\" and an exception logged", nodeId, shardId, taskId),
+                    SearchService.class.getCanonicalName(),
+                    Level.DEBUG, // We will throw a 400-level exception, so it should only be logged at the debug level
+                    format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId),
+                    IllegalArgumentException.class,
+                    exceptionMessage
+                )
+            );
+
+            // Tests the listener has logged if it is wrapped
+            ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchPhaseResult searchPhaseResult) {
+                    // noop - we only care about failure scenarios
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    mockLog.assertAllExpectationsMatched();
+                }
+            };
+            IllegalArgumentException e = new IllegalArgumentException(exceptionMessage); // 400-level exception
+            listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
+            listener.onFailure(e);
+        }
+    }
+
+    public void testWrapListenerForErrorHandlingWarnLog() {
+        final String nodeId = "node";
+        final String index = "index";
+        ShardId shardId = new ShardId(index, index, 0);
+        final long taskId = 123L;
+
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            final String exceptionMessage = "test exception message";
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    format("\"[%s]%s: failed to execute search request for task [%d]\" and an exception logged", nodeId, shardId, taskId),
+                    SearchService.class.getCanonicalName(),
+                    Level.WARN, // We will throw a 500-level exception, so it should be logged at the warn level
+                    format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId),
+                    IllegalStateException.class,
+                    exceptionMessage
+                )
+            );
+
+            // Tests the listener has logged if it is wrapped
+            ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchPhaseResult searchPhaseResult) {
+                    // noop - we only care about failure scenarios
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    mockLog.assertAllExpectationsMatched();
+                }
+            };
+            IllegalStateException e = new IllegalStateException(exceptionMessage); // 500-level exception
+            listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
+            listener.onFailure(e);
+        }
     }
 
     private void doTestCanMatch(

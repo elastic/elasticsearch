@@ -7,7 +7,7 @@
 For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
 --
 
-Creates an {infer} endpoint to perform an {infer} task with the `openai` service.
+Creates an {infer} endpoint to perform an {infer} task with the `openai` service or `openai` compatible APIs. 
 
 
 [discrete]

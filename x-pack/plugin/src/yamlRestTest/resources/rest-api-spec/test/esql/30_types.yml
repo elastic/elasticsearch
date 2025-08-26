@@ -30,6 +30,66 @@ constant_keyword:
           - { "color": "red" }
 
   - do:
+      indices.create:
+        index:  test_2
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+                value: a different constant
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "blue" }
+
+  - do:
+      indices.create:
+        index:  test_3
+        body:
+          mappings:
+            properties:
+              kind:
+                type: keyword
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test_3
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kind":"not a constant", "color": "pink" }
+          - { "index": { } }
+          - { "kind": "still no constant", "color": "pink" }
+
+  - do:
+      indices.create:
+        index:  text_test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: text
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: text_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kind":"a text field", "color": "green" }
+
+  - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
@@ -53,6 +113,262 @@ constant_keyword:
   - match: {columns.0.type: integer}
   - length: {values: 1}
   - match: {values.0.0: 17}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | dissect kind "%{one} %{two} %{three}" | keep one, two, three, kind'
+  - match: {columns.0.name: one}
+  - match: {columns.0.type: keyword}
+  - match: {columns.1.name: two }
+  - match: {columns.1.type: keyword }
+  - match: {columns.2.name: three }
+  - match: {columns.2.type: keyword }
+  - match: {columns.3.name: kind }
+  - match: {columns.3.type: keyword }
+
+  - length: {values: 1}
+  - match: {values.0.0: wow}
+  - match: {values.0.1: such}
+  - match: {values.0.2: constant}
+  - match: {values.0.3: wow such constant}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,test_2 | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,test_2 | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind == "not a constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: pink}
+  - match: {values.0.1: "not a constant"}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind >=  "a" | keep color, kind | sort color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 4}
+  - match: {values.0.0: blue}
+  - match: {values.0.1: "a different constant"}
+  - match: {values.1.0: pink}
+  - match: {values.1.1: "not a constant"}
+  - match: {values.2.0: pink}
+  - match: {values.2.1: "still no constant"}
+  - match: {values.3.0: red}
+  - match: {values.3.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind >=  "o" | keep color, kind | sort color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 2}
+  - match: {values.0.0: pink}
+  - match: {values.0.1: "still no constant"}
+  - match: {values.1.0: red}
+  - match: {values.1.1: "wow such constant"}
+
+
+---
+constant_keyword_2:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [agg_max_min_string_support]
+      reason: "Needs support for min/max aggs on keywords"
+  - skip:
+      features: warnings
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+                value: wow such constant
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      indices.create:
+        index:  text_test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: text
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: text_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kind":"a text field", "color": "green" }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats x = max(kind)'
+  - match: {columns.0.name: x}
+  - match: {columns.0.type: keyword}
+
+  - length: {values: 1}
+  - match: {values.0.0: wow such constant}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string == "a text field" | eval kind = kind::string | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: green}
+  - match: {values.0.1: "a text field"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string == "wow such constant" | eval kind = kind::string | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string >= "a" | eval kind = kind::string | keep color, kind | sort color'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 2}
+  - match: {values.0.0: green}
+  - match: {values.0.1: "a text field"}
+  - match: {values.1.0: red}
+  - match: {values.1.1: "wow such constant"}
 
 ---
 constant_keyword with null value:

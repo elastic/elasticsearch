@@ -209,6 +209,23 @@ public class Configuration implements Writeable {
         return tables;
     }
 
+    public Configuration withoutTables() {
+        return new Configuration(
+            zoneId,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            query,
+            profile,
+            Map.of(),
+            queryStartTimeNanos,
+            allowPartialResults
+        );
+    }
+
     /**
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
@@ -307,4 +324,11 @@ public class Configuration implements Writeable {
             + '}';
     }
 
+    /**
+     * Reads a {@link Configuration} that doesn't contain any {@link Configuration#tables()}.
+     */
+    public static Configuration readWithoutTables(StreamInput in) throws IOException {
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, null);
+        return new Configuration(blockStreamInput);
+    }
 }

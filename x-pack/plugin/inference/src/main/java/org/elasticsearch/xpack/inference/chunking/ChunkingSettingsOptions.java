@@ -11,7 +11,9 @@ public enum ChunkingSettingsOptions {
     STRATEGY("strategy"),
     MAX_CHUNK_SIZE("max_chunk_size"),
     OVERLAP("overlap"),
-    SENTENCE_OVERLAP("sentence_overlap");
+    SENTENCE_OVERLAP("sentence_overlap"),
+    SEPARATOR_GROUP("separator_group"),
+    SEPARATORS("separators");
 
     private final String chunkingSettingsOption;
 

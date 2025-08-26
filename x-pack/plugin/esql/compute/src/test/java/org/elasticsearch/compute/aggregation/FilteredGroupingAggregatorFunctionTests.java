@@ -124,7 +124,7 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
             while ((p = source.getOutput()) != null) {
                 try (
                     IntVector group = ctx.blockFactory().newConstantIntVector(0, p.getPositionCount());
-                    GroupingAggregatorFunction.AddInput addInput = leaf.prepareProcessPage(null, p)
+                    GroupingAggregatorFunction.AddInput addInput = leaf.prepareProcessRawInputPage(null, p)
                 ) {
                     addInput.add(0, group);
                 } finally {

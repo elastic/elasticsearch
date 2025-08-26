@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -43,7 +44,6 @@ import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -179,7 +179,7 @@ public class ShardStateActionTests extends ESTestCase {
         // sent to the master
         assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node().getId());
 
-        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
 
         listener.await();
         assertNull(listener.failure.get());
@@ -305,7 +305,7 @@ public class ShardStateActionTests extends ESTestCase {
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), listener);
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
 
         listener.await();
         assertNull(listener.failure.get());
@@ -377,7 +377,7 @@ public class ShardStateActionTests extends ESTestCase {
         }
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(1));
-        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
         latch.await();
         assertThat(transport.capturedRequests(), arrayWithSize(0));
     }
@@ -417,7 +417,7 @@ public class ShardStateActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(expectedRequests));
         for (int i = 0; i < expectedRequests; i++) {
-            transport.handleResponse(capturedRequests[i].requestId(), TransportResponse.Empty.INSTANCE);
+            transport.handleResponse(capturedRequests[i].requestId(), ActionResponse.Empty.INSTANCE);
         }
         latch.await();
         assertThat(transport.capturedRequests(), arrayWithSize(0));
@@ -439,7 +439,7 @@ public class ShardStateActionTests extends ESTestCase {
             while (shutdown.get() == false) {
                 for (CapturingTransport.CapturedRequest request : transport.getCapturedRequestsAndClear()) {
                     if (randomBoolean()) {
-                        transport.handleResponse(request.requestId(), TransportResponse.Empty.INSTANCE);
+                        transport.handleResponse(request.requestId(), ActionResponse.Empty.INSTANCE);
                     } else {
                         transport.handleRemoteError(request.requestId(), randomFrom(getSimulatedFailure()));
                     }
@@ -504,7 +504,7 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(entry.primaryTerm, equalTo(primaryTerm));
         assertThat(entry.timestampRange, sameInstance(ShardLongFieldRange.UNKNOWN));
 
-        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
         listener.await();
         assertNull(listener.failure.get());
     }
@@ -537,7 +537,7 @@ public class ShardStateActionTests extends ESTestCase {
             retries.incrementAndGet();
             if (retries.get() == numberOfRetries) {
                 // finish the request
-                transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+                transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
             } else {
                 retryLoop.accept(capturedRequests[0].requestId());
             }

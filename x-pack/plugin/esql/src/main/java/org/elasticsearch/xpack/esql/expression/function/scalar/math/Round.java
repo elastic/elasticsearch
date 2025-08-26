@@ -47,7 +47,6 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression field, decimals;
 
-    // @TODO: add support for "integer", "long", "unsigned_long" once tests are fixed
     @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = """
         Rounds a number to the specified number of decimal places.
         Defaults to 0, which returns the nearest integer. If the

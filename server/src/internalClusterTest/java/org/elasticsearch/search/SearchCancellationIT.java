@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -239,6 +240,8 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     }
 
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
+        // TODO: make this test compatible with batched execution, currently the exceptions are slightly different with batched
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
         // are limited to 1
         internalCluster().ensureAtLeastNumDataNodes(2);

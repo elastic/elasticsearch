@@ -73,7 +73,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private ThreadPool threadPool;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private Client client;
-    private MockTransport mockTransport;
     private Task transformTask;
     private final String indexNamePattern = "test_index-";
     private String[] testIndices;
@@ -97,7 +96,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         indexNameExpressionResolver = new MockResolver();
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
-        mockTransport = new MockTransport() {
+        MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(GetCheckpointNodeAction.NAME)) {

@@ -1,0 +1,48 @@
+
+retrieveDenseVectorData
+required_capability: dense_vector_field_type
+
+FROM dense_vector
+| KEEP id, vector
+| SORT id
+;
+
+id:l | vector:dense_vector
+0    | [1.0, 2.0, 3.0]
+1    | [4.0, 5.0, 6.0]
+2    | [9.0, 8.0, 7.0]
+3    | [0.054, 0.032, 0.012]
+;
+
+denseVectorWithEval
+required_capability: dense_vector_field_type
+
+FROM dense_vector
+| EVAL v = vector
+| KEEP id, v
+| SORT id
+;
+
+id:l | v:dense_vector
+0    | [1.0, 2.0, 3.0]
+1    | [4.0, 5.0, 6.0]
+2    | [9.0, 8.0, 7.0]
+3    | [0.054, 0.032, 0.012]
+;
+
+denseVectorWithRenameAndDrop
+required_capability: dense_vector_field_type
+
+FROM dense_vector 
+| EVAL v = vector 
+| RENAME v AS new_vector 
+| DROP vector
+| SORT id
+;
+
+id:l | new_vector:dense_vector
+0    | [1.0, 2.0, 3.0]
+1    | [4.0, 5.0, 6.0]
+2    | [9.0, 8.0, 7.0]
+3    | [0.054, 0.032, 0.012]
+;

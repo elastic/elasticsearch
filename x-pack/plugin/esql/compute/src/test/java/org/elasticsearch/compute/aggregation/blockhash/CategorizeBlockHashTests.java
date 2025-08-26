@@ -416,6 +416,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         List<Page> intermediateOutput = new ArrayList<>();
 
         Driver driver = new Driver(
+            "test",
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
@@ -436,6 +437,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         runDriver(driver);
 
         driver = new Driver(
+            "test",
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
@@ -458,6 +460,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         List<Page> finalOutput = new ArrayList<>();
 
         driver = new Driver(
+            "test",
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(

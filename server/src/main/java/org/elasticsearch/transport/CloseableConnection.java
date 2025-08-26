@@ -48,6 +48,12 @@ public abstract class CloseableConnection extends AbstractRefCounted implements 
         }
     }
 
+    public void closeAndFail(Exception e) {
+        if (closed.compareAndSet(false, true)) {
+            closeContext.onFailure(e);
+        }
+    }
+
     @Override
     public void onRemoved() {
         if (removed.compareAndSet(false, true)) {

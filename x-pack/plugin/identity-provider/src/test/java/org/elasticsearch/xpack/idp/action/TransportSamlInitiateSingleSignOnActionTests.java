@@ -190,7 +190,8 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
                 "https://saml.elasticsearch.org/attributes/principal",
                 "https://saml.elasticsearch.org/attributes/name",
                 "https://saml.elasticsearch.org/attributes/email",
-                "https://saml.elasticsearch.org/attributes/roles"
+                "https://saml.elasticsearch.org/attributes/roles",
+                Set.of()
             ),
             null,
             false,

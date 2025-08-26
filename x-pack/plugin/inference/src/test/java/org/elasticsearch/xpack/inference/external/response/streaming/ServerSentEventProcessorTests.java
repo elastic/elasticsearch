@@ -59,7 +59,7 @@ public class ServerSentEventProcessorTests extends ESTestCase {
     public void testResponse() {
         ServerSentEventParser parser = mock();
         var deque = new ArrayDeque<ServerSentEvent>();
-        deque.offer(new ServerSentEvent(ServerSentEventField.EVENT, "hello"));
+        deque.offer(new ServerSentEvent("hello"));
         when(parser.parse(any())).thenReturn(deque);
 
         var processor = new ServerSentEventProcessor(parser);

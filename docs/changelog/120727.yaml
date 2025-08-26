@@ -1,6 +1,0 @@
-pr: 120727
-summary: Esql - Support date nanos in date extract function
-area: ES|QL
-type: enhancement
-issues:
- - 110000

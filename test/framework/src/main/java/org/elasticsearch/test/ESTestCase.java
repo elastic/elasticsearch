@@ -102,6 +102,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -116,7 +117,6 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -150,11 +150,11 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.ElementType;
@@ -496,34 +496,33 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected void afterIfSuccessful() throws Exception {}
 
     /**
-     * Marks a test suite or a test method that should run without security manager enabled.
+     * Marks a test suite or a test method that should run without checking for entitlements.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ ElementType.TYPE })
+    @Target(ElementType.TYPE)
     @Inherited
-    public @interface WithoutSecurityManager {
+    public @interface WithoutEntitlements {
     }
 
-    private static Closeable securityManagerRestorer;
-
-    // disable security manager if test is annotated to run without it
-
-    @BeforeClass
-    public static void maybeStashClassSecurityManager() {
-        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
-            if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
-                securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
-            }
-        }
+    /**
+     * Marks a test suite or a test method that enforce entitlements on the test code itself.
+     * Useful for testing the enforcement of entitlements; for any other test cases, this probably isn't what you want.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface WithEntitlementsOnTestCode {
     }
 
-    @AfterClass
-    public static void maybeRestoreClassSecurityManager() throws IOException {
-        if (securityManagerRestorer != null) {
-            securityManagerRestorer.close();
-            securityManagerRestorer = null;
-        }
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface EntitledTestPackages {
+        String[] value();
     }
+
+    @ClassRule
+    public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -2345,8 +2344,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * complete are a big drag on CI times which slows everyone down.
      * <p>
      * For instance, tests which verify things that require the passage of time ought to simulate this (e.g. using a {@link
-     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits (e.g.
-     * using a {@link CountDownLatch}) which release as soon as the condition is satisfied.
+     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits. For
+     * instance, use a {@link CountDownLatch} or {@link CyclicBarrier} or similar to continue execution as soon as a condition is satisfied.
+     * To wait for a particular cluster state, use {@link ClusterServiceUtils#addTemporaryStateListener} rather than busy-waiting on an API.
      */
     public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
@@ -2424,9 +2424,19 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code listener} was completed.
      */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
+        return safeAwait(listener, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Wait for the successful completion of the given {@link SubscribableListener}, respecting the provided timeout,
+     * preserving the thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code listener} was completed.
+     */
+    public static <T> T safeAwait(SubscribableListener<T> listener, TimeValue timeout) {
         final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
-        return safeGet(future);
+        return safeGet(future, timeout);
     }
 
     /**
@@ -2456,8 +2466,19 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code future} was completed.
      */
     public static <T> T safeGet(Future<T> future) {
+        return safeGet(future, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Wait for the successful completion of the given {@link Future}, respecting the provided timeout, preserving the
+     * thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code future} was completed.
+     */
+    // NB private because tests should be designed not to need to wait for longer than SAFE_AWAIT_TIMEOUT.
+    private static <T> T safeGet(Future<T> future, TimeValue timeout) {
         try {
-            return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+            return future.get(timeout.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);

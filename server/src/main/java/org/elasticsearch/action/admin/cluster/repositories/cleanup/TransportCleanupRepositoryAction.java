@@ -171,6 +171,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         SnapshotsService.ensureRepositoryExists(repositoryName, currentState);
+                        SnapshotsService.ensureNotReadOnly(currentState, repositoryName);
                         final RepositoryCleanupInProgress repositoryCleanupInProgress = RepositoryCleanupInProgress.get(currentState);
                         if (repositoryCleanupInProgress.hasCleanupInProgress()) {
                             throw new IllegalStateException(

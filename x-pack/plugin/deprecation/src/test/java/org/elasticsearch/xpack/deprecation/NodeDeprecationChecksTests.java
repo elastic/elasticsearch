@@ -112,7 +112,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo(
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0."
             )
         );
         String url = "https://ela.st/es-deprecation-7-multiple-paths";
@@ -137,7 +137,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo(
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0."
             )
         );
         String url = "https://ela.st/es-deprecation-7-multiple-paths";
@@ -161,8 +161,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
-        final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+        final String expectedUrl = "https://ela.st/es-deprecation-7-shared-data-path";
         assertThat(
             issues,
             contains(
@@ -221,10 +220,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
         assertEquals("Realm that start with [_] will not be permitted in a future major release.", deprecationIssue.getMessage());
-        assertEquals(
-            "https://www.elastic.co/guide/en/elasticsearch/reference" + "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
-            deprecationIssue.getUrl()
-        );
+        assertEquals("https://ela.st/es-deprecation-7-realm-prefix", deprecationIssue.getUrl());
         assertEquals(
             "Found realm "
                 + (invalidRealmNames.size() == 1 ? "name" : "names")
@@ -800,7 +796,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Setting [xpack.eql.enabled] is deprecated",
-            "https://ela.st/es-deprecation-8-eql-enabled-setting",
+            "https://ela.st/es-deprecation-7-eql-enabled-setting",
             "Remove the [xpack.eql.enabled] setting. As of 7.9.2 basic license level features are always enabled.",
             false,
             null

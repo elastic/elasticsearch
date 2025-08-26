@@ -59,8 +59,6 @@ The create {infer} API enables you to create an {infer} endpoint and configure a
 * Avoid creating multiple endpoints for the same model unless required, as each endpoint consumes significant resources.
 ====
 
-You can create an {infer} endpoint that uses the <<infer-service-elastic>> to perform {infer} tasks as a service without the need of deploying a model in your environment.
-
 The following integrations are available through the {infer} API.
 You can find the available task types next to the integration name.
 Click the links to review the configuration details of the integrations:
@@ -78,6 +76,7 @@ Click the links to review the configuration details of the integrations:
 * <<infer-service-hugging-face,Hugging Face>> (`text_embedding`)
 * <<infer-service-mistral,Mistral>> (`text_embedding`)
 * <<infer-service-openai,OpenAI>> (`chat_completion`, `completion`, `text_embedding`)
+* <<infer-service-voyageai,VoyageAI>> (`text_embedding`, `rerank`)
 * <<infer-service-watsonx-ai>> (`text_embedding`)
 * <<infer-service-jinaai,JinaAI>> (`text_embedding`, `rerank`)
 

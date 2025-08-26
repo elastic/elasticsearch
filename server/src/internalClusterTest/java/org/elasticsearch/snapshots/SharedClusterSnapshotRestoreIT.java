@@ -1475,12 +1475,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 assertNotNull(indexShard);
                 final var primaryTerm = indexShard.getOperationPrimaryTerm();
                 indexShard.failShard("simulated", new ElasticsearchException("simulated"));
-                safeAwait(
-                    ClusterServiceUtils.addTemporaryStateListener(
-                        internalCluster().getInstance(ClusterService.class),
-                        cs -> cs.metadata().index(indexName).primaryTerm(0) > primaryTerm
-                    )
-                );
+                safeAwait(ClusterServiceUtils.addTemporaryStateListener(cs -> cs.metadata().index(indexName).primaryTerm(0) > primaryTerm));
                 ensureGreen(indexName);
             }
         } finally {

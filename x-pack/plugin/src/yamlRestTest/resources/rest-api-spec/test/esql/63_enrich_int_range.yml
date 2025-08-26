@@ -192,8 +192,17 @@ teardown:
 
 ---
 "Invalid age as double":
+  - requires:
+        test_runner_features: [ capabilities ]
+        capabilities:
+          - method: POST
+            path: /_query
+            parameters: [ ]
+            capabilities: [ support_partial_results ]
+        reason: "disable partial_results"
   - do:
       catch: /ENRICH range and input types are incompatible. range\[INTEGER\], input\[DOUBLE\]/
       esql.query:
+        allow_partial_results: false
         body:
           query: 'FROM employees | ENRICH ages-policy ON salary | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'

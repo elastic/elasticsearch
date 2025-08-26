@@ -123,8 +123,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world.jar").exists()
-        file("build/distributions/hello-world-javadoc.jar").exists()
-        file("build/distributions/hello-world-sources.jar").exists()
         assertValidJar(file("build/distributions/hello-world.jar"))
     }
 
@@ -162,7 +160,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS
         result.task(":validateModule").outcome == TaskOutcome.SUCCESS
         result.task(":splitPackagesAudit").outcome == TaskOutcome.SUCCESS
-        result.task(":validateElasticPom").outcome == TaskOutcome.SUCCESS
         // disabled but check for being on the task graph
         result.task(":forbiddenApisMain").outcome == TaskOutcome.SKIPPED
         result.task(":checkstyleMain").outcome == TaskOutcome.SKIPPED

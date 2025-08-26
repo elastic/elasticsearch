@@ -1,6 +1,0 @@
-pr: 121568
-summary: Analyze API to return 400 for wrong custom analyzer
-area: Analysis
-type: bug
-issues:
- - 121443

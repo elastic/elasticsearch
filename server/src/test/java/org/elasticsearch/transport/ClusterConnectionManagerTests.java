@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -100,13 +102,15 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
 
         DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         Transport.Connection connection = new TestConnect(node);
+        PlainActionFuture<Void> closeListener = new PlainActionFuture<>();
+        connection.addCloseListener(closeListener);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
@@ -137,6 +141,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connection.close();
         }
         assertTrue(connection.isClosed());
+        assertThat(closeListener.actionGet(), nullValue());
         assertEquals(0, connectionManager.size());
         assertEquals(1, nodeConnectedCount.get());
         assertEquals(1, nodeDisconnectedCount.get());
@@ -654,7 +659,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -694,7 +699,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });

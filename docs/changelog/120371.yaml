@@ -1,5 +1,0 @@
-pr: 120371
-summary: Script for migrating `.watches` and `.triggered_watches` indices
-area: "Watcher"
-type: upgrade
-issues: []

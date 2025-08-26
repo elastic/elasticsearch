@@ -1,5 +1,0 @@
-pr: 121196
-summary: Fix geoip databases index access after system feature migration
-area: Ingest Node
-type: bug
-issues: []

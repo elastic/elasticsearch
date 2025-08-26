@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_join_no_aliases]
+          capabilities: [enable_lookup_join_on_aliases]
       reason: "uses LOOKUP JOIN"
 
   - do:
@@ -30,6 +30,8 @@ setup:
                    type: date
                 x:
                   type: keyword
+                y:
+                  type: keyword
 
   - do:
       indices.put_index_template:
@@ -40,29 +42,33 @@ setup:
           composed_of: [ "my_mappings", "my_settings" ]
           priority: 500
 
+  - do:
+      indices.create_data_stream:
+        name: my_data_stream
 
   - do:
-      bulk:
-        index: "my_data_stream"
-        refresh: true
+      index:
+        index:  my_data_stream
         body:
-          - { "index": { } }
-          - { "x": "foo", "y": "y1" }
-          - { "index": { } }
-          - { "x": "bar", "y": "y2" }
+          '@timestamp': '2020-12-12'
+          'x': 'foo'
+          'y': 'y1'
 
-
-
+  - do:
+      indices.refresh:
+        index: my_data_stream
 ---
-"data streams not supported in LOOKUP JOIN":
+"data streams supported in LOOKUP JOIN":
   - do:
       esql.query:
         body:
-          query: 'row x = "foo" | LOOKUP JOIN my_data_stream ON x'
-      catch: "bad_request"
+          query: 'ROW x = "foo" | LOOKUP JOIN my_data_stream ON x | KEEP x, y | LIMIT 1'
 
-  - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:17: Aliases and index patterns are not allowed for LOOKUP JOIN [my_data_stream]" }
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: ["foo", "y1"]}
 
 
 

@@ -90,22 +90,26 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
             var indexNameWithModes = esr.indexNameWithModes();
             if (indexNameWithModes.size() != 1) {
                 failures.add(
-                    fail(esr, "invalid [{}] resolution in lookup mode to [{}] indices", esr.indexPattern(), indexNameWithModes.size())
+                    fail(
+                        esr,
+                        "Lookup Join requires a single lookup mode index; [{}] resolves to [{}] indices",
+                        esr.indexPattern(),
+                        indexNameWithModes.size()
+                    )
                 );
-            } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
+                return;
+            }
+            var indexAndMode = indexNameWithModes.entrySet().iterator().next();
+            if (indexAndMode.getValue() != IndexMode.LOOKUP) {
                 failures.add(
                     fail(
                         esr,
-                        "invalid [{}] resolution in lookup mode to an index in [{}] mode",
+                        "Lookup Join requires a single lookup mode index; [{}] resolves to [{}] in [{}] mode",
                         esr.indexPattern(),
-                        indexNameWithModes.values().iterator().next()
+                        indexAndMode.getKey(),
+                        indexAndMode.getValue()
                     )
                 );
-            }
-
-            // this check is crucial for security: ES|QL would use the concrete indices, so it would bypass the security on the alias
-            if (esr.concreteIndices().contains(esr.indexPattern()) == false) {
-                failures.add(fail(this, "Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", esr.indexPattern()));
             }
         });
     }

@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
-public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCase<PutInferenceModelAction.Request> {
+public class PutInferenceModelRequestTests extends AbstractBWCWireSerializationTestCase<PutInferenceModelAction.Request> {
     @Override
     protected Writeable.Reader<PutInferenceModelAction.Request> instanceReader() {
         return PutInferenceModelAction.Request::new;
@@ -25,38 +28,40 @@ public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCa
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
             randomBytesReference(50),
-            randomFrom(XContentType.values())
+            randomFrom(XContentType.values()),
+            randomTimeValue()
         );
     }
 
     @Override
     protected PutInferenceModelAction.Request mutateInstance(PutInferenceModelAction.Request instance) {
-        return switch (randomIntBetween(0, 3)) {
-            case 0 -> new PutInferenceModelAction.Request(
-                TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
-                instance.getInferenceEntityId(),
-                instance.getContent(),
-                instance.getContentType()
-            );
-            case 1 -> new PutInferenceModelAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId() + "foo",
-                instance.getContent(),
-                instance.getContentType()
-            );
-            case 2 -> new PutInferenceModelAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId(),
-                randomBytesReference(instance.getContent().length() + 1),
-                instance.getContentType()
-            );
-            case 3 -> new PutInferenceModelAction.Request(
+        return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected PutInferenceModelAction.Request mutateInstanceForVersion(PutInferenceModelAction.Request instance, TransportVersion version) {
+        if (version.onOrAfter(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19)) {
+            return instance;
+        } else if (version.onOrAfter(TransportVersions.V_8_0_0)) {
+            return new PutInferenceModelAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
                 instance.getContent(),
-                XContentType.values()[(instance.getContentType().ordinal() + 1) % XContentType.values().length]
+                instance.getContentType(),
+                InferenceAction.Request.DEFAULT_TIMEOUT
             );
-            default -> throw new IllegalStateException();
-        };
+        } else {
+            return new PutInferenceModelAction.Request(
+                instance.getTaskType(),
+                instance.getInferenceEntityId(),
+                instance.getContent(),
+                /*
+                 * See XContentHelper.java#L733
+                 * for versions prior to 8.0.0, the content type does not have the VND_ instances
+                 */
+                XContentType.ofOrdinal(instance.getContentType().canonical().ordinal()),
+                InferenceAction.Request.DEFAULT_TIMEOUT
+            );
+        }
     }
 }

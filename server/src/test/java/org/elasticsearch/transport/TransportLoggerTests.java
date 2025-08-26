@@ -70,16 +70,17 @@ public class TransportLoggerTests extends ESTestCase {
         BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         Compression.Scheme compress = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
         try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
-            OutboundMessage.Request request = new OutboundMessage.Request(
-                new ThreadContext(Settings.EMPTY),
-                new EmptyRequest(),
-                TransportVersion.current(),
+            return OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 "internal:test",
                 randomInt(30),
                 false,
-                compress
+                TransportVersion.current(),
+                compress,
+                new EmptyRequest(),
+                new ThreadContext(Settings.EMPTY),
+                bytesStreamOutput
             );
-            return request.serialize(bytesStreamOutput);
         }
     }
 }

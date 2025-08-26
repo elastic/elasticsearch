@@ -17,9 +17,9 @@ import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.codecs.lucene912.Lucene912PostingsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
@@ -39,7 +39,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
     };
 
     private final DocValuesFormat defaultDVFormat;
-    private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
+    private final DocValuesFormat docValuesFormat = new XPerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return Elasticsearch816Codec.this.getDocValuesFormatForField(field);

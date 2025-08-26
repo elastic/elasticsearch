@@ -16,7 +16,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.logstash.Pipeline;
 import org.elasticsearch.xpack.logstash.action.PutPipelineAction;
 import org.elasticsearch.xpack.logstash.action.PutPipelineRequest;
@@ -55,9 +54,9 @@ public class RestPutPipelineAction extends BaseRestHandler {
                 new PutPipelineRequest(id, content, request.getXContentType()),
                 new RestActionListener<>(restChannel) {
                     @Override
-                    protected void processResponse(PutPipelineResponse putPipelineResponse) throws Exception {
+                    protected void processResponse(PutPipelineResponse putPipelineResponse) {
                         channel.sendResponse(
-                            new RestResponse(putPipelineResponse.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY)
+                            new RestResponse(putPipelineResponse.status(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
                         );
                     }
                 }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -122,10 +121,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // some tests rely on the translog not being flushed
             .setting("indices.memory.shard_inactive_time", "60m")
             .apply(() -> clusterConfig)
-            .feature(FeatureFlag.TIME_SERIES_MODE)
-            .feature(FeatureFlag.FAILURE_STORE_ENABLED);
+            .feature(FeatureFlag.TIME_SERIES_MODE);
 
-        if (oldVersion.before(Version.fromString("8.19.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }
@@ -1222,7 +1220,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             closeIndex(index);
         }
 
-        @UpdateForV9 // This check can be removed (always assume true)
         var originalClusterSupportsReplicationOfClosedIndices = oldClusterHasFeature(RestTestLegacyFeatures.REPLICATION_OF_CLOSED_INDICES);
 
         if (originalClusterSupportsReplicationOfClosedIndices) {
@@ -1627,7 +1624,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @SuppressWarnings("unchecked")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
 
-        @UpdateForV9 // assumeTrue can be removed (condition always true)
         var originalClusterTaskIndexIsSystemIndex = oldClusterHasFeature(RestTestLegacyFeatures.TASK_INDEX_SYSTEM_INDEX);
         assumeTrue(".tasks became a system index in 7.10.0", originalClusterTaskIndexIsSystemIndex);
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
@@ -1748,7 +1744,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     /**
      * This test ensures that soft deletes are enabled a when upgrading a pre-8 cluster to 8.0+
      */
-    @UpdateForV9 // This test can be removed in v9
     public void testEnableSoftDeletesOnRestore() throws Exception {
         var originalClusterDidNotEnforceSoftDeletes = oldClusterHasFeature(RestTestLegacyFeatures.SOFT_DELETES_ENFORCED) == false;
 
@@ -1861,7 +1856,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      * with true/false as options. This test ensures that the old boolean setting in cluster state is
      * translated properly. This test can be removed in 9.0.
      */
-    @UpdateForV9
     public void testTransportCompressionSetting() throws IOException {
         var originalClusterBooleanCompressSetting = oldClusterHasFeature(RestTestLegacyFeatures.NEW_TRANSPORT_COMPRESSED_SETTING) == false;
         assumeTrue("the old transport.compress setting existed before 7.14", originalClusterBooleanCompressSetting);

@@ -381,6 +381,8 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeDescription, boolean includeManageRoles) {
         final Set<String> excludedPrivileges = Set.of(
+            "read_failure_store",
+            "manage_failure_store",
             "cross_cluster_replication",
             "cross_cluster_replication_internal",
             "manage_data_stream_lifecycle"

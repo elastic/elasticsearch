@@ -8,14 +8,13 @@
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.jinaai.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIModel;
+import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
@@ -87,11 +86,10 @@ public class JinaAIRerankModel extends JinaAIModel {
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
      * @param visitor _
      * @param taskSettings _
-     * @param inputType ignored for rerank task
      * @return the rerank action
      */
     @Override
-    public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 

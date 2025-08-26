@@ -1,5 +1,0 @@
-pr: 120244
-summary: Ignore closed indices for reindex
-area: Data streams
-type: enhancement
-issues: []

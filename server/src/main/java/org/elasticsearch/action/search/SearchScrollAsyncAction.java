@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -46,7 +45,7 @@ import static org.elasticsearch.core.Strings.format;
  * fan out to nodes and execute the query part of the scroll request. Subclasses can for instance
  * run separate fetch phases etc.
  */
-abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements Runnable {
+abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     protected final Logger logger;
     protected final ActionListener<SearchResponse> listener;
     protected final ParsedScrollId scrollId;
@@ -235,7 +234,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     ) {
         return new SearchPhase("fetch") {
             @Override
-            public void run() {
+            protected void run() {
                 sendResponse(queryPhase, fetchResults);
             }
         };
@@ -313,17 +312,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
      * @param queryResults a list of non-null query shard results
      */
     protected static SearchPhaseController.ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
-        AggregationReduceContext.Builder aggReduceContextBuilder = new AggregationReduceContext.Builder() {
-            @Override
-            public AggregationReduceContext forPartialReduction() {
-                throw new UnsupportedOperationException("Scroll requests don't have aggs");
-            }
-
-            @Override
-            public AggregationReduceContext forFinalReduction() {
-                throw new UnsupportedOperationException("Scroll requests don't have aggs");
-            }
-        };
         final SearchPhaseController.TopDocsStats topDocsStats = new SearchPhaseController.TopDocsStats(
             SearchContext.TRACK_TOTAL_HITS_ACCURATE
         );
@@ -339,16 +327,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                 topDocs.add(td.topDocs);
             }
         }
-        return SearchPhaseController.reducedQueryPhase(
-            queryResults,
-            null,
-            topDocs,
-            topDocsStats,
-            0,
-            true,
-            aggReduceContextBuilder,
-            null,
-            true
-        );
+        return SearchPhaseController.reducedQueryPhase(queryResults, null, topDocs, topDocsStats, 0, true, null);
     }
 }

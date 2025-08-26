@@ -188,7 +188,11 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
 
     @Override
     public SimilarityMeasure similarity() {
-        return similarity;
+        // Default to cosine similarity if not set.
+        // Inference endpoints created before 8.15 may not have this set,
+        // after 8.15 the default is cosine similarity. Semantic text requires
+        // a non-null similarity measure
+        return similarity == null ? SimilarityMeasure.COSINE : similarity;
     }
 
     @Override

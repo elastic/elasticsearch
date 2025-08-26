@@ -9,14 +9,14 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.Map;
 
 public class LongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Long> {
-    public LongFieldBlockLoaderTests() {
-        super(FieldType.LONG);
+    public LongFieldBlockLoaderTests(Params params) {
+        super(FieldType.LONG, params);
     }
 
     @Override

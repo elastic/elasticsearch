@@ -1,0 +1,72 @@
+[[release-notes-8.18.1]]
+== {es} version 8.18.1
+
+Also see <<breaking-changes-8.18,Breaking changes in 8.18>>.
+
+[[bug-8.18.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Rare terms aggregation false **positive** fix {es-pull}126884[#126884]
+
+Allocation::
+* Fix shard size of initializing restored shard {es-pull}126783[#126783] (issue: {es-issue}105331[#105331])
+
+CCS::
+* Cancel expired async search task when a remote returns its results {es-pull}126583[#126583]
+
+Data streams::
+* [otel-data] Bump plugin version to release _metric_names_hash changes {es-pull}126850[#126850]
+
+ES|QL::
+* ESQL: Remove estimated row size assertion {es-pull}122762[#122762] (issue: {es-issue}121535[#121535])
+* Fix count optimization with pushable union types {es-pull}127225[#127225] (issue: {es-issue}127200[#127200])
+* Fix join masking eval {es-pull}126614[#126614]
+* Fix sneaky bug in single value query {es-pull}127146[#127146]
+
+Infra/CLI::
+* Use terminal reader in keystore add command {es-pull}126729[#126729] (issue: {es-issue}98115[#98115])
+
+Infra/Core::
+* Don't emit deprecation issue for compatible date format patterns {es-pull}127418[#127418]
+* Fix: consider case sensitiveness differences in Windows/Unix-like filesystems for files entitlements {es-pull}126990[#126990] (issue: {es-issue}127047[#127047])
+* Rework uniquify to not use iterators {es-pull}126889[#126889] (issue: {es-issue}126883[#126883])
+* Workaround max name limit imposed by Jackson 2.17 {es-pull}126806[#126806]
+
+Machine Learning::
+* Adding missing `onFailure` call for Inference API start model request {es-pull}126930[#126930]
+* Fix for Deberta tokenizer when input sequence exceeds 512 tokens {es-pull}117595[#117595]
+* Fix text structure NPE when fields in list have null value {es-pull}125922[#125922]
+* Leverage threadpool schedule for inference api to avoid long running thread {es-pull}126858[#126858] (issue: {es-issue}126853[#126853])
+
+Ranking::
+* Fix LTR rescorer with model alias {es-pull}126273[#126273]
+
+TSDB::
+* Improve resiliency of `UpdateTimeSeriesRangeService` {es-pull}126637[#126637]
+
+Task Management::
+* Fix race condition in `RestCancellableNodeClient` {es-pull}126686[#126686] (issue: {es-issue}88201[#88201])
+
+Vector Search::
+* Fix `vec_caps` to test for OS support too (on x64) {es-pull}126911[#126911] (issue: {es-issue}126809[#126809])
+
+[[enhancement-8.18.1]]
+[float]
+=== Enhancements
+
+Infra/Core::
+* Validation checks on paths allowed for 'files' entitlements. Restrict the paths we allow access to, forbidding plugins to specify/request entitlements for reading or writing to specific protected directories. {es-pull}126852[#126852]
+
+Security::
+* Add Issuer to failed SAML Signature validation logs when available {es-pull}126310[#126310] (issue: {es-issue}111022[#111022])
+
+[[upgrade-8.18.1]]
+[float]
+=== Upgrades
+
+Ingest Node::
+* Updating tika to 2.9.3 {es-pull}127353[#127353]
+
+

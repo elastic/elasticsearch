@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 public class InferenceFeatureSetUsage extends XPackFeatureUsage {
@@ -101,6 +102,8 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
         }
     }
 
+    public static final InferenceFeatureSetUsage EMPTY = new InferenceFeatureSetUsage(List.of());
+
     private final Collection<ModelStats> modelStats;
 
     public InferenceFeatureSetUsage(Collection<ModelStats> modelStats) {
@@ -128,5 +131,17 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_12_0;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        InferenceFeatureSetUsage that = (InferenceFeatureSetUsage) o;
+        return Objects.equals(modelStats, that.modelStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(modelStats);
     }
 }

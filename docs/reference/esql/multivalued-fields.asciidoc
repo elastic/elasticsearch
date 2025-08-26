@@ -28,6 +28,8 @@ Multivalued fields come back as a JSON array:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 5,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "long"}
@@ -80,6 +82,8 @@ And {esql} sees that removal:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 5,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "keyword"}
@@ -125,6 +129,8 @@ And {esql} also sees that:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 7,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "long"}
@@ -169,6 +175,8 @@ POST /_query
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 7,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "keyword"}
@@ -203,6 +211,8 @@ POST /_query
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 1,
+  "values_loaded": 2,
   "columns": [
     { "name": "a", "type": "long"},
   ],
@@ -247,6 +257,8 @@ POST /_query
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 5,
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},
@@ -271,7 +283,7 @@ Work around this limitation by converting the field to single value with one of:
 * <<esql-mv_min>>
 * <<esql-mv_sum>>
 
-[source,console,esql-multivalued-fields-mv-into-null]
+[source,console,esql-multivalued-fields-mv-min]
 ----
 POST /_query
 {
@@ -285,6 +297,8 @@ POST /_query
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 5,
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},

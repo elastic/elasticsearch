@@ -1,5 +1,0 @@
-pr: 124477
-summary: Improve downsample performance by buffering docids and do bulk processing
-area: Downsampling
-type: enhancement
-issues: []

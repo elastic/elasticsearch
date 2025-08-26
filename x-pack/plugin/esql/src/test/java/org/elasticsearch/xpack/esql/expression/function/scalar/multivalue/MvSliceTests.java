@@ -275,23 +275,6 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
-            int length = field.size();
-            int start = randomIntBetween(0, length - 1);
-            int end = randomIntBetween(start, length - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.SEMANTIC_TEXT, "field"),
-                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
-                ),
-                "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataType.SEMANTIC_TEXT,
-                equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
-            );
-        }));
-
         suppliers.add(new TestCaseSupplier(List.of(DataType.IP, DataType.INTEGER, DataType.INTEGER), () -> {
             List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
             int length = field.size();

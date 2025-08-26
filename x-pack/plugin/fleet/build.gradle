@@ -7,7 +7,9 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   name = 'x-pack-fleet'
@@ -22,12 +24,7 @@ dependencies {
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   compileOnly project(path: xpackModule('ilm'))
-}
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.autoconfiguration.enabled', 'false'
-  user username: 'x_pack_rest_user', password: 'x-pack-test-password'
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(':modules:data-streams')
 }

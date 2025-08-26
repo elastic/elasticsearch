@@ -640,9 +640,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     BitArray seenGroupIds = new BitArray(0, nonBreakingBigArrays());
 
                     @Override
-                    public AddInput prepareProcessPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
+                    public AddInput prepareProcessRawInputPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
                         return new AddInput() {
-                            final AddInput delegateAddInput = delegate.prepareProcessPage(bigArrays -> {
+                            final AddInput delegateAddInput = delegate.prepareProcessRawInputPage(bigArrays -> {
                                 BitArray seen = new BitArray(0, bigArrays);
                                 seen.or(seenGroupIds);
                                 return seen;
@@ -651,7 +651,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             @Override
                             public void add(int positionOffset, IntBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
-                                    try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(emitChunkSize)) {
+                                    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(emitChunkSize)) {
                                         int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
                                         for (int p = offset; p < endP; p++) {
                                             int start = groupIds.getFirstValueIndex(p);

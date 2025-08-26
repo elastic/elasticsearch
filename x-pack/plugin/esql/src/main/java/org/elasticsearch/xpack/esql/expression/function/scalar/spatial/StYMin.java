@@ -76,9 +76,9 @@ public class StYMin extends UnaryScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StYMinFromWKBGeoEvaluator.Factory(toEvaluator.apply(field()), source());
+            return new StYMinFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
         }
-        return new StYMinFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
+        return new StYMinFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

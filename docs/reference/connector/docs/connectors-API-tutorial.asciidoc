@@ -84,7 +84,7 @@ Note: With {es} running locally, you will need to pass the username and password
 .Running API calls
 ****
 
-You can run API calls using the https://www.elastic.co/guide/en/kibana/master/console-kibana.html[Dev Tools Console] in Kibana, using `curl` in your terminal, or with our programming language clients.
+You can run API calls using the {kibana-ref}/console-kibana.html[Dev Tools Console] in Kibana, using `curl` in your terminal, or with our programming language clients.
 Our example widget allows you to copy code examples in both Dev Tools Console syntax and curl syntax.
 To use curl, you'll need to add authentication headers to your request.
 
@@ -171,9 +171,9 @@ Now it's time for the real fun! We'll set up a connector to create a searchable 
 [discrete#es-connectors-tutorial-api-create-connector]
 ==== Create a connector
 
-We'll use the https://www.elastic.co/guide/en/elasticsearch/reference/master/create-connector-api.html[Create connector API] to create a PostgreSQL connector instance.
+We'll use the {ref}/create-connector-api.html[Create connector API] to create a PostgreSQL connector instance.
 
-Run the following API call, using the https://www.elastic.co/guide/en/kibana/master/console-kibana.html[Dev Tools Console] or `curl`:
+Run the following API call, using the {kibana-ref}/console-kibana.html[Dev Tools Console] or `curl`:
 
 [source,console]
 ----

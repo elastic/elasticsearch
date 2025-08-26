@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 
 import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -43,8 +43,8 @@ public final class GeoIpCache {
 
     private final LongSupplier relativeNanoTimeProvider;
     private final Cache<CacheKey, Object> cache;
-    private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
-    private final AtomicLong missesTimeInNanos = new AtomicLong(0);
+    private final LongAdder hitsTimeInNanos = new LongAdder();
+    private final LongAdder missesTimeInNanos = new LongAdder();
 
     // package private for testing
     GeoIpCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
@@ -79,9 +79,9 @@ public final class GeoIpCache {
             // store the result or no-result in the cache
             cache.put(cacheKey, response);
             long databaseRequestAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
-            missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestAndCachePutTime);
+            missesTimeInNanos.add(cacheRequestTime + databaseRequestAndCachePutTime);
         } else {
-            hitsTimeInNanos.addAndGet(cacheRequestTime);
+            hitsTimeInNanos.add(cacheRequestTime);
         }
 
         if (response == NO_RESULT) {
@@ -125,8 +125,8 @@ public final class GeoIpCache {
             stats.getHits(),
             stats.getMisses(),
             stats.getEvictions(),
-            TimeValue.nsecToMSec(hitsTimeInNanos.get()),
-            TimeValue.nsecToMSec(missesTimeInNanos.get())
+            TimeValue.nsecToMSec(hitsTimeInNanos.sum()),
+            TimeValue.nsecToMSec(missesTimeInNanos.sum())
         );
     }
 

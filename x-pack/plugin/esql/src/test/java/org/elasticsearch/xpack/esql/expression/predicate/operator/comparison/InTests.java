@@ -13,8 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
@@ -24,14 +22,10 @@ import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
-import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -44,39 +38,6 @@ import static org.hamcrest.Matchers.matchesPattern;
 public class InTests extends AbstractFunctionTestCase {
     public InTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
-    }
-
-    private static final Literal ONE = L(1);
-    private static final Literal TWO = L(2);
-    private static final Literal THREE = L(3);
-
-    public void testInWithContainedValue() {
-        In in = new In(EMPTY, TWO, Arrays.asList(ONE, TWO, THREE));
-        assertTrue((Boolean) in.fold(FoldContext.small()));
-    }
-
-    public void testInWithNotContainedValue() {
-        In in = new In(EMPTY, THREE, Arrays.asList(ONE, TWO));
-        assertFalse((Boolean) in.fold(FoldContext.small()));
-    }
-
-    public void testHandleNullOnLeftValue() {
-        In in = new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE));
-        assertNull(in.fold(FoldContext.small()));
-        in = new In(EMPTY, NULL, Arrays.asList(ONE, NULL, THREE));
-        assertNull(in.fold(FoldContext.small()));
-
-    }
-
-    public void testHandleNullsOnRightValue() {
-        In in = new In(EMPTY, THREE, Arrays.asList(ONE, NULL, THREE));
-        assertTrue((Boolean) in.fold(FoldContext.small()));
-        in = new In(EMPTY, ONE, Arrays.asList(TWO, NULL, THREE));
-        assertNull(in.fold(FoldContext.small()));
-    }
-
-    private static Literal L(Object value) {
-        return of(EMPTY, value);
     }
 
     @ParametersFactory
@@ -183,22 +144,6 @@ public class InTests extends AbstractFunctionTestCase {
                 args.add(new TestCaseSupplier.TypedData(i, DataType.TEXT, "inlist" + i));
             }
             args.add(new TestCaseSupplier.TypedData(field, DataType.TEXT, "field"));
-            return new TestCaseSupplier.TestCase(
-                args,
-                matchesPattern("InBytesRefEvaluator.*"),
-                DataType.BOOLEAN,
-                equalTo(inlist.contains(field))
-            );
-        }));
-
-        suppliers.add(new TestCaseSupplier("semantic_text", List.of(DataType.SEMANTIC_TEXT, DataType.SEMANTIC_TEXT), () -> {
-            List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
-            Object field = inlist.get(0);
-            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
-            for (Object i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, DataType.SEMANTIC_TEXT, "inlist" + i));
-            }
-            args.add(new TestCaseSupplier.TypedData(field, DataType.SEMANTIC_TEXT, "field"));
             return new TestCaseSupplier.TestCase(
                 args,
                 matchesPattern("InBytesRefEvaluator.*"),

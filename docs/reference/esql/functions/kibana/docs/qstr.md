@@ -8,7 +8,4 @@ Performs a <<query-dsl-query-string-query,query string query>>. Returns true if 
 ```
 FROM books 
 | WHERE QSTR("author: Faulkner")
-| KEEP book_no, author 
-| SORT book_no 
-| LIMIT 5
 ```

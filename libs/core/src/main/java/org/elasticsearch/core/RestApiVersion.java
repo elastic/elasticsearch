@@ -20,7 +20,6 @@ public enum RestApiVersion {
 
     V_8(8),
 
-    @UpdateForV9 // v9 will not need to support the v7 REST API
     V_7(7);
 
     public final byte major;

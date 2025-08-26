@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.not;
 
 public class DebertaV2TokenizerTests extends ESTestCase {
 
-    private static final List<String> TEST_CASE_VOCAB = List.of(
+    public static final List<String> TEST_CASE_VOCAB = List.of(
         DebertaV2Tokenizer.CLASS_TOKEN,
         DebertaV2Tokenizer.PAD_TOKEN,
         DebertaV2Tokenizer.SEPARATOR_TOKEN,
@@ -48,7 +48,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         "<0xAD>",
         "▁"
     );
-    private static final List<Double> TEST_CASE_SCORES = List.of(
+    public static final List<Double> TEST_CASE_SCORES = List.of(
         0.0,
         0.0,
         0.0,

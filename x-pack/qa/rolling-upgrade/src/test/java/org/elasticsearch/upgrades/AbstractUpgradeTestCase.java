@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
@@ -53,7 +52,6 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     @Deprecated(forRemoval = true)
-    @UpdateForV9
     // Tests should be reworked to rely on features from the current cluster (old, mixed or upgraded).
     // Version test against the original cluster will be removed
     protected static boolean isOriginalClusterVersionAtLeast(Version supportedVersion) {

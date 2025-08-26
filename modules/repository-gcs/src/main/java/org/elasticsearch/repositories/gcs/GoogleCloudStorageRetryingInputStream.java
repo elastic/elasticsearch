@@ -128,23 +128,21 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             try {
                 return RetryHelper.runWithRetries(() -> {
                     try {
-                        return SocketAccess.doPrivilegedIOException(() -> {
-                            final Get get = storage.objects().get(blobId.getBucket(), blobId.getName());
-                            get.setReturnRawInputStream(true);
+                        final Get get = storage.objects().get(blobId.getBucket(), blobId.getName());
+                        get.setReturnRawInputStream(true);
 
-                            if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                                if (get.getRequestHeaders() != null) {
-                                    get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
-                                }
+                        if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
+                            if (get.getRequestHeaders() != null) {
+                                get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
                             }
-                            final HttpResponse resp = get.executeMedia();
-                            final Long contentLength = resp.getHeaders().getContentLength();
-                            InputStream content = resp.getContent();
-                            if (contentLength != null) {
-                                content = new ContentLengthValidatingInputStream(content, contentLength);
-                            }
-                            return content;
-                        });
+                        }
+                        final HttpResponse resp = get.executeMedia();
+                        final Long contentLength = resp.getHeaders().getContentLength();
+                        InputStream content = resp.getContent();
+                        if (contentLength != null) {
+                            content = new ContentLengthValidatingInputStream(content, contentLength);
+                        }
+                        return content;
                     } catch (IOException e) {
                         throw StorageException.translate(e);
                     }

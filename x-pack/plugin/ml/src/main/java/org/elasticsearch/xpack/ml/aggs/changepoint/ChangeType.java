@@ -121,6 +121,10 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             return NAME;
         }
 
+        public String getReason() {
+            return reason;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

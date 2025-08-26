@@ -15,9 +15,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class VersionSpecificNetworkChecks {
     static void createInetAddressResolverProvider() {}
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void httpClientSend() throws InterruptedException {
         HttpClient httpClient = HttpClient.newBuilder().build();
         try {
@@ -27,6 +31,7 @@ class VersionSpecificNetworkChecks {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void httpClientSendAsync() {
         HttpClient httpClient = HttpClient.newBuilder().build();
         httpClient.sendAsync(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());

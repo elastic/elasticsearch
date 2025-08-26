@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.bwc-test'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index'
   }
   restTests {
     includeXpack 'esql'
@@ -27,9 +27,9 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
-// ESQL is available in 8.11 or later
+// ES|QL becomes GA in 8.14
 def supportedVersion = bwcVersion -> {
-  return bwcVersion.onOrAfter(Version.fromString("8.11.0")) && bwcVersion != VersionProperties.elasticsearchVersion
+  return bwcVersion.onOrAfter(Version.fromString("8.14.0")) && bwcVersion != VersionProperties.elasticsearchVersion
 }
 
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

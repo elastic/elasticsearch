@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.xpack.wildcard.Wildcard;
@@ -52,9 +49,9 @@ public class TermsQueryTests extends AbstractBuilderTestCase {
         termsQueryBuilder = termsQueryBuilder.rewrite(createQueryRewriteContext());
         Query actual = termsQueryBuilder.toQuery(createSearchExecutionContext());
 
-        QueryBuilder queryBuilder = new BoolQueryBuilder().should(new WildcardQueryBuilder("mapped_wildcard", "duplicate"));
+        QueryBuilder queryBuilder = new TermsQueryBuilder("mapped_wildcard", "duplicate");
         queryBuilder = queryBuilder.rewrite(createQueryRewriteContext());
-        Query expected = new ConstantScoreQuery(queryBuilder.toQuery(createSearchExecutionContext()));
+        Query expected = queryBuilder.toQuery(createSearchExecutionContext());
 
         assertEquals(expected, actual);
     }
@@ -79,14 +76,9 @@ public class TermsQueryTests extends AbstractBuilderTestCase {
         Query actual = termsQueryBuilder.toQuery(createSearchExecutionContext());
 
         Set<String> ordered = new HashSet<>(randomTerms);
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        for (String randomTerm : ordered) {
-            QueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder("mapped_wildcard", randomTerm);
-            wildcardQueryBuilder = wildcardQueryBuilder.rewrite(createQueryRewriteContext());
-            boolQueryBuilder.should(wildcardQueryBuilder);
-        }
-        QueryBuilder expectedQueryBuilder = boolQueryBuilder.rewrite(createQueryRewriteContext());
-        Query expected = new ConstantScoreQuery(expectedQueryBuilder.toQuery(createSearchExecutionContext()));
+        QueryBuilder queryBuilder = new TermsQueryBuilder("mapped_wildcard", ordered.toArray(new String[0]));
+        queryBuilder = queryBuilder.rewrite(createQueryRewriteContext());
+        Query expected = queryBuilder.toQuery(createSearchExecutionContext());
 
         assertEquals(expected, actual);
     }

@@ -28,12 +28,15 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
@@ -348,7 +351,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         doTestExceptionStillProcessesOtherIndices(true);
     }
 
-    @SuppressWarnings("unchecked")
     public void doTestExceptionStillProcessesOtherIndices(boolean useOnMaster) {
         String policy1 = randomAlphaOfLengthBetween(1, 20);
         Step.StepKey i1currentStepKey = randomStepKey();
@@ -377,7 +379,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         }
         MockAction mockAction = new MockAction(List.of(i2mockStep));
         Phase i2phase = new Phase("phase", TimeValue.ZERO, Map.of("action", mockAction));
-        LifecyclePolicy i2policy = newTestLifecyclePolicy(policy1, Map.of(i2phase.getName(), i1phase));
+        LifecyclePolicy i2policy = newTestLifecyclePolicy(policy2, Map.of(i2phase.getName(), i2phase));
         Index index2 = new Index(
             randomValueOtherThan(index1.getName(), () -> randomAlphaOfLengthBetween(1, 20)),
             randomAlphaOfLengthBetween(1, 20)
@@ -403,8 +405,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep).setException(
                 failStep1 ? new IllegalArgumentException("forcing a failure for index 1") : null
             );
-            ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep).setLatch(stepLatch);
-            ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep).setException(
+            ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i2mockStep).setLatch(stepLatch);
+            ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i2mockStep).setException(
                 failStep1 ? null : new IllegalArgumentException("forcing a failure for index 2")
             );
         }
@@ -420,7 +422,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetadata i2indexMetadata = IndexMetadata.builder(index2.getName())
-            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policy1))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policy2))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i2lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -433,23 +435,46 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .persistentSettings(settings(IndexVersion.current()).build())
             .build();
 
+        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s").build();
+        var clusterSettings = new ClusterSettings(
+            settings,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING))
+        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
+        DiscoveryNode node = clusterService.localNode();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+            .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
+        ClusterServiceUtils.setState(clusterService, currentState);
 
+        indexLifecycleService = new IndexLifecycleService(
+            Settings.EMPTY,
+            mock(Client.class),
+            clusterService,
+            threadPool,
+            systemUTC(),
+            () -> now,
+            null,
+            null,
+            null
+        );
+
+        ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
+        indexLifecycleService.applyClusterState(event);
         if (useOnMaster) {
-            when(clusterService.state()).thenReturn(currentState);
             indexLifecycleService.onMaster(currentState);
         } else {
-            indexLifecycleService.triggerPolicies(currentState, randomBoolean());
+            // TODO: this relies on the master task queue
+            indexLifecycleService.triggerPolicies(currentState, true);
         }
         try {
-            stepLatch.await(5, TimeUnit.SECONDS);
+            ElasticsearchAssertions.awaitLatch(stepLatch, 5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             logger.error("failure while waiting for step execution", e);
             fail("both steps should have been executed, even with an exception");
         }
+        clusterService.close();
     }
 
     public void testClusterChangedWaitsForTheStateToBeRecovered() {

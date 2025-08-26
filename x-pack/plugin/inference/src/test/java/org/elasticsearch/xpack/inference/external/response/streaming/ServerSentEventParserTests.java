@@ -10,26 +10,49 @@ package org.elasticsearch.xpack.inference.external.response.streaming;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ServerSentEventParserTests extends ESTestCase {
-    public void testParseEvents() {
-        var payload = (Arrays.stream(ServerSentEventField.values())
-            .map(ServerSentEventField::name)
-            .map(name -> name.toLowerCase(Locale.ROOT))
-            .collect(Collectors.joining("\n"))
-            + "\n").getBytes(StandardCharsets.UTF_8);
+    public void testRetryAndIdAreUnimplemented() {
+        var payload = """
+            id: 2
+
+            retry: 2
+
+            """.getBytes(StandardCharsets.UTF_8);
 
         var parser = new ServerSentEventParser();
         var events = parser.parse(payload);
 
-        assertThat(events.size(), equalTo(ServerSentEventField.values().length));
+        assertTrue(events.isEmpty());
+    }
+
+    public void testEmptyEventDefaultsToMessage() {
+        var payload = """
+            data: hello
+
+            """.getBytes(StandardCharsets.UTF_8);
+
+        var parser = new ServerSentEventParser();
+        var events = parser.parse(payload);
+
+        assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
+    }
+
+    public void testEmptyData() {
+        var payload = """
+            data
+            data
+
+            """.getBytes(StandardCharsets.UTF_8);
+
+        var parser = new ServerSentEventParser();
+        var events = parser.parse(payload);
+
+        assertEvents(events, List.of(new ServerSentEvent("message", "\n")));
     }
 
     public void testParseDataEventsWithAllEndOfLines() {
@@ -51,14 +74,25 @@ public class ServerSentEventParserTests extends ESTestCase {
         assertEvents(
             events,
             List.of(
-                new ServerSentEvent(ServerSentEventField.EVENT, "message"),
-                new ServerSentEvent(ServerSentEventField.DATA, "test"),
-                new ServerSentEvent(ServerSentEventField.EVENT, "message"),
-                new ServerSentEvent(ServerSentEventField.DATA, "test2"),
-                new ServerSentEvent(ServerSentEventField.EVENT, "message"),
-                new ServerSentEvent(ServerSentEventField.DATA, "test3")
+                new ServerSentEvent("message", "test"),
+                new ServerSentEvent("message", "test2"),
+                new ServerSentEvent("message", "test3")
             )
         );
+    }
+
+    public void testParseMultiLineDataEvents() {
+        var payload = """
+            event: message
+            data: hello
+            data: there
+
+            """.getBytes(StandardCharsets.UTF_8);
+
+        var parser = new ServerSentEventParser();
+        var events = parser.parse(payload);
+
+        assertEvents(events, List.of(new ServerSentEvent("message", "hello\nthere")));
     }
 
     private void assertEvents(Deque<ServerSentEvent> actualEvents, List<ServerSentEvent> expectedEvents) {
@@ -69,13 +103,13 @@ public class ServerSentEventParserTests extends ESTestCase {
 
     // by default, Java's UTF-8 decode does not remove the byte order mark
     public void testByteOrderMarkIsRemoved() {
-        // these are the bytes for "<byte-order mark>event: message\n\n"
-        var payload = new byte[] { -17, -69, -65, 101, 118, 101, 110, 116, 58, 32, 109, 101, 115, 115, 97, 103, 101, 10, 10 };
+        // these are the bytes for "<byte-order mark>data: hello\n\n"
+        var payload = new byte[] { -17, -69, -65, 100, 97, 116, 97, 58, 32, 104, 101, 108, 108, 111, 10, 10 };
 
         var parser = new ServerSentEventParser();
         var events = parser.parse(payload);
 
-        assertEvents(events, List.of(new ServerSentEvent(ServerSentEventField.EVENT, "message")));
+        assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
     }
 
     public void testEmptyEventIsSetAsEmptyString() {
@@ -88,10 +122,7 @@ public class ServerSentEventParserTests extends ESTestCase {
         var parser = new ServerSentEventParser();
         var events = parser.parse(payload);
 
-        assertEvents(
-            events,
-            List.of(new ServerSentEvent(ServerSentEventField.EVENT, ""), new ServerSentEvent(ServerSentEventField.EVENT, ""))
-        );
+        assertTrue(events.isEmpty());
     }
 
     public void testCommentsAreIgnored() {
@@ -103,7 +134,7 @@ public class ServerSentEventParserTests extends ESTestCase {
 
             """.getBytes(StandardCharsets.UTF_8));
 
-        assertThat(events.isEmpty(), equalTo(true));
+        assertTrue(events.isEmpty());
     }
 
     public void testCarryOverBytes() {
@@ -113,13 +144,13 @@ public class ServerSentEventParserTests extends ESTestCase {
             event: message
             data""".getBytes(StandardCharsets.UTF_8)); // no newline after 'data' so the parser won't split the message up
 
-        assertEvents(events, List.of(new ServerSentEvent(ServerSentEventField.EVENT, "message")));
+        assertTrue(events.isEmpty());
 
         events = parser.parse("""
             :test
 
             """.getBytes(StandardCharsets.UTF_8));
 
-        assertEvents(events, List.of(new ServerSentEvent(ServerSentEventField.DATA, "test")));
+        assertEvents(events, List.of(new ServerSentEvent("test")));
     }
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -170,16 +171,19 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 repository.getMetadata().name(),
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
-            final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
+            final var snapshotShardGenerations = new UpdatedShardGenerations(
+                ShardGenerations.builder().put(indexId, 0, shardGen).build(),
+                ShardGenerations.EMPTY
+            );
             final RepositoryData ignoredRepositoryData = safeAwait(
                 listener -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
-                        shardGenerations,
+                        snapshotShardGenerations,
                         RepositoryData.EMPTY_REPO_GEN,
                         Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                         new SnapshotInfo(
                             snapshot,
-                            shardGenerations.indices().stream().map(IndexId::getName).toList(),
+                            snapshotShardGenerations.liveIndices().indices().stream().map(IndexId::getName).toList(),
                             Collections.emptyList(),
                             Collections.emptyList(),
                             null,

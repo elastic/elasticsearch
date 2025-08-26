@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +28,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,10 +58,7 @@ public class MatchTests extends AbstractMatchFullTextFunctionTests {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(
-                                new Literal(Source.EMPTY, "fuzziness", KEYWORD),
-                                new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD)
-                            )
+                            List.of(Literal.keyword(Source.EMPTY, "fuzziness"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
                         ),
                         UNSUPPORTED,
                         "options"
@@ -80,8 +77,8 @@ public class MatchTests extends AbstractMatchFullTextFunctionTests {
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
-            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(match).asBuilder();
-            match.replaceQueryBuilder(queryBuilder);
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, match).toQueryBuilder();
+            match = (Match) match.replaceQueryBuilder(queryBuilder);
         }
         return match;
     }

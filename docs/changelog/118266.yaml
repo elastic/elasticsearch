@@ -1,5 +1,0 @@
-pr: 118266
-summary: Prevent data nodes from sending stack traces to coordinator when `error_trace=false`
-area: Search
-type: enhancement
-issues: []

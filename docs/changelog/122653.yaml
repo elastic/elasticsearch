@@ -1,6 +1,0 @@
-pr: 122653
-summary: Knn vector rescoring to sort score docs
-area: Vector Search
-type: bug
-issues:
- - 119711

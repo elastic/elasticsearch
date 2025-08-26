@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.hamcrest.Matchers.containsString;
@@ -78,7 +79,7 @@ public class CheckLicenseTests extends ESTestCase {
             }
         };
 
-        var plan = parser.createStatement(esql);
+        var plan = parser.createStatement(esql, EsqlTestUtils.TEST_CFG);
         plan = plan.transformDown(
             Limit.class,
             l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)
@@ -90,7 +91,13 @@ public class CheckLicenseTests extends ESTestCase {
 
     private static Analyzer analyzer(EsqlFunctionRegistry registry, License.OperationMode operationMode) {
         return new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, registry, analyzerDefaultMapping(), defaultEnrichResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                registry,
+                analyzerDefaultMapping(),
+                defaultEnrichResolution(),
+                emptyInferenceResolution()
+            ),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), getLicenseState(operationMode))
         );
     }

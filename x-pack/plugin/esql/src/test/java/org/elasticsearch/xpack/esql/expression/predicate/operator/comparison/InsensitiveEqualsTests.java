@@ -26,6 +26,8 @@ public class InsensitiveEqualsTests extends ESTestCase {
         assertTrue(insensitiveEquals(l("foo*"), l("FOO*")).fold(FoldContext.small()));
         assertTrue(insensitiveEquals(l("foo?bar"), l("foo?bar")).fold(FoldContext.small()));
         assertTrue(insensitiveEquals(l("foo?bar"), l("FOO?BAR")).fold(FoldContext.small()));
+        assertTrue(insensitiveEquals(l(""), l("")).fold(FoldContext.small()));
+
         assertFalse(insensitiveEquals(l("Foo"), l("fo*")).fold(FoldContext.small()));
         assertFalse(insensitiveEquals(l("Fox"), l("fo?")).fold(FoldContext.small()));
         assertFalse(insensitiveEquals(l("Foo"), l("*OO")).fold(FoldContext.small()));
@@ -60,6 +62,8 @@ public class InsensitiveEqualsTests extends ESTestCase {
         assertTrue(InsensitiveEquals.process(BytesRefs.toBytesRef("foo*"), BytesRefs.toBytesRef("FOO*")));
         assertTrue(InsensitiveEquals.process(BytesRefs.toBytesRef("foo?bar"), BytesRefs.toBytesRef("foo?bar")));
         assertTrue(InsensitiveEquals.process(BytesRefs.toBytesRef("foo?bar"), BytesRefs.toBytesRef("FOO?BAR")));
+        assertTrue(InsensitiveEquals.process(BytesRefs.toBytesRef(""), BytesRefs.toBytesRef("")));
+
         assertFalse(InsensitiveEquals.process(BytesRefs.toBytesRef("Foo"), BytesRefs.toBytesRef("fo*")));
         assertFalse(InsensitiveEquals.process(BytesRefs.toBytesRef("Fox"), BytesRefs.toBytesRef("fo?")));
         assertFalse(InsensitiveEquals.process(BytesRefs.toBytesRef("Foo"), BytesRefs.toBytesRef("*OO")));

@@ -22,6 +22,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -35,6 +36,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+
+    private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {
@@ -67,12 +70,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
-                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
+                    Directory dir = new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
+                    if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
+                        dir = disableRandomAdvice(dir);
+                    }
+                    return dir;
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                return setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
+                Directory dir = setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
+                if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
+                    dir = disableRandomAdvice(dir);
+                }
+                return dir;
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
@@ -92,6 +103,23 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
         }
         return mMapDirectory;
+    }
+
+    /**
+     * Return a {@link FilterDirectory} around the provided {@link Directory} that forcefully disables {@link IOContext#RANDOM random
+     * access}.
+     */
+    static Directory disableRandomAdvice(Directory dir) {
+        return new FilterDirectory(dir) {
+            @Override
+            public IndexInput openInput(String name, IOContext context) throws IOException {
+                if (context.randomAccess) {
+                    context = IOContext.READ;
+                }
+                assert context.randomAccess == false;
+                return super.openInput(name, context);
+            }
+        };
     }
 
     /**
@@ -149,13 +177,45 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
 
             final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(getExtension(name));
-            if (extension == null || extension.shouldMmap() == false) {
+            if (extension == null || extension.shouldMmap() == false || avoidDelegateForFdtTempFiles(name, extension)) {
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing
                 // (e.g. stored fields and term vectors).
                 return false;
             }
             return true;
+        }
+
+        /**
+         * Force not using mmap if file is tmp fdt file.
+         * The tmp fdt file only gets created when flushing stored
+         * fields to disk and index sorting is active.
+         * <p>
+         * In Lucene, the <code>SortingStoredFieldsConsumer</code> first
+         * flushes stored fields to disk in tmp files in unsorted order and
+         * uncompressed format. Then the tmp file gets a full integrity check,
+         * then the stored values are read from the tmp in the order of
+         * the index sorting in the segment, the order in which this happens
+         * from the perspective of tmp fdt file is random. After that,
+         * the tmp files are removed.
+         * <p>
+         * If the machine Elasticsearch runs on has sufficient memory the i/o pattern
+         * that <code>SortingStoredFieldsConsumer</code> actually benefits from using mmap.
+         * However, in cases when memory scarce, this pattern can cause page faults often.
+         * Doing more harm than not using mmap.
+         * <p>
+         * As part of flushing stored disk when indexing sorting is active,
+         * three tmp files are created, fdm (metadata), fdx (index) and
+         * fdt (contains stored field data). The first two files are small and
+         * mmap-ing that should still be ok even is memory is scarce.
+         * The fdt file is large and tends to cause more page faults when memory is scarce.
+         *
+         * @param name      The name of the file in Lucene index
+         * @param extension The extension of the in Lucene index
+         * @return whether to avoid using delegate if the file is a tmp fdt file.
+         */
+        static boolean avoidDelegateForFdtTempFiles(String name, LuceneFilesExtensions extension) {
+            return extension == LuceneFilesExtensions.TMP && name.contains("fdt");
         }
 
         MMapDirectory getDelegate() {

@@ -17,6 +17,10 @@ public class XContentImplUtils {
     public static <F extends JsonFactory, B extends TSFBuilder<F, B>> F configure(TSFBuilder<F, B> builder) {
         // jackson 2.15 introduced a max string length. We have other limits in place to constrain max doc size,
         // so here we set to max value (2GiB) so as not to constrain further than those existing limits.
-        return builder.streamReadConstraints(StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()).build();
+        // jackson 2.16 further introduced a max name length, which we also relax here temporarily.
+        // see https://github.com/elastic/elasticsearch/issues/58952
+        return builder.streamReadConstraints(
+            StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).maxNameLength(Integer.MAX_VALUE).build()
+        ).build();
     }
 }

@@ -83,7 +83,7 @@ public final class Page implements Writeable {
     private Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
-                throw new IllegalArgumentException(
+                throw new IllegalStateException(
                     "Block [" + block + "] does not have same position count: " + block.getPositionCount() + " != " + prev.positionCount
                 );
             }
@@ -293,5 +293,22 @@ public final class Page implements Writeable {
                 Releasables.close(mapped);
             }
         }
+    }
+
+    public Page filter(int... positions) {
+        Block[] filteredBlocks = new Block[blocks.length];
+        boolean success = false;
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                filteredBlocks[i] = getBlock(i).filter(positions);
+            }
+            success = true;
+        } finally {
+            releaseBlocks();
+            if (success == false) {
+                Releasables.closeExpectNoException(filteredBlocks);
+            }
+        }
+        return new Page(filteredBlocks);
     }
 }

@@ -82,7 +82,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assume.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -400,8 +399,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testResolveFailureStoreFromMetadata() throws Exception {
-        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
-
         String dataStreamWithFailureStoreEnabled = "test-data-stream-failure-enabled";
         String dataStreamWithFailureStoreDefault = "test-data-stream-failure-default";
         String dataStreamWithFailureStoreDisabled = "test-data-stream-failure-disabled";
@@ -491,8 +488,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
-        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
-
         String dsTemplateWithFailureStoreEnabled = "test-data-stream-failure-enabled";
         String dsTemplateWithFailureStoreDefault = "test-data-stream-failure-default";
         String dsTemplateWithFailureStoreDisabled = "test-data-stream-failure-disabled";

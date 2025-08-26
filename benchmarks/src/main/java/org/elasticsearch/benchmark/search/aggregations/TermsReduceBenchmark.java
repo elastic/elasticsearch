@@ -111,7 +111,7 @@ public class TermsReduceBenchmark {
                 dict[i] = new BytesRef(Long.toString(rand.nextLong()));
             }
             for (int i = 0; i < numShards; i++) {
-                aggsList.add(InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, true))));
+                aggsList.add(InternalAggregations.from(newTerms(rand, dict, true)));
             }
         }
 
@@ -124,7 +124,7 @@ public class TermsReduceBenchmark {
             for (BytesRef term : randomTerms) {
                 InternalAggregations subAggs;
                 if (withNested) {
-                    subAggs = InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, false)));
+                    subAggs = InternalAggregations.from(newTerms(rand, dict, false));
                 } else {
                     subAggs = InternalAggregations.EMPTY;
                 }

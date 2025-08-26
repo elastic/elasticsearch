@@ -139,6 +139,14 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
+            .build();
+    }
+
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
         if (limit != null) {
             assertAcked(
@@ -166,6 +174,10 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
+        return run(esqlCommands, pragmas, filter, null);
+    }
+
+    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter, Boolean allowPartialResults) {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(esqlCommands);
         if (pragmas != null) {
@@ -173,6 +185,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
         if (filter != null) {
             request.filter(filter);
+        }
+        if (allowPartialResults != null) {
+            request.allowPartialResults(allowPartialResults);
         }
         return run(request);
     }

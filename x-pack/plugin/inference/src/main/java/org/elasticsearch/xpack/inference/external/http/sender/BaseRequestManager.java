@@ -15,7 +15,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-abstract class BaseRequestManager implements RequestManager {
+public abstract class BaseRequestManager implements RequestManager {
     private final ThreadPool threadPool;
     private final String inferenceEntityId;
     // It's possible that two inference endpoints have the same information defining the group but have different
@@ -24,7 +24,7 @@ abstract class BaseRequestManager implements RequestManager {
     private final EndpointGrouping endpointGrouping;
     private final RateLimitSettings rateLimitSettings;
 
-    BaseRequestManager(ThreadPool threadPool, String inferenceEntityId, Object rateLimitGroup, RateLimitSettings rateLimitSettings) {
+    public BaseRequestManager(ThreadPool threadPool, String inferenceEntityId, Object rateLimitGroup, RateLimitSettings rateLimitSettings) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
 
@@ -33,7 +33,7 @@ abstract class BaseRequestManager implements RequestManager {
         this.rateLimitSettings = rateLimitSettings;
     }
 
-    BaseRequestManager(ThreadPool threadPool, RateLimitGroupingModel rateLimitGroupingModel) {
+    public BaseRequestManager(ThreadPool threadPool, RateLimitGroupingModel rateLimitGroupingModel) {
         this.threadPool = Objects.requireNonNull(threadPool);
         Objects.requireNonNull(rateLimitGroupingModel);
 

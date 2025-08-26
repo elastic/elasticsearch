@@ -266,7 +266,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         Consumer<ModelSnapshot> handler,
         Consumer<Exception> errorHandler
     ) {
-        logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
+        logger.info("[{}] Reverting to snapshot {}", request.getJobId(), request.getSnapshotId());
 
         if (ModelSnapshot.isTheEmptySnapshot(request.getSnapshotId())) {
             handler.accept(ModelSnapshot.emptySnapshot(request.getJobId()));

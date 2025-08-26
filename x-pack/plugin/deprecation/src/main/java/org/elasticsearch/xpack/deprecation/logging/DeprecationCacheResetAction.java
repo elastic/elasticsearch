@@ -67,7 +67,7 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
         }
     }
 
-    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
+    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable {
         public Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
@@ -80,11 +80,6 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) {
             TransportAction.localOnly();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-            return builder;
         }
 
         @Override

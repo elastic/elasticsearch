@@ -23,8 +23,10 @@ public class IndexFeatures implements FeatureSpecification {
 
     public static final NodeFeature LOGSDB_NO_HOST_NAME_FIELD = new NodeFeature("index.logsdb_no_host_name_field");
 
+    private static final NodeFeature SYNONYMS_SET_LENIENT_ON_NON_EXISTING = new NodeFeature("index.synonyms_set_lenient_on_non_existing");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(LOGSDB_NO_HOST_NAME_FIELD);
+        return Set.of(LOGSDB_NO_HOST_NAME_FIELD, SYNONYMS_SET_LENIENT_ON_NON_EXISTING);
     }
 }

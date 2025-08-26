@@ -360,13 +360,6 @@ Defaults to `1/(dims + 1)` for `int8` quantized vectors and `0` for `int4` for d
 [[dense-vector-synthetic-source]]
 ==== Synthetic `_source`
 
-IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
-(indices that have `index.mode` set to `time_series`). For other indices
-synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will work to fix
-any issues, but features in technical preview are not subject to the support SLA
-of official GA features.
-
 `dense_vector` fields support <<synthetic-source,synthetic `_source`>> .
 
 [[dense-vector-index-bit]]
@@ -483,10 +476,10 @@ To better accommodate scaling and performance needs, updating the `type` setting
 
 [source,txt]
 ----
-flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
+flat --> int8_flat --> int4_flat --> bbq_flat --> hnsw --> int8_hnsw --> int4_hnsw --> bbq_hnsw
 ----
 
-For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`) the number of connections `m` must either stay the same or increase. For scalar quantized formats  (`int8_flat`, `int4_flat`, `int8_hnsw`, `int4_hnsw`) the `confidence_interval` must always be consistent (once defined, it cannot change).
+For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`) the number of connections `m` must either stay the same or increase. For the scalar quantized formats  `int8_flat`, `int4_flat`, `int8_hnsw` and `int4_hnsw` the `confidence_interval` must always be consistent (once defined, it cannot change).
 
 Updating `type` in `index_options` will fail in all other scenarios.
 

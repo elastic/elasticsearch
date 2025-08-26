@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,6 +36,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.RepositoryFileType;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -73,6 +75,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -191,7 +194,7 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
                         assertEquals(0L, status.indexSnapshotsVerified());
                         assertEquals(0L, status.blobsVerified());
                         assertEquals(0L, status.blobBytesVerified());
-                        yield SubscribableListener.newSucceeded(null);
+                        yield SubscribableListener.nullSuccess();
                     }
                     case INDEX_RESTORABILITY -> {
                         // several of these chunks might arrive concurrently; we want to verify the task status before processing any of
@@ -210,7 +213,7 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
                             assertEquals(0L, status.indicesVerified());
                         });
                     }
-                    case SNAPSHOT_INFO -> SubscribableListener.newSucceeded(null);
+                    case SNAPSHOT_INFO -> SubscribableListener.nullSuccess();
                     case ANOMALY -> fail(null, "should not see anomalies");
                 };
 
@@ -711,6 +714,21 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
             }
             return result;
         }, "blob in snapshot but not shard generation");
+    }
+
+    public void testFreshRepository() {
+        final var repositoryName = randomIdentifier();
+        final var repositoryRootPath = randomRepoPath();
+
+        createRepository(repositoryName, FsRepository.TYPE, repositoryRootPath);
+        try {
+            final var request = new Request("POST", "/_snapshot/" + repositoryName + "/_verify_integrity");
+            final var responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertEquals(RestStatus.BAD_REQUEST.getStatus(), responseException.getResponse().getStatusLine().getStatusCode());
+            assertThat(responseException.getMessage(), containsString("repository is empty, cannot verify its integrity"));
+        } finally {
+            deleteRepository(repositoryName);
+        }
     }
 
     private void runInconsistentShardGenerationBlobTest(

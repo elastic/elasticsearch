@@ -1,6 +1,0 @@
-pr: 122951
-summary: Updates the deprecation info API to not warn about system indices and data
-  streams
-area: Indices APIs
-type: bug
-issues: []

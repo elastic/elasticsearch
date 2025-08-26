@@ -28,12 +28,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregati
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregator;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregator;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -164,9 +160,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
         return List.of(
             this::registerGeoShapeCentroidAggregator,
             this::registerGeoShapeGridAggregators,
-            SpatialPlugin::registerGeoShapeBoundsAggregator,
-            SpatialPlugin::registerValueCountAggregator,
-            SpatialPlugin::registerCardinalityAggregator
+            SpatialPlugin::registerGeoShapeBoundsAggregator
         );
     }
 
@@ -406,28 +400,6 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 }
                 throw LicenseUtils.newComplianceException("geohex_grid aggregation on geo_shape fields");
             },
-            true
-        );
-    }
-
-    private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), ValueCountAggregator::new, true);
-    }
-
-    private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            CardinalityAggregationBuilder.REGISTRY_KEY,
-            GeoShapeValuesSourceType.instance(),
-            (name, valuesSourceConfig, precision, executionMode, context, parent, metadata) -> new CardinalityAggregator(
-                name,
-                valuesSourceConfig,
-                precision,
-                // Force execution mode to null
-                null,
-                context,
-                parent,
-                metadata
-            ),
             true
         );
     }

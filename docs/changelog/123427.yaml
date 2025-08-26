@@ -1,5 +1,0 @@
-pr: 123427
-summary: Reduce iteration complexity for plan traversal
-area: ES|QL
-type: bug
-issues: []

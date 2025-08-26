@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -20,9 +21,11 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -44,11 +47,12 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -538,11 +542,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private Expression randomSerializeDeserialize(Expression expression) {
-        if (randomBoolean()) {
+        if (canSerialize() == false || randomBoolean()) {
             return expression;
         }
 
         return serializeDeserializeExpression(expression);
+    }
+
+    /**
+     * The expression being tested be serialized? The <strong>vast</strong>
+     * majority of expressions can be serialized.
+     */
+    protected boolean canSerialize() {
+        return true;
     }
 
     /**
@@ -565,7 +577,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // Fields use synthetic sources, which can't be serialized. So we replace with the originals instead.
         var dummyChildren = newExpression.children()
             .stream()
-            .<Expression>map(c -> new Literal(Source.EMPTY, "anything that won't match any test case", c.dataType()))
+            .<Expression>map(c -> new Literal(Source.EMPTY, BytesRefs.toBytesRef("anything that won't match any test case"), c.dataType()))
             .toList();
         // We first replace them with other unrelated expressions to force a replace, as some replaceChildren() will check for equality
         return newExpression.replaceChildrenSameSize(dummyChildren).replaceChildrenSameSize(expression.children());
@@ -599,6 +611,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (e.foldable()) {
             e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
         }
+        if (e instanceof SurrogateExpression s) {
+            Expression surrogate = s.surrogate();
+            if (surrogate != null) {
+                e = surrogate;
+            }
+        }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
         Expression.TypeResolution resolution = e.typeResolved();
@@ -609,7 +627,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
+        return maybeConvertBytesRefsToOrdinals(new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values)));
+    }
+
+    private Page maybeConvertBytesRefsToOrdinals(Page page) {
+        boolean anyBytesRef = false;
+        for (int b = 0; b < page.getBlockCount(); b++) {
+            if (page.getBlock(b).elementType() == ElementType.BYTES_REF) {
+                anyBytesRef = true;
+                break;
+            }
+        }
+        return anyBytesRef && randomBoolean() ? BlockTestUtils.convertBytesRefsToOrdinals(page) : page;
     }
 
     /**
@@ -661,7 +690,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
 
-            pages.add(new Page(pageSize, blocks));
+            pages.add(maybeConvertBytesRefsToOrdinals(new Page(pageSize, blocks)));
             initialRow += pageSize;
             pageSize = randomIntBetween(1, 100);
         }
@@ -748,6 +777,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
+        assumeTrue("can't serialize function", canSerialize());
         assertSerialization(buildFieldExpression(testCase), testCase.getConfiguration());
     }
 

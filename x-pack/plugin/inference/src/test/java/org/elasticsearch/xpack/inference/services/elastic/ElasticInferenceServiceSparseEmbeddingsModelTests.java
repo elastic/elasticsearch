@@ -11,6 +11,7 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 
 public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
 
@@ -26,7 +27,8 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            ElasticInferenceServiceComponents.of(url)
+            ElasticInferenceServiceComponents.of(url),
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
     }
 }

@@ -1,5 +1,0 @@
-pr: 124424
-summary: Lazy collection copying during node transform
-area: ES|QL
-type: bug
-issues: []

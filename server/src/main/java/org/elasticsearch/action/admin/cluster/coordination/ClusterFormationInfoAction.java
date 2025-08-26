@@ -10,10 +10,10 @@
 package org.elasticsearch.action.admin.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
@@ -41,7 +41,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public Request() {}
 
@@ -106,7 +106,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            ClusterFormationInfoAction.Response response = (ClusterFormationInfoAction.Response) o;
+            Response response = (Response) o;
             return clusterFormationState.equals(response.clusterFormationState);
         }
 
@@ -119,9 +119,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
     /**
      * This transport action fetches the ClusterFormationState from a remote node.
      */
-    public static class TransportAction extends HandledTransportAction<
-        ClusterFormationInfoAction.Request,
-        ClusterFormationInfoAction.Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
         private final Coordinator coordinator;
 
         @Inject
@@ -130,19 +128,15 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
                 ClusterFormationInfoAction.NAME,
                 transportService,
                 actionFilters,
-                ClusterFormationInfoAction.Request::new,
+                Request::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION)
             );
             this.coordinator = coordinator;
         }
 
         @Override
-        protected void doExecute(
-            Task task,
-            ClusterFormationInfoAction.Request request,
-            ActionListener<ClusterFormationInfoAction.Response> listener
-        ) {
-            listener.onResponse(new ClusterFormationInfoAction.Response(coordinator.getClusterFormationState()));
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            listener.onResponse(new Response(coordinator.getClusterFormationState()));
         }
     }
 

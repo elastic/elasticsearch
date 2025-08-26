@@ -1,0 +1,61 @@
+// Note:
+// The "test_completion" service returns the prompt in uppercase, making the output easy to guess.
+ 
+
+completion using a ROW source operator
+required_capability: completion
+
+ROW prompt="Who is Victor Hugo?"
+| COMPLETION completion_output = prompt WITH test_completion
+;
+
+prompt:keyword      | completion_output:keyword
+Who is Victor Hugo? | WHO IS VICTOR HUGO?
+;
+
+
+completion using a ROW source operator and prompt is a multi-valued field
+required_capability: completion
+
+ROW prompt=["Answer the following question:", "Who is Victor Hugo?"]
+| COMPLETION completion_output = prompt WITH test_completion
+;
+
+prompt:keyword                                        | completion_output:keyword
+[Answer the following question:, Who is Victor Hugo?] | ANSWER THE FOLLOWING QUESTION:\nWHO IS VICTOR HUGO?
+;
+
+
+completion after a search
+required_capability: completion
+required_capability: match_operator_colon
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC
+| LIMIT 2
+| COMPLETION title WITH test_completion
+| KEEP title, completion
+;
+
+title:text                      | completion:keyword
+War and Peace                   | WAR AND PEACE
+War and Peace (Signet Classics) | WAR AND PEACE (SIGNET CLASSICS)                     
+;
+                                                                                                    
+completion using a function as a prompt
+required_capability: completion
+required_capability: match_operator_colon
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC
+| LIMIT 2
+| COMPLETION CONCAT("This is a prompt: ", title) WITH test_completion
+| KEEP title, completion
+;
+
+title:text                      | completion:keyword
+War and Peace                   | THIS IS A PROMPT: WAR AND PEACE
+War and Peace (Signet Classics) | THIS IS A PROMPT: WAR AND PEACE (SIGNET CLASSICS)
+;                                                                                                                       

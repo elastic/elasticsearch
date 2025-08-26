@@ -29,9 +29,12 @@ public interface ResponseHandler {
      * @param logger the logger to use for logging
      * @param request the original request
      * @param result the response from the server
+     * @param checkForErrorObject if true, the validation function should check for the presence of an error object even if the status code
+     *                            indicates a success
      * @throws RetryException if the response is invalid
      */
-    void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result) throws RetryException;
+    void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result, boolean checkForErrorObject)
+        throws RetryException;
 
     /**
      * A method for parsing the response from the server.

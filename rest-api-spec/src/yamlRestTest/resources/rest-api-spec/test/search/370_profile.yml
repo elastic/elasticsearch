@@ -211,8 +211,6 @@ dfs knn vector profiling:
             num_candidates: 100
 
   - match: { hits.total.value: 1 }
-  - match: { profile.shards.0.dfs.knn.0.query.0.type: "DocAndScoreQuery" }
-  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScore[100]" }
   - gt: { profile.shards.0.dfs.knn.0.query.0.time_in_nanos: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score_count: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score: 0 }
@@ -275,8 +273,6 @@ dfs knn vector profiling with vector_operations_count:
             num_candidates: 100
 
   - match: { hits.total.value: 1 }
-  - match: { profile.shards.0.dfs.knn.0.query.0.type: "DocAndScoreQuery" }
-  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScore[100]" }
   - match: { profile.shards.0.dfs.knn.0.vector_operations_count: 1 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.time_in_nanos: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score_count: 0 }

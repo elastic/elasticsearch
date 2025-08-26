@@ -279,7 +279,7 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
             issueTime
         );
         final RSASSASigner signer = loadRsaSigner();
-        return JwtRestIT.signJWT(signer, "RS256", claimsSet);
+        return JwtRestIT.signJWT(signer, "RS256", claimsSet, false);
     }
 
     private RSASSASigner loadRsaSigner() throws IOException, ParseException, JOSEException {

@@ -327,12 +327,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
+            final BlobCacheMetrics blobCacheMetrics = new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry());
+            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = createSharedBlobCacheService(
                 settings,
                 threadPool,
-                threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
-                new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
+                nodeEnvironment,
+                blobCacheMetrics
             );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);
@@ -370,6 +370,22 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             clusterService.addListener(new RepositoryUuidWatcher(services.rerouteService()));
         }
         return Collections.unmodifiableList(components);
+    }
+
+    // overridable for testing
+    protected SharedBlobCacheService<CacheKey> createSharedBlobCacheService(
+        final Settings settings,
+        final ThreadPool threadPool,
+        final NodeEnvironment nodeEnvironment,
+        final BlobCacheMetrics blobCacheMetrics
+    ) {
+        return new SharedBlobCacheService<>(
+            nodeEnvironment,
+            settings,
+            threadPool,
+            threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
+            blobCacheMetrics
+        );
     }
 
     @Override

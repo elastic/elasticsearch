@@ -600,3 +600,103 @@ s:double | emp_no:integer | salary:integer  | salary_change:double
 -1.0     | 10004          | 36174           | [-0.35, 1.13, 3.65, 13.48]
 -1.0     | 10005          | 63528           | [-2.14, 13.07]
 ;
+
+docsScalb
+required_capability: fn_scalb
+// tag::scalb[]
+row x = 3.0, y = 10 | eval z = scalb(x, y)
+// end::scalb[]
+;
+
+// tag::scalb-result[]
+x:double | y:integer | z:double
+3.0      | 10        | 3072.0
+// end::scalb-result[]
+;
+
+scalbConstant
+required_capability: fn_scalb
+row y = "foo" | eval x = scalb(3, 10) | keep x;
+
+x:double
+3072.0
+;
+
+scalbWithNonFoldableArgsAndWhere
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(mv_min(salary_change), emp_no / 1000)
+| where scalb(mv_min(salary_change), 3) > 100
+| sort s
+| keep s;
+
+s:double
+13127.68
+13936.64
+;
+
+scalbWithEvalAndSort
+required_capability: fn_scalb
+from employees
+| eval s = scalb(mv_min(salary_change), 5)
+| where scalb(mv_max(salary_change), 5) > 100
+| keep s, emp_no, salary, salary_change
+| sort s, emp_no
+| limit 3;
+
+s:double | emp_no:integer | salary:integer  | salary_change:double
+-313.92  | 10065          | 50249          | [-9.81, -1.47, 14.44]   
+-296.96  | 10042          | 30404          | [-9.28, 9.42]           
+-295.36  | 10091          | 38645          | [-9.23, 5.19, 5.85, 7.5]
+;
+
+scalbWithHugeScaleFactor
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(abs(mv_min(salary_change)), 2147483648 + emp_no)
+| keep s
+| limit 3
+;
+warning: Line 2:12: evaluation of [scalb(abs(mv_min(salary_change)), 2147483648 + emp_no)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:12: java.lang.ArithmeticException: integer overflow
+
+s:double
+null
+null
+null
+;
+scalbWithHugeConstantScaleFactor
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(abs(mv_min(salary_change)), 2147483648)
+| keep s
+| limit 3
+;
+warning: Line 2:12: evaluation of [scalb(abs(mv_min(salary_change)), 2147483648)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:12: java.lang.ArithmeticException: integer overflow
+
+s:double
+null
+null
+null
+;
+
+scalbWithHugeconstantFirstArgument
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(2147483648, emp_no)
+| keep s
+| limit 3
+;
+warning: Line 2:12: evaluation of [scalb(2147483648, emp_no)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:12: java.lang.ArithmeticException: not a finite double number: Infinity
+
+s:double
+null
+null
+null
+;

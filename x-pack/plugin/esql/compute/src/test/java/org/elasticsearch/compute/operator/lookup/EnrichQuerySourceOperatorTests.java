@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -83,7 +84,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             var inputTerms = makeTermsBlock(List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of()))
         ) {
             MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-            QueryList queryList = QueryList.rawTermQueryList(uidField, directoryData.searchExecutionContext, inputTerms);
+            QueryList queryList = QueryList.rawTermQueryList(uidField, directoryData.searchExecutionContext, AliasFilter.EMPTY, inputTerms);
             assertThat(queryList.getPositionCount(), equalTo(6));
             assertThat(queryList.getQuery(0), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
             assertThat(queryList.getQuery(1), equalTo(new TermInSetQuery("uid", List.of(new BytesRef("c1"), new BytesRef("a2")))));
@@ -154,7 +155,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         }).toList();
 
         try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
-            var queryList = QueryList.rawTermQueryList(directoryData.field, directoryData.searchExecutionContext, inputTerms);
+            var queryList = QueryList.rawTermQueryList(
+                directoryData.field,
+                directoryData.searchExecutionContext,
+                AliasFilter.EMPTY,
+                inputTerms
+            );
             int maxPageSize = between(1, 256);
             var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
@@ -192,8 +198,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of("a3", "a2", "z2", "xx"))
             )
         ) {
-            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, directoryData.searchExecutionContext, inputTerms)
-                .onlySingleValues();
+            QueryList queryList = QueryList.rawTermQueryList(
+                directoryData.field,
+                directoryData.searchExecutionContext,
+                AliasFilter.EMPTY,
+                inputTerms
+            ).onlySingleValues();
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> []

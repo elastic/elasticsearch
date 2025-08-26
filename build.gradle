@@ -22,6 +22,8 @@ import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 
+import groovy.xml.XmlParser;
+import groovy.xml.XmlNodePrinter;
 import java.nio.file.Files
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
@@ -36,11 +38,11 @@ buildscript {
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.jdk-download'
   id 'elasticsearch.global-build-info'
   id 'elasticsearch.build-complete'
   id 'elasticsearch.build-scan'
-  id 'elasticsearch.jdk-download'
-  id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'
@@ -49,8 +51,34 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.run-ccs'
+  id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id 'com.gradleup.nmcp.aggregation'
+}
+
+version = VersionProperties.elasticsearch
+
+/**
+ * Here we package and aggregation zip file containing all maven artifacts we want to
+ * publish to maven central.
+ * The aggregation is done by picking all projects that have the elasticsearch.publish plugin applied,
+ * indicating the artifact is meant for beeing published to maven central.
+ * */
+nmcpAggregation {
+  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
+  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+tasks.named('zipAggregation').configure {
+  // put this in a place that works well with our DRA infrastructure
+  archiveFileName.unset();
+  archiveBaseName.set("elasticsearch-maven-aggregation")
+  archiveVersion.set(VersionProperties.elasticsearch)
+  destinationDirectory.set(layout.buildDirectory.dir("distributions"));
+
+  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
+  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
 }
 
 /**
@@ -207,14 +235,6 @@ tasks.register("verifyVersions") {
         throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
       }
     }
-    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == '8.x' }.key
-    String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
-    if (versionMapping != expectedMapping) {
-      throw new GradleException(
-        "Backport label mapping for branch '8.x' is '${versionMapping}' but should be " +
-          "'${expectedMapping}'. Update .backportrc.json."
-      )
-    }
   }
 }
 
@@ -298,7 +318,16 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
-    resolveJavaToolChain = true
+    if (project.path == ':') {
+      resolveJavaToolChain = true
+
+      // ensure we have best possible caching of bwc builds
+      dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
+    }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
@@ -309,10 +338,11 @@ allprojects {
       // ensure we resolve p2 dependencies for the spotless eclipse formatter
       dependsOn "spotlessJavaCheck"
     }
+
   }
 
   ext.withReleaseBuild = { Closure config ->
-    if(buildParams.snapshotBuild == false) {
+    if (buildParams.snapshotBuild == false) {
       config.call()
     }
   }
@@ -326,11 +356,27 @@ allprojects {
             dependsOn 'assemble'
           }
         }
+
+        tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart4") { name ->
+          if(name.endsWith("#bwcTestPart4")) {
+            project.getTasks().register(name) {
+              task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part4") })
+            }
+          }
+        }
       } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
         tasks.register('checkPart3') {
           dependsOn 'check'
           withReleaseBuild {
             dependsOn 'assemble'
+          }
+        }
+
+        tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart3") { name ->
+          if(name.endsWith("#bwcTestPart3")) {
+            project.getTasks().register(name) {
+              task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part3") })
+            }
           }
         }
       } else if (project.path.contains("multi-node")) {
@@ -340,11 +386,39 @@ allprojects {
             dependsOn 'assemble'
           }
         }
+        tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart5") { name ->
+          if(name.endsWith("#bwcTestPart5")) {
+            project.getTasks().register(name) {
+              task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part5") })
+            }
+          }
+        }
       } else {
         tasks.register('checkPart2') {
           dependsOn 'check'
           withReleaseBuild {
             dependsOn 'assemble'
+          }
+        }
+        tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart2") { name ->
+          if(name.endsWith("#bwcTestPart2")) {
+            project.getTasks().register(name) {
+              task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part2") })
+            }
+          }
+        }
+      }
+    } else if(project.path.startsWith(":qa:")) {
+      tasks.register('checkPart6') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
+      tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart6") { name ->
+        if(name.endsWith("#bwcTestPart6")) {
+          project.getTasks().register(name) {
+            task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part6") })
           }
         }
       }
@@ -353,6 +427,13 @@ allprojects {
         dependsOn 'check'
         withReleaseBuild {
           dependsOn 'assemble'
+        }
+      }
+      tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart1") { name ->
+        if(name.endsWith("#bwcTestPart1")) {
+          project.getTasks().register(name) {
+            task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part1") })
+          }
         }
       }
     }
@@ -407,6 +488,38 @@ allprojects {
   apply plugin: 'elasticsearch.formatting'
 }
 
+tasks.named("updateDaemonJvm") {
+  def myPlatforms = [
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.MAC_OS
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.LINUX
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.LINUX
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
+    // anyone still using x86 osx?
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.MAC_OS
+    )
+  ]
+  toolchainPlatforms.set(myPlatforms)
+  languageVersion = JavaLanguageVersion.of(21)
+  vendor = JvmVendorSpec.ADOPTIUM
+}
 
 tasks.register("verifyBwcTestsEnabled") {
   doLast {

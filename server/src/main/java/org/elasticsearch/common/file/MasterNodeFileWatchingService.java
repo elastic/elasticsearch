@@ -19,10 +19,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.stream.Stream;
 
 public abstract class MasterNodeFileWatchingService extends AbstractFileWatchingService implements ClusterStateListener {
 
@@ -41,7 +44,7 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        this.active = Files.exists(watchedFileDir().getParent());
+        this.active = filesExists(watchedFileDir().getParent());
         if (active == false) {
             // we don't have a config directory, we can't possibly launch the file settings service
             return;
@@ -86,9 +89,9 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
      */
     private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
         if (watching()) {
-            if (shouldRefreshFileState(clusterState) && Files.exists(watchedFile())) {
+            if (shouldRefreshFileState(clusterState) && filesExists(watchedFile())) {
                 try {
-                    Files.setLastModifiedTime(watchedFile(), FileTime.from(Instant.now()));
+                    filesSetLastModifiedTime(watchedFile(), FileTime.from(Instant.now()));
                 } catch (IOException e) {
                     logger.warn("encountered I/O error trying to update file settings timestamp", e);
                 }
@@ -106,5 +109,38 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
      */
     protected boolean shouldRefreshFileState(ClusterState clusterState) {
         return false;
+    }
+
+    // the following methods are a workaround to ensure exclusive access for files
+    // required by child watchers; this is required because we only check the caller's module
+    // not the entire stack
+    @Override
+    protected boolean filesExists(Path path) {
+        return Files.exists(path);
+    }
+
+    @Override
+    protected boolean filesIsDirectory(Path path) {
+        return Files.isDirectory(path);
+    }
+
+    @Override
+    protected <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException {
+        return Files.readAttributes(path, clazz);
+    }
+
+    @Override
+    protected Stream<Path> filesList(Path dir) throws IOException {
+        return Files.list(dir);
+    }
+
+    @Override
+    protected Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException {
+        return Files.setLastModifiedTime(path, time);
+    }
+
+    @Override
+    protected InputStream filesNewInputStream(Path path) throws IOException {
+        return Files.newInputStream(path);
     }
 }

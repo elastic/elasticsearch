@@ -34,6 +34,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -76,6 +77,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
+import static org.elasticsearch.common.time.DateUtils.toLongMillis;
 
 /** A {@link FieldMapper} for dates. */
 public final class DateFieldMapper extends FieldMapper {
@@ -95,12 +97,13 @@ public final class DateFieldMapper extends FieldMapper {
     private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis")
         .withLocale(DEFAULT_LOCALE)
         .toDateMathParser();
+    public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
             @Override
             public long convert(Instant instant) {
-                return instant.toEpochMilli();
+                return toLongMillis(instant);
             }
 
             @Override
@@ -515,7 +518,7 @@ public final class DateFieldMapper extends FieldMapper {
             );
         }
 
-        public DateFieldType(String name, boolean isIndexed) {
+        public DateFieldType(String name, boolean isIndexed, Resolution resolution) {
             this(
                 name,
                 isIndexed,
@@ -524,11 +527,15 @@ public final class DateFieldMapper extends FieldMapper {
                 true,
                 false,
                 DEFAULT_DATE_TIME_FORMATTER,
-                Resolution.MILLISECONDS,
+                resolution,
                 null,
                 null,
                 Collections.emptyMap()
             );
+        }
+
+        public DateFieldType(String name, boolean isIndexed) {
+            this(name, isIndexed, Resolution.MILLISECONDS);
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
@@ -742,6 +749,54 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution.convert(dateParser.parse(BytesRefs.toString(value), now, roundUp, zone));
         }
 
+        /**
+         * Similar to the {@link DateFieldType#termQuery} method, but works on dates that are already parsed to a long
+         * in the same precision as the field mapper.
+         */
+        public Query equalityQuery(Long value, @Nullable SearchExecutionContext context) {
+            return rangeQuery(value, value, true, true, context);
+        }
+
+        /**
+         * Similar to the existing
+         * {@link DateFieldType#rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, SearchExecutionContext)}
+         * method, but works on dates that are already parsed to a long in the same precision as the field mapper.
+         */
+        public Query rangeQuery(
+            Long lowerTerm,
+            Long upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            long l, u;
+            if (lowerTerm == null) {
+                l = Long.MIN_VALUE;
+            } else {
+                l = (includeLower == false) ? lowerTerm + 1 : lowerTerm;
+            }
+            if (upperTerm == null) {
+                u = Long.MAX_VALUE;
+            } else {
+                u = (includeUpper == false) ? upperTerm - 1 : upperTerm;
+            }
+            Query query;
+            if (isIndexed()) {
+                query = LongPoint.newRangeQuery(name(), l, u);
+                if (hasDocValues()) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+            } else {
+                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+            }
+            if (hasDocValues() && context.indexSortedOnField(name())) {
+                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+            }
+            return query;
+        }
+
         @Override
         public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
@@ -853,7 +908,8 @@ public final class DateFieldMapper extends FieldMapper {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
 
-            if (isSyntheticSource) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
@@ -871,7 +927,7 @@ public final class DateFieldMapper extends FieldMapper {
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
             Function<String, Long> dateParser = this::parse;
 
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<Long>(nullValue) {
+            return new FallbackSyntheticSourceBlockLoader.SingleValueReader<Long>(nullValue) {
                 @Override
                 public void convertValue(Object value, List<Long> accumulator) {
                     try {

@@ -1,5 +1,0 @@
-pr: 118602
-summary: Limit memory usage of `fold`
-area: ES|QL
-type: bug
-issues: []

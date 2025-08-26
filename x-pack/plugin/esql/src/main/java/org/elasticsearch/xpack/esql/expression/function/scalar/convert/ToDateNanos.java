@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
@@ -46,11 +45,10 @@ public class ToDateNanos extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DATETIME, ToDateNanosFromDatetimeEvaluator.Factory::new),
-        Map.entry(DATE_NANOS, (field, source) -> field),
+        Map.entry(DATE_NANOS, (source, field) -> field),
         Map.entry(LONG, ToDateNanosFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToDateNanosFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToDateNanosFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToDateNanosFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToDateNanosFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new)
         /*

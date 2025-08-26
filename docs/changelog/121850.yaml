@@ -1,5 +1,0 @@
-pr: 121850
-summary: Take named parameters for identifier and pattern out of snapshot
-area: ES|QL
-type: enhancement
-issues: []

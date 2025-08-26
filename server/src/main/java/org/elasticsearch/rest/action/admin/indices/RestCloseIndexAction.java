@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -47,7 +46,6 @@ public class RestCloseIndexAction extends BaseRestHandler {
     }
 
     @Override
-    @UpdateForV9
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         closeIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));

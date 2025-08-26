@@ -89,7 +89,13 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         } else {
             query = LongPoint.newRangeQuery("s", 0, numDocs);
         }
-        return new LuceneCountOperator.Factory(List.of(ctx), c -> query, dataPartitioning, between(1, 8), limit);
+        return new LuceneCountOperator.Factory(
+            List.of(ctx),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            dataPartitioning,
+            between(1, 8),
+            limit
+        );
     }
 
     @Override
@@ -99,7 +105,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("LuceneCountOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), limit = 100]");
+        return matchesRegex("LuceneCountOperator\\[dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), limit = 100]");
     }
 
     // TODO tests for the other data partitioning configurations
@@ -151,7 +157,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         int taskConcurrency = between(1, 8);
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext ctx = contexts.get();
-            drivers.add(new Driver(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));
+            drivers.add(new Driver("test", ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));
         }
         OperatorTestCase.runDriver(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));

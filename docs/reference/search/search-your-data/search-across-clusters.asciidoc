@@ -19,10 +19,10 @@ The following APIs support {ccs}:
 * <<search-field-caps,Field capabilities>>
 * {painless}/painless-execute-api.html[Painless execute API]
 * <<indices-resolve-index-api,Resolve Index API>>
+* <<search-vector-tile-api,Vector tile search>>
+* <<esql-cross-clusters,ES|QL>>
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<sql-search-api,SQL search>>
-* experimental:[] <<search-vector-tile-api,Vector tile search>>
-* experimental:[] <<esql-cross-clusters,ES|QL>>
 
 [discrete]
 === Prerequisites

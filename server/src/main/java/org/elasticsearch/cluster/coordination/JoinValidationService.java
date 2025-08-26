@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -31,7 +32,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,7 +39,6 @@ import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -143,7 +142,7 @@ public class JoinValidationService {
                     );
                 }
                 joinValidators.forEach(joinValidator -> joinValidator.accept(transportService.getLocalNode(), remoteState));
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
     }
@@ -177,7 +176,6 @@ public class JoinValidationService {
         }
     }
 
-    @UpdateForV9
     private void legacyValidateJoin(DiscoveryNode discoveryNode, ActionListener<Void> listener, Transport.Connection connection) {
         final var responseHandler = TransportResponseHandler.empty(responseExecutor, listener.delegateResponse((l, e) -> {
             logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
@@ -371,7 +369,7 @@ public class JoinValidationService {
                 REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(
                     listener.map(ignored -> null),
-                    in -> TransportResponse.Empty.INSTANCE,
+                    in -> ActionResponse.Empty.INSTANCE,
                     responseExecutor,
                     bytes::decRef
                 )

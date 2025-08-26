@@ -109,9 +109,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ExecutionMode execution = null;
             if (executionHint != null) {
                 execution = ExecutionMode.fromString(executionHint);
+            } else {
+                if (matchNoDocs(context, parent) && bucketCountThresholds.getMinDocCount() > 0) {
+                    execution = ExecutionMode.MAP;
+                }
             }
             // In some cases, using ordinals is just not supported: override it
-            if (valuesSource.hasOrdinals() == false || matchNoDocs(context, parent)) {
+            if (valuesSource.hasOrdinals() == false) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {

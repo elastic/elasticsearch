@@ -63,18 +63,7 @@
             "type" : "keyword"
         },
         "salary_change": {
-            "type": "float",
-            "fields": {
-                "int": {
-                   "type": "integer"
-                },
-                "long": {
-                    "type": "long"
-                },
-                "keyword": {
-                    "type" : "keyword"
-                }
-            }
+            "type": "float"
         }
     }
 }

@@ -26,6 +26,7 @@ setup:
                 format: "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
               dense_vector:
                 type: dense_vector
+                similarity: l2_norm
                 dims: 3
               double_range:
                 type: double_range
@@ -110,17 +111,13 @@ setup:
 ---
 unsupported:
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: "Latest types supported in ESQL as of 8.13.0"
-
-  - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [capabilities, contains]
       capabilities:
         - method: POST
           path: /_query
-          parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering ]
-      reason: "support for rendering aggregate_metric_double type"
+          parameters: []
+          capabilities: [dense_vector_field_type]
+      reason: "uses original_type"
 
   - do:
       allowed_warnings_regex:
@@ -132,16 +129,19 @@ unsupported:
 
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
   - match: { columns.3.name: date_nanos }
   - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
-  - match: { columns.5.type: unsupported }
+  - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
   - match: { columns.6.type: unsupported }
   - match: { columns.7.name: float_range }
@@ -195,7 +195,9 @@ unsupported:
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
   - match: { values.0.4: null }
-  - match: { values.0.5: null }
+  - match: { values.0.5.0: 0.5 }
+  - match: { values.0.5.1: 10.0 }
+  - match: { values.0.5.2: 6.0 }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
   - match: { values.0.8: "POINT (10.0 12.0)" }
@@ -228,16 +230,19 @@ unsupported:
           query: 'from test | limit 0'
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
   - match: { columns.3.name: date_nanos }
   - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
-  - match: { columns.5.type: unsupported }
+  - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
   - match: { columns.6.type: unsupported }
   - match: { columns.7.name: float_range }
@@ -308,8 +313,8 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double ]
-      reason: "support for aggregate_metric_double type"
+          capabilities: [ dense_vector_field_type ]
+      reason: "support for sorting when dense_vector_field_type present"
 
   - do:
       allowed_warnings_regex:
@@ -317,95 +322,99 @@ unsupported with sort:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | drop aggregate_metric_double | sort some_doc.bar'
+          query: 'from test | sort some_doc.bar'
 
-  - match: { columns.0.name: binary }
-  - match: { columns.0.type: unsupported }
-  - match: { columns.1.name: completion }
+  - match: { columns.0.name: aggregate_metric_double }
+  - match: { columns.0.type: aggregate_metric_double }
+  - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
-  - match: { columns.2.name: date_nanos }
-  - match: { columns.2.type: date_nanos }
-  - match: { columns.3.name: date_range }
-  - match: { columns.3.type: unsupported }
-  - match: { columns.4.name: dense_vector }
+  - match: { columns.2.name: completion }
+  - match: { columns.2.type: unsupported }
+  - match: { columns.3.name: date_nanos }
+  - match: { columns.3.type: date_nanos }
+  - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
-  - match: { columns.5.name: double_range }
-  - match: { columns.5.type: unsupported }
-  - match: { columns.6.name: float_range }
+  - match: { columns.5.name: dense_vector }
+  - match: { columns.5.type: dense_vector }
+  - match: { columns.6.name: double_range }
   - match: { columns.6.type: unsupported }
-  - match: { columns.7.name: geo_point }
-  - match: { columns.7.type: geo_point }
-  - match: { columns.8.name: geo_point_alias }
+  - match: { columns.7.name: float_range }
+  - match: { columns.7.type: unsupported }
+  - match: { columns.8.name: geo_point }
   - match: { columns.8.type: geo_point }
-  - match: { columns.9.name: geo_shape }
-  - match: { columns.9.type: geo_shape }
-  - match: { columns.10.name: histogram }
-  - match: { columns.10.type: unsupported }
-  - match: { columns.11.name: integer_range }
+  - match: { columns.9.name: geo_point_alias }
+  - match: { columns.9.type: geo_point }
+  - match: { columns.10.name: geo_shape }
+  - match: { columns.10.type: geo_shape }
+  - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
-  - match: { columns.12.name: ip_range }
+  - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
-  - match: { columns.13.name: long_range }
+  - match: { columns.13.name: ip_range }
   - match: { columns.13.type: unsupported }
-  - match: { columns.14.name: match_only_text }
-  - match: { columns.14.type: text }
-  - match: { columns.15.name: name }
-  - match: { columns.15.type: keyword }
-  - match: { columns.16.name: point }
-  - match: { columns.16.type: cartesian_point }
-  - match: { columns.17.name: rank_feature }
-  - match: { columns.17.type: unsupported }
-  - match: { columns.18.name: rank_features }
+  - match: { columns.14.name: long_range }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: text }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: point }
+  - match: { columns.17.type: cartesian_point }
+  - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
-  - match: { columns.19.name: search_as_you_type }
+  - match: { columns.19.name: rank_features }
   - match: { columns.19.type: unsupported }
-  - match: { columns.20.name: search_as_you_type._2gram }
+  - match: { columns.20.name: search_as_you_type }
   - match: { columns.20.type: unsupported }
-  - match: { columns.21.name: search_as_you_type._3gram }
+  - match: { columns.21.name: search_as_you_type._2gram }
   - match: { columns.21.type: unsupported }
-  - match: { columns.22.name: search_as_you_type._index_prefix }
+  - match: { columns.22.name: search_as_you_type._3gram }
   - match: { columns.22.type: unsupported }
-  - match: { columns.23.name: shape }
-  - match: { columns.23.type: cartesian_shape }
-  - match: { columns.24.name: some_doc.bar }
-  - match: { columns.24.type: long }
-  - match: { columns.25.name: some_doc.foo }
-  - match: { columns.25.type: keyword }
-  - match: { columns.26.name: text }
-  - match: { columns.26.type: text }
-  - match: { columns.27.name: token_count }
-  - match: { columns.27.type: integer }
+  - match: { columns.23.name: search_as_you_type._index_prefix }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: shape }
+  - match: { columns.24.type: cartesian_shape }
+  - match: { columns.25.name: some_doc.bar }
+  - match: { columns.25.type: long }
+  - match: { columns.26.name: some_doc.foo }
+  - match: { columns.26.type: keyword }
+  - match: { columns.27.name: text }
+  - match: { columns.27.type: text }
+  - match: { columns.28.name: token_count }
+  - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
   - match: { values.0.1: null }
-  - match: { values.0.2: "2015-01-01T12:10:30.123456789Z" }
-  - match: { values.0.3: null }
+  - match: { values.0.2: null }
+  - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
   - match: { values.0.4: null }
-  - match: { values.0.5: null }
+  - match: { values.0.5.0: 0.5 }
+  - match: { values.0.5.1: 10.0 }
+  - match: { values.0.5.2: 6.0 }
   - match: { values.0.6: null }
-  - match: { values.0.7: "POINT (10.0 12.0)" }
+  - match: { values.0.7: null }
   - match: { values.0.8: "POINT (10.0 12.0)" }
-  - match: { values.0.9: "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)" }
-  - match: { values.0.10: null }
+  - match: { values.0.9: "POINT (10.0 12.0)" }
+  - match: { values.0.10: "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)" }
   - match: { values.0.11: null }
   - match: { values.0.12: null }
   - match: { values.0.13: null }
-  - match: { values.0.14: "foo bar baz" }
-  - match: { values.0.15: Alice }
-  - match: { values.0.16: "POINT (-97.15447 25.9961525)" }
-  - match: { values.0.17: null }
+  - match: { values.0.14: null }
+  - match: { values.0.15: "foo bar baz" }
+  - match: { values.0.16: Alice }
+  - match: { values.0.17: "POINT (-97.15447 25.9961525)" }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }
   - match: { values.0.21: null }
   - match: { values.0.22: null }
-  - match: { values.0.23: "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)" }
-  - match: { values.0.24: 12 }
-  - match: { values.0.25: xy }
-  - match: { values.0.26: "foo bar" }
-  - match: { values.0.27: 3 }
-
+  - match: { values.0.23: null }
+  - match: { values.0.24: "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)" }
+  - match: { values.0.25: 12 }
+  - match: { values.0.26: xy }
+  - match: { values.0.27: "foo bar" }
+  - match: { values.0.28: 3 }
 ---
 nested declared inline:
   - do:

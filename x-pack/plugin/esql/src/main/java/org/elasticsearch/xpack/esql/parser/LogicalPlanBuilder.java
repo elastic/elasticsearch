@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -57,7 +61,10 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -76,18 +83,17 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
- *
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -161,7 +167,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
@@ -192,21 +198,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
                 if (item.getKey().equalsIgnoreCase("append_separator") == false) {
                     throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
                 }
-                if (item.getValue() instanceof String == false) {
+                if (item.getValue() instanceof BytesRef == false) {
                     throw new ParsingException(
                         source(ctx),
                         "Invalid value for dissect append_separator: expected a string, but was [{}]",
                         item.getValue()
                     );
                 }
-                appendSeparator = (String) item.getValue();
+                appendSeparator = BytesRefs.toString(item.getValue());
             }
             Source src = source(ctx);
 
@@ -369,8 +375,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input);
+        Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
+        if (val instanceof Integer i && i >= 0) {
+            return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
+        }
+
+        String valueType = expression(ctx.constant()).dataType().typeName();
+
+        throw new ParsingException(
+            source,
+            "value of ["
+                + source.text()
+                + "] must be a non negative integer, found value ["
+                + ctx.constant().getText()
+                + "] type ["
+                + valueType
+                + "]"
+        );
     }
 
     @Override
@@ -450,7 +471,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyNameString, DataType.KEYWORD),
+                Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
                 null,
                 Map.of(),
@@ -459,8 +480,33 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         };
     }
 
-    private static Tuple<Mode, String> parsePolicyName(Token policyToken) {
-        String stringValue = policyToken.getText();
+    @Override
+    public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
+        Source src = source(ctx);
+        Attribute value = visitQualifiedName(ctx.value);
+        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        Attribute targetType = new ReferenceAttribute(
+            src,
+            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            KEYWORD
+        );
+        Attribute targetPvalue = new ReferenceAttribute(
+            src,
+            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            DataType.DOUBLE
+        );
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+    }
+
+    private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
+        String stringValue;
+        if (ctx.ENRICH_POLICY_NAME() != null) {
+            stringValue = ctx.ENRICH_POLICY_NAME().getText();
+        } else {
+            stringValue = ctx.QUOTED_STRING().getText();
+            stringValue = stringValue.substring(1, stringValue.length() - 1);
+        }
+
         int index = stringValue.indexOf(":");
         Mode mode = null;
         if (index >= 0) {
@@ -472,7 +518,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             if (mode == null) {
                 throw new ParsingException(
-                    source(policyToken),
+                    source(ctx),
                     "Unrecognized value [{}], ENRICH policy qualifier needs to be one of {}",
                     modeValue,
                     Arrays.stream(Mode.values()).map(s -> "_" + s).toList()
@@ -502,7 +548,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             source,
             table,
             false,
-            List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
+            List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, KEYWORD, false)),
             IndexMode.TIME_SERIES,
             null
         );
@@ -529,7 +575,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), DataType.KEYWORD);
+        Literal tableName = Literal.keyword(source, visitIndexPattern(List.of(ctx.indexPattern())));
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
@@ -554,6 +600,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(
                 source(target),
                 "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                rightPattern
+            );
+        }
+        if (rightPattern.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                source(target),
+                "invalid index pattern [{}], index pattern selectors are not supported in LOOKUP JOIN",
                 rightPattern
             );
         }
@@ -601,5 +654,168 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             return new LookupJoin(source, p, right, joinFields);
         };
+    }
+
+    private void checkForRemoteClusters(LogicalPlan plan, Source source, String commandName) {
+        plan.forEachUp(UnresolvedRelation.class, r -> {
+            for (var indexPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
+                if (RemoteClusterAware.isRemoteIndexName(indexPattern)) {
+                    throw new ParsingException(
+                        source,
+                        "invalid index pattern [{}], remote clusters are not supported with {}",
+                        r.indexPattern().indexPattern(),
+                        commandName
+                    );
+                }
+            }
+        });
+    }
+
+    @Override
+    public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
+        Source source = source(ctx);
+        List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
+        Expression queryText = expression(ctx.queryText);
+
+        if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
+            if (queryTextLiteral.value() == null) {
+                throw new ParsingException(
+                    source(ctx.queryText),
+                    "Query text cannot be null or undefined in RERANK",
+                    ctx.queryText.getText()
+                );
+            }
+        } else {
+            throw new ParsingException(
+                source(ctx.queryText),
+                "RERANK only support string as query text but [{}] cannot be used as string",
+                ctx.queryText.getText()
+            );
+        }
+
+        return p -> {
+            checkForRemoteClusters(p, source, "RERANK");
+            return visitRerankOptions(new Rerank(source, p, queryText, rerankFields), ctx.inferenceCommandOptions());
+        };
+    }
+
+    private Rerank visitRerankOptions(Rerank rerank, EsqlBaseParser.InferenceCommandOptionsContext ctx) {
+        if (ctx == null) {
+            return rerank;
+        }
+
+        Rerank.Builder rerankBuilder = new Rerank.Builder(rerank);
+
+        for (var option : ctx.inferenceCommandOption()) {
+            String optionName = visitIdentifier(option.identifier());
+            EsqlBaseParser.InferenceCommandOptionValueContext optionValue = option.inferenceCommandOptionValue();
+            if (optionName.equals(Rerank.INFERENCE_ID_OPTION_NAME)) {
+                rerankBuilder.withInferenceId(visitInferenceId(optionValue));
+            } else if (optionName.equals(Rerank.SCORE_COLUMN_OPTION_NAME)) {
+                rerankBuilder.withScoreAttribute(visitRerankScoreAttribute(optionName, optionValue));
+            } else {
+                throw new ParsingException(
+                    source(option.identifier()),
+                    "Unknowm parameter [{}] in RERANK command",
+                    option.identifier().getText()
+                );
+            }
+        }
+
+        return rerankBuilder.build();
+    }
+
+    private UnresolvedAttribute visitRerankScoreAttribute(String optionName, EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
+        if (ctx.constant() == null && ctx.identifier() == null) {
+            throw new ParsingException(source(ctx), "Parameter [{}] is null or undefined", optionName);
+        }
+
+        Expression optionValue = ctx.identifier() != null
+            ? Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier()))
+            : expression(ctx.constant());
+
+        if (optionValue instanceof UnresolvedAttribute scoreAttribute) {
+            return scoreAttribute;
+        } else if (optionValue instanceof Literal literal) {
+            if (literal.value() == null) {
+                throw new ParsingException(optionValue.source(), "Parameter [{}] is null or undefined", optionName);
+            }
+
+            if (literal.value() instanceof BytesRef attributeName) {
+                return new UnresolvedAttribute(literal.source(), BytesRefs.toString(attributeName));
+            }
+        }
+
+        throw new ParsingException(
+            source(ctx),
+            "Option [{}] expects a valid attribute in RERANK command. [{}] provided.",
+            optionName,
+            ctx.constant().getText()
+        );
+    }
+
+    @Override
+    public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
+        Source source = source(ctx);
+        Expression prompt = expression(ctx.prompt);
+        Literal inferenceId = visitInferenceId(ctx.inferenceId);
+        Attribute targetField = ctx.targetField == null
+            ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
+            : visitQualifiedName(ctx.targetField);
+
+        return p -> new Completion(source, p, inferenceId, prompt, targetField);
+    }
+
+    private Literal visitInferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
+        if (ctx.identifier() != null) {
+            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
+        }
+
+        return visitInferenceId(expression(ctx.parameter()));
+    }
+
+    private Literal visitInferenceId(EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
+        if (ctx.identifier() != null) {
+            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
+        }
+
+        return visitInferenceId(expression(ctx.constant()));
+    }
+
+    private Literal visitInferenceId(Expression expression) {
+        if (expression instanceof Literal literal) {
+            if (literal.value() == null) {
+                throw new ParsingException(
+                    expression.source(),
+                    "Parameter [{}] is null or undefined and cannot be used as inference id",
+                    expression.source().text()
+                );
+            }
+
+            return literal;
+        } else if (expression instanceof UnresolvedAttribute attribute) {
+            // Support for unquoted inference id
+            return Literal.keyword(expression.source(), attribute.name());
+        }
+
+        throw new ParsingException(
+            expression.source(),
+            "Query parameter [{}] is not a string and cannot be used as inference id [{}]",
+            expression.source().text(),
+            expression.getClass()
+        );
+    }
+
+    public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
+        Source source = source(ctx);
+        Object val = expression(ctx.probability).fold(FoldContext.small() /* TODO remove me */);
+        if (val instanceof Double probability && probability > 0.0 && probability < 1.0) {
+            return input -> new Sample(source, new Literal(source, probability, DataType.DOUBLE), input);
+        } else {
+            throw new ParsingException(
+                source(ctx),
+                "invalid value for SAMPLE probability [" + BytesRefs.toString(val) + "], expecting a number between 0 and 1, exclusive"
+            );
+        }
     }
 }

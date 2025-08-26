@@ -23,6 +23,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,6 +40,11 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
         "test_user",
         new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
     );
+
+    @BeforeClass
+    public static void avoidBugIn8_0_1() {
+        assumeTrue("https://github.com/elastic/elasticsearch/issues/125168", isOriginalClusterVersionAtLeast(Version.V_8_1_0));
+    }
 
     @Override
     protected Settings restAdminSettings() {

@@ -11,18 +11,24 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -45,8 +51,23 @@ public class Literal extends LeafExpression {
 
     public Literal(Source source, Object value, DataType dataType) {
         super(source);
+        assert noPlainStrings(value, dataType);
         this.dataType = dataType;
         this.value = value;
+    }
+
+    private boolean noPlainStrings(Object value, DataType dataType) {
+        if (dataType == KEYWORD || dataType == TEXT || dataType == VERSION) {
+            if (value == null) {
+                return true;
+            }
+            if (value instanceof String) {
+                return false;
+            } else if (value instanceof Collection<?> c) {
+                return c.stream().allMatch(x -> noPlainStrings(x, dataType));
+            }
+        }
+        return true;
     }
 
     private static Literal readFrom(StreamInput in) throws IOException {
@@ -122,7 +143,21 @@ public class Literal extends LeafExpression {
 
     @Override
     public String toString() {
-        String str = String.valueOf(value);
+        String str;
+        if (dataType == KEYWORD || dataType == TEXT) {
+            str = BytesRefs.toString(value);
+        } else if (dataType == VERSION && value instanceof BytesRef br) {
+            str = new Version(br).toString();
+            // TODO review how we manage IPs: https://github.com/elastic/elasticsearch/issues/129605
+            // } else if (dataType == IP && value instanceof BytesRef ip) {
+            // str = DocValueFormat.IP.format(ip);
+        } else {
+            str = String.valueOf(value);
+        }
+
+        if (str == null) {
+            str = "null";
+        }
         if (str.length() > 500) {
             return str.substring(0, 500) + "...";
         }
@@ -152,6 +187,10 @@ public class Literal extends LeafExpression {
 
     public static Literal of(Expression source, Object value) {
         return new Literal(source.source(), value, source.dataType());
+    }
+
+    public static Literal keyword(Source source, String literal) {
+        return new Literal(source, BytesRefs.toBytesRef(literal), KEYWORD);
     }
 
     /**

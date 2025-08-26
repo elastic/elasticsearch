@@ -16,7 +16,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.junit.Before;
@@ -28,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-@UpdateForV9 // Remove the whole test suite (superseded by SystemIndexMappingUpdateServiceIT#testSystemIndexManagerUpgradesMappings)
 public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
 
     public WatcherMappingUpdateIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

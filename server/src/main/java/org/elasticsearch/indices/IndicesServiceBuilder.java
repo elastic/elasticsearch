@@ -83,7 +83,7 @@ public class IndicesServiceBuilder {
     QueryRewriteInterceptor queryRewriteInterceptor = null;
     SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
         @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
+        public SlowLogFields create() {
             return new SlowLogFields() {
                 @Override
                 public Map<String, String> indexFields() {
@@ -96,6 +96,12 @@ public class IndicesServiceBuilder {
                 }
             };
         }
+
+        @Override
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
+        }
+
     };
 
     public IndicesServiceBuilder settings(Settings settings) {

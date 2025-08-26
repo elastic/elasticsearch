@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,35 +48,43 @@ public class PolicyUtils {
         }
     }
 
-    private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
+    public static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
 
-    public static Map<String, Policy> createPluginPolicies(Collection<PluginData> pluginData, Map<String, String> overrides, String version)
-        throws IOException {
+    public static Map<String, Policy> createPluginPolicies(
+        Collection<PluginData> pluginData,
+        Map<String, String> pluginPolicyPatches,
+        String version
+    ) throws IOException {
         Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
         for (var entry : pluginData) {
             Path pluginRoot = entry.pluginPath();
             String pluginName = pluginRoot.getFileName().toString();
             final Set<String> moduleNames = getModuleNames(pluginRoot, entry.isModular());
 
-            var overriddenPolicy = parseEncodedPolicyIfExists(
-                overrides.get(pluginName),
+            var pluginPolicyPatch = parseEncodedPolicyIfExists(
+                pluginPolicyPatches.get(pluginName),
                 version,
                 entry.isExternalPlugin(),
                 pluginName,
                 moduleNames
             );
-            if (overriddenPolicy != null) {
-                pluginPolicies.put(pluginName, overriddenPolicy);
-            } else {
-                Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
-                var policy = parsePolicyIfExists(pluginName, policyFile, entry.isExternalPlugin());
-                validatePolicyScopes(pluginName, policy, moduleNames, policyFile.toString());
-                pluginPolicies.put(pluginName, policy);
-            }
+            var pluginPolicy = parsePolicyIfExists(pluginName, pluginRoot, entry.isExternalPlugin());
+            validatePolicyScopes(pluginName, pluginPolicy, moduleNames, pluginRoot.resolve(POLICY_FILE_NAME).toString());
+
+            pluginPolicies.put(
+                pluginName,
+                pluginPolicyPatch == null
+                    ? pluginPolicy
+                    : new Policy(pluginPolicy.name(), PolicyUtils.mergeScopes(pluginPolicy.scopes(), pluginPolicyPatch.scopes()))
+            );
         }
         return pluginPolicies;
     }
 
+    /**
+     * @throws PolicyParserException if the supplied policy is formatted incorrectly
+     * @throws IllegalStateException for any other error parsing the patch, such as nonexistent module names
+     */
     public static Policy parseEncodedPolicyIfExists(
         String encodedPolicy,
         String version,
@@ -101,11 +110,8 @@ public class PolicyUtils {
                         version
                     );
                 }
-            } catch (Exception ex) {
-                logger.warn(
-                    Strings.format("Found a policy patch with invalid content. The patch will not be applied. Layer [%s]", layerName),
-                    ex
-                );
+            } catch (Exception e) {
+                throw new IllegalStateException("Unable to parse policy patch for layer [" + layerName + "]", e);
             }
         }
         return null;
@@ -133,9 +139,12 @@ public class PolicyUtils {
         }
     }
 
-    private static Policy parsePolicyIfExists(String pluginName, Path policyFile, boolean isExternalPlugin) throws IOException {
+    public static Policy parsePolicyIfExists(String pluginName, Path pluginRoot, boolean isExternalPlugin) throws IOException {
+        Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
         if (Files.exists(policyFile)) {
-            return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName, isExternalPlugin).parsePolicy();
+            try (var inputStream = Files.newInputStream(policyFile, StandardOpenOption.READ)) {
+                return new PolicyParser(inputStream, pluginName, isExternalPlugin).parsePolicy();
+            }
         }
         return new Policy(pluginName, List.of());
     }
@@ -179,23 +188,81 @@ public class PolicyUtils {
         return entitlementMap.values().stream().toList();
     }
 
-    static Entitlement mergeEntitlement(Entitlement entitlement1, Entitlement entitlement2) {
-        if (entitlement1 instanceof FilesEntitlement e) {
-            return merge(e, (FilesEntitlement) entitlement2);
+    static Entitlement mergeEntitlement(Entitlement entitlement, Entitlement other) {
+        if (entitlement instanceof FilesEntitlement e) {
+            return mergeFiles(Stream.of(e, (FilesEntitlement) other));
         }
-        if (entitlement1 instanceof WriteSystemPropertiesEntitlement e) {
-            return merge(e, (WriteSystemPropertiesEntitlement) entitlement2);
+        if (entitlement instanceof WriteSystemPropertiesEntitlement e) {
+            return mergeWriteSystemProperties(Stream.of(e, (WriteSystemPropertiesEntitlement) other));
         }
-        return entitlement1;
+        return entitlement;
     }
 
-    private static FilesEntitlement merge(FilesEntitlement a, FilesEntitlement b) {
-        return new FilesEntitlement(Stream.concat(a.filesData().stream(), b.filesData().stream()).distinct().toList());
-    }
-
-    private static WriteSystemPropertiesEntitlement merge(WriteSystemPropertiesEntitlement a, WriteSystemPropertiesEntitlement b) {
-        return new WriteSystemPropertiesEntitlement(
-            Stream.concat(a.properties().stream(), b.properties().stream()).collect(Collectors.toUnmodifiableSet())
+    public static List<Entitlement> mergeEntitlements(Stream<Entitlement> entitlements) {
+        Map<Class<? extends Entitlement>, List<Entitlement>> entitlementMap = entitlements.collect(
+            Collectors.groupingBy(Entitlement::getClass)
         );
+
+        List<Entitlement> result = new ArrayList<>();
+        for (var kv : entitlementMap.entrySet()) {
+            var entitlementClass = kv.getKey();
+            var classEntitlements = kv.getValue();
+            if (classEntitlements.size() == 1) {
+                result.add(classEntitlements.get(0));
+            } else {
+                result.add(PolicyUtils.mergeEntitlement(entitlementClass, classEntitlements.stream()));
+            }
+        }
+        return result;
+    }
+
+    static Entitlement mergeEntitlement(Class<? extends Entitlement> entitlementClass, Stream<Entitlement> entitlements) {
+        if (entitlementClass.equals(FilesEntitlement.class)) {
+            return mergeFiles(entitlements.map(FilesEntitlement.class::cast));
+        } else if (entitlementClass.equals(WriteSystemPropertiesEntitlement.class)) {
+            return mergeWriteSystemProperties(entitlements.map(WriteSystemPropertiesEntitlement.class::cast));
+        }
+        return entitlements.findFirst().orElseThrow();
+    }
+
+    private static FilesEntitlement mergeFiles(Stream<FilesEntitlement> entitlements) {
+        return new FilesEntitlement(entitlements.flatMap(x -> x.filesData().stream()).distinct().toList());
+    }
+
+    private static WriteSystemPropertiesEntitlement mergeWriteSystemProperties(Stream<WriteSystemPropertiesEntitlement> entitlements) {
+        return new WriteSystemPropertiesEntitlement(
+            entitlements.flatMap(x -> x.properties().stream()).collect(Collectors.toUnmodifiableSet())
+        );
+    }
+
+    static Set<String> describeEntitlement(Entitlement entitlement) {
+        Set<String> descriptions = new HashSet<>();
+        if (entitlement instanceof FilesEntitlement f) {
+            f.filesData()
+                .stream()
+                .filter(x -> x.platform() == null || x.platform().isCurrent())
+                .map(x -> Strings.format("%s %s", PolicyParser.getEntitlementName(FilesEntitlement.class), x.description()))
+                .forEach(descriptions::add);
+        } else if (entitlement instanceof WriteSystemPropertiesEntitlement w) {
+            w.properties()
+                .stream()
+                .map(p -> Strings.format("%s [%s]", PolicyParser.getEntitlementName(WriteSystemPropertiesEntitlement.class), p))
+                .forEach(descriptions::add);
+        } else {
+            descriptions.add(PolicyParser.getEntitlementName(entitlement.getClass()));
+        }
+        return descriptions;
+    }
+
+    /**
+     * Extract a unique set of entitlements descriptions from the plugin's policy file. Each entitlement is formatted for output to users.
+     */
+    public static Set<String> getEntitlementsDescriptions(Policy pluginPolicy) {
+        var allEntitlements = PolicyUtils.mergeEntitlements(pluginPolicy.scopes().stream().flatMap(scope -> scope.entitlements().stream()));
+        Set<String> descriptions = new HashSet<>();
+        for (var entitlement : allEntitlements) {
+            descriptions.addAll(PolicyUtils.describeEntitlement(entitlement));
+        }
+        return descriptions;
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -50,7 +49,6 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
             this.nodeIds = nodeIds;
         }
 
-        @UpdateForV9 // only needed for bwc, inline in v9
         public static Request readFrom(StreamInput in) throws IOException {
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return new Request(in);
@@ -65,7 +63,6 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
             nodeIds = in.readStringArray();
         }
 
-        @UpdateForV9 // only needed for bwc, remove in v9
         private Request(TimeValue masterNodeTimeout, StreamInput in) throws IOException {
             super(masterNodeTimeout);
             assert in.getTransportVersion().before(TransportVersions.V_8_15_0);

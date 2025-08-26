@@ -231,7 +231,7 @@ The bucket timestamp of the anomaly.
 The bucket timestamp of the anomaly in ISO8601 format.
 
 `context`.`topInfluencers`::
-The list of top influencers.
+The list of top influencers. Limited to a maximum of 3 documents.
 +
 .Properties of `context.topInfluencers`
 [%collapsible%open]
@@ -248,7 +248,7 @@ influencer's overall contribution to the anomalies.
 ====
 
 `context`.`topRecords`::
-The list of top records.
+The list of top records. Limited to a maximum of 3 documents.
 +
 .Properties of `context.topRecords`
 [%collapsible%open]

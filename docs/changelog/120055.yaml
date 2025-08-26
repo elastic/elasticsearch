@@ -1,5 +1,0 @@
-pr: 120055
-summary: Optimize loading mappings when determining synthetic source usage and whether host.name can be sorted on.
-area: Logs
-type: enhancement
-issues: []

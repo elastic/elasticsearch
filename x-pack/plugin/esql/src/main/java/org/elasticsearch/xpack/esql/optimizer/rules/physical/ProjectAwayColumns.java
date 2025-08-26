@@ -41,7 +41,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
-        Holder<AttributeSet> requiredAttributes = new Holder<>(plan.outputSet());
+        AttributeSet.Builder requiredAttrBuilder = plan.outputSet().asBuilder();
 
         // This will require updating should we choose to have non-unary execution plans in the future.
         return plan.transformDown(currentPlanNode -> {
@@ -57,7 +57,19 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     // no need for projection when dealing with aggs
                     if (logicalFragment instanceof Aggregate == false) {
-                        List<Attribute> output = new ArrayList<>(requiredAttributes.get());
+                        // we should respect the order of the attributes
+                        List<Attribute> output = new ArrayList<>();
+                        for (Attribute attribute : logicalFragment.output()) {
+                            if (requiredAttrBuilder.contains(attribute)) {
+                                output.add(attribute);
+                                requiredAttrBuilder.remove(attribute);
+                            }
+                        }
+                        // requiredAttrBuilder should be empty unless the plan is inconsistent due to a bug.
+                        // This can happen in case of remote ENRICH, see https://github.com/elastic/elasticsearch/issues/118531
+                        // TODO: stop adding the remaining required attributes once remote ENRICH is fixed.
+                        output.addAll(requiredAttrBuilder.build());
+
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
@@ -79,9 +91,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     }
                 }
             } else {
-                AttributeSet childOutput = currentPlanNode.inputSet();
-                AttributeSet addedAttributes = currentPlanNode.outputSet().subtract(childOutput);
-                requiredAttributes.set(requiredAttributes.get().subtract(addedAttributes).combine(currentPlanNode.references()));
+                AttributeSet.Builder addedAttrBuilder = currentPlanNode.outputSet().asBuilder();
+                addedAttrBuilder.removeIf(currentPlanNode.inputSet()::contains);
+                requiredAttrBuilder.removeIf(addedAttrBuilder::contains);
+                requiredAttrBuilder.addAll(currentPlanNode.references());
             }
             return currentPlanNode;
         });

@@ -109,12 +109,11 @@ public interface Layout {
             for (ChannelSet set : channels) {
                 int channel = numberOfChannels++;
                 for (NameId id : set.nameIds) {
+                    // Duplicate name ids would mean that have 2 channels that are declared under the same id. That makes no sense - which
+                    // channel should subsequent operators use, then, when they want to refer to this id?
+                    assert (layout.containsKey(id) == false) : "Duplicate name ids are not allowed in layouts";
                     ChannelAndType next = new ChannelAndType(channel, set.type);
-                    ChannelAndType prev = layout.put(id, next);
-                    // Do allow multiple name to point to the same channel - see https://github.com/elastic/elasticsearch/pull/100238
-                    // if (prev != null) {
-                    // throw new IllegalArgumentException("Name [" + id + "] is on two channels [" + prev + "] and [" + next + "]");
-                    // }
+                    layout.put(id, next);
                 }
             }
             return new DefaultLayout(Collections.unmodifiableMap(layout), numberOfChannels);

@@ -239,8 +239,7 @@ public class ModelLoadingService implements ClusterStateListener {
         this.licenseState = licenseState;
     }
 
-    // for testing
-    String getModelId(String modelIdOrAlias) {
+    public String getModelId(String modelIdOrAlias) {
         return modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
     }
 

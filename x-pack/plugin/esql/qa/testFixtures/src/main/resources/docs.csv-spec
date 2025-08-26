@@ -112,6 +112,18 @@ FROM employees
 fn:keyword | ln:keyword
 ;
 
+docsRenameMultipleColumnsDifferentCommands
+// tag::renameMultipleColumnsDifferentCommands[]
+FROM employees
+| KEEP first_name, last_name
+| RENAME first_name AS fn
+| RENAME last_name AS ln
+// end::renameMultipleColumnsDifferentCommands[]
+| LIMIT 0;
+
+fn:keyword | ln:keyword
+;
+
 docsSort
 // tag::sort[]
 FROM employees
@@ -678,7 +690,7 @@ Bangalore     | 9                 | 72
 ;
 
 docsCategorize
-required_capability: categorize_v5
+required_capability: categorize_v6
 // tag::docsCategorize[]
 FROM sample_data
 | STATS count=COUNT() BY category=CATEGORIZE(message)

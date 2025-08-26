@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -43,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAction<
     TransportGetAllocationStatsAction.Request,
@@ -50,6 +52,17 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static final ActionType<TransportGetAllocationStatsAction.Response> TYPE = new ActionType<>("cluster:monitor/allocation/stats");
 
+    public static final TimeValue DEFAULT_CACHE_TTL = TimeValue.timeValueMinutes(1);
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.stats.cache.ttl",
+        DEFAULT_CACHE_TTL,
+        TimeValue.ZERO,
+        TimeValue.timeValueMinutes(10),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private final AllocationStatsCache allocationStatsCache;
     private final SingleResultDeduplicator<Map<String, NodeAllocationStats>> allocationStatsSupplier;
     private final DiskThresholdSettings diskThresholdSettings;
     private final FeatureService featureService;
@@ -76,12 +89,23 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-        this.allocationStatsSupplier = new SingleResultDeduplicator<>(
-            threadPool.getThreadContext(),
-            l -> managementExecutor.execute(ActionRunnable.supply(l, allocationStatsService::stats))
-        );
+        this.allocationStatsCache = new AllocationStatsCache(threadPool, DEFAULT_CACHE_TTL);
+        this.allocationStatsSupplier = new SingleResultDeduplicator<>(threadPool.getThreadContext(), l -> {
+            final var cachedStats = allocationStatsCache.get();
+            if (cachedStats != null) {
+                l.onResponse(cachedStats);
+                return;
+            }
+
+            managementExecutor.execute(ActionRunnable.supply(l, () -> {
+                final var stats = allocationStatsService.stats();
+                allocationStatsCache.put(stats);
+                return stats;
+            }));
+        });
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
         this.featureService = featureService;
+        clusterService.getClusterSettings().initializeAndWatch(CACHE_TTL_SETTING, this.allocationStatsCache::setTTL);
     }
 
     @Override
@@ -193,6 +217,43 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         @Nullable // for bwc
         public DiskThresholdSettings getDiskThresholdSettings() {
             return diskThresholdSettings;
+        }
+    }
+
+    private record CachedAllocationStats(Map<String, NodeAllocationStats> stats, long timestampMillis) {}
+
+    private static class AllocationStatsCache {
+        private volatile long ttlMillis;
+        private final ThreadPool threadPool;
+        private final AtomicReference<CachedAllocationStats> cachedStats;
+
+        AllocationStatsCache(ThreadPool threadPool, TimeValue ttl) {
+            this.threadPool = threadPool;
+            this.cachedStats = new AtomicReference<>();
+            setTTL(ttl);
+        }
+
+        void setTTL(TimeValue ttl) {
+            ttlMillis = ttl.millis();
+            if (ttlMillis == 0L) {
+                cachedStats.set(null);
+            }
+        }
+
+        Map<String, NodeAllocationStats> get() {
+            if (ttlMillis == 0L) {
+                return null;
+            }
+
+            // We don't set the atomic ref to null here upon expiration since we know it is about to be replaced with a fresh instance.
+            final var stats = cachedStats.get();
+            return stats == null || threadPool.relativeTimeInMillis() - stats.timestampMillis > ttlMillis ? null : stats.stats;
+        }
+
+        void put(Map<String, NodeAllocationStats> stats) {
+            if (ttlMillis > 0L) {
+                cachedStats.set(new CachedAllocationStats(stats, threadPool.relativeTimeInMillis()));
+            }
         }
     }
 }

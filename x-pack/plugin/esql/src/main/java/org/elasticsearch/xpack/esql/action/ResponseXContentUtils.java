@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -103,7 +104,8 @@ final class ResponseXContentUtils {
             assert page.getBlockCount() == columnCount : page.getBlockCount() + " != " + columnCount;
             final PositionToXContent[] toXContents = new PositionToXContent[columnCount];
             for (int column = 0; column < columnCount; column++) {
-                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), page.getBlock(column), scratch);
+                Block block = page.getBlock(column);
+                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), block, scratch);
             }
             return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
                 builder.startArray();

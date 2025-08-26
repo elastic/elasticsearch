@@ -61,7 +61,7 @@ public class MultiMatchQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         final MultiMatchQueryBuilder queryBuilder = QueryBuilders.multiMatchQuery(query);
         queryBuilder.fields(fields);
         queryBuilder.analyzer(predicate.analyzer());
@@ -97,5 +97,10 @@ public class MultiMatchQuery extends Query {
     @Override
     protected String innerToString() {
         return fields + ":" + query;
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

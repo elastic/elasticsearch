@@ -94,14 +94,14 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
         "rerank-lite-1",
-        2500 // The smallest model has a 4K context length https://docs.voyageai.com/docs/reranker
+        2800 // The smallest model has a 4K context length https://docs.voyageai.com/docs/reranker
     );
 
     /**
      * Apart from rerank-lite-1 all other models have a context length of at least 8k.
      * This value is based on 1 token == 0.75 words and allowing for some overhead
      */
-    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 5000;
+    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 5500;
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,

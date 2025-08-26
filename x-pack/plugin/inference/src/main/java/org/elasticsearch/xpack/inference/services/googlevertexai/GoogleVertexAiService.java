@@ -392,7 +392,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         // TODO make the rerank window size configurable
 
         if (modelId != null && modelId.endsWith("-004")) {
-            return 500;
+            return 600;
         } else {
             return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
         }

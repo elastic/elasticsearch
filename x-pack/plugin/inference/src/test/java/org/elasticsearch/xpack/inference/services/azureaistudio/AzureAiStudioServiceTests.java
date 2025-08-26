@@ -1691,7 +1691,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("Any model"), is(250));
+        assertThat(rerankingInferenceService.rerankerWindowSize("Any model"), is(300));
     }
 
     private Map<String, Object> getRequestConfigMap(

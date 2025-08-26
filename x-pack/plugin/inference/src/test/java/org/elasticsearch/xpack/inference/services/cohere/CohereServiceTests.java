@@ -1644,6 +1644,6 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(2500));
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(2800));
     }
 }

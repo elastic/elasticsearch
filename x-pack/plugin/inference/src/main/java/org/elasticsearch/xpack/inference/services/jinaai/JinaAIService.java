@@ -353,7 +353,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
         // Jina AI rerank models have an 8000 token input length https://jina.ai/models/jina-reranker-v2-base-multilingual
         // Using 1 token = 0.75 words as a rough estimate, we get 6000 words
         // allowing for some headroom, we set the window size below 6000 words
-        return 5000;
+        return 5500;
     }
 
     public static class Configuration {

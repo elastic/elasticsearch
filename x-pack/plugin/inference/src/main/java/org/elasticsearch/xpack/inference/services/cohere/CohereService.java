@@ -367,7 +367,7 @@ public class CohereService extends SenderService implements RerankingInferenceSe
         // Cohere rerank model truncates at 4096 tokens https://docs.cohere.com/reference/rerank
         // Using 1 token = 0.75 words as a rough estimate, we get 3072 words
         // allowing for some headroom, we set the window size below 3072
-        return 2500;
+        return 2800;
     }
 
     public static class Configuration {

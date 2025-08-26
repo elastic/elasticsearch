@@ -1797,7 +1797,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     }
 
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("rerank-lite-1"), is(2500));
-        assertThat(rerankingInferenceService.rerankerWindowSize("any other model"), is(5000));
+        assertThat(rerankingInferenceService.rerankerWindowSize("rerank-lite-1"), is(2800));
+        assertThat(rerankingInferenceService.rerankerWindowSize("any other model"), is(5500));
     }
 }

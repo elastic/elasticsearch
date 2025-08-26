@@ -14,7 +14,7 @@ public interface RerankingInferenceService {
     /**
      * The default window size for small reranking models (512 input tokens).
      */
-    int CONSERVATIVE_DEFAULT_WINDOW_SIZE = 250;
+    int CONSERVATIVE_DEFAULT_WINDOW_SIZE = 300;
 
     /**
      * The reranking model's max window or an approximation of

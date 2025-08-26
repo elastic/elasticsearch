@@ -489,21 +489,12 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggsWithProfile
   issue: https://github.com/elastic/elasticsearch/issues/132880
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetchMany
-  issue: https://github.com/elastic/elasticsearch/issues/132948
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetch
-  issue: https://github.com/elastic/elasticsearch/issues/132956
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/132957
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/400_synthetic_source/_doc_count}
   issue: https://github.com/elastic/elasticsearch/issues/132965
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSourceWithTranslogSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/132964
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on unmapped float field}
   issue: https://github.com/elastic/elasticsearch/issues/132984
@@ -594,15 +585,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/133370
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSourceMany
-  issue: https://github.com/elastic/elasticsearch/issues/133394
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/kNN search with filter}
   issue: https://github.com/elastic/elasticsearch/issues/133420
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSourceInNestedObject
-  issue: https://github.com/elastic/elasticsearch/issues/133426
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on date field in empty index}
   issue: https://github.com/elastic/elasticsearch/issues/133439
@@ -627,9 +612,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/133496
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/133507
@@ -645,6 +627,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/10_source_filtering/no filtering}
   issue: https://github.com/elastic/elasticsearch/issues/133561
+- class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
+  method: testShardDataPartitioning
+  issue: https://github.com/elastic/elasticsearch/issues/133574
 
 # Examples:
 #

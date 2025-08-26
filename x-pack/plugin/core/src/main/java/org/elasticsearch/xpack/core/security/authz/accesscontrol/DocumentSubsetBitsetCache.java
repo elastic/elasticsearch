@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.lucene.util.BitSets;
@@ -52,7 +51,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
 
 /**
@@ -107,16 +105,6 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     private static final BitSet NULL_MARKER = new FixedBitSet(0);
 
-    /**
-     * When a {@link BitSet} is evicted from {@link #bitsetCache}, we need to also remove it from {@link #keysByIndex}.
-     * We use a {@link ReentrantReadWriteLock} to control atomicity here - the "read" side represents potential insertions to the
-     * {@link #bitsetCache}, the "write" side represents removals from {@link #keysByIndex}.
-     * The risk (that {@link Cache} does not provide protection for) is that an entry is removed from the cache, and then immediately
-     * re-populated, before we process the removal event. To protect against that we need to check the state of the {@link #bitsetCache}
-     * but we need exclusive ("write") access while performing that check and updating the values in {@link #keysByIndex}.
-     */
-    private final ReleasableLock cacheEvictionLock;
-    private final ReleasableLock cacheModificationLock;
     private final ExecutorService cleanupExecutor;
 
     private final long maxWeightBytes;
@@ -144,9 +132,6 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      */
     // visible for testing
     DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor, LongSupplier relativeNanoTimeProvider) {
-        final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-        this.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
-        this.cacheModificationLock = new ReleasableLock(readWriteLock.readLock());
         this.cleanupExecutor = cleanupExecutor;
 
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
@@ -183,25 +168,19 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             // If the cacheKey isn't in the lookup map, then there's nothing to synchronize
             return;
         }
-        // We push this to a background thread, so that it reduces the risk of blocking searches, but also so that the lock management is
-        // simpler - this callback is likely to take place on a thread that is actively adding something to the cache, and is therefore
-        // holding the read ("update") side of the lock. It is not possible to upgrade a read lock to a write lock ("eviction"), but we
-        // need to acquire that lock here.
         cleanupExecutor.submit(() -> {
-            try (ReleasableLock ignoredLock = cacheEvictionLock.acquire()) {
-                // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
-                if (bitsetCache.get(cacheKey) == null) {
-                    // key is no longer in the cache, make sure it is no longer in the lookup map either.
-                    keysByIndex.compute(indexKey, (ignored, keys) -> {
-                        if (keys != null) {
-                            keys.remove(cacheKey);
-                            if (keys.isEmpty()) {
-                                keys = null;
-                            }
+            // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
+            if (bitsetCache.get(cacheKey) == null) {
+                // key is no longer in the cache, make sure it is no longer in the lookup map either.
+                keysByIndex.compute(indexKey, (ignored, keys) -> {
+                    if (keys != null) {
+                        keys.remove(cacheKey);
+                        if (keys.isEmpty()) {
+                            keys = null;
                         }
-                        return keys;
-                    });
-                }
+                    }
+                    return keys;
+                });
             }
         });
     }
@@ -255,48 +234,46 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         final IndexReader.CacheKey indexKey = coreCacheHelper.getKey();
         final BitsetCacheKey cacheKey = new BitsetCacheKey(indexKey, query);
 
-        try (ReleasableLock ignoredLock = cacheModificationLock.acquire()) {
-            final boolean[] cacheKeyWasPresent = new boolean[] { true };
-            final BitSet bitSet = bitsetCache.computeIfAbsent(cacheKey, ignore1 -> {
-                cacheKeyWasPresent[0] = false;
-                // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
-                keysByIndex.compute(indexKey, (ignore2, keys) -> {
-                    if (keys == null) {
-                        keys = ConcurrentCollections.newConcurrentSet();
-                    }
-                    keys.add(cacheKey);
-                    return keys;
-                });
-                final BitSet result = computeBitSet(query, context);
-                if (result == null) {
-                    // A cache loader is not allowed to return null, return a marker object instead.
-                    return NULL_MARKER;
+        final boolean[] cacheKeyWasPresent = new boolean[] { true };
+        final BitSet bitSet = bitsetCache.computeIfAbsent(cacheKey, ignore1 -> {
+            cacheKeyWasPresent[0] = false;
+            // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
+            keysByIndex.compute(indexKey, (ignore2, keys) -> {
+                if (keys == null) {
+                    keys = ConcurrentCollections.newConcurrentSet();
                 }
-                final long bitSetBytes = result.ramBytesUsed();
-                if (bitSetBytes > this.maxWeightBytes) {
-                    logger.warn(
-                        "built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;"
-                            + " this object cannot be cached and will need to be rebuilt for each use;"
-                            + " consider increasing the value of [{}]",
-                        bitSetBytes,
-                        maxWeightBytes,
-                        CACHE_SIZE_SETTING.getKey()
-                    );
-                } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {
-                    maybeLogCacheFullWarning();
-                }
-                return result;
+                keys.add(cacheKey);
+                return keys;
             });
-            if (cacheKeyWasPresent[0]) {
-                hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
-            } else {
-                missesTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+            final BitSet result = computeBitSet(query, context);
+            if (result == null) {
+                // A cache loader is not allowed to return null, return a marker object instead.
+                return NULL_MARKER;
             }
-            if (bitSet == NULL_MARKER) {
-                return null;
-            } else {
-                return bitSet;
+            final long bitSetBytes = result.ramBytesUsed();
+            if (bitSetBytes > this.maxWeightBytes) {
+                logger.warn(
+                    "built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;"
+                        + " this object cannot be cached and will need to be rebuilt for each use;"
+                        + " consider increasing the value of [{}]",
+                    bitSetBytes,
+                    maxWeightBytes,
+                    CACHE_SIZE_SETTING.getKey()
+                );
+            } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {
+                maybeLogCacheFullWarning();
             }
+            return result;
+        });
+        if (cacheKeyWasPresent[0]) {
+            hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+        } else {
+            missesTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);
+        }
+        if (bitSet == NULL_MARKER) {
+            return null;
+        } else {
+            return bitSet;
         }
     }
 

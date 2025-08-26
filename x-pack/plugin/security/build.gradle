@@ -175,7 +175,8 @@ tasks.named("processTestResources").configure {
 }
 
 
-tasks.named('assemble') {
+tasks.named('assemble').configure {
+  // normal es plugins do not publish the jar but we need to since users need it for extensions
   dependsOn tasks.named('jar')
 }
 

@@ -245,7 +245,7 @@ public class BlockTestUtils {
     public static Page deepCopyOf(Page page, BlockFactory blockFactory) {
         Block[] blockCopies = new Block[page.getBlockCount()];
         for (int i = 0; i < blockCopies.length; i++) {
-            blockCopies[i] = BlockUtils.deepCopyOf(page.getBlock(i), blockFactory);
+            blockCopies[i] = page.getBlock(i).deepCopy(blockFactory);
         }
         return new Page(blockCopies);
     }

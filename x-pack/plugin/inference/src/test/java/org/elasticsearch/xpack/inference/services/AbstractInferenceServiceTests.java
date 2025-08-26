@@ -17,7 +17,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -52,7 +51,7 @@ import static org.mockito.Mockito.mock;
  * To use this class, extend it and pass the constructor a configuration.
  * </p>
  */
-public abstract class AbstractInferenceServiceTests extends ESTestCase {
+public abstract class AbstractInferenceServiceTests extends InferenceServiceTestCase {
 
     protected final MockWebServer webServer = new MockWebServer();
     protected ThreadPool threadPool;

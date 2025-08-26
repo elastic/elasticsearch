@@ -3847,6 +3847,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH { \"inference_id\" : \"inference_id\" }",
             "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
         );
+
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": { \"a\": 123 } }",
+            "Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
     }
 
     public void testCompletionMissingOptions() {
@@ -3940,6 +3945,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM " + fromPatterns + " | COMPLETION prompt_field WITH { \"inference_id\" : \"inference_id\" }",
             "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with COMPLETION"
+        );
+
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
+            "line 1:54: Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
         );
     }
 

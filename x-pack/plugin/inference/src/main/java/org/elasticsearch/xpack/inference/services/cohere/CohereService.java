@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -66,7 +67,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
-public class CohereService extends SenderService {
+public class CohereService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "cohere";
 
     private static final String SERVICE_NAME = "Cohere";
@@ -359,6 +360,14 @@ public class CohereService extends SenderService {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return COMPLETION_ONLY;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // Cohere rerank model truncates at 4096 tokens https://docs.cohere.com/reference/rerank
+        // Using 1 token = 0.75 words as a rough estimate, we get 3072 words
+        // allowing for some headroom, we set the window size below 3072
+        return 2800;
     }
 
     public static class Configuration {

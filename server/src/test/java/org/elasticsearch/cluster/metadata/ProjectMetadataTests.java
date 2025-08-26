@@ -2473,7 +2473,7 @@ public class ProjectMetadataTests extends ESTestCase {
                             "system": false,
                             "allow_custom_routing": false,
                             "settings" : { },
-                            "failure_rollover_on_write": false,
+                            "failure_rollover_on_write": true,
                             "rollover_on_write": false
                           }
                         },
@@ -2740,7 +2740,7 @@ public class ProjectMetadataTests extends ESTestCase {
                             "system": false,
                             "allow_custom_routing": false,
                             "settings" : { },
-                            "failure_rollover_on_write": false,
+                            "failure_rollover_on_write": true,
                             "rollover_on_write": false
                           }
                         },

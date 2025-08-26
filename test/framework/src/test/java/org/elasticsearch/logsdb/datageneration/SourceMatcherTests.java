@@ -141,4 +141,23 @@ public class SourceMatcherTests extends ESTestCase {
         var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertFalse(sut.match().isMatch());
     }
+
+    public void testCoercedNumberField() throws IOException {
+
+        // Parsing non-ascii digit strings only works for `long` mappings.
+        List<Map<String, Object>> expected = List.of(Map.of("field", List.of("꧕", "123")));
+        List<Map<String, Object>> actual = List.of(Map.of("field", List.of(5, 123)));
+
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
+        mapping.startObject();
+        mapping.startObject("_doc");
+        {
+            mapping.startObject("field").field("type", "long").endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        assertTrue(sut.match().isMatch());
+    }
 }

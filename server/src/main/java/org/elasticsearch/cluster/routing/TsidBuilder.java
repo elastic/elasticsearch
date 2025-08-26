@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.hash.Murmur3Hasher;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.mapper.RoutingPathFields;
@@ -32,7 +32,7 @@ import java.util.List;
 public class TsidBuilder {
 
     private static final int MAX_TSID_VALUE_FIELDS = 16;
-    private final Murmur3Hasher murmur3Hasher = new Murmur3Hasher(0L);
+    private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
 
     private final List<Dimension> dimensions = new ArrayList<>();
 
@@ -166,7 +166,7 @@ public class TsidBuilder {
 
     private void addDimension(String path, MurmurHash3.Hash128 valueHash) {
         murmur3Hasher.reset();
-        addString(murmur3Hasher, path);
+        murmur3Hasher.addString(path);
         MurmurHash3.Hash128 pathHash = murmur3Hasher.digestHash();
         dimensions.add(new Dimension(path, pathHash, valueHash, dimensions.size()));
     }
@@ -198,7 +198,7 @@ public class TsidBuilder {
         Collections.sort(dimensions);
         murmur3Hasher.reset();
         for (Dimension dim : dimensions) {
-            addLongs(murmur3Hasher, dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
         return murmur3Hasher.digestHash();
     }
@@ -237,7 +237,7 @@ public class TsidBuilder {
         murmur3Hasher.reset();
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            addLong(murmur3Hasher, dim.pathHash.h1 ^ dim.pathHash.h2);
+            murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
         }
         ByteUtils.writeIntLE((int) murmur3Hasher.digestHash(hashBuffer).h1, hash, index);
         index += 4;
@@ -253,7 +253,7 @@ public class TsidBuilder {
             }
             MurmurHash3.Hash128 valueHash = dim.valueHash();
             murmur3Hasher.reset();
-            addLong(murmur3Hasher, valueHash.h1 ^ valueHash.h2);
+            murmur3Hasher.addLong(valueHash.h1 ^ valueHash.h2);
             hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
             previousPath = path;
         }
@@ -261,7 +261,7 @@ public class TsidBuilder {
         murmur3Hasher.reset();
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            addLongs(murmur3Hasher, dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
         index = writeHash128(murmur3Hasher.digestHash(hashBuffer), hash, index);
         return new BytesRef(hash, 0, index);
@@ -313,34 +313,5 @@ public class TsidBuilder {
             // ensures array values are in the order as they appear in the source
             return Integer.compare(insertionOrder, o.insertionOrder);
         }
-    }
-
-    // these methods will be replaced with a more optimized version when https://github.com/elastic/elasticsearch/pull/133226 is merged
-
-    private static void addString(Murmur3Hasher murmur3Hasher, String path) {
-        BytesRef bytesRef = new BytesRef(path);
-        murmur3Hasher.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-    }
-
-    private static void addLong(Murmur3Hasher murmur3Hasher, long value) {
-        byte[] bytes = new byte[8];
-        ByteUtils.writeLongLE(value, bytes, 0);
-        murmur3Hasher.update(bytes);
-    }
-
-    private static void addLongs(Murmur3Hasher murmur3Hasher, long v1, long v2) {
-        byte[] bytes = new byte[16];
-        ByteUtils.writeLongLE(v1, bytes, 0);
-        ByteUtils.writeLongLE(v2, bytes, 8);
-        murmur3Hasher.update(bytes);
-    }
-
-    private static void addLongs(Murmur3Hasher murmur3Hasher, long v1, long v2, long v3, long v4) {
-        byte[] bytes = new byte[32];
-        ByteUtils.writeLongLE(v1, bytes, 0);
-        ByteUtils.writeLongLE(v2, bytes, 8);
-        ByteUtils.writeLongLE(v3, bytes, 16);
-        ByteUtils.writeLongLE(v4, bytes, 24);
-        murmur3Hasher.update(bytes);
     }
 }

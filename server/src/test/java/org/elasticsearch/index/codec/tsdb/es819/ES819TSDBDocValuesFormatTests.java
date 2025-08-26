@@ -40,7 +40,10 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseDenseNumericValues;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseSortedDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.test.ESTestCase;
 
@@ -62,7 +65,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
     private final Codec codec = new Elasticsearch900Lucene101Codec() {
 
-        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean()
+        );
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -717,8 +724,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    public void testBulkLoading() throws Exception {
+    public void testOptionalColumnAtATimeReader() throws Exception {
         final String counterField = "counter";
+        final String counterFieldAsString = "counter_as_string";
         final String timestampField = "@timestamp";
         final String gaugeField = "gauge";
         long currentTimestamp = 1704067200000L;
@@ -735,6 +743,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 // Index sorting doesn't work with NumericDocValuesField:
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
                 d.add(new SortedNumericDocValuesField(counterField, currentCounter));
+                d.add(new SortedSetDocValuesField(counterFieldAsString, new BytesRef(Long.toString(currentCounter))));
                 d.add(new SortedNumericDocValuesField(gaugeField, gauge1Values[i % gauge1Values.length]));
 
                 iw.addDocument(d);
@@ -753,9 +762,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             try (var reader = DirectoryReader.open(iw)) {
                 int gaugeIndex = numDocs;
                 for (var leaf : reader.leaves()) {
-                    var timestampDV = getColumnAtTimeReader(leaf.reader(), timestampField);
-                    var counterDV = getColumnAtTimeReader(leaf.reader(), counterField);
-                    var gaugeDV = getColumnAtTimeReader(leaf.reader(), gaugeField);
+                    var timestampDV = getBaseDenseNumericValues(leaf.reader(), timestampField);
+                    var counterDV = getBaseDenseNumericValues(leaf.reader(), counterField);
+                    var gaugeDV = getBaseDenseNumericValues(leaf.reader(), gaugeField);
+                    var stringCounterDV = getBaseSortedDocValues(leaf.reader(), counterFieldAsString);
                     int maxDoc = leaf.reader().maxDoc();
                     for (int i = 0; i < maxDoc;) {
                         int size = Math.max(1, random().nextInt(0, maxDoc - i));
@@ -778,10 +788,18 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                             var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
                             assertNotNull(block);
                             assertEquals(size, block.size());
+                            var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0);
+                            assertNotNull(stringBlock);
+                            assertEquals(size, stringBlock.size());
                             for (int j = 0; j < block.size(); j++) {
-                                long actualCounter = (long) block.get(j);
                                 long expectedCounter = currentCounter;
+                                long actualCounter = (long) block.get(j);
                                 assertEquals(expectedCounter, actualCounter);
+
+                                var expectedStringCounter = Long.toString(actualCounter);
+                                var actualStringCounter = ((BytesRef) stringBlock.get(j)).utf8ToString();
+                                assertEquals(expectedStringCounter, actualStringCounter);
+
                                 currentCounter--;
                             }
                         }
@@ -816,9 +834,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 int size = maxDoc - randomOffset;
                 int gaugeIndex = size;
 
-                var timestampDV = getColumnAtTimeReader(leafReader, timestampField);
-                var counterDV = getColumnAtTimeReader(leafReader, counterField);
-                var gaugeDV = getColumnAtTimeReader(leafReader, gaugeField);
+                var timestampDV = getBaseDenseNumericValues(leafReader, timestampField);
+                var counterDV = getBaseDenseNumericValues(leafReader, counterField);
+                var gaugeDV = getBaseDenseNumericValues(leafReader, gaugeField);
+                var stringCounterDV = getBaseSortedDocValues(leafReader, counterFieldAsString);
 
                 var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
 
@@ -839,10 +858,20 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var block = (TestBlock) counterDV.tryRead(factory, docs, randomOffset);
                     assertNotNull(block);
                     assertEquals(size, block.size());
+
+                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, randomOffset);
+                    assertNotNull(stringBlock);
+                    assertEquals(size, stringBlock.size());
+
                     for (int j = 0; j < block.size(); j++) {
                         long actualCounter = (long) block.get(j);
                         long expectedCounter = currentCounter;
                         assertEquals(expectedCounter, actualCounter);
+
+                        var expectedStringCounter = Long.toString(actualCounter);
+                        var actualStringCounter = ((BytesRef) stringBlock.get(j)).utf8ToString();
+                        assertEquals(expectedStringCounter, actualStringCounter);
+
                         currentCounter--;
                     }
                 }
@@ -863,30 +892,41 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 size = docs.count();
                 // Test against values loaded using normal doc value apis:
                 long[] expectedCounters = new long[size];
-                counterDV = getColumnAtTimeReader(leafReader, counterField);
+                counterDV = getBaseDenseNumericValues(leafReader, counterField);
                 for (int i = 0; i < docs.count(); i++) {
                     int docId = docs.get(i);
                     counterDV.advanceExact(docId);
                     expectedCounters[i] = counterDV.longValue();
                 }
-                counterDV = getColumnAtTimeReader(leafReader, counterField);
+                counterDV = getBaseDenseNumericValues(leafReader, counterField);
+                stringCounterDV = getBaseSortedDocValues(leafReader, counterFieldAsString);
                 {
                     // bulk loading counter field:
                     var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
                     assertNotNull(block);
                     assertEquals(size, block.size());
+
+                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0);
+                    assertNotNull(stringBlock);
+                    assertEquals(size, stringBlock.size());
+
                     for (int j = 0; j < block.size(); j++) {
                         long actualCounter = (long) block.get(j);
                         long expectedCounter = expectedCounters[j];
                         assertEquals(expectedCounter, actualCounter);
+
+                        var expectedStringCounter = Long.toString(actualCounter);
+                        var actualStringCounter = ((BytesRef) stringBlock.get(j)).utf8ToString();
+                        assertEquals(expectedStringCounter, actualStringCounter);
                     }
                 }
             }
         }
     }
 
-    public void testBulkLoadingWithSparseDocs() throws Exception {
+    public void testOptionalColumnAtATimeReaderWithSparseDocs() throws Exception {
         final String counterField = "counter";
+        final String counterAsStringField = "counter_as_string";
         final String timestampField = "@timestamp";
         String queryField = "query_field";
         long currentTimestamp = 1704067200000L;
@@ -904,6 +944,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 // Index sorting doesn't work with NumericDocValuesField:
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
                 d.add(new SortedNumericDocValuesField(counterField, currentCounter));
+                d.add(new SortedDocValuesField(counterAsStringField, new BytesRef(Long.toString(currentCounter))));
                 d.add(new SortedNumericDocValuesField(queryField, q));
                 if (i % 120 == 0) {
                     q++;
@@ -937,10 +978,12 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         false
                     );
                     assertEquals(numDocsPerQValue, topDocs.totalHits.value());
-                    var timestampDV = getColumnAtTimeReader(leafReader, timestampField);
+                    var timestampDV = getBaseDenseNumericValues(leafReader, timestampField);
                     long[] expectedTimestamps = new long[numDocsPerQValue];
-                    var counterDV = getColumnAtTimeReader(leafReader, counterField);
+                    var counterDV = getBaseDenseNumericValues(leafReader, counterField);
                     long[] expectedCounters = new long[numDocsPerQValue];
+                    var counterAsStringDV = getBaseSortedDocValues(leafReader, counterAsStringField);
+                    String[] expectedCounterAsStrings = new String[numDocsPerQValue];
                     int[] docIds = new int[numDocsPerQValue];
                     for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                         var scoreDoc = topDocs.scoreDocs[i];
@@ -951,11 +994,13 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                         assertTrue(counterDV.advanceExact(scoreDoc.doc));
                         expectedCounters[i] = counterDV.longValue();
+                        assertTrue(counterAsStringDV.advanceExact(scoreDoc.doc));
+                        expectedCounterAsStrings[i] = counterAsStringDV.lookupOrd(counterAsStringDV.ordValue()).utf8ToString();
                     }
 
                     var docs = TestBlock.docs(docIds);
                     {
-                        timestampDV = getColumnAtTimeReader(leafReader, timestampField);
+                        timestampDV = getBaseDenseNumericValues(leafReader, timestampField);
                         var block = (TestBlock) timestampDV.tryRead(factory, docs, 0);
                         assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
@@ -966,13 +1011,24 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
                     }
                     {
-                        counterDV = getColumnAtTimeReader(leafReader, counterField);
+                        counterDV = getBaseDenseNumericValues(leafReader, counterField);
                         var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
                         assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
                             long actualCounter = (long) block.get(j);
                             long expectedCounter = expectedCounters[j];
+                            assertEquals(expectedCounter, actualCounter);
+                        }
+                    }
+                    {
+                        counterAsStringDV = getBaseSortedDocValues(leafReader, counterAsStringField);
+                        var block = (TestBlock) counterAsStringDV.tryRead(factory, docs, 0);
+                        assertNotNull(block);
+                        assertEquals(numDocsPerQValue, block.size());
+                        for (int j = 0; j < block.size(); j++) {
+                            var actualCounter = ((BytesRef) block.get(j)).utf8ToString();
+                            var expectedCounter = expectedCounterAsStrings[j];
                             assertEquals(expectedCounter, actualCounter);
                         }
                     }
@@ -1029,31 +1085,64 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                 return i;
                             }
                         };
-                        var idReader = ESTestCase.asInstanceOf(
-                            BlockLoader.OptionalColumnAtATimeReader.class,
-                            leaf.reader().getNumericDocValues("id")
-                        );
+                        var idReader = ESTestCase.asInstanceOf(OptionalColumnAtATimeReader.class, leaf.reader().getNumericDocValues("id"));
                         TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0);
                         assertNotNull(idBlock);
-                        var reader2 = ESTestCase.asInstanceOf(
-                            BlockLoader.OptionalColumnAtATimeReader.class,
-                            leaf.reader().getSortedDocValues(secondField)
-                        );
-                        assertNull(reader2.tryRead(factory, docs, 0));
-                        var reader3 = ESTestCase.asInstanceOf(
-                            BlockLoader.OptionalColumnAtATimeReader.class,
-                            leaf.reader().getSortedDocValues(unsortedField)
-                        );
-                        assertNull(reader3.tryRead(factory, docs, 0));
+
+                        {
+                            var reader2 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
+                                leaf.reader().getSortedDocValues(secondField)
+                            );
+                            int randomOffset = ESTestCase.between(0, docs.count() - 1);
+                            TestBlock block;
+                            if (reader2.getValueCount() == 1) {
+                                block = (TestBlock) reader2.tryReadAHead(factory, docs, randomOffset);
+                            } else {
+                                assertNull(reader2.tryReadAHead(factory, docs, randomOffset));
+                                block = (TestBlock) reader2.tryRead(factory, docs, randomOffset);
+                            }
+                            assertNotNull(block);
+                            assertThat(block.size(), equalTo(docs.count() - randomOffset));
+                            for (int i = 0; i < block.size(); i++) {
+                                String actualHostName = BytesRefs.toString(block.get(i));
+                                int id = ((Number) idBlock.get(i + randomOffset)).intValue();
+                                String expectedHostName = hostnames.get(id);
+                                assertEquals(expectedHostName, actualHostName);
+                            }
+                        }
+                        {
+                            var reader3 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
+                                leaf.reader().getSortedDocValues(unsortedField)
+                            );
+                            int randomOffset = ESTestCase.between(0, docs.count() - 1);
+                            TestBlock block;
+                            if (reader3.getValueCount() == 1) {
+                                block = (TestBlock) reader3.tryReadAHead(factory, docs, randomOffset);
+                            } else {
+                                assertNull(reader3.tryReadAHead(factory, docs, randomOffset));
+                                block = (TestBlock) reader3.tryRead(factory, docs, randomOffset);
+                            }
+                            assertNotNull(reader3);
+                            assertNotNull(block);
+                            assertThat(block.size(), equalTo(docs.count() - randomOffset));
+                            for (int i = 0; i < block.size(); i++) {
+                                String actualHostName = BytesRefs.toString(block.get(i));
+                                int id = ((Number) idBlock.get(i + randomOffset)).intValue();
+                                String expectedHostName = hostnames.get(id);
+                                assertEquals(expectedHostName, actualHostName);
+                            }
+                        }
                         for (int offset = 0; offset < idBlock.size(); offset += ESTestCase.between(1, numDocs)) {
                             int start = offset;
-                            var reader1 = ESTestCase.asInstanceOf(
-                                BlockLoader.OptionalColumnAtATimeReader.class,
+                            var reader1 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
                                 leaf.reader().getSortedDocValues(primaryField)
                             );
                             while (start < idBlock.size()) {
                                 int end = start + random().nextInt(idBlock.size() - start);
-                                TestBlock hostBlock = (TestBlock) reader1.tryRead(factory, new BlockLoader.Docs() {
+                                TestBlock hostBlock = (TestBlock) reader1.tryReadAHead(factory, new BlockLoader.Docs() {
                                     @Override
                                     public int count() {
                                         return end + 1;
@@ -1092,11 +1181,16 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    private static ES819TSDBDocValuesProducer.BaseDenseNumericValues getColumnAtTimeReader(LeafReader leafReader, String counterField)
-        throws IOException {
-        return (ES819TSDBDocValuesProducer.BaseDenseNumericValues) DocValues.unwrapSingleton(
-            leafReader.getSortedNumericDocValues(counterField)
-        );
+    private static BaseDenseNumericValues getBaseDenseNumericValues(LeafReader leafReader, String field) throws IOException {
+        return (BaseDenseNumericValues) DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(field));
+    }
+
+    private static BaseSortedDocValues getBaseSortedDocValues(LeafReader leafReader, String field) throws IOException {
+        var sortedDocValues = leafReader.getSortedDocValues(field);
+        if (sortedDocValues == null) {
+            sortedDocValues = DocValues.unwrapSingleton(leafReader.getSortedSetDocValues(field));
+        }
+        return (BaseSortedDocValues) sortedDocValues;
     }
 
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {

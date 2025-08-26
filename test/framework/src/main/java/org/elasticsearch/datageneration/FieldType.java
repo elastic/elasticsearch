@@ -51,6 +51,7 @@ public enum FieldType {
     TEXT("text"),
     IP("ip"),
     CONSTANT_KEYWORD("constant_keyword"),
+    PASSTHROUGH("passthrough"), // For now this field type does not have default generators.
     WILDCARD("wildcard"),
     MATCH_ONLY_TEXT("match_only_text");
 
@@ -81,6 +82,7 @@ public enum FieldType {
             case CONSTANT_KEYWORD -> new ConstantKeywordFieldDataGenerator();
             case WILDCARD -> new WildcardFieldDataGenerator(dataSource);
             case MATCH_ONLY_TEXT -> new MatchOnlyTextFieldDataGenerator(dataSource);
+            case PASSTHROUGH -> throw new IllegalArgumentException("Passthrough field type does not have a default generator");
         };
     }
 
@@ -104,7 +106,9 @@ public enum FieldType {
             case "ip" -> FieldType.IP;
             case "constant_keyword" -> FieldType.CONSTANT_KEYWORD;
             case "wildcard" -> FieldType.WILDCARD;
+            case "passthrough" -> FieldType.PASSTHROUGH;
             case "match_only_text" -> FieldType.MATCH_ONLY_TEXT;
+            // Custom types will fail to parse and will return null
             default -> null;
         };
     }

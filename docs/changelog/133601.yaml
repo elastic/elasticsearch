@@ -1,0 +1,5 @@
+pr: 133601
+summary: Fix bug in topn
+area: ES|QL
+type: bug
+issues: []

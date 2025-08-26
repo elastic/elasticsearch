@@ -29,7 +29,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESSingleNodeTestCase;

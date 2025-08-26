@@ -14,13 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -57,6 +52,7 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -64,11 +60,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 import static org.elasticsearch.xpack.slm.SnapshotLifecycleService.getJobId;
-import static org.elasticsearch.xpack.slm.SnapshotLifecycleService.getPolicyId;
 
 public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
@@ -93,7 +90,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         ClusterStateTaskExecutor<UpdatePolicyStatsTask> executor = new SimpleBatchedExecutor<>() {
             @Override
-            public Tuple<ClusterState, Object> executeTask(UpdatePolicyStatsTask updatePolicyStatsTask, ClusterState clusterState) throws Exception {
+            public Tuple<ClusterState, Object> executeTask(UpdatePolicyStatsTask updatePolicyStatsTask, ClusterState clusterState)
+                throws Exception {
                 // TODO
                 return null;
             }
@@ -141,50 +139,50 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.jobName());
         ProjectState projectState = clusterService.state().projectState(projectId);
         ProjectMetadata metadata = projectState.metadata();
-        String policyId = getPolicyId(event.jobName());
+//        String policyId = getPolicyId(event.jobName());
 
-        List<String> snapshotsToCleanup = getStaleRegisteredSnapshotIds(projectState, policyId);
-        if (snapshotsToCleanup.isEmpty() == false) {
-            var policyMetadata = getSnapPolicyMetadata(metadata, event.jobName());
-            if (policyMetadata.isEmpty()) {
-                logger.warn("snapshot lifecycle policy for job [{}] no longer exists", event.jobName());
-                return;
-            }
-            SnapshotLifecyclePolicy policy = policyMetadata.get().getPolicy();
-
-            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(
-                TimeValue.MAX_VALUE,
-                new String[] { policy.getRepository() },
-                snapshotsToCleanup.toArray(new String[0])
-            );
-
-            GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster()
-                .execute(TransportGetSnapshotsAction.TYPE, getSnapshotsRequest).actionGet();
-
-
-            // cluster update task
-            // verify
-            int countSnapshotFailure = 0;
-            int countSnapshotSuccess = 0;
-            SnapshotInfo lastSuccess = null;
-            SnapshotInfo lastFailure = null;
-            for (SnapshotInfo snapshotInfo : getSnapshotsResponse.getSnapshots()) {
-                if (snapshotInfo.state() == null || snapshotInfo.state().completed() == false) {
-                    // skip unknown state and non-completed snapshots
-                    continue;
-                }
-                if (snapshotInfo.failedShards() == 0) {
-                    countSnapshotSuccess++;
-                    if (lastSuccess == null || snapshotInfo.startTime() > lastSuccess.startTime()) {
-                        lastSuccess = snapshotInfo;
-                    }
-                } else {
-                    countSnapshotFailure++;
-                    if (lastFailure == null || snapshotInfo.startTime() > lastFailure.startTime()) {
-                        lastFailure = snapshotInfo;
-                    }
-                }
-            }
+//        List<String> snapshotsToCleanup = getStaleRegisteredSnapshotIds(projectState, policyId);
+//        if (snapshotsToCleanup.isEmpty() == false) {
+//            var policyMetadata = getSnapPolicyMetadata(metadata, event.jobName());
+//            if (policyMetadata.isEmpty()) {
+//                logger.warn("snapshot lifecycle policy for job [{}] no longer exists", event.jobName());
+//                return;
+//            }
+//            SnapshotLifecyclePolicy policy = policyMetadata.get().getPolicy();
+//
+//            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(
+//                TimeValue.MAX_VALUE,
+//                new String[] { policy.getRepository() },
+//                snapshotsToCleanup.toArray(new String[0])
+//            );
+//
+//            GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster()
+//                .execute(TransportGetSnapshotsAction.TYPE, getSnapshotsRequest).actionGet();
+//
+//
+//            // should do this in the cluster state update task, after snapshot is completed
+//            // verify
+//            int countSnapshotFailure = 0;
+//            int countSnapshotSuccess = 0;
+//            SnapshotInfo lastSuccess = null;
+//            SnapshotInfo lastFailure = null;
+//            for (SnapshotInfo snapshotInfo : getSnapshotsResponse.getSnapshots()) {
+//                if (snapshotInfo.state() == null || snapshotInfo.state().completed() == false) {
+//                    // skip unknown state and non-completed snapshots
+//                    continue;
+//                }
+//                if (snapshotInfo.failedShards() == 0) {
+//                    countSnapshotSuccess++;
+//                    if (lastSuccess == null || snapshotInfo.startTime() > lastSuccess.startTime()) {
+//                        lastSuccess = snapshotInfo;
+//                    }
+//                } else {
+//                    countSnapshotFailure++;
+//                    if (lastFailure == null || snapshotInfo.startTime() > lastFailure.startTime()) {
+//                        lastFailure = snapshotInfo;
+//                    }
+//                }
+//            }
 
 
 //            client.admin().cluster().getSnapshots(getSnapshotsRequest, new ActionListener<>() {
@@ -209,7 +207,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 //
 //                }
 //            });
-        }
+//        }
 
         final Optional<String> snapshotName = maybeTakeSnapshot(metadata, event.jobName(), client, clusterService, historyStore);
 
@@ -224,6 +222,38 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         if (snapshotName.isPresent() == false) {
             logger.warn("snapshot lifecycle policy for job [{}] no longer exists, snapshot not created", event.jobName());
+        }
+    }
+
+    private static void getStaleRegisteredSnapshotInfo(
+        final ProjectState projectState,
+        final String policyId,
+        final Client client,
+        final ActionListener<List<SnapshotInfo>> listener
+    ) {
+        var staleSnapshotIds = getStaleRegisteredSnapshotIds(projectState, policyId);
+
+        if (staleSnapshotIds.isEmpty() == false) {
+            var policyMetadata = getSnapPolicyMetadataById(projectState.metadata(), policyId);
+            if (policyMetadata.isPresent() == false) {
+                listener.onFailure(new IllegalStateException(format("snapshot lifecycle policy [%s] no longer exists", policyId)));
+                return;
+            }
+            SnapshotLifecyclePolicy policy = policyMetadata.get().getPolicy();
+
+            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(
+                TimeValue.MAX_VALUE,
+                new String[]{policy.getRepository()},
+                staleSnapshotIds.toArray(new String[0])
+            );
+
+            client.admin().cluster()
+                .execute(TransportGetSnapshotsAction.TYPE, getSnapshotsRequest, ActionListener.wrap(
+                    response -> listener.onResponse(response.getSnapshots()),
+                    listener::onFailure)
+                );
+        } else {
+            listener.onResponse(Collections.emptyList());
         }
     }
 
@@ -243,6 +273,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         ProjectId projectId = projectMetadata.id();
         Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(projectMetadata, jobId);
         String snapshotName = maybeMetadata.map(policyMetadata -> {
+            String policyId = policyMetadata.getPolicy().getId();
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest(TimeValue.MAX_VALUE);
             final SnapshotId snapshotId = new SnapshotId(request.snapshot(), request.uuid());
@@ -265,20 +296,105 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         policyMetadata.getPolicy().getId(),
                         Strings.toString(createSnapshotResponse)
                     );
+
+                    /**
+                     * 1. find stale snapshots from cluster state - sync
+                     *
+                     * 2. get snap info for stale snapshots - async
+                     *      - input: stale snapshot ids, callback 3
+                     *      - output: stale snapshot info
+                     * 3. submit cluster state update task to update stats for the completed snap and stale snapshots - async
+                     *      - input: stale snapshot info, completed snapshot info, callback
+                     */
+
                     final SnapshotInfo snapInfo = createSnapshotResponse.getSnapshotInfo();
+                    assert snapInfo != null : "completed snapshot info is null";
                     // Check that there are no failed shards, since the request may not entirely
                     // fail, but may still have failures (such as in the case of an aborted snapshot)
                     if (snapInfo.failedShards() == 0) {
                         long snapshotStartTime = snapInfo.startTime();
                         final long timestamp = Instant.now().toEpochMilli();
-                        submitUnbatchedTask(
-                            clusterService,
-                            "slm-record-success-" + policyMetadata.getPolicy().getId(),
-                            WriteJobStatus.success(projectId, policyMetadata.getPolicy().getId(), snapshotId, snapshotStartTime, timestamp)
-                        );
                         historyStore.putAsync(
                             SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(), request.snapshot())
                         );
+
+                        // retrieve the current project state after snapshot is completed, since snapshotting can take a while
+                        ProjectState currentProjectState = clusterService.state().projectState(projectId);
+                        getStaleRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
+                            @Override
+                            public void onResponse(List<SnapshotInfo> snapshotInfo) {
+                                submitUnbatchedTask(
+                                        clusterService,
+                                        "slm-record-success-" + policyId,
+                                        WriteJobStatus.success(projectId, policyId, snapshotId, snapshotStartTime,
+                                            timestamp, snapshotInfo)
+                                    );
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn(e);
+                                // still record the completed snapshot, next SLM run will retry clearing the stale registered snapshots
+                                submitUnbatchedTask(
+                                    clusterService,
+                                    "slm-record-success-" + policyId,
+                                    WriteJobStatus.success(projectId, policyId, snapshotId, snapshotStartTime,
+                                        timestamp, Collections.emptyList())
+                                );
+                            }
+                        });
+
+//                        var staleSnapshotIds = getStaleRegisteredSnapshotIds(projectState, policyId);
+//
+//
+//                        if (staleSnapshotIds.isEmpty() == false) {
+//                            var policyMetadata = getSnapPolicyMetadata(projectState.metadata(), jobId);
+//                            if (policyMetadata.isEmpty()) {
+//                                // TODO: fix, should not return
+////                                logger.warn("snapshot lifecycle policy for job [{}] no longer exists", jobId);
+//                                return;
+//                            }
+//                            SnapshotLifecyclePolicy policy = policyMetadata.get().getPolicy();
+//
+//                            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(
+//                                TimeValue.MAX_VALUE,
+//                                new String[]{policy.getRepository()},
+//                                staleSnapshotIds.toArray(new String[0])
+//                            );
+//
+//                            client.admin().cluster()
+//                                .execute(TransportGetSnapshotsAction.TYPE, getSnapshotsRequest,
+//                                new ActionListener<GetSnapshotsResponse>() {
+//                                    @Override
+//                                    public void onResponse(GetSnapshotsResponse getSnapshotsResponse) {
+//                                        List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots();
+//                                        submitUnbatchedTask(
+//                                            clusterService,
+//                                            "slm-record-success-" + policy.getId(),
+//                                            WriteJobStatus.success(projectId, policy.getId(), snapshotId, snapshotStartTime,
+//                                                timestamp, snapshots)
+//                                        );
+//                                    }
+//
+//                                    @Override
+//                                    public void onFailure(Exception e) {
+//                                        submitUnbatchedTask(
+//                                            clusterService,
+//                                            "slm-record-success-" + policy.getId(),
+//                                            WriteJobStatus.success(projectId, policy.getId(), snapshotId, snapshotStartTime, timestamp,
+//                                                Collections.emptyList())
+//                                        );
+//                                    }
+//                                });
+//                        } else {
+//                            submitUnbatchedTask(
+//                                clusterService,
+//                                "slm-record-success-" + policyMetadata.getPolicy().getId(),
+//                                WriteJobStatus.success(projectId, policyMetadata.getPolicy().getId(), snapshotId, snapshotStartTime,
+//                                    timestamp, Collections.emptyList())
+//                            );
+//                        }
+
                     } else {
                         int failures = snapInfo.failedShards();
                         int total = snapInfo.totalShards();
@@ -290,6 +406,35 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         // Call the failure handler to register this as a failure and persist it
                         onFailure(e);
                     }
+
+                    // original code
+
+//                    final SnapshotInfo snapInfo = createSnapshotResponse.getSnapshotInfo();
+//                    // Check that there are no failed shards, since the request may not entirely
+//                    // fail, but may still have failures (such as in the case of an aborted snapshot)
+//                    if (snapInfo.failedShards() == 0) {
+//                        long snapshotStartTime = snapInfo.startTime();
+//                        final long timestamp = Instant.now().toEpochMilli();
+//                        submitUnbatchedTask(
+//                            clusterService,
+//                            "slm-record-success-" + policyMetadata.getPolicy().getId(),
+//                            WriteJobStatus.success(projectId, policyMetadata.getPolicy().getId(), snapshotId, snapshotStartTime,
+//                            timestamp)
+//                        );
+//                        historyStore.putAsync(
+//                            SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(), request.snapshot())
+//                        );
+//                    } else {
+//                        int failures = snapInfo.failedShards();
+//                        int total = snapInfo.totalShards();
+//                        final SnapshotException e = new SnapshotException(
+//                            request.repository(),
+//                            request.snapshot(),
+//                            "failed to create snapshot successfully, " + failures + " out of " + total + " total shards failed"
+//                        );
+//                        // Call the failure handler to register this as a failure and persist it
+//                        onFailure(e);
+//                    }
                 }
 
                 @Override
@@ -300,11 +445,38 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         e
                     );
                     final long timestamp = Instant.now().toEpochMilli();
-                    submitUnbatchedTask(
-                        clusterService,
-                        "slm-record-failure-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.failure(projectId, policyMetadata.getPolicy().getId(), snapshotId, timestamp, e)
-                    );
+
+                    // retrieve the current project state after snapshot is completed, since snapshotting can take a while
+                    ProjectState currentProjectState = clusterService.state().projectState(projectId);
+                    getStaleRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
+                        @Override
+                        public void onResponse(List<SnapshotInfo> snapshotInfo) {
+                            submitUnbatchedTask(
+                                clusterService,
+                                "slm-record-failure-" + policyMetadata.getPolicy().getId(),
+                                WriteJobStatus.failure(projectId, policyMetadata.getPolicy().getId(), snapshotId, timestamp,
+                                    snapshotInfo, e)
+                            );
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn(e);
+                            // still record the completed snapshot, next SLM run will retry clearing the stale registered snapshots
+                            submitUnbatchedTask(
+                                clusterService,
+                                "slm-record-failure-" + policyMetadata.getPolicy().getId(),
+                                WriteJobStatus.failure(projectId, policyMetadata.getPolicy().getId(), snapshotId, timestamp,
+                                    Collections.emptyList(), e)
+                            );
+                        }
+                    });
+
+//                    submitUnbatchedTask(
+//                        clusterService,
+//                        "slm-record-failure-" + policyMetadata.getPolicy().getId(),
+//                        WriteJobStatus.failure(projectId, policyMetadata.getPolicy().getId(), snapshotId, timestamp, e)
+//                    );
                     final SnapshotHistoryItem failureRecord;
                     try {
                         failureRecord = SnapshotHistoryItem.creationFailureRecord(
@@ -356,6 +528,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             );
     }
 
+    /**
+     * For the given policy id, return an optional policy metadata object, if one exists
+     */
+    static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadataById(final ProjectMetadata projectMetadata,
+                                                                               final String policyId) {
+        return Optional.ofNullable((SnapshotLifecycleMetadata) projectMetadata.custom(SnapshotLifecycleMetadata.TYPE))
+            .map(metadata -> metadata.getSnapshotConfigurations().get(policyId));
+    }
+
+
     public static String exceptionToString(Exception ex) {
         return Strings.toString((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, params, ex);
@@ -396,6 +578,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         private final long snapshotStartTime;
         private final long snapshotFinishTime;
         private final Optional<Exception> exception;
+        private final List<SnapshotInfo> staleSnapshotInfo;
 
         private WriteJobStatus(
             ProjectId projectId,
@@ -403,6 +586,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             SnapshotId snapshotId,
             long snapshotStartTime,
             long snapshotFinishTime,
+            List<SnapshotInfo> staleSnapshotInfo,
             Optional<Exception> exception
         ) {
             this.projectId = projectId;
@@ -411,6 +595,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             this.exception = exception;
             this.snapshotStartTime = snapshotStartTime;
             this.snapshotFinishTime = snapshotFinishTime;
+            this.staleSnapshotInfo = staleSnapshotInfo;
         }
 
         static WriteJobStatus success(
@@ -418,13 +603,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             String policyId,
             SnapshotId snapshotId,
             long snapshotStartTime,
-            long snapshotFinishTime
+            long snapshotFinishTime,
+            List<SnapshotInfo> staleSnapshotInfo
         ) {
-            return new WriteJobStatus(projectId, policyId, snapshotId, snapshotStartTime, snapshotFinishTime, Optional.empty());
+            return new WriteJobStatus(projectId, policyId, snapshotId, snapshotStartTime, snapshotFinishTime, staleSnapshotInfo,
+                Optional.empty());
         }
 
-        static WriteJobStatus failure(ProjectId projectId, String policyId, SnapshotId snapshotId, long timestamp, Exception exception) {
-            return new WriteJobStatus(projectId, policyId, snapshotId, timestamp, timestamp, Optional.of(exception));
+        static WriteJobStatus failure(ProjectId projectId, String policyId, SnapshotId snapshotId, long timestamp,
+                                      List<SnapshotInfo> staleSnapshotInfo,
+                                      Exception exception) {
+            return new WriteJobStatus(projectId, policyId, snapshotId, timestamp, timestamp, staleSnapshotInfo, Optional.of(exception));
         }
 
         @Override
@@ -445,6 +634,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 return currentState;
             }
 
+            Map<SnapshotId, SnapshotInfo> snapshotInfoById =
+                staleSnapshotInfo.stream().collect(Collectors.toMap(SnapshotInfo::snapshotId, Function.identity()));
+
             final SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
             SnapshotLifecycleStats newStats = snapMeta.getStats();
 
@@ -458,6 +650,31 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             final Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(currentState);
             final List<PolicySnapshot> newRegistered = new ArrayList<>();
+
+            // TODO: calculate stats for stale registered snapshots
+            // calculate stats for stale registered snapshots
+//            int countSnapshotFailure = 0;
+//            int countSnapshotSuccess = 0;
+//            SnapshotInfo lastSuccess = null;
+//            SnapshotInfo lastFailure = null;
+//            for (SnapshotInfo snapshotInfo : staleSnapshotInfo) {
+//                if (snapshotInfo.state() == null || snapshotInfo.state().completed() == false) {
+//                    // skip unknown state and non-completed snapshots
+//                    continue;
+//                }
+//                if (snapshotInfo.failedShards() == 0) {
+//                    countSnapshotSuccess++;
+//                    if (lastSuccess == null || snapshotInfo.startTime() > lastSuccess.startTime()) {
+//                        lastSuccess = snapshotInfo;
+//                    }
+//                } else {
+//                    countSnapshotFailure++;
+//                    if (lastFailure == null || snapshotInfo.startTime() > lastFailure.startTime()) {
+//                        lastFailure = snapshotInfo;
+//                    }
+//                }
+//            }
+
             for (PolicySnapshot snapshot : registeredSnapshots.getSnapshots()) {
                 if (snapshot.getSnapshotId().equals(snapshotId) == false) {
                     if (snapshot.getPolicy().equals(policyName)) {

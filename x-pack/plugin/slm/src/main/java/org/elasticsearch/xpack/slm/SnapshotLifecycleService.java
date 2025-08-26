@@ -239,9 +239,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      */
     public static String getPolicyId(String jobId) {
         int lastDashIndex = jobId.lastIndexOf('-');
-        if (lastDashIndex == -1) {
-            throw new IllegalArgumentException("Invalid job id format: " + jobId);
-        }
+        assert lastDashIndex != -1 : "Invalid job id format: " + jobId;
         return jobId.substring(0, lastDashIndex);
     }
 

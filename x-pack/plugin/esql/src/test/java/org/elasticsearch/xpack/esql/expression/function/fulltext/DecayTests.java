@@ -348,19 +348,174 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        // DateNanos
-        var dateOne = LocalDateTime.of(2023, 1, 1, 12, 0, 0).atZone(ZoneId.systemDefault()).toInstant();
-        var dateTwo = LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant();
-
+        // Datenanos Linear
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                dateOne.getEpochSecond() * 1_000_000_000L + dateOne.getNano(),
-                dateTwo.getEpochSecond() * 1_000_000_000L + dateTwo.getNano(),
-                Duration.ofDays(1),
-                Duration.ofSeconds(0),
-                0.5,
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
                 "linear",
-                0.75
+                1.0
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "linear",
+                0.49569100000000005
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "linear",
+                0.37334900000000004
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "linear",
+                0.28202800000000006
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "linear",
+                0.0
+            )
+        );
+
+        // Datenanos Exponential
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "exp",
+                1.0
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "exp",
+                0.4340956586740692
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "exp",
+                0.3545406919498116
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "exp",
+                0.30481724812400407
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "exp",
+                0.01813481247808857
+            )
+        );
+
+        // Datenanos Gaussian
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                1.0
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                0.5335935393743785
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                0.3791426943809958
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                0.27996050542437345
+            )
+        );
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                Duration.ofDays(10),
+                0.33,
+                "gauss",
+                5.025924031342025E-7
             )
         );
 

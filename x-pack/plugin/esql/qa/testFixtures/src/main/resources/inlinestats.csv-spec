@@ -1473,7 +1473,7 @@ emp_no:integer
 ///////////////////////////
 
 doubleFilterOnInlineStats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 from employees
 | keep salary, gender
@@ -1499,7 +1499,7 @@ salary:integer |  max1:integer |  max2:integer |  max3:integer | gender:keyword
 ;
 
 inlinestatsWithFiltering
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_f = max(salary) where salary < 50000, max_a = max(salary) where salary > 100,
         min = min(salary), min_f = min(salary) where salary > 50000, min_a = min(salary) where salary > 100
@@ -1515,7 +1515,7 @@ max:integer |max_f:integer |max_a:integer | min:integer | min_f:integer | min_a:
 ;
 
 inlinestatsWithEverythingFiltered
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_a = max(salary) where salary < 100,
         min = min(salary), min_a = min(salary) where salary > 99999
@@ -1533,7 +1533,7 @@ max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer|salary:i
 ;
 
 inlinestatsWithNullFilter
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_a = max(salary) where null,
         min = min(salary), min_a = min(salary) where to_string(null) == "abc"
@@ -1549,7 +1549,7 @@ max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer
 ;
 
 inlinestatsWithAllFiltersFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(height.float) where false,
         min = min(height.float) where to_string(null) == "abc",
@@ -1567,7 +1567,7 @@ emp_no:integer|salary:integer| max:double |min:double |count:long |count_distinc
 ;
 
 inlinestatsWithAllFiltersFalse_GroupByOneField
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(height.float) where false, 
         min = min(height.float) where to_string(null) == "abc", 
@@ -1587,7 +1587,7 @@ from employees
 ;
 
 inlinestatsWithAllFiltersFalse_GroupByTwoFields
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(height.float) where false, 
         min = min(height.float) where to_string(null) == "abc", 
@@ -1607,7 +1607,7 @@ from employees
 ;
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldEach_DifferentFields
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(my_length) where false,
@@ -1625,7 +1625,7 @@ from employees
 ;
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldEach_SameFields
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees 
 | eval my_length = length(concat(first_name, null)) 
 | inlinestats count = count(my_length) where false,
@@ -1644,7 +1644,7 @@ from employees
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnSecondInlinestats-Ignore
 // values doesn't end up as null
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(my_length) where false, 
@@ -1662,7 +1662,7 @@ from employees
 ; 
 
 partial_PrunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnFirstInlinestats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(is_rehired) where true, 
@@ -1688,7 +1688,7 @@ from employees
 
 
 partial_PrunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnFirstInlinestats2
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(is_rehired) where true, 
@@ -1715,7 +1715,7 @@ from employees
 
 
 inlinestatsWithExpressionsAllFiltersFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | keep height.f*, emp_no
 | sort emp_no desc
@@ -1733,7 +1733,7 @@ from employees
 ;
 
 inlinestatsWithFalseFilterAndGroup
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(height.float + 1) where null,
         count = count(height.float) + 2 where false
@@ -1751,7 +1751,7 @@ from employees
 ;
 
 inlinestatsWithFalseFiltersAndGroups
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count_distinct = count_distinct(height.float + 1) where null,
@@ -1777,7 +1777,7 @@ from employees
 ;
 
 inlinestatsWithFalseFiltersAndGroups_DropEvaledValue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count_distinct = count_distinct(height.float + 1) where null,
@@ -1804,7 +1804,7 @@ from employees
 ;
 
 inlinestatsWithMixedFiltersAndGroup
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(my_length) where false,
@@ -1824,7 +1824,7 @@ null             |[0, 0, 0, 0]   |[Berni, Chirstian, Amabile, Berni, Bojan, Chir
 
 prunedInlinestatsFollowedByinlinestats-Ignore
 // values doesn't end up as null
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(my_length) where false,
@@ -1847,7 +1847,7 @@ inlinestatsWithFalseFiltersFromRow
 //  null      |2
 //  null      |3
 //  null      |4
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 row x = null, a = 1, b = [2,3,4]
 | inlinestats c=max(a) where x
   by b
@@ -1858,7 +1858,7 @@ null           |1              |null           |[2, 3, 4]
 ;
 
 inlinestatsWithBasicExpressionFiltered
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_f = max(salary) where salary < 50000,
         min = min(salary), min_f = min(salary) where salary > 50000,
@@ -1874,7 +1874,7 @@ from employees
 ;
 
 inlinestatsWithExpressionOverFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_f = max(salary) where salary < 50000,
         min = min(salary), min_f = min(salary) where salary > 50000,
@@ -1893,7 +1893,7 @@ from employees
 
 
 inlinestatsWithExpressionOfExpressionsOverFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary + 1), max_f = max(salary + 2) where salary < 50000,
         min = min(salary - 1), min_f = min(salary - 2) where salary > 50000,
@@ -1911,7 +1911,7 @@ from employees
 ;
 
 inlinestatsWithSubstitutedExpressionOverFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats sum = sum(salary), s_l = sum(salary) where salary < 50000, s_u = sum(salary) where salary > 50000,
         count = count(salary), c_l = count(salary) where salary < 50000, c_u = count(salary) where salary > 50000, 
@@ -1929,7 +1929,7 @@ from employees
 
 
 inlinestatsWithFilterAndGroupBy
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | keep height, gender, is_rehired, emp_no
 | inlinestats m = max(height), m_f = max(height + 1) where gender == "M" OR is_rehired is null BY gender, is_rehired
@@ -1953,7 +1953,7 @@ from employees
 
 
 inlinestatsWithFilterOnGroupBy
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats m_f = max(height) where gender == "M" BY gender
 | sort emp_no
@@ -1975,7 +1975,7 @@ null           |null
 ;
 
 inlinestatsWithGroupByLiteral
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats m = max(languages) by salary = 2
 | sort salary
@@ -1991,7 +1991,7 @@ from employees
 
 
 inlinestatsWithFilterOnSameColumn
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats m = max(languages), m_f = max(languages) where salary > 50000 by salary = 2
 | sort salary
@@ -2006,7 +2006,7 @@ from employees
 ;
 
 inlinestatsWithFilteringAndGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c = count(), c_f = count(languages) where l > 1, 
         m_f = max(height) where salary > 50000 
@@ -2031,7 +2031,7 @@ from employees
 
  
 multiinlinestatsWithFiltering
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c = count(), c_f = count(languages) where l > 1, 
         m_f = max(height) where salary > 50000 
@@ -2058,7 +2058,7 @@ from employees
 
 
 simpleCountOnFieldWithFilteringAndNoGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(emp_no) where emp_no < 10042
 | keep emp_no, c1
@@ -2073,7 +2073,7 @@ emp_no:integer |  c1:long
 ;
 
 simpleCountOnFieldWithFilteringOnDifferentFieldAndNoGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(hire_date) where emp_no < 10042
 | keep emp_no, c1
@@ -2088,7 +2088,7 @@ emp_no:integer |  c1:long
 ;
 
 simpleCountOnStarWithFilteringAndNoGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(*) where emp_no < 10042
 | keep emp_no, c1
@@ -2103,7 +2103,7 @@ emp_no:integer |  c1:long
 ;
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithNulls
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(birth_date) where emp_no <= 10050
 | keep emp_no, c1
@@ -2119,7 +2119,7 @@ emp_no:integer |  c1:long
 
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(job_positions) where emp_no <= 10003
 | keep emp_no, c1
@@ -2134,7 +2134,7 @@ from employees
 ;
 
 commonFilterExtractionWithAliasing
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval eno = emp_no
 | drop emp_no
@@ -2152,7 +2152,7 @@ from employees
 ;
 
 commonFilterExtractionWithAliasAndOriginal
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval eno = emp_no
 | inlinestats min_sal = min(salary) where eno <= 10010,
@@ -2170,7 +2170,7 @@ from employees
 
 
 commonFilterExtractionWithAliasAndOriginalNeedingNormalization
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval eno = emp_no
 | inlinestats min_sal = min(salary) where eno <= 10010,
@@ -2190,7 +2190,7 @@ from employees
 ;
 
 commonFilterExtractionWithAliasAndOriginalNeedingNormalizationAndSimplification
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval eno = emp_no
 | inlinestats min_sal = min(salary) where eno <= 10010,
@@ -2210,7 +2210,7 @@ from employees
 ;
 
 filterIsAlwaysTrue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats max = max(salary) WHERE salary > 0
 | keep max, salary, emp_no
@@ -2225,7 +2225,7 @@ FROM employees
 ;
 
 filterIsAlwaysFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats max = max(salary) WHERE first_name == ""
 | sort emp_no
@@ -2248,7 +2248,7 @@ null           |Duangkaew
 
 
 filterSometimesMatches
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats max = max(salary) WHERE first_name IS NULL
 | sort emp_no
@@ -2270,7 +2270,7 @@ FROM employees
 ;
 
 groupingFilterIsAlwaysTrue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | MV_EXPAND job_positions
 | inlinestats max = max(salary) WHERE salary > 0 BY job_positions = SUBSTRING(job_positions, 1, 1)
@@ -2288,7 +2288,7 @@ FROM employees
 
 
 groupingFilterIsAlwaysFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | MV_EXPAND job_positions
 | inlinestats max = max(salary) WHERE first_name == "" BY job_positions = SUBSTRING(job_positions, 1, 1)
@@ -2306,7 +2306,7 @@ null           |48942          |Patricio          |A                      |10012
 
 
 groupingFilterSometimesMatches
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | MV_EXPAND job_positions
 | inlinestats max = max(salary) WHERE first_name IS NULL BY job_positions = SUBSTRING(job_positions, 1, 1)
@@ -2323,7 +2323,7 @@ FROM employees
 ;
 
 groupingByOrdinalsFilterIsAlwaysTrue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats max = max(salary) WHERE salary > 0 BY job_positions
 | SORT job_positions ASC, salary DESC
@@ -2339,7 +2339,7 @@ FROM employees
 ;
 
 groupingByOrdinalsFilterIsAlwaysFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | inlinestats max = max(salary) WHERE first_name == "" BY job_positions
@@ -2356,7 +2356,7 @@ Mary           |31120          |10011          |[Architect, Reporting Analyst, S
 ;
 
 groupingByOrdinalsFilterSometimesMatches
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | keep salary, first_name, job_positions, emp_no
@@ -2373,7 +2373,7 @@ FROM employees
 ;
 
 stdDevFilter
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats greater_than = STD_DEV(salary_change) WHERE languages > 3
 , less_than = STD_DEV(salary_change) WHERE languages <= 3
@@ -2398,7 +2398,7 @@ FROM employees
 ;
 
 twoConsecutiveInlinestatsWithFalseFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | keep emp_no
 | sort emp_no

@@ -30,7 +30,7 @@ public class GlobTests extends ESTestCase {
         str = randomAlphanumericOfLength(randomIntBetween(1, 12));
         assertMatch(str, str);
 
-        str = randomAsciiString(randomIntBetween(1, 24), ch -> ch >= ' ' && ch <= '~' && ch != '*');
+        str = randomAsciiStringNoAsterisks(randomIntBetween(1, 24));
         assertMatch(str, str);
     }
 
@@ -67,7 +67,7 @@ public class GlobTests extends ESTestCase {
         assertNonMatch("123*", "abc123");
         assertNonMatch("123*", "abc123def");
 
-        var prefix = randomAsciiString(randomIntBetween(2, 12));
+        var prefix = randomAsciiStringNoAsterisks(randomIntBetween(2, 12));
         var pattern = prefix + "*";
         assertMatch(pattern, prefix);
         assertMatch(pattern, prefix + randomAsciiString(randomIntBetween(1, 30)));
@@ -92,11 +92,14 @@ public class GlobTests extends ESTestCase {
         assertNonMatch("*123", "123abc");
         assertNonMatch("*123", "abc123def");
 
-        var suffix = randomAsciiString(randomIntBetween(2, 12));
+        var suffix = randomAsciiStringNoAsterisks(randomIntBetween(2, 12));
         var pattern = "*" + suffix;
         assertMatch(pattern, suffix);
         assertMatch(pattern, randomAsciiString(randomIntBetween(1, 30)) + suffix);
-        assertNonMatch(pattern, suffix + "#" + randomValueOtherThan(suffix, () -> randomAsciiString(randomIntBetween(1, 30))));
+        assertNonMatch(
+            pattern,
+            randomValueOtherThanMany(str -> str.endsWith(suffix), () -> suffix + "#" + randomAsciiString(randomIntBetween(1, 30)))
+        );
         assertNonMatch(pattern, suffix.substring(0, suffix.length() - 1));
         assertNonMatch(pattern, suffix.substring(1));
     }
@@ -114,7 +117,7 @@ public class GlobTests extends ESTestCase {
         assertNonMatch("*123*", "12*");
         assertNonMatch("*123*", "1.2.3");
 
-        var infix = randomAsciiString(randomIntBetween(2, 12));
+        var infix = randomAsciiStringNoAsterisks(randomIntBetween(2, 12));
         var pattern = "*" + infix + "*";
         assertMatch(pattern, infix);
         assertMatch(pattern, randomAsciiString(randomIntBetween(1, 30)) + infix + randomAsciiString(randomIntBetween(1, 30)));
@@ -138,8 +141,8 @@ public class GlobTests extends ESTestCase {
         assertMatch("123*321", "12345678987654321");
         assertNonMatch("123*321", "12321");
 
-        var prefix = randomAsciiString(randomIntBetween(2, 12));
-        var suffix = randomAsciiString(randomIntBetween(2, 12));
+        var prefix = randomAsciiStringNoAsterisks(randomIntBetween(2, 12));
+        var suffix = randomAsciiStringNoAsterisks(randomIntBetween(2, 12));
         var pattern = prefix + "*" + suffix;
         assertMatch(pattern, prefix + suffix);
         assertMatch(pattern, prefix + randomAsciiString(randomIntBetween(1, 30)) + suffix);
@@ -178,6 +181,10 @@ public class GlobTests extends ESTestCase {
 
     private String randomAsciiString(int length) {
         return randomAsciiString(length, ch -> ch >= ' ' && ch <= '~');
+    }
+
+    private String randomAsciiStringNoAsterisks(final int length) {
+        return randomAsciiString(length, ch -> ch >= ' ' && ch <= '~' && ch != '*');
     }
 
     private String randomAsciiString(int length, CharPredicate validCharacters) {

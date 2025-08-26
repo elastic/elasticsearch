@@ -74,6 +74,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
             project.project(subProjectName, sub -> {
                 sub.getPlugins().apply(BasePlugin.class);
                 sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
+                sub.getTasks().named("assemble").configure(task -> task.dependsOn(distributionArchive.getArchiveTask()));
                 var extractedConfiguration = sub.getConfigurations().create(EXTRACTED_CONFIGURATION_NAME);
                 extractedConfiguration.setCanBeResolved(false);
                 extractedConfiguration.setCanBeConsumed(true);

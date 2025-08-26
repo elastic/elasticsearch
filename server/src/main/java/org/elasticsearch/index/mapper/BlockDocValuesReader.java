@@ -122,7 +122,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    static class SingletonLongs extends BlockDocValuesReader {
+    // Used for testing.
+    interface NumericDocValuesAccessor {
+        NumericDocValues numericDocValues();
+    }
+
+    static class SingletonLongs extends BlockDocValuesReader implements NumericDocValuesAccessor {
         final NumericDocValues numericDocValues;
 
         SingletonLongs(NumericDocValues numericDocValues) {
@@ -168,6 +173,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.SingletonLongs";
+        }
+
+        @Override
+        public NumericDocValues numericDocValues() {
+            return numericDocValues;
         }
     }
 
@@ -387,7 +397,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonDoubles extends BlockDocValuesReader {
+    static class SingletonDoubles extends BlockDocValuesReader implements NumericDocValuesAccessor {
         private final NumericDocValues docValues;
         private final ToDouble toDouble;
 
@@ -436,9 +446,14 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public String toString() {
             return "BlockDocValuesReader.SingletonDoubles";
         }
+
+        @Override
+        public NumericDocValues numericDocValues() {
+            return docValues;
+        }
     }
 
-    private static class Doubles extends BlockDocValuesReader {
+    static class Doubles extends BlockDocValuesReader {
         private final SortedNumericDocValues docValues;
         private final ToDouble toDouble;
 

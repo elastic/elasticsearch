@@ -255,14 +255,6 @@ public final class BlockUtils {
     public record Doc(int shard, int segment, int doc) {}
 
     /**
-     * Functional interface to convert a long value to a double.
-     */
-    @FunctionalInterface
-    public interface ToDouble {
-        double convert(long v);
-    }
-
-    /**
      * Read all values from a positions into a java object. This is not fast
      * but fine to call in the "fold" path.
      */

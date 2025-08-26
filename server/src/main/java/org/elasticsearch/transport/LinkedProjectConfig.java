@@ -203,6 +203,7 @@ public sealed interface LinkedProjectConfig {
         }
 
         public B proxyAddress(String proxyAddress) {
+            // TODO: Eliminate leniency here allowing an empty proxy address, ES-12737.
             if (Strings.hasLength(proxyAddress)) {
                 RemoteConnectionStrategy.parsePort(proxyAddress);
             }
@@ -297,6 +298,7 @@ public sealed interface LinkedProjectConfig {
         }
 
         public SniffLinkedProjectConfigBuilder seedNodes(List<String> seedNodes) {
+            // TODO: Eliminate leniency here allowing an empty set of seed nodes, ES-12737.
             Objects.requireNonNull(seedNodes).forEach(RemoteConnectionStrategy::parsePort);
             this.seedNodes = seedNodes;
             return this;

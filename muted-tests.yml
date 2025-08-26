@@ -404,9 +404,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/131481
-- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
-  method: test {p0=downsample-with-security/10_basic/Downsample index}
-  issue: https://github.com/elastic/elasticsearch/issues/131513
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/116866
@@ -431,12 +428,21 @@ tests:
 - class: org.elasticsearch.gradle.LoggedExecFuncTest
   method: failed tasks output logged to console when spooling true
   issue: https://github.com/elastic/elasticsearch/issues/119509
-- class: org.elasticsearch.core.GlobTests
-  method: testInfixAsteriskMatch
-  issue: https://github.com/elastic/elasticsearch/issues/133129
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: cannot change committed ids to a branch
+  issue: https://github.com/elastic/elasticsearch/issues/133133
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: definitions have primary ids which cannot change
+  issue: https://github.com/elastic/elasticsearch/issues/133234
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
+  method: latest files cannot change base id
+  issue: https://github.com/elastic/elasticsearch/issues/133231
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test072RunEsAsDifferentUserAndGroup
+  issue: https://github.com/elastic/elasticsearch/issues/131412
 
 # Examples:
 #

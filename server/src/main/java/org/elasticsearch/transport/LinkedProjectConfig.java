@@ -59,6 +59,10 @@ public sealed interface LinkedProjectConfig {
 
     ConnectionStrategy connectionStrategy();
 
+    int maxNumConnections();
+
+    String proxyAddress();
+
     boolean isConnectionEnabled();
 
     RemoteConnectionStrategy buildRemoteConnectionStrategy(TransportService transportService, RemoteConnectionManager connectionManager);

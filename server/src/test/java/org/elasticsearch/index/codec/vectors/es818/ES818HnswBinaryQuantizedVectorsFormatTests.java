@@ -37,6 +37,7 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -118,7 +119,13 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                     }
                     float[] randomVector = randomVector(vector.length);
                     float trueScore = similarityFunction.compare(vector, randomVector);
-                    TopDocs td = r.searchNearestVectors("f", randomVector, 1, null, Integer.MAX_VALUE);
+                    TopDocs td = r.searchNearestVectors(
+                        "f",
+                        randomVector,
+                        1,
+                        AcceptDocs.fromLiveDocs(r.getLiveDocs(), r.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
                     assertEquals(1, td.totalHits.value());
                     assertTrue(td.scoreDocs[0].score >= 0);
                     // When it's the only vector in a segment, the score should be very close to the true score

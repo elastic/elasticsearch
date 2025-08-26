@@ -35,6 +35,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
@@ -99,7 +100,13 @@ public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                     while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
                         assertArrayEquals(vector, vectorValues.vectorValue(docIndexIterator.index()), 0.00001f);
                     }
-                    TopDocs td = r.searchNearestVectors("f", randomVector(vector.length), 1, null, Integer.MAX_VALUE);
+                    TopDocs td = r.searchNearestVectors(
+                        "f",
+                        randomVector(vector.length),
+                        1,
+                        AcceptDocs.fromLiveDocs(r.getLiveDocs(), r.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
                     assertEquals(1, td.totalHits.value());
                     assertTrue(td.scoreDocs[0].score >= 0);
                 }

@@ -22,12 +22,12 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
@@ -212,7 +212,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     @Override
-    public final void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
             rawVectorsReader.search(field, target, knnCollector, acceptDocs);
@@ -223,11 +223,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        float percentFiltered = 1f;
-        if (acceptDocs instanceof BitSet bitSet) {
-            percentFiltered = Math.max(0f, Math.min(1f, (float) bitSet.approximateCardinality() / bitSet.length()));
-        }
         int numVectors = rawVectorsReader.getFloatVectorValues(field).size();
+        float percentFiltered = Math.max(0f, Math.min(1f, (float) acceptDocs.cost() / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -255,7 +252,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             target,
             postListSlice
         );
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocs);
+        Bits acceptDocsBits = acceptDocs.bits();
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
@@ -271,7 +269,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
             actualDocs += scorer.visit(knnCollector);
         }
-        if (acceptDocs != null) {
+        if (acceptDocsBits != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
@@ -284,7 +282,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     @Override
-    public final void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         final ByteVectorValues values = rawVectorsReader.getByteVectorValues(field);
         for (int i = 0; i < values.size(); i++) {

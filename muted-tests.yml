@@ -675,6 +675,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/133516
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133517
 
 # Examples:
 #

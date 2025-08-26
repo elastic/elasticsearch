@@ -121,7 +121,6 @@ public class IndicesModule extends AbstractModule {
         );
     }
 
-    // MP TODO: remove this constructor once all tests have been updated
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
         this(mapperPlugins, null);
     }

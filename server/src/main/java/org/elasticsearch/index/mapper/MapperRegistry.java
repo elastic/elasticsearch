@@ -33,21 +33,15 @@ public final class MapperRegistry {
     private final Function<String, FieldPredicate> fieldFilter;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
 
-    // MP TODO: remove this? Or keep?
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Function<String, FieldPredicate> fieldFilter
     ) {
-        // MP TODO: remove this no-op RootObjectMapperNamespaceValidator once we know how all this is going to work
-        this(mapperParsers, runtimeFieldParsers, metadataMapperParsers, fieldFilter, new RootObjectMapperNamespaceValidator() {
-            @Override
-            public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {}
-        });
+        this(mapperParsers, runtimeFieldParsers, metadataMapperParsers, fieldFilter, null);
     }
 
-    // MP TODO: need to move/create tests to use this
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,

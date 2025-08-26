@@ -15,10 +15,4 @@ package org.elasticsearch.index.mapper;
 public class DefaultRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
     @Override
     public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {}
-
-    // MP FIXME remove
-    @Override
-    public String toString() {
-        return "I'm the DefaultRootObjectMapperNamespaceValidator{}";
-    }
 }

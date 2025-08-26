@@ -625,10 +625,6 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
     }
 
-    private static MapperService createMapperService(IndexSettings indexSettings, MappingLookup mappingLookup) {
-        return createMapperServiceWithNamespaceValidator(indexSettings, mappingLookup, null);
-    }
-
     private static MapperService createMapperServiceWithNamespaceValidator(
         IndexSettings indexSettings,
         MappingLookup mappingLookup,

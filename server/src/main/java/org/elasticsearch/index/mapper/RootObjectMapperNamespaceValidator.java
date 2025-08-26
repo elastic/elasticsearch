@@ -9,13 +9,17 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.Nullable;
+
 /**
- * SPI to inject additional rules around namespaces that are prohibited
+ * SPI to inject additional rules around namespaces (top level fields) that are prohibited
  * in Elasticsearch mappings.
  */
 public interface RootObjectMapperNamespaceValidator {
     /**
      * If the namespace in the mapper is not allowed, an Exception should be thrown.
+     * @param subobjects Whether subobjects are enabled. Null is allowed
+     * @param name namespace (field name) to validate
      */
-    void validateNamespace(ObjectMapper.Subobjects subobjects, String name);
+    void validateNamespace(@Nullable ObjectMapper.Subobjects subobjects, String name);
 }

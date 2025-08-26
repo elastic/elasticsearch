@@ -74,7 +74,6 @@ public class MappingParserContext {
         this.namespaceValidator = namespaceValidator;
     }
 
-    // MP TODO: only used by tests, so remove this after tests are updated?
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,
@@ -207,7 +206,8 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.namespaceValidator
             );
         }
 
@@ -237,7 +237,8 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.namespaceValidator
             );
             this.dateFormatter = dateFormatter;
         }

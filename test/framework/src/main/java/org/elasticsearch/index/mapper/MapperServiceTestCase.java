@@ -242,8 +242,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             .namespaceValidator(validator)
             .build();
 
-        // TODO: is this step necessary?
-        mapperService = withMapping(mapperService, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
     }

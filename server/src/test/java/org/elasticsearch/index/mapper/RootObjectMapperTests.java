@@ -374,7 +374,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testWithRootObjectMapperNamespaceValidator() throws Exception {
         final String errorMessage = "error 1234";
 
-        RootObjectMapperNamespaceValidator validatorx = new RootObjectMapperNamespaceValidator() {
+        RootObjectMapperNamespaceValidator validator = new RootObjectMapperNamespaceValidator() {
             @Override
             public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
                 System.err.println(">>> XXX subobjects: " + subobjects.toString());

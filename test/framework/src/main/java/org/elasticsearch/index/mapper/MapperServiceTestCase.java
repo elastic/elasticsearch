@@ -234,7 +234,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return new TestMapperServiceBuilder().indexVersion(version).settings(settings).idFieldDataEnabled(idFieldDataEnabled).build();
     }
 
-    public MapperService createMapperServiceWithNamespaceValidator(String mappings, RootObjectMapperNamespaceValidator validatorx)
+    public MapperService createMapperServiceWithNamespaceValidator(String mappings, RootObjectMapperNamespaceValidator validator)
         throws IOException {
         MapperService mapperService = new TestMapperServiceBuilder().indexVersion(getVersion())
             .settings(getIndexSettings())

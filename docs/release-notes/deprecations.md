@@ -24,7 +24,13 @@ stack: coming 9.1.3
 Authorization:
 * Change `reporting_user` role to leverage reserved kibana privileges [#132766](https://github.com/elastic/elasticsearch/pull/132766)
 
+```{applies_to}
+stack: coming 9.0.6
+```
+## 9.0.6 [elasticsearch-9.0.6-deprecations]
 
+Authorization:
+* Change `reporting_user` role to leverage reserved kibana privileges [#132766](https://github.com/elastic/elasticsearch/pull/132766)
 
 ## 9.1.2 [elasticsearch-9.1.2-deprecations]
 

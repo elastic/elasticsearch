@@ -65,6 +65,43 @@ Search:
 * Don't fail search if bottom doc can't be formatted [#133188](https://github.com/elastic/elasticsearch/pull/133188) (issue: [#125321](https://github.com/elastic/elasticsearch/issues/125321))
 
 
+## 9.0.6 [elasticsearch-9.0.6-release-notes]
+```{applies_to}
+stack: coming 9.0.6
+```
+
+### Features and enhancements [elasticsearch-9.0.6-features-enhancements]
+
+Authorization:
+* [ExtraHop & QualysGAV] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#132387](https://github.com/elastic/elasticsearch/pull/132387) (issue: [#131825](https://github.com/elastic/elasticsearch/issues/131825))
+
+Infra/REST API:
+* Limit the depth of a filter [#133113](https://github.com/elastic/elasticsearch/pull/133113)
+
+Ingest Node:
+* Upgrading to tika 3.2.2 [#133410](https://github.com/elastic/elasticsearch/pull/133410)
+
+Packaging:
+* Update bundled JDK to Java 24.0.2+12 [#133119](https://github.com/elastic/elasticsearch/pull/133119)
+
+### Fixes [elasticsearch-9.0.6-fixes]
+
+EQL:
+* Better error message for sequences with only one clause plus UNTIL [#132638](https://github.com/elastic/elasticsearch/pull/132638)
+* Fix sequences with conditions involving keys and non-keys [#133134](https://github.com/elastic/elasticsearch/pull/133134)
+
+Ingest Node:
+* Change GeoIpCache and EnrichCache to LongAdder [#132922](https://github.com/elastic/elasticsearch/pull/132922)
+
+License:
+* Limit frequency of feature last-used time updates [#133004](https://github.com/elastic/elasticsearch/pull/133004)
+
+Machine Learning:
+* Disable child span for streaming tasks [#132945](https://github.com/elastic/elasticsearch/pull/132945)
+* Improve EIS auth call logs and fix revocation bug [#132546](https://github.com/elastic/elasticsearch/pull/132546)
+* Preserve lost thread context in node inference action. A lost context causes a memory leak if APM tracing is enabled [#132973](https://github.com/elastic/elasticsearch/pull/132973)
+
+
 ## 9.1.2 [elasticsearch-9.1.2-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.2-features-enhancements]

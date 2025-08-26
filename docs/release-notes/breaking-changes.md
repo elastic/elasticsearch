@@ -19,6 +19,13 @@ stack: coming 9.1.3
 
 No breaking changes in this version.
 
+```{applies_to}
+stack: coming 9.0.6
+```
+## 9.0.6 [elasticsearch-9.0.6-breaking-changes]
+
+No breaking changes in this version.
+
 ## 9.1.2 [elasticsearch-9.1.2-breaking-changes]
 
 No breaking changes in this version.

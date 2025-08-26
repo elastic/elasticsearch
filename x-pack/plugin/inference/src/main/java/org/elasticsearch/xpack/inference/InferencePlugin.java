@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointActi
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
+import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
@@ -71,6 +73,7 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpoint
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
+import org.elasticsearch.xpack.inference.action.TransportGetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
@@ -112,6 +115,7 @@ import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ai21.Ai21Service;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSender;
@@ -132,6 +136,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
@@ -140,10 +145,11 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfi
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -176,6 +182,13 @@ public class InferencePlugin extends Plugin
     public static final Setting<Boolean> SKIP_VALIDATE_AND_START = Setting.boolSetting(
         "xpack.inference.skip_validate_and_start",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> INFERENCE_QUERY_TIMEOUT = Setting.timeSetting(
+        "xpack.inference.query_timeout",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -223,7 +236,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
             new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
             new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
-            new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class)
+            new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
+            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class)
         );
     }
 
@@ -328,11 +342,16 @@ public class InferencePlugin extends Plugin
             )
         );
 
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var inferenceStats = InferenceStats.create(meterRegistry);
+        var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
+
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
             services.client(),
             services.threadPool(),
             services.clusterService(),
-            settings
+            settings,
+            inferenceStats
         );
 
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
@@ -343,10 +362,6 @@ public class InferencePlugin extends Plugin
             service.defaultConfigIds().forEach(modelRegistry.get()::addDefaultIds);
         }
         inferenceServiceRegistry.set(serviceRegistry);
-
-        var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var inferenceStats = InferenceStats.create(meterRegistry);
-        var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
 
         var actionFilter = new ShardBulkInferenceActionFilter(
             services.clusterService(),
@@ -401,6 +416,8 @@ public class InferencePlugin extends Plugin
             context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
             ElasticsearchInternalService::new,
             context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
@@ -452,7 +469,7 @@ public class InferencePlugin extends Plugin
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
                 .setDescription("Contains inference service and model configuration")
                 .setMappings(InferenceIndex.mappings())
-                .setSettings(InferenceIndex.settings())
+                .setSettings(getIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
                 .build(),
@@ -462,11 +479,21 @@ public class InferencePlugin extends Plugin
                 .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
                 .setDescription("Contains inference service secrets")
                 .setMappings(InferenceSecretsIndex.mappings())
-                .setSettings(InferenceSecretsIndex.settings())
+                .setSettings(getSecretsIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setNetNew()
                 .build()
         );
+    }
+
+    // Overridable for tests
+    protected Settings getIndexSettings() {
+        return InferenceIndex.settings();
+    }
+
+    // Overridable for tests
+    protected Settings getSecretsIndexSettings() {
+        return InferenceSecretsIndex.settings();
     }
 
     @Override
@@ -487,7 +514,11 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        ArrayList<Setting<?>> settings = new ArrayList<>();
+        return List.copyOf(getInferenceSettings());
+    }
+
+    public static Set<Setting<?>> getInferenceSettings() {
+        Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(HttpSettings.getSettingsDefinitions());
         settings.addAll(HttpClientManager.getSettingsDefinitions());
         settings.addAll(ThrottlerManager.getSettingsDefinitions());
@@ -496,9 +527,9 @@ public class InferencePlugin extends Plugin
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
+        settings.add(INFERENCE_QUERY_TIMEOUT);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
-
-        return settings;
+        return Collections.unmodifiableSet(settings);
     }
 
     @Override

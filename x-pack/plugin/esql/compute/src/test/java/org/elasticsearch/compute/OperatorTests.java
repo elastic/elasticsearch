@@ -172,8 +172,14 @@ public class OperatorTests extends MapperServiceTestCase {
                 LuceneOperator.NO_LIMIT
             );
             ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(
-                    new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, f -> new BlockDocValuesReader.LongsBlockLoader("v"))
+                    new ValuesSourceReaderOperator.FieldInfo(
+                        "v",
+                        ElementType.LONG,
+                        false,
+                        f -> new BlockDocValuesReader.LongsBlockLoader("v")
+                    )
                 ),
                 List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                     throw new UnsupportedOperationException();
@@ -198,7 +204,6 @@ public class OperatorTests extends MapperServiceTestCase {
             boolean sawSecondMax = false;
             boolean sawThirdMax = false;
             for (Page page : pages) {
-                logger.error("ADFA {}", page);
                 LongVector group = page.<LongBlock>getBlock(1).asVector();
                 LongVector value = page.<LongBlock>getBlock(2).asVector();
                 for (int p = 0; p < page.getPositionCount(); p++) {
@@ -381,6 +386,7 @@ public class OperatorTests extends MapperServiceTestCase {
             List.of(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
+            DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
             randomPageSize(),
             limit,

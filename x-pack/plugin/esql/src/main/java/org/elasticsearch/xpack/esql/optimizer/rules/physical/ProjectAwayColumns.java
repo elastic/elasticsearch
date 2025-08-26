@@ -36,6 +36,7 @@ import static java.util.Collections.singletonList;
  * extraction.
  */
 public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
+    public static String ALL_FIELDS_PROJECTED = "<all-fields-projected>";
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
@@ -94,7 +95,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                         // to avoid the block from being trimmed
                         if (output.isEmpty()) {
-                            var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", Literal.NULL, null, true);
+                            var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
                             List<Alias> fields = singletonList(alias);
                             logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
                             output = Expressions.asAttributes(fields);

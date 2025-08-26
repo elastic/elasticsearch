@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -71,6 +73,33 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         // allocating iterator that performs concurrent modification checks and extra stack frames
         for (int c = 0, size = children.size(); c < size; c++) {
             children.get(c).forEachDown(action);
+        }
+    }
+
+    /**
+     * Same as forEachDown, but can end the traverse early, by setting the boolean argument in the action.
+     */
+    public boolean forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action) {
+        var breakEarly = new Holder<>(false);
+        forEachDownMayReturnEarly(action, breakEarly);
+        return breakEarly.get();
+    }
+
+    @SuppressWarnings("unchecked")
+    void forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action, Holder<Boolean> breakEarly) {
+        action.accept((T) this, breakEarly);
+        if (breakEarly.get()) {
+            // Early return.
+            return;
+        }
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack frames
+        for (int c = 0, size = children.size(); c < size; c++) {
+            children.get(c).forEachDownMayReturnEarly(action, breakEarly);
+            if (breakEarly.get()) {
+                // Early return.
+                return;
+            }
         }
     }
 
@@ -278,13 +307,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Return the information about this node.
-     * <p>
      * Normally, you want to use one of the static {@code create} methods to implement this.
      * <p>
      * For {@code QueryPlan}s, it is very important that
      * the properties contain all of the expressions and references relevant to this node, and
-     * that all of the properties are used in the provided constructor; otherwise query plan
+     * that all the properties are used in the provided constructor; otherwise query plan
      * transformations like
      * {@code QueryPlan#transformExpressionsOnly(Function)}
      * will not have an effect.

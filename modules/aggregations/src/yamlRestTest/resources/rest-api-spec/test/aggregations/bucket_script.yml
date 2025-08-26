@@ -340,3 +340,31 @@ top level fails:
                 buckets_path:
                   b: b
                 script: params.b + 12
+
+---
+invalid parent aggregation:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ bucket_script_parent_multi_bucket_error ]
+      test_runner_features: [capabilities]
+      reason: "changed error 500 to 400"
+  - do:
+      catch: /Expected a multi bucket aggregation but got \[InternalFilter\] for aggregation \[d\]/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  bucket_script:
+                    buckets_path:
+                      b: b
+                    script: params.b + 12

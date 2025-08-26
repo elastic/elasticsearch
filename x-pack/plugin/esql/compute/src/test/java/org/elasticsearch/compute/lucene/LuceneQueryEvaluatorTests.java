@@ -23,15 +23,15 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.OperatorTests;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Base class for testing Lucene query evaluators.
  */
-public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vector.Builder> extends ComputeTestCase {
+public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block.Builder> extends ComputeTestCase {
 
     private static final String FIELD = "g";
 
@@ -167,9 +167,9 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         int matchCount = 0;
         for (Page page : results) {
             int initialBlockIndex = termsBlockIndex(page);
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
+            BytesRefBlock terms = page.<BytesRefBlock>getBlock(initialBlockIndex);
             @SuppressWarnings("unchecked")
-            T resultVector = (T) page.getBlock(resultsBlockIndex(page)).asVector();
+            T resultVector = (T) page.getBlock(resultsBlockIndex(page));
             for (int i = 0; i < page.getPositionCount(); i++) {
                 BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
                 boolean isMatch = matching.contains(termAtPosition.utf8ToString());
@@ -201,10 +201,12 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             operators.add(
                 new ValuesSourceReaderOperator(
                     blockFactory,
+                    ByteSizeValue.ofGb(1).getBytes(),
                     List.of(
                         new ValuesSourceReaderOperator.FieldInfo(
                             FIELD,
                             ElementType.BYTES_REF,
+                            false,
                             unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
                         )
                     ),
@@ -277,6 +279,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             List.of(searchContext),
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
+            DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
@@ -268,7 +269,8 @@ public class InTests extends AbstractFunctionTestCase {
             "IN",
             d -> "The `NOT IN` operator allows testing whether a field or expression does *not* equal any element "
                 + "in a list of literals, fields or expressions.",
-            getTestClass()
+            getTestClass(),
+            DocsV3Support.callbacksFromSystemProperty()
         );
     }
 }

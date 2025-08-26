@@ -21,10 +21,12 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,6 +56,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @ParametersFactory(argumentFormatting = "%1s")
     public static List<Object[]> args() {
@@ -348,7 +353,7 @@ public class PushQueriesIT extends ESRestTestCase {
         String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
         builder.profile(true);
-        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
             getResultMatcher(result).entry(

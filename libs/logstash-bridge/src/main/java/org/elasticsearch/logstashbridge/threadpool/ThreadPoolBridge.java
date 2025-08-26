@@ -16,10 +16,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 
-public class ThreadPoolBridge extends StableBridgeAPI.Proxy<ThreadPool> {
+/**
+ * An external bridge for {@link ThreadPool}
+ */
+public class ThreadPoolBridge extends StableBridgeAPI.ProxyInternal<ThreadPool> {
 
     public ThreadPoolBridge(final SettingsBridge settingsBridge) {
-        this(new ThreadPool(settingsBridge.unwrap(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()));
+        this(new ThreadPool(settingsBridge.toInternal(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()));
     }
 
     public ThreadPoolBridge(final ThreadPool delegate) {
@@ -27,14 +30,14 @@ public class ThreadPoolBridge extends StableBridgeAPI.Proxy<ThreadPool> {
     }
 
     public static boolean terminate(final ThreadPoolBridge pool, final long timeout, final TimeUnit timeUnit) {
-        return ThreadPool.terminate(pool.unwrap(), timeout, timeUnit);
+        return ThreadPool.terminate(pool.toInternal(), timeout, timeUnit);
     }
 
     public long relativeTimeInMillis() {
-        return delegate.relativeTimeInMillis();
+        return internalDelegate.relativeTimeInMillis();
     }
 
     public long absoluteTimeInMillis() {
-        return delegate.absoluteTimeInMillis();
+        return internalDelegate.absoluteTimeInMillis();
     }
 }

@@ -194,3 +194,14 @@ s:double | bytes_in:ul | bytes_out:ul
 1.0      | 1957665857956635540          | 352442273299370793
 1.0      | 2408213296071189837          | 419872666232023984
 ;
+
+values
+required_capability: agg_values_sample_unsigned_long
+from ul_logs | stats v = values(bytes_in) | MV_EXPAND v | SORT v | LIMIT 3;
+
+v:ul
+0
+74330435873664882
+154551962150890561
+;
+

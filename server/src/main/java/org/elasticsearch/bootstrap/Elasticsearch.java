@@ -256,6 +256,7 @@ class Elasticsearch {
             scopeResolver::resolveClassToScope,
             nodeEnv.settings()::getValues,
             nodeEnv.dataDirs(),
+            nodeEnv.sharedDataDir(),
             nodeEnv.repoDirs(),
             nodeEnv.configDir(),
             nodeEnv.libDir(),

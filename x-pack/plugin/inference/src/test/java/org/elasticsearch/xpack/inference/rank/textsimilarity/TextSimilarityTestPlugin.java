@@ -176,9 +176,10 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             String inferenceText,
             Float minScore,
             boolean failuresAllowed,
-            String throwingType
+            String throwingType,
+            SnippetConfig snippetConfig
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, snippetConfig);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 
@@ -218,7 +219,8 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     inferenceId,
                     inferenceText,
                     minScore,
-                    failuresAllowed()
+                    failuresAllowed(),
+                    null
                 ) {
                     @Override
                     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

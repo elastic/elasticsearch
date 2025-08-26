@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -58,6 +59,10 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(rankWindowSize);
         doWriteTo(out);
+    }
+
+    public RankBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        return this;
     }
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;

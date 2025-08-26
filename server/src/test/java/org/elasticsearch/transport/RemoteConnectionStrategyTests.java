@@ -40,9 +40,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             connectionManager
         );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
-            LinkedProjectConfig.buildForAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
+            "cluster-alias",
             mock(TransportService.class),
-            remoteConnectionManager
+            remoteConnectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY
         );
         Settings newSettings = Settings.builder()
             .put(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "sniff")
@@ -63,9 +64,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             connectionManager
         );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
-            LinkedProjectConfig.buildForAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
+            "cluster-alias",
             mock(TransportService.class),
-            remoteConnectionManager
+            remoteConnectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY
         );
         Settings newSettings = Settings.builder()
             .put(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy")
@@ -89,9 +91,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             connectionManager
         );
         FakeConnectionStrategy first = new FakeConnectionStrategy(
-            LinkedProjectConfig.buildForAlias("cluster-alias").connectionStrategy(ConnectionStrategy.PROXY).build(),
+            "cluster-alias",
             mock(TransportService.class),
-            remoteConnectionManager
+            remoteConnectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY
         );
 
         Settings.Builder newBuilder = Settings.builder();
@@ -173,9 +176,18 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         private final ConnectionStrategy strategy;
 
-        FakeConnectionStrategy(LinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
-            super(config, transportService, connectionManager);
-            this.strategy = config.connectionStrategy();
+        FakeConnectionStrategy(
+            String clusterAlias,
+            TransportService transportService,
+            RemoteConnectionManager connectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy strategy
+        ) {
+            super(
+                LinkedProjectConfig.buildForAlias("cluster-alias").connectionStrategy(strategy).build(),
+                transportService,
+                connectionManager
+            );
+            this.strategy = strategy;
         }
 
         @Override

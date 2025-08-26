@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +32,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Splits dates into a given number of buckets. The span is derived from a time range provided.
  */
 public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implements SurrogateExpression {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "TBucket", TBucket::new);
+    public static final String NAME = "TBucket";
 
     private final Expression buckets;
     private final Expression timestamp;
@@ -75,10 +72,6 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
         super(source, List.of(buckets, timestamp));
         this.buckets = buckets;
         this.timestamp = timestamp;
-    }
-
-    private TBucket(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override

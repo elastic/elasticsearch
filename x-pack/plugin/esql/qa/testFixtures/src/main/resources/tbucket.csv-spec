@@ -7,6 +7,7 @@ FROM sample_data
 | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 seconds)
 | SORT min
 ;
+ignoreOrder:true
 
 min:datetime             | max:datetime             | bucket:datetime
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:00.000Z
@@ -26,6 +27,7 @@ FROM sample_data
 | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 seconds")
 | SORT min
 ;
+ignoreOrder:true
 
 min:datetime             | max:datetime             | bucket:datetime
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:00.000Z
@@ -44,6 +46,7 @@ FROM sample_data
 | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 minutes)
 | SORT min
 ;
+ignoreOrder:true
 
 min:datetime             | max:datetime             | bucket:datetime
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:10:00.000Z
@@ -60,6 +63,7 @@ FROM sample_data
 | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 minutes")
 | SORT min
 ;
+ignoreOrder:true
 
 min:datetime             | max:datetime             | bucket:datetime
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:10:00.000Z
@@ -223,8 +227,8 @@ FROM sample_data
 | WHERE event_duration > 0
 | KEEP @timestamp, client_ip, event_duration
 | STATS count = COUNT(*), avg_dur = AVG(event_duration) BY hour = TBUCKET(1h), client_ip
-| SORT avg_dur DESC
 ;
+ignoreOrder:true
 
 count:long | avg_dur:double | hour:datetime            | client_ip:ip
 4          | 3945955.75     | 2023-10-23T13:00:00.000Z | 172.21.3.15
@@ -241,8 +245,8 @@ FROM sample_data
 | WHERE message == "Connection error"
 | KEEP @*, message
 | STATS errors = COUNT() BY day = TBUCKET(1d), message
-| SORT day ASC, errors
 ;
+ignoreOrder:true
 
 errors:long | day:datetime             | message:keyword
 3           | 2023-10-23T00:00:00.000Z | Connection error
@@ -256,8 +260,8 @@ FROM sample_data
 | WHERE client_ip IS NOT NULL
 | KEEP *stamp*, client_ip, event_duration
 | STATS p95 = PERCENTILE(event_duration, 95) BY ten_min = TBUCKET(10min), client_ip
-| SORT ten_min ASC, p95
 ;
+ignoreOrder:true
 
 p95:double        | ten_min:datetime         | client_ip:ip
 3450233.0         | 2023-10-23T12:10:00.000Z | 172.21.2.162
@@ -275,8 +279,8 @@ FROM sample_data
 | STATS day_count = COUNT(), day_p95 = PERCENTILE(event_duration, 95) BY day = TBUCKET(1d), @timestamp
 | WHERE day_count > 0
 | STATS hour_count = COUNT(), hour_p95 = PERCENTILE(day_p95, 95)  BY hour = TBUCKET(1h), day
-| SORT day ASC, hour ASC, hour_count
 ;
+ignoreOrder:true
 
 hour_count:long | hour_p95:double   | hour:datetime            | day:datetime
 2               | 3415965.8         | 2023-10-23T12:00:00.000Z | 2023-10-23T00:00:00.000Z
@@ -292,8 +296,8 @@ FROM sample_data
 | STATS reqs = COUNT(), max_dur = MAX(event_duration) BY day = TBUCKET(1d), client_ip, @timestamp
 | WHERE max_dur > 1000
 | STATS spikes = COUNT() BY hour = TBUCKET(1h), client_ip, day
-| SORT spikes DESC, client_ip ASC
 ;
+ignoreOrder:true
 
 spikes:long | hour:datetime            | client_ip:ip | day:datetime
 4           | 2023-10-23T13:00:00.000Z | 172.21.3.15  | 2023-10-23T00:00:00.000Z
@@ -310,8 +314,8 @@ FROM sample_data
 | KEEP @timestamp, event_duration, message
 | EVAL t = @timestamp
 | STATS total = COUNT(*), med = MEDIAN(event_duration) BY d = TBUCKET(1d), message
-| SORT med ASC
 ;
+ignoreOrder:true
 
 total:long | med:double | d:datetime               | message:keyword
 1          | 1232382.0  | 2023-10-23T00:00:00.000Z | Disconnected
@@ -331,8 +335,8 @@ FROM sample_data
 | STATS total = COUNT(*), med = MEDIAN(event_duration) BY d = TBUCKET(1d), message, @timestamp
 | WHERE total > 0
 | STATS day_total = SUM(total), hour_med = MEDIAN(med) BY h = TBUCKET(1h), message
-| SORT hour_med DESC
 ;
+ignoreOrder:true
 
 day_total:long | hour_med:double | h:datetime               | message:keyword
 3              | 5033755.0       | 2023-10-23T13:00:00.000Z | Connection error

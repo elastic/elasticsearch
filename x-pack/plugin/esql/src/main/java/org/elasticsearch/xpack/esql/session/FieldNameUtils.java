@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
-    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.ENTRY.name.toLowerCase(Locale.ROOT));
+    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.NAME.toLowerCase(Locale.ROOT));
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution) {
 

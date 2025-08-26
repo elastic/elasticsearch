@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccessor;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -30,6 +31,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -92,12 +95,20 @@ public class TimestampFieldMapperServiceTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndex(boolean isTimeSeries) {
-        return IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(
-                indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-                    .put(IndexSettings.MODE.getKey(), isTimeSeries ? IndexMode.TIME_SERIES.getName() : IndexMode.STANDARD.getName())
-            )
-            .build();
+        Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), 1, 0).put(
+            IndexSettings.TIME_SERIES_START_TIME.getKey(),
+            "2021-04-28T00:00:00Z"
+        )
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexSettings.MODE.getKey(), isTimeSeries ? IndexMode.TIME_SERIES.getName() : IndexMode.STANDARD.getName());
+        IndexMetadata.Builder metadataBuilder = IndexMetadata.builder(randomAlphaOfLength(5));
+        if (isTimeSeries) {
+            if (randomBoolean()) {
+                settingsBuilder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dummy_value");
+            } else {
+                TimeSeriesDimensionsMetadataAccessor.addToCustomMetadata(metadataBuilder::putCustom, List.of("dummy_value"));
+            }
+        }
+        return metadataBuilder.settings(settingsBuilder).build();
     }
 }

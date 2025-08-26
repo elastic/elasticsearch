@@ -69,8 +69,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            var e = expectThrows(InvalidIndexTemplateException.class, () -> service.addIndexTemplateV2(project, false, "1", indexTemplate));
-            assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+            var e = expectThrows(IllegalArgumentException.class, () -> service.addIndexTemplateV2(project, false, "1", indexTemplate));
+            assertThat(e.getCause().getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
         }
         {
             // Routing path fetched from mapping of component template

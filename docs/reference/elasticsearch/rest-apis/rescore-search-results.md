@@ -130,6 +130,7 @@ POST /_search
 ```
 
 ## Learning to rank rescorer [learning-to-rank-rescorer]
+
 `learning_to_rank` uses an LTR model to rescore the top documents. You must
 provide the `model_id` of a deployed model, as well as any named parameters
 required by the query templates for features used by the model.
@@ -137,7 +138,7 @@ required by the query templates for features used by the model.
 ```console
 GET my-index/_search
 {
-  "query": { <1>
+  "query": {
     "multi_match": {
       "fields": ["title", "content"],
       "query": "the quick brown fox"

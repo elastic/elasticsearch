@@ -27,24 +27,30 @@ for(bundle in changelogBundles) {
     }
 %>
 ## ${unqualifiedVersion} [elasticsearch-${versionForIds}-breaking-changes]
+
 <%
     if (!changelogsByTypeByArea['breaking']) {
-        print "\nThere are no breaking changes associated with this release.\n"
+        print "There are no breaking changes associated with this release.\n"
     } else {
         for (team in (changelogsByTypeByArea['breaking'] ?: [:]).keySet()) {
-            print "\n${team}:\n";
+            print "${team}:\n";
 
             for (change in changelogsByTypeByArea['breaking'][team]) {
-                print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
-                if (change.issues != null && change.issues.empty == false) {
-                    print change.issues.size() == 1 ? " (issue: " : " (issues: "
-                    print change.issues.collect { "[#${it}](https://github.com/elastic/elasticsearch/issues/${it})" }.join(", ")
-                    print ")"
+                if (!change.entryOverride) {
+                    print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
+                    if (change.issues != null && change.issues.empty == false) {
+                        print change.issues.size() == 1 ? " (issue: " : " (issues: "
+                        print change.issues.collect { "[#${it}](https://github.com/elastic/elasticsearch/issues/${it})" }.join(", ")
+                        print ")"
+                    }
+                } else {
+                    print change.entryOverride;
                 }
                 print "\n"
             }
+            print "\n"
         }
 
-        print "\n\n"
+        print "\n"
     }
 }

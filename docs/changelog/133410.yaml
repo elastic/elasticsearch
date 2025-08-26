@@ -1,0 +1,5 @@
+pr: 133410
+summary: Upgrading to tika 3.2.2
+area: Ingest Node
+type: upgrade
+issues: []

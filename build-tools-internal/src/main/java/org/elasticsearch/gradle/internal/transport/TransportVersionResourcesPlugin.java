@@ -20,14 +20,21 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinitionsDirectory;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getResourcesDirectory;
-
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
+
+        String resourceRoot = getResourceRoot(project);
+
+        project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent("transportVersionResources", TransportVersionResourcesService.class, spec -> {
+                Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/" + resourceRoot);
+                spec.getParameters().getTransportResourcesDirectory().set(transportResources);
+                spec.getParameters().getRootDirectory().set(project.getRootProject().getRootDir());
+            });
 
         DependencyHandler depsHandler = project.getDependencies();
         Configuration tvReferencesConfig = project.getConfigurations().create("globalTvReferences");
@@ -43,13 +50,9 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         }
 
         var validateTask = project.getTasks()
-            .register("validateTransportVersionDefinitions", ValidateTransportVersionResourcesTask.class, t -> {
+            .register("validateTransportVersionResources", ValidateTransportVersionResourcesTask.class, t -> {
                 t.setGroup("Transport Versions");
-                t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
-                Directory resourcesDir = getResourcesDirectory(project);
-                if (resourcesDir.getAsFile().exists()) {
-                    t.getResourcesDirectory().set(resourcesDir);
-                }
+                t.setDescription("Validates that all transport version resources are internally consistent with each other");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
@@ -57,12 +60,19 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
                 t.setGroup("Transport Versions");
-                t.setDescription("Generate a manifest resource for all the known transport version definitions");
-                t.getDefinitionsDirectory().set(getDefinitionsDirectory(getResourcesDirectory(project)));
+                t.setDescription("Generate a manifest resource for all transport version definitions");
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
-            t.into("transport/defined", c -> c.from(generateManifestTask));
+            t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
+    }
+
+    private static String getResourceRoot(Project project) {
+        var resourceRoot = project.findProperty("org.elasticsearch.transport.resourceRoot");
+        if (resourceRoot == null) {
+            resourceRoot = "transport";
+        }
+        return resourceRoot.toString();
     }
 }

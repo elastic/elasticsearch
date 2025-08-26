@@ -73,7 +73,7 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
         ActionListener<InferenceServiceResults> listener
     ) {
         switch (awsRequest.taskType()) {
-            case COMPLETION -> {
+            case COMPLETION, CHAT_COMPLETION -> {
                 return new AmazonBedrockChatCompletionExecutor(
                     (AmazonBedrockChatCompletionRequest) awsRequest,
                     awsResponse,

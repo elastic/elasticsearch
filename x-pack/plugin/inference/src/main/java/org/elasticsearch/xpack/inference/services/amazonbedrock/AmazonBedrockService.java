@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -57,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -64,7 +66,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
@@ -77,6 +78,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 public class AmazonBedrockService extends SenderService {
     public static final String NAME = "amazonbedrock";
     private static final String SERVICE_NAME = "Amazon Bedrock";
+    public static final String COMPLETION_ERROR_PREFIX = "Amazon Bedrock chat completion";
 
     private final Sender amazonBedrockSender;
 
@@ -118,7 +120,25 @@ public class AmazonBedrockService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        throwUnsupportedUnifiedCompletionOperation(NAME);
+        doInfer(model, inputs, timeout, COMPLETION_ERROR_PREFIX, listener);
+    }
+
+    private void doInfer(
+        Model model,
+        InferenceInputs inputs,
+        TimeValue timeout,
+        String errorPrefix,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof AmazonBedrockChatCompletionModel chatCompletionModel) {
+            var requestCreator = new AmazonBedrockChatCompletionRequestManager(
+                chatCompletionModel, getServiceComponents().threadPool(), timeout);
+            var errorMessage = constructFailedToSendRequestMessage(errorPrefix);
+            var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
+            action.execute(inputs, timeout, listener);
+        } else {
+            listener.onFailure(createInvalidModelException(model));
+        }
     }
 
     @Override

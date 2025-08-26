@@ -11,9 +11,9 @@ package org.elasticsearch.gradle.internal.info;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.Jdk;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
@@ -71,8 +71,8 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
-import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestEABuildNumber;
 import static org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin.VERSIONS_EXT;
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestEABuildNumber;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);

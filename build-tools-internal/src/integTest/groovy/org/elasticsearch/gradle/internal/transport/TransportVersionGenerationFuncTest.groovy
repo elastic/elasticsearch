@@ -316,15 +316,16 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "test_tv,8124000")
     }
 
-    def "if the files for a committed definition already exist, no change should occur"() {
+    def "can add backport to existing definition"() {
         when:
-        def result = runGenerateAndValidateTask("--name=existing_92", "--branches=9.2").build()
+        def result = runGenerateAndValidateTask("--name=existing_92", "--branches=9.2,9.1,9.0").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("existing_92", "8123000,8012001")
+        assertReferableDefinition("existing_92", "8123000,8012001,8000001")
         assertUpperBound("9.2", "existing_92,8123000")
         assertUpperBound("9.1", "existing_92,8012001")
+        assertUpperBound("9.0", "existing_92,8000001")
     }
 
 

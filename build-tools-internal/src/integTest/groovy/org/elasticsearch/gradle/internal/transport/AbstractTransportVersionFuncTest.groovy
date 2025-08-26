@@ -115,6 +115,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         unreferableTransportVersion("initial_9_0_0", "8000000")
         transportVersionUpperBound("9.2", "existing_92", "8123000")
         transportVersionUpperBound("9.1", "existing_92", "8012001")
+        transportVersionUpperBound("9.0", "initial_9_0_0", "8000000")
         // a mock version of TransportVersion, just here so we can compile Dummy.java et al
         javaSource("myserver", "org.elasticsearch", "TransportVersion", "", """
             public static TransportVersion fromName(String name) {

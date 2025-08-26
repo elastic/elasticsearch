@@ -123,21 +123,38 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         int primaryIncrement = getPrimaryIncrement().get();
         List<TransportVersionId> ids = new ArrayList<>();
 
-        for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromMain()) {
+        TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromMain(name);
 
+        for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromMain()) {
+            System.out.println("Looking at release branch: " + upperBound.releaseBranch());
             if (name.equals(upperBound.name())) {
                 if (targetReleaseBranches.contains(upperBound.releaseBranch()) == false) {
                     // we don't want to target this latest file but we already changed it
                     // Regenerate to make this operation idempotent. Need to undo prior updates to the latest files if the list of minor
                     // versions has changed.
                     resources.writeUpperBound(upperBound);
+                } else {
+                    ids.add(upperBound.id());
                 }
             } else {
                 if (targetReleaseBranches.contains(upperBound.releaseBranch())) {
-                    int increment = upperBound.releaseBranch().equals(mainReleaseBranch) ? primaryIncrement : 1;
-                    TransportVersionId id = TransportVersionId.fromInt(upperBound.id().complete() + increment);
-                    ids.add(id);
-                    resources.writeUpperBound(new TransportVersionUpperBound(upperBound.releaseBranch(), name, id));
+                    TransportVersionId targetId = null;
+                    if (existingDefinition != null) {
+                        System.out.println("Looking for upper bound base id: " + upperBound.id().base());
+                        for (TransportVersionId id : existingDefinition.ids()) {
+                            System.out.println("Checking id: " + id);
+                            if (id.base() == upperBound.id().base()) {
+                                targetId = id;
+                                break;
+                            }
+                        }
+                    }
+                    if (targetId == null) {
+                        int increment = upperBound.releaseBranch().equals(mainReleaseBranch) ? primaryIncrement : 1;
+                        TransportVersionId id = TransportVersionId.fromInt(upperBound.id().complete() + increment);
+                        ids.add(id);
+                        resources.writeUpperBound(new TransportVersionUpperBound(upperBound.releaseBranch(), name, id));
+                    }
                 } else {
                     resources.writeUpperBound(upperBound);
                 }

@@ -893,8 +893,6 @@ public class EsqlFunctionRegistry {
         return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, realBuilder);
     }
 
-    // TODO: ternary variadic builder
-
     /**
      * Build a {@linkplain FunctionDefinition} for a no-argument function.
      */

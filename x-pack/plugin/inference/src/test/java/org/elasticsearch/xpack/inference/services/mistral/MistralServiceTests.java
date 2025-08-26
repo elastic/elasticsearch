@@ -249,7 +249,7 @@ public class MistralServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.CHAT_COMPLETION);
 
-        try (var service = new MistralService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -308,7 +308,7 @@ public class MistralServiceTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = MistralChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -353,7 +353,7 @@ public class MistralServiceTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = MistralChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model");
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
@@ -421,7 +421,7 @@ public class MistralServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = MistralChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -459,7 +459,7 @@ public class MistralServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new MistralService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new MistralService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -942,7 +942,7 @@ public class MistralServiceTests extends ESTestCase {
 
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = new Model(ModelConfigurationsTests.createRandomInstance());
 
             assertThrows(
@@ -962,7 +962,7 @@ public class MistralServiceTests extends ESTestCase {
 
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var embeddingSize = randomNonNegativeInt();
             var model = MistralEmbeddingModelTests.createModel(
                 randomAlphaOfLength(10),
@@ -990,7 +990,7 @@ public class MistralServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new MistralService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -1028,7 +1028,7 @@ public class MistralServiceTests extends ESTestCase {
 
         var model = MistralEmbeddingModelTests.createModel("id", "mistral-embed", "apikey", null, null, null, null);
 
-        try (var service = new MistralService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
             var thrownException = expectThrows(
@@ -1086,7 +1086,7 @@ public class MistralServiceTests extends ESTestCase {
     public void testChunkedInfer(MistralEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1173,7 +1173,7 @@ public class MistralServiceTests extends ESTestCase {
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1276,7 +1276,7 @@ public class MistralServiceTests extends ESTestCase {
     // ----------------------------------------------------------------
 
     private MistralService createService() {
-        return new MistralService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new MistralService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private Map<String, Object> getRequestConfigMap(

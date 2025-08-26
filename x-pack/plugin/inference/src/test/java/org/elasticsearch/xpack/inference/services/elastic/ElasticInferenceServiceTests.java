@@ -1427,7 +1427,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
             modelRegistry,
-            mockAuthHandler
+            mockAuthHandler,
+            mockClusterServiceEmpty()
         );
     }
 
@@ -1456,7 +1457,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             modelRegistry,
-            mockAuthHandler
+            mockAuthHandler,
+            mockClusterServiceEmpty()
         );
     }
 
@@ -1469,7 +1471,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             modelRegistry,
-            new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool),
+            mockClusterServiceEmpty()
         );
     }
 }

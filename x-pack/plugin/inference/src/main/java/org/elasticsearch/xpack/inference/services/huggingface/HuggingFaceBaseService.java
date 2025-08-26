@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -50,11 +51,11 @@ public abstract class HuggingFaceBaseService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(factory, serviceComponents);
+        this(factory, serviceComponents, context.clusterService());
     }
 
-    public HuggingFaceBaseService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public HuggingFaceBaseService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override

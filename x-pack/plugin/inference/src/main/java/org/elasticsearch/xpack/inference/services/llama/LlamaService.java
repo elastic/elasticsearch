@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
@@ -100,11 +101,11 @@ public class LlamaService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(factory, serviceComponents);
+        this(factory, serviceComponents, context.clusterService());
     }
 
-    public LlamaService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public LlamaService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override

@@ -2073,20 +2073,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .get()
                 .onResponse(new NewCommitNotificationResponse(Set.of(mergedCommitPTG, commitAfterMergePTG)));
 
-            assertThat(
-                deletedBCCs,
-                is(
-                    equalTo(
-                        Set.of(
-                            new StaleCompoundCommit(
-                                shardId,
-                                new PrimaryTermAndGeneration(firstBCC.getPrimaryTerm(), firstBCC.getGeneration()),
-                                primaryTerm
-                            )
-                        )
-                    )
+            final var expectedDeletedBCCs = Set.of(
+                new StaleCompoundCommit(
+                    shardId,
+                    new PrimaryTermAndGeneration(firstBCC.getPrimaryTerm(), firstBCC.getGeneration()),
+                    primaryTerm
                 )
             );
+            assertBusy(() -> assertThat(deletedBCCs, is(equalTo(expectedDeletedBCCs))));
         }
     }
 

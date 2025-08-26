@@ -26,7 +26,6 @@ import java.util.function.BiFunction;
  */
 public class CleanupGeneratedIndexStep extends AsyncRetryDuringSnapshotActionStep {
 
-    public static final String OLD_NAME = "cleanup-shrink-index";
     public static final String NAME = "cleanup-generated-index";
 
     private static final Logger logger = LogManager.getLogger(CleanupGeneratedIndexStep.class);

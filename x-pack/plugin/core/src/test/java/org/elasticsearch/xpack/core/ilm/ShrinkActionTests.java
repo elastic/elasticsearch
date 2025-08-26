@@ -279,15 +279,14 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             randomAlphaOfLengthBetween(1, 10)
         );
         List<Step> steps = action.toSteps(client, phase, nextStepKey);
-        assertThat(steps.size(), equalTo(action.getAllowWriteAfterShrink() ? 20 : 19));
+        assertThat(steps.size(), equalTo(action.getAllowWriteAfterShrink() ? 19 : 18));
         StepKey preShrinkBranchingKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, ShrinkAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, ShrinkAction.NAME, WaitForNoFollowersStep.NAME);
         StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, ShrinkAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, ShrinkAction.NAME, ReadOnlyAction.NAME);
         StepKey checkTargetShardsCountKey = new StepKey(phase, ShrinkAction.NAME, CheckTargetShardsCountStep.NAME);
-        StepKey oldCleanupShrinkIndexKey = new StepKey(phase, ShrinkAction.NAME, CleanupGeneratedIndexStep.OLD_NAME);
-        StepKey cleanupShrinkIndexKey = new StepKey(phase, ShrinkAction.NAME, CleanupGeneratedIndexStep.NAME);
+        StepKey cleanupShrinkIndexKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CLEANUP_SHRINK_INDEX_STEP);
         StepKey generateShrinkIndexNameKey = new StepKey(phase, ShrinkAction.NAME, GenerateUniqueIndexNameStep.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, ShrinkAction.NAME, CheckShrinkReadyStep.NAME);
@@ -330,71 +329,67 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(5).getKey(), equalTo(checkTargetShardsCountKey));
         assertThat(steps.get(5).getNextStepKey(), equalTo(cleanupShrinkIndexKey));
 
-        assertTrue(steps.get(6) instanceof NoopStep);
-        assertThat(steps.get(6).getKey(), equalTo(oldCleanupShrinkIndexKey));
-        assertThat(steps.get(6).getNextStepKey(), equalTo(cleanupShrinkIndexKey));
+        assertTrue(steps.get(6) instanceof CleanupGeneratedIndexStep);
+        assertThat(steps.get(6).getKey(), equalTo(cleanupShrinkIndexKey));
+        assertThat(steps.get(6).getNextStepKey(), equalTo(generateShrinkIndexNameKey));
 
-        assertTrue(steps.get(7) instanceof CleanupGeneratedIndexStep);
-        assertThat(steps.get(7).getKey(), equalTo(cleanupShrinkIndexKey));
-        assertThat(steps.get(7).getNextStepKey(), equalTo(generateShrinkIndexNameKey));
+        assertTrue(steps.get(7) instanceof GenerateUniqueIndexNameStep);
+        assertThat(steps.get(7).getKey(), equalTo(generateShrinkIndexNameKey));
+        assertThat(steps.get(7).getNextStepKey(), equalTo(setSingleNodeKey));
 
-        assertTrue(steps.get(8) instanceof GenerateUniqueIndexNameStep);
-        assertThat(steps.get(8).getKey(), equalTo(generateShrinkIndexNameKey));
-        assertThat(steps.get(8).getNextStepKey(), equalTo(setSingleNodeKey));
+        assertTrue(steps.get(8) instanceof SetSingleNodeAllocateStep);
+        assertThat(steps.get(8).getKey(), equalTo(setSingleNodeKey));
+        assertThat(steps.get(8).getNextStepKey(), equalTo(allocationRoutedKey));
 
-        assertTrue(steps.get(9) instanceof SetSingleNodeAllocateStep);
-        assertThat(steps.get(9).getKey(), equalTo(setSingleNodeKey));
-        assertThat(steps.get(9).getNextStepKey(), equalTo(allocationRoutedKey));
+        assertTrue(steps.get(9) instanceof ClusterStateWaitUntilThresholdStep);
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(9)).getStepToExecute(), is(instanceOf(CheckShrinkReadyStep.class)));
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(9)).getNextKeyOnThreshold(), is(setSingleNodeKey));
+        assertThat(steps.get(9).getKey(), equalTo(allocationRoutedKey));
+        assertThat(steps.get(9).getNextStepKey(), equalTo(shrinkKey));
 
-        assertTrue(steps.get(10) instanceof ClusterStateWaitUntilThresholdStep);
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(10)).getStepToExecute(), is(instanceOf(CheckShrinkReadyStep.class)));
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(10)).getNextKeyOnThreshold(), is(setSingleNodeKey));
-        assertThat(steps.get(10).getKey(), equalTo(allocationRoutedKey));
-        assertThat(steps.get(10).getNextStepKey(), equalTo(shrinkKey));
+        assertTrue(steps.get(10) instanceof ShrinkStep);
+        assertThat(steps.get(10).getKey(), equalTo(shrinkKey));
+        assertThat(steps.get(10).getNextStepKey(), equalTo(enoughShardsKey));
 
-        assertTrue(steps.get(11) instanceof ShrinkStep);
-        assertThat(steps.get(11).getKey(), equalTo(shrinkKey));
-        assertThat(steps.get(11).getNextStepKey(), equalTo(enoughShardsKey));
-
-        assertTrue(steps.get(12) instanceof ClusterStateWaitUntilThresholdStep);
-        assertThat(steps.get(12).getKey(), equalTo(enoughShardsKey));
-        assertThat(steps.get(12).getNextStepKey(), equalTo(copyMetadataKey));
+        assertTrue(steps.get(11) instanceof ClusterStateWaitUntilThresholdStep);
+        assertThat(steps.get(11).getKey(), equalTo(enoughShardsKey));
+        assertThat(steps.get(11).getNextStepKey(), equalTo(copyMetadataKey));
         assertThat(
-            ((ClusterStateWaitUntilThresholdStep) steps.get(12)).getStepToExecute(),
+            ((ClusterStateWaitUntilThresholdStep) steps.get(11)).getStepToExecute(),
             is(instanceOf(ShrunkShardsAllocatedStep.class))
         );
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(12)).getNextKeyOnThreshold(), is(cleanupShrinkIndexKey));
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(11)).getNextKeyOnThreshold(), is(cleanupShrinkIndexKey));
 
-        assertTrue(steps.get(13) instanceof CopyExecutionStateStep);
-        assertThat(steps.get(13).getKey(), equalTo(copyMetadataKey));
-        assertThat(steps.get(13).getNextStepKey(), equalTo(dataStreamCheckBranchingKey));
+        assertTrue(steps.get(12) instanceof CopyExecutionStateStep);
+        assertThat(steps.get(12).getKey(), equalTo(copyMetadataKey));
+        assertThat(steps.get(12).getNextStepKey(), equalTo(dataStreamCheckBranchingKey));
 
-        assertTrue(steps.get(14) instanceof BranchingStep);
-        assertThat(steps.get(14).getKey(), equalTo(dataStreamCheckBranchingKey));
-        expectThrows(IllegalStateException.class, () -> steps.get(14).getNextStepKey());
-        assertThat(((BranchingStep) steps.get(14)).getNextStepKeyOnFalse(), equalTo(aliasKey));
-        assertThat(((BranchingStep) steps.get(14)).getNextStepKeyOnTrue(), equalTo(replaceDataStreamIndexKey));
+        assertTrue(steps.get(13) instanceof BranchingStep);
+        assertThat(steps.get(13).getKey(), equalTo(dataStreamCheckBranchingKey));
+        expectThrows(IllegalStateException.class, () -> steps.get(13).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(13)).getNextStepKeyOnFalse(), equalTo(aliasKey));
+        assertThat(((BranchingStep) steps.get(13)).getNextStepKeyOnTrue(), equalTo(replaceDataStreamIndexKey));
 
-        assertTrue(steps.get(15) instanceof ShrinkSetAliasStep);
-        assertThat(steps.get(15).getKey(), equalTo(aliasKey));
-        assertThat(steps.get(15).getNextStepKey(), equalTo(isShrunkIndexKey));
+        assertTrue(steps.get(14) instanceof ShrinkSetAliasStep);
+        assertThat(steps.get(14).getKey(), equalTo(aliasKey));
+        assertThat(steps.get(14).getNextStepKey(), equalTo(isShrunkIndexKey));
 
-        assertTrue(steps.get(16) instanceof ShrunkenIndexCheckStep);
-        assertThat(steps.get(16).getKey(), equalTo(isShrunkIndexKey));
-        assertThat(steps.get(16).getNextStepKey(), equalTo(action.getAllowWriteAfterShrink() ? allowWriteKey : nextStepKey));
+        assertTrue(steps.get(15) instanceof ShrunkenIndexCheckStep);
+        assertThat(steps.get(15).getKey(), equalTo(isShrunkIndexKey));
+        assertThat(steps.get(15).getNextStepKey(), equalTo(action.getAllowWriteAfterShrink() ? allowWriteKey : nextStepKey));
 
-        assertTrue(steps.get(17) instanceof ReplaceDataStreamBackingIndexStep);
-        assertThat(steps.get(17).getKey(), equalTo(replaceDataStreamIndexKey));
-        assertThat(steps.get(17).getNextStepKey(), equalTo(deleteIndexKey));
+        assertTrue(steps.get(16) instanceof ReplaceDataStreamBackingIndexStep);
+        assertThat(steps.get(16).getKey(), equalTo(replaceDataStreamIndexKey));
+        assertThat(steps.get(16).getNextStepKey(), equalTo(deleteIndexKey));
 
-        assertTrue(steps.get(18) instanceof DeleteStep);
-        assertThat(steps.get(18).getKey(), equalTo(deleteIndexKey));
-        assertThat(steps.get(18).getNextStepKey(), equalTo(isShrunkIndexKey));
+        assertTrue(steps.get(17) instanceof DeleteStep);
+        assertThat(steps.get(17).getKey(), equalTo(deleteIndexKey));
+        assertThat(steps.get(17).getNextStepKey(), equalTo(isShrunkIndexKey));
 
         if (action.getAllowWriteAfterShrink()) {
-            assertTrue(steps.get(19) instanceof UpdateSettingsStep);
-            assertThat(steps.get(19).getKey(), equalTo(allowWriteKey));
-            assertThat(steps.get(19).getNextStepKey(), equalTo(nextStepKey));
+            assertTrue(steps.get(18) instanceof UpdateSettingsStep);
+            assertThat(steps.get(18).getKey(), equalTo(allowWriteKey));
+            assertThat(steps.get(18).getNextStepKey(), equalTo(nextStepKey));
         }
     }
 

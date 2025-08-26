@@ -10,16 +10,19 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-def fwcVersions = buildParams.bwcVersions.released.findAll { it.major == VersionProperties.elasticsearchVersion.major &&  it.minor == VersionProperties.elasticsearchVersion.minor }
+def fwcVersions = buildParams.bwcVersions.released.findAll { it.major == VersionProperties.elasticsearchVersion.major && it.minor == VersionProperties.elasticsearchVersion.minor }
 def previousMinorSnapshot = buildParams.bwcVersions.unreleased.find { it.major == VersionProperties.elasticsearchVersion.major && it.minor == VersionProperties.elasticsearchVersion.minor - 1 }
 
 fwcVersions.each { fwcVersion ->
-  tasks.register("v${fwcVersion}#fwcTest", StandaloneRestIntegTestTask) {
-    usesBwcDistribution(previousMinorSnapshot)
-    usesBwcDistribution(fwcVersion)
-    systemProperty("tests.old_cluster_version", previousMinorSnapshot)
-    systemProperty("tests.new_cluster_version", fwcVersion)
-    nonInputProperties.systemProperty 'tests.fwc', 'true'
+  // There might be no previous minor snapshot if development of the previous minor version has been completed
+  if (previousMinorSnapshot != null) {
+    tasks.register("v${fwcVersion}#fwcTest", StandaloneRestIntegTestTask) {
+      usesBwcDistribution(previousMinorSnapshot)
+      usesBwcDistribution(fwcVersion)
+      systemProperty("tests.old_cluster_version", previousMinorSnapshot)
+      systemProperty("tests.new_cluster_version", fwcVersion)
+      nonInputProperties.systemProperty 'tests.fwc', 'true'
+    }
   }
 }
 

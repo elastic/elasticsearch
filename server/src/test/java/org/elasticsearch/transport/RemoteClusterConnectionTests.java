@@ -461,7 +461,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 if (hasClusterCredentials) {
                     final MockSecureSettings secureSettings = new MockSecureSettings();
                     secureSettings.setString(
-                        RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
                         randomAlphaOfLength(20)
                     );
                     settings = Settings.builder().put(settings).setSecureSettings(secureSettings).build();
@@ -657,7 +657,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 if (hasClusterCredentials) {
                     final MockSecureSettings secureSettings = new MockSecureSettings();
                     secureSettings.setString(
-                        RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
                         randomAlphaOfLength(20)
                     );
                     settings = Settings.builder().put(settings).setSecureSettings(secureSettings).build();

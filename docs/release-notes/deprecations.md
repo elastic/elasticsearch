@@ -17,15 +17,36 @@ To give you insight into what deprecated features you’re using, {{es}}:
 % ## Next version [elasticsearch-nextversion-deprecations]
 
 ```{applies_to}
-stack: coming 9.1.1
+stack: coming 9.1.3
 ```
+## 9.1.3 [elasticsearch-9.1.3-deprecations]
+
+Authorization:
+* Change `reporting_user` role to leverage reserved kibana privileges [#132766](https://github.com/elastic/elasticsearch/pull/132766)
+
+```{applies_to}
+stack: coming 9.0.6
+```
+## 9.0.6 [elasticsearch-9.0.6-deprecations]
+
+Authorization:
+* Change `reporting_user` role to leverage reserved kibana privileges [#132766](https://github.com/elastic/elasticsearch/pull/132766)
+
+## 9.1.2 [elasticsearch-9.1.2-deprecations]
+
+No deprecations in this version.
+
+## 9.0.5 [elasticsearch-9.0.5-deprecations]
+
+No deprecations in this version.
+
 ## 9.1.1 [elasticsearch-9.1.1-deprecations]
 
-There are no deprecations associated with this release.
+No deprecations in this version.
 
 ## 9.1.0 [elasticsearch-9.1.0-deprecations]
 
-There are no deprecations associated with this release.
+No deprecations in this version.
 
 ## 9.0.4 [elasticsearch-9.0.4-deprecations]
 

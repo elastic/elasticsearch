@@ -42,6 +42,7 @@ public class BlobCacheMetrics {
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
+    private final LongCounter epochChanges;
 
     public enum CachePopulationReason {
         /**
@@ -98,7 +99,8 @@ public class BlobCacheMetrics {
                 "es.blob_cache.population.time.total",
                 "The time spent copying data into the cache",
                 "milliseconds"
-            )
+            ),
+            meterRegistry.registerLongCounter("es.blob_cache.epoch.total", "The epoch changes of the LFU cache", "count")
         );
 
         meterRegistry.registerLongGauge(
@@ -134,7 +136,8 @@ public class BlobCacheMetrics {
         LongHistogram cacheMissLoadTimes,
         DoubleHistogram cachePopulationThroughput,
         LongCounter cachePopulationBytes,
-        LongCounter cachePopulationTime
+        LongCounter cachePopulationTime,
+        LongCounter epochChanges
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
@@ -143,6 +146,7 @@ public class BlobCacheMetrics {
         this.cachePopulationThroughput = cachePopulationThroughput;
         this.cachePopulationBytes = cachePopulationBytes;
         this.cachePopulationTime = cachePopulationTime;
+        this.epochChanges = epochChanges;
     }
 
     public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -199,6 +203,10 @@ public class BlobCacheMetrics {
         } else {
             logger.warn("Zero-time copy being reported, ignoring");
         }
+    }
+
+    public void recordEpochChange() {
+        epochChanges.increment();
     }
 
     public void recordRead() {

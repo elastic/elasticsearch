@@ -306,7 +306,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch-pull-request-performance-benchmark
+  name: buildkite-pipeline-elasticsearch-pull-request-perf-benchmark
   description: Elasticsearch pull request performance benchmark
   links:
     - title: Pipeline
@@ -323,7 +323,7 @@ spec:
       name: elasticsearch / pull-request / performance-benchmark
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/pipelines/pull-request/performance-benchmark.yml
+      pipeline_file: .buildkite/pipelines/pull-request-performance-benchmark.yml
       env:
         ELASTIC_PR_COMMENTS_ENABLED: "true"
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"

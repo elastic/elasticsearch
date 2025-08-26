@@ -345,7 +345,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testUnifiedCompletionNonStreamingNotFoundError() throws Exception {
+    public void testUnifiedCompletionStreamingNotFoundError() throws Exception {
         String responseJson = """
             {
                 "detail": "Not Found"

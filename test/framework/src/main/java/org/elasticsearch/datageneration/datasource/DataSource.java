@@ -46,7 +46,12 @@ public class DataSource {
                 return response;
             }
         }
-
-        throw new IllegalStateException("Request is not supported by data source");
+        throw new IllegalStateException(
+            "Request is not supported by data source. Request: "
+                + request.toString()
+                + "\n"
+                + "Available handlers: "
+                + handlers.stream().map(Object::getClass).map(Class::getName).toList().toString()
+        );
     }
 }

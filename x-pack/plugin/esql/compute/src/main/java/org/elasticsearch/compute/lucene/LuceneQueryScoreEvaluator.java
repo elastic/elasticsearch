@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -60,7 +61,8 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleBlock.
     }
 
     @Override
-    protected void appendMatch(DoubleBlock.Builder builder, Scorable scorer) throws IOException {
+    protected void appendMatch(DoubleBlock.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
+        throws IOException {
         builder.appendDouble(scorer.score());
     }
 

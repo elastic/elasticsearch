@@ -43,7 +43,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -70,6 +69,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -107,7 +107,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
 
-            assertThat(bitSet2, Matchers.sameInstance(bitSet1));
+            assertThat(bitSet2, sameInstance(bitSet1));
         });
     }
 
@@ -276,7 +276,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 assertThat(bitSet2, notNullValue());
 
                 // Loop until the cache has less than 2 items, which mean that something we evicted
-                assertThat(cache.entryCount(), Matchers.lessThan(2));
+                assertThat(cache.entryCount(), lessThan(2));
 
             }, 100, TimeUnit.MILLISECONDS);
 

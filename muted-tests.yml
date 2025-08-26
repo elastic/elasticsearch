@@ -672,6 +672,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
   method: testShardDataPartitioning
   issue: https://github.com/elastic/elasticsearch/issues/133574
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testIntBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133596
 
 # Examples:
 #

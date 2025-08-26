@@ -478,7 +478,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     private static double decayDateLinear(long origin, long scale, long offset, double decay, long value) {
         double scaling = scale / (1.0 - decay);
 
-        // TODO: double-check
         long diff = (value >= origin) ? (value - origin) : (origin - value);
         long distance = Math.max(0, diff - offset);
         return Math.max(0.0, (scaling - distance) / scaling);

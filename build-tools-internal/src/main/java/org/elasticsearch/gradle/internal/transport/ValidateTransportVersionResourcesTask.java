@@ -16,6 +16,7 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
@@ -50,6 +51,9 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getReferencesFiles();
+
+    @Input
+    public abstract Property<Boolean> getShouldValidateDensity();
 
     private record IdAndDefinition(TransportVersionId id, TransportVersionDefinition definition) {}
 
@@ -244,7 +248,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
                 );
             }
 
-            if (previous.id().complete() - 1 != current.id().complete()) {
+            if (getShouldValidateDensity().get() && previous.id().complete() - 1 != current.id().complete()) {
                 throw new IllegalStateException(
                     "Transport version base id " + base + " is missing patch ids between " + current.id() + " and " + previous.id()
                 );

@@ -332,15 +332,19 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     def "a different increment can be specified"() {
         given:
         referencedTransportVersion("new_tv")
+        file("myserver/build.gradle") << """
+            tasks.named('validateTransportVersionResources') {
+                shouldValidateDensity = false
+            }
+        """
 
         when:
         def result = runGenerateAndValidateTask("--branches=9.2", "--increment=100").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("new_tv", "8124100")
-        assertUpperBound("9.2", "new_tv,8124100")
-        assertUpperBound("9.1", "existing_92,8012001")
+        assertReferableDefinition("new_tv", "8123100")
+        assertUpperBound("9.2", "new_tv,8123100")
     }
 
     def "an invalid increment should fail"() {

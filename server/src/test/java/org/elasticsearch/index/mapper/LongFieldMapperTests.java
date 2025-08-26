@@ -114,6 +114,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         if (randomBoolean()) {
             return randomDouble();
         }
+        // TODO: increase the range back to full LONG range once https://github.com/elastic/elasticsearch/issues/132893 is fixed
         return randomDoubleBetween(-MAX_SAFE_LONG_FOR_DOUBLE, MAX_SAFE_LONG_FOR_DOUBLE, true);
     }
 

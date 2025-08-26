@@ -579,14 +579,12 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private EvalOperator.ExpressionEvaluator.Factory getDefaultOffset() {
-        EvalOperator.ExpressionEvaluator.Factory offsetFactory;
-        offsetFactory = switch (value.dataType()) {
+        return switch (value.dataType()) {
             case INTEGER, LONG, DOUBLE -> EvalOperator.DoubleFactory(DEFAULT_NUMERIC_OFFSET);
             case GEO_POINT -> EvalOperator.BytesRefFactory(DEFAULT_GEO_POINT_OFFSET);
             case CARTESIAN_POINT -> EvalOperator.DoubleFactory(DEFAULT_CARTESIAN_POINT_OFFSET);
             case DATETIME, DATE_NANOS -> EvalOperator.LongFactory(DEFAULT_TEMPORAL_OFFSET);
             default -> throw new UnsupportedOperationException("Unsupported data type: " + value.dataType());
         };
-        return offsetFactory;
     }
 }

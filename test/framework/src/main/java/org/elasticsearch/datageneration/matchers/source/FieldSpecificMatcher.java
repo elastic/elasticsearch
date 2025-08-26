@@ -55,7 +55,7 @@ interface FieldSpecificMatcher {
                 put("unsigned_long", new UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("integer", new IntegerMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("short", new ShortMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("byte", new ByteMatcher( actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("byte", new ByteMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("double", new DoubleMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("float", new FloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("half_float", new HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
@@ -409,7 +409,12 @@ interface FieldSpecificMatcher {
     }
 
     class LongMatcher extends NumberMatcher {
-        LongMatcher(XContentBuilder actualMappings, Settings.Builder actualSettings, XContentBuilder expectedMappings, Settings.Builder expectedSettings) {
+        LongMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
             super(FieldType.LONG, actualMappings, actualSettings, expectedMappings, expectedSettings);
         }
 
@@ -420,7 +425,12 @@ interface FieldSpecificMatcher {
     }
 
     class IntegerMatcher extends NumberMatcher {
-        IntegerMatcher(XContentBuilder actualMappings, Settings.Builder actualSettings, XContentBuilder expectedMappings, Settings.Builder expectedSettings) {
+        IntegerMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
             super(FieldType.INTEGER, actualMappings, actualSettings, expectedMappings, expectedSettings);
         }
 
@@ -431,7 +441,12 @@ interface FieldSpecificMatcher {
     }
 
     class ShortMatcher extends NumberMatcher {
-        ShortMatcher(XContentBuilder actualMappings, Settings.Builder actualSettings, XContentBuilder expectedMappings, Settings.Builder expectedSettings) {
+        ShortMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
             super(FieldType.SHORT, actualMappings, actualSettings, expectedMappings, expectedSettings);
         }
 
@@ -442,7 +457,12 @@ interface FieldSpecificMatcher {
     }
 
     class ByteMatcher extends NumberMatcher {
-        ByteMatcher(XContentBuilder actualMappings, Settings.Builder actualSettings, XContentBuilder expectedMappings, Settings.Builder expectedSettings) {
+        ByteMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
             super(FieldType.BYTE, actualMappings, actualSettings, expectedMappings, expectedSettings);
         }
 
@@ -453,7 +473,12 @@ interface FieldSpecificMatcher {
     }
 
     class DoubleMatcher extends NumberMatcher {
-        DoubleMatcher(XContentBuilder actualMappings, Settings.Builder actualSettings, XContentBuilder expectedMappings, Settings.Builder expectedSettings) {
+        DoubleMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
             super(FieldType.DOUBLE, actualMappings, actualSettings, expectedMappings, expectedSettings);
         }
 
@@ -464,7 +489,12 @@ interface FieldSpecificMatcher {
     }
 
     class FloatMatcher extends NumberMatcher {
-        FloatMatcher(XContentBuilder actualMappings, Settings.Builder actualSettings, XContentBuilder expectedMappings, Settings.Builder expectedSettings) {
+        FloatMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
             super(FieldType.FLOAT, actualMappings, actualSettings, expectedMappings, expectedSettings);
         }
 

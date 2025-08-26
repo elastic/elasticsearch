@@ -327,9 +327,15 @@ interface FieldSpecificMatcher {
                         yield nullValueBigInt;
                     }
 
-                    yield s;
+                    try {
+                        yield new BigInteger(s);
+                    } catch (NumberFormatException e) {
+                        // malformed
+                        yield value;
+                    }
                 }
                 case Long l -> BigInteger.valueOf(l);
+                case Integer i -> BigInteger.valueOf(i);
                 default -> value;
             };
 

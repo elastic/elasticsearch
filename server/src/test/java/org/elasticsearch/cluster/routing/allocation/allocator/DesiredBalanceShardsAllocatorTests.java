@@ -19,17 +19,23 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ThreadPoolUsageStats;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -769,6 +775,138 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 desiredBalanceComputer.lastComputationInput.get(),
                 equalTo(new DesiredBalance(current.lastConvergedIndex(), Map.of()))
             );
+        } finally {
+            clusterService.close();
+            terminate(threadPool);
+        }
+    }
+
+    public void testComputePreserveChangesFromPreviousDesiredBalance() {
+        final var firstNode = newNode("node-1");
+        final var secondNode = newNode("node-2");
+        final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().add(firstNode).add(secondNode);
+        discoveryNodesBuilder.localNodeId(firstNode.getId()).masterNodeId(firstNode.getId());
+
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        final var indexMetadata = createIndex("test-index");
+        final var shardId = new ShardId(indexMetadata.getIndex(), 0);
+        projectBuilder.put(indexMetadata, false);
+        final ShardRouting shardRouting = ShardRoutingHelper.moveToStarted(
+            ShardRoutingHelper.initialize(
+                ShardRouting.newUnassigned(
+                    shardId,
+                    true,
+                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "new index"),
+                    ShardRouting.Role.DEFAULT
+                ),
+                firstNode.getId()
+            )
+        );
+        routingTableBuilder.add(IndexRoutingTable.builder(shardId.getIndex()).addShard(shardRouting).build());
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .metadata(Metadata.builder().put(projectBuilder))
+            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
+            .build();
+
+        var threadPool = new TestThreadPool(getTestName());
+        var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+
+        final var relocated = new AtomicBoolean(false);
+        final AtomicReference<ClusterInfo> clusterInfoUsedByAllocator = new AtomicReference<>();
+        var delegateAllocator = new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                allocation.routingNodes().setBalanceWeightStatsPerNode(Map.of());
+                clusterInfoUsedByAllocator.set(allocation.clusterInfo());
+                if (relocated.compareAndSet(false, true)) {
+                    logger.info("--> relocating shard [{}]", shardId);
+                    final ShardRouting shardRouting = allocation.routingTable(ProjectId.DEFAULT).shardRoutingTable(shardId).primaryShard();
+                    allocation.routingNodes().relocateShard(shardRouting, secondNode.getId(), 100, "test", allocation.changes());
+                }
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        };
+
+        var clusterSettings = createBuiltInClusterSettings();
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator);
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            delegateAllocator,
+            threadPool,
+            clusterService,
+            desiredBalanceComputer,
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
+        ) {
+            @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+                // Do not reconcile anything
+            }
+        };
+
+        // A fixed clusterInfo from one polling cycle
+        final Map<String, NodeUsageStatsForThreadPools> initialThreadPoolStats = Map.of(
+            firstNode.getId(),
+            new NodeUsageStatsForThreadPools(firstNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 10.0f, 30))),
+            secondNode.getId(),
+            new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 0.0f, 0)))
+        );
+        final ClusterInfo initialClusterInfo = ClusterInfo.builder()
+            .shardWriteLoads(Map.of(shardId, 10.0d))
+            .nodeUsageStatsForThreadPools(initialThreadPoolStats)
+            .build();
+
+        var service = new AllocationService(
+            new AllocationDeciders(List.of()),
+            createGatewayAllocator(),
+            desiredBalanceShardsAllocator,
+            () -> initialClusterInfo,
+            () -> SnapshotShardSizeInfo.EMPTY,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
+
+        try {
+            rerouteAndWait(service, clusterState, "first-allocation-call");
+            final DesiredBalance desiredBalance = desiredBalanceShardsAllocator.getDesiredBalance();
+            assertNotNull(desiredBalance.assignments().get(shardId));
+
+            // When compute ends, the last cluster info it uses is an updated one different from the initial one
+            final ClusterInfo updatedClusterInfo = clusterInfoUsedByAllocator.get();
+            assertThat(updatedClusterInfo, not(equalTo(initialClusterInfo)));
+            // Updated thread pool stats reflect the shard movement
+            final var fistNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()
+                .get(firstNode.getId())
+                .threadPoolUsageStatsMap()
+                .get("write");
+            // First node has reduced utilization and zero latency since a shard is moved away
+            assertThat(
+                fistNodeUpdatedStats.averageThreadPoolUtilization(),
+                equalTo(
+                    initialThreadPoolStats.get(firstNode.getId()).threadPoolUsageStatsMap().get("write").averageThreadPoolUtilization()
+                        - 1.0f
+                )
+            );
+            assertThat(fistNodeUpdatedStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
+
+            // Second node has increased utilization since a shard moved onto it. Latency does not change for incoming shards
+            final var secondNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()
+                .get(secondNode.getId())
+                .threadPoolUsageStatsMap()
+                .get("write");
+            assertThat(secondNodeUpdatedStats.averageThreadPoolUtilization(), equalTo(1.0f));
+            assertThat(secondNodeUpdatedStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
+
+            // Compute again and the cluster info used is recomputed again based on the previous balance
+            rerouteAndWait(service, clusterState, "second-allocation-call");
+            assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
         } finally {
             clusterService.close();
             terminate(threadPool);

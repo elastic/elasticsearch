@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -145,7 +145,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                 maxMatches,
                 (searchResponseActionListener) -> originClient.execute(
                     EnrichCoordinatorProxyAction.INSTANCE,
-                    reqSupplier.get(),
+                    reqSupplier.apply(concreteEnrichIndex),
                     searchResponseActionListener
                 ),
                 ActionListener.wrap(resp -> handler.accept(resp, null), e -> handler.accept(null, e))
@@ -165,7 +165,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         void accept(
             Object value,
             int maxMatches,
-            Supplier<SearchRequest> searchRequestSupplier,
+            Function<String, SearchRequest> searchRequestBuilder,
             BiConsumer<List<Map<?, ?>>, Exception> handler
         );
     }

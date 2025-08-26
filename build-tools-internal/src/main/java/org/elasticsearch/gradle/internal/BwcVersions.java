@@ -95,12 +95,11 @@ public class BwcVersions implements Serializable {
     }
 
     private Map<Version, UnreleasedVersionInfo> filterOutIncompatibleVersions(Map<Version, UnreleasedVersionInfo> unreleasedVersions) {
-        return unreleasedVersions.entrySet().stream()
-            .filter(entry -> {
-                var version = entry.getKey();
-                // Exclude version 8.19 which is not backward compatible with 9.0
-                return (version.getMajor() == 8 && version.getMinor() == 19) == false;
-            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        return unreleasedVersions.entrySet().stream().filter(entry -> {
+            var version = entry.getKey();
+            // Exclude version 8.19 which is not backward compatible with 9.0
+            return (version.getMajor() == 8 && version.getMinor() == 19) == false;
+        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**

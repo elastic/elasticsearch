@@ -1704,10 +1704,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             int maxSizeOfShardDeleteResults = calculateMaximumShardDeleteResultsSize();
 
             if (maxSizeOfShardDeleteResults > 0) {
-                this.shardDeleteResults = new ReleasableBytesStreamOutput(
-                    bigArrays,
-                    maxSizeOfShardDeleteResults
-                );
+                this.shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays, maxSizeOfShardDeleteResults);
                 this.compressed = new OutputStreamStreamOutput(
                     new BufferedOutputStream(
                         new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),

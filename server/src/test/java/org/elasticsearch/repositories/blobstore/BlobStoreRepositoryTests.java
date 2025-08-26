@@ -75,9 +75,11 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -111,10 +113,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
-
-import org.mockito.Mockito;
-
-import java.lang.management.MemoryUsage;
 
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.
@@ -963,7 +961,16 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     // This class is used to test ShardBlobsToDelete by overriding the MemoryMXBean
     private class TestBlobStoreRepository extends BlobStoreRepository {
-        protected TestBlobStoreRepository(ProjectId projectId, RepositoryMetadata metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings, BlobPath basePath, SnapshotMetrics snapshotMetrics) {
+        protected TestBlobStoreRepository(
+            ProjectId projectId,
+            RepositoryMetadata metadata,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            BlobPath basePath,
+            SnapshotMetrics snapshotMetrics
+        ) {
             super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 

@@ -508,6 +508,10 @@ public enum DataType {
         return t == TIME_DURATION;
     }
 
+    public static boolean isDateNanos(DataType t){
+        return t == DATE_NANOS;
+    }
+
     public static boolean isNullOrTimeDuration(DataType t) {
         return t == TIME_DURATION || isNull(t);
     }

@@ -305,19 +305,29 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         EvalOperator.ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
         EvalOperator.ExpressionEvaluator.Factory originFactory = toEvaluator.apply(origin);
 
-        // Handle temporal scale conversion - fold temporal amounts to milliseconds
+        DataType valueDataType = value.dataType();
+
+        // Handle temporal scale conversion - fold temporal amounts to milliseconds or nanos depending on the value type
         EvalOperator.ExpressionEvaluator.Factory scaleFactory;
         if (isTimeDuration(scale.dataType())) {
-            scaleFactory = getTemporalScaleAsMillis(toEvaluator);
+            if(isDateNanos(valueDataType)){
+                scaleFactory = getTemporalScaleAsNanos(toEvaluator);
+            } else {
+                scaleFactory = getTemporalScaleAsMillis(toEvaluator);
+            }
         } else {
             scaleFactory = toEvaluator.apply(scale);
         }
 
-        // Handle temporal offset conversion - fold temporal amounts to milliseconds
+        // Handle temporal offset conversion - fold temporal amounts to milliseconds or nanos depending on the value type
         EvalOperator.ExpressionEvaluator.Factory offsetFactory;
         if (offset != null) {
             if (isTimeDuration(offset.dataType())) {
-                offsetFactory = getTemporalOffsetAsMillis(toEvaluator);
+                if(isDateNanos(valueDataType)){
+                    offsetFactory = getTemporalOffsetAsNanos(toEvaluator);
+                } else {
+                    offsetFactory = getTemporalOffsetAsMillis(toEvaluator);
+                }
             } else {
                 offsetFactory = toEvaluator.apply(offset);
             }
@@ -333,7 +343,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             ? toEvaluator.apply(type)
             : EvalOperator.BytesRefFactory(new BytesRef(DEFAULT_FUNCTION));
 
-        return switch (value.dataType()) {
+        return switch (valueDataType) {
             case INTEGER -> new DecayIntEvaluator.Factory(
                 source(),
                 valueFactory,
@@ -397,7 +407,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
                 decayFactory,
                 typeFactory
             );
-            default -> throw new UnsupportedOperationException("Unsupported data type: " + value.dataType());
+            default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
         };
     }
 
@@ -478,66 +488,44 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "Datetime", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
     static double processDatetime(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
-        ZonedDateTime dateTime = Instant.ofEpochMilli(value).atZone(ZoneOffset.UTC);
-
-        Duration scaleAmount = Duration.ofMillis(scale);
-        Duration offsetAmount = Duration.ofMillis(offset);
-
         return switch (functionType.utf8ToString()) {
-            case "exp" -> decayDateExp(origin, scaleAmount, offsetAmount, decay, dateTime);
-            case "gauss" -> decayDateGauss(origin, scaleAmount, offsetAmount, decay, dateTime);
-            default -> decayDateLinear(origin, scaleAmount, offsetAmount, decay, dateTime);
+            case "exp" -> decayDateExp(origin, scale, offset, decay, value);
+            case "gauss" -> decayDateGauss(origin, scale, offset, decay, value);
+            default -> decayDateLinear(origin, scale, offset, decay, value);
         };
     }
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
     static double processDateNanos(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
-        long millis = DateUtils.toMilliSeconds(value);
-        // TODO: UTC correct?
-        ZonedDateTime dateTime = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC);
-        long originMillis = DateUtils.toMilliSeconds(origin);
-
-        // TODO: nanosecond precision?
-        Duration scaleAmount = Duration.ofMillis(scale);
-        Duration offsetAmount = Duration.ofMillis(offset);
-
         return switch (functionType.utf8ToString()) {
-            case "exp" -> decayDateExp(originMillis, scaleAmount, offsetAmount, decay, dateTime);
-            case "gauss" -> decayDateGauss(originMillis, scaleAmount, offsetAmount, decay, dateTime);
-            default -> decayDateLinear(originMillis, scaleAmount, offsetAmount, decay, dateTime);
+            case "exp" -> decayDateExp(origin, scale, offset, decay, value);
+            case "gauss" -> decayDateGauss(origin, scale, offset, decay, value);
+            default -> decayDateLinear(origin, scale, offset, decay, value);
         };
     }
 
-    private static double decayDateLinear(long origin, Duration scale, Duration offset, double decay, ZonedDateTime docValueDate) {
-        long docValue = docValueDate.toInstant().toEpochMilli();
-        long offsetMillis = offset.toMillis();
-        long scaleMillis = scale.toMillis();
-        double scaling = scaleMillis / (1.0 - decay);
+    private static double decayDateLinear(long origin, long scale, long offset, double decay, long value) {
+        double scaling = scale / (1.0 - decay);
 
-        long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
-        long distance = Math.max(0, diff - offsetMillis);
+        // TODO: double-check
+        long diff = (value >= origin) ? (value - origin) : (origin - value);
+        long distance = Math.max(0, diff - offset);
         return Math.max(0.0, (scaling - distance) / scaling);
     }
 
-    private static double decayDateExp(long origin, Duration scale, Duration offset, double decay, ZonedDateTime docValueDate) {
-        long docValue = docValueDate.toInstant().toEpochMilli();
-        long offsetMillis = offset.toMillis();
-        long scaleMillis = scale.toMillis();
-        double scaling = Math.log(decay) / scaleMillis;
+    private static double decayDateExp(long origin, long scale, long offset, double decay, long value) {
+        double scaling = Math.log(decay) / scale;
 
-        long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
-        long distance = Math.max(0, diff - offsetMillis);
+        long diff = (value >= origin) ? (value - origin) : (origin - value);
+        long distance = Math.max(0, diff - offset);
         return Math.exp(scaling * distance);
     }
 
-    private static double decayDateGauss(long origin, Duration scale, Duration offset, double decay, ZonedDateTime docValueDate) {
-        long docValue = docValueDate.toInstant().toEpochMilli();
-        long offsetMillis = offset.toMillis();
-        long scaleMillis = scale.toMillis();
-        double scaling = 0.5 * Math.pow(scaleMillis, 2.0) / Math.log(decay);
+    private static double decayDateGauss(long origin, long scale, long offset, double decay, long value) {
+        double scaling = 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
 
-        long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
-        long distance = Math.max(0, diff - offsetMillis);
+        long diff = (value >= origin) ? (value - origin) : (origin - value);
+        long distance = Math.max(0, diff - offset);
         return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
     }
 
@@ -554,6 +542,18 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         return scaleFactory;
     }
 
+    private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsNanos(ToEvaluator toEvaluator) {
+        if (scale.foldable() == false) {
+            throw new IllegalArgumentException(
+                "Function [" + sourceText() + "] has non-constant temporal scale [" + scale.sourceText() + "]."
+            );
+        }
+        Object foldedScale = scale.fold(toEvaluator.foldCtx());
+        Duration scaleDuration = (Duration) foldedScale;
+        long scaleNanos = scaleDuration.toNanos();
+        return EvalOperator.LongFactory(scaleNanos);
+    }
+
     private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsMillis(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory offsetFactory;
         if (offset.foldable() == false) {
@@ -565,6 +565,19 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         long offsetMillis = ((Duration) foldedOffset).toMillis();
         offsetFactory = EvalOperator.LongFactory(offsetMillis);
         return offsetFactory;
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsNanos(ToEvaluator toEvaluator) {
+        if (offset.foldable() == false) {
+            throw new IllegalArgumentException(
+                "Function [" + sourceText() + "] has non-constant temporal offset [" + offset.sourceText() + "]."
+            );
+        }
+        Object foldedOffset = offset.fold(toEvaluator.foldCtx());
+        Duration offsetDuration = (Duration) foldedOffset;
+
+        long offsetNanos = offsetDuration.toNanos();
+        return EvalOperator.LongFactory(offsetNanos);
     }
 
     private EvalOperator.ExpressionEvaluator.Factory getDefaultOffset() {

@@ -81,14 +81,7 @@ dependencies {
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.22.2"
   runtimeOnly "com.nimbusds:content-type:2.3"
-  api project(path: xpackModule('security:lib:nimbus-jose-jwt-modified'), configuration: 'shadow')
-  if (isEclipse) {
-    /*
-     * Eclipse can't pick up the shadow dependency so we point it at the unmodified version of the library
-     * so it can compile things.
-     */
-    api "com.nimbusds:nimbus-jose-jwt:10.0.2"
-  }
+  api "com.nimbusds:nimbus-jose-jwt:10.0.2"
   api "com.nimbusds:lang-tag:1.7"
   api "com.sun.mail:jakarta.mail:1.6.8"
   api "net.jcip:jcip-annotations:1.0"

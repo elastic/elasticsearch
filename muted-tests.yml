@@ -672,6 +672,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
   issue: https://github.com/elastic/elasticsearch/issues/133508
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133516
 
 # Examples:
 #

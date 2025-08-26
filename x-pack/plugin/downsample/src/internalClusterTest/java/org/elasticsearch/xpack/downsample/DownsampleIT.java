@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
@@ -296,7 +297,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
             // tests on counter types
             // TODO: remove hard-coded pragmas
+            assumeTrue("query pragmas require snapshot build", Build.current().isSnapshot());
             var ratePragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build());
+
             for (String innerCommand : List.of("rate")) {
                 String command = outerCommand + " (" + innerCommand + "(request))";
                 String esqlQuery = "TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)";

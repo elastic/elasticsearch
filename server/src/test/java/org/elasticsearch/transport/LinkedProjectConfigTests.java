@@ -183,8 +183,10 @@ public class LinkedProjectConfigTests extends ESTestCase {
     }
 
     private static void assertChecksGreaterThanZero(BiFunction<LinkedProjectConfig.Builder, Integer, LinkedProjectConfig.Builder> setter) {
-        assertThrows(IllegalArgumentException.class, () -> setter.apply(LinkedProjectConfig.buildForAlias("alias"), 0));
-        assertThrows(IllegalArgumentException.class, () -> setter.apply(LinkedProjectConfig.buildForAlias("alias"), -1));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> setter.apply(LinkedProjectConfig.buildForAlias("alias"), -randomNonNegativeInt())
+        );
     }
 
     private static <T extends Throwable> void assertThrows(Class<T> exceptionClass, Consumer<LinkedProjectConfig.Builder> consumer) {

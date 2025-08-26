@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
@@ -72,21 +74,42 @@ public class EnrichPolicyChangeIT extends ESSingleNodeTestCase {
         // execute the policy once
         executeEnrichPolicy();
 
-        for (int i = 0; i < randomIntBetween(10, 100); i++) {
-            final String deviceName = "some.device." + randomAlphaOfLength(10);
+        // add a low priority cluster state applier to increase the odds of a race occurring between
+        // the cluster state *appliers* having been run (this adjusts the enrich index pointer) and the
+        // cluster state *listeners* having been run (which adjusts the alias and therefore the search results)
+        final var clusterService = node().injector().getInstance(ClusterService.class);
+        clusterService.addLowPriorityApplier((event) -> safeSleep(10));
 
-            // add a single document to the enrich index
-            setEnrichDeviceName(deviceName);
+        // kick off some threads that just bang on _simulate in the background
+        final var finished = new AtomicBoolean(false);
+        for (int i = 0; i < 5; i++) {
+            new Thread(() -> {
+                while (finished.get() == false) {
+                    simulatePipeline();
+                }
+            }).start();
+        }
 
-            // execute the policy
-            executeEnrichPolicy();
+        try {
+            for (int i = 0; i < randomIntBetween(10, 100); i++) {
+                final String deviceName = "some.device." + randomAlphaOfLength(10);
 
-            // simulate the pipeline and confirm that we see the expected result
-            assertBusy(() -> {
-                var result = simulatePipeline();
-                assertThat(result.getFailure(), nullValue());
-                assertThat(result.getIngestDocument().getFieldValue("device.name", String.class), equalTo(deviceName));
-            });
+                // add a single document to the enrich index
+                setEnrichDeviceName(deviceName);
+
+                // execute the policy
+                executeEnrichPolicy();
+
+                // simulate the pipeline and confirm that we see the expected result
+                assertBusy(() -> {
+                    var result = simulatePipeline();
+                    assertThat(result.getFailure(), nullValue());
+                    assertThat(result.getIngestDocument().getFieldValue("device.name", String.class), equalTo(deviceName));
+                });
+            }
+        } finally {
+            // we're finished, so those threads can all quit now
+            finished.set(true);
         }
     }
 

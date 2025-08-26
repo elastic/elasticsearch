@@ -84,7 +84,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
                 long count = 0;
                 for (Page p : results) {
                     assertThat(p.getBlockCount(), equalTo(2));
-                    checkSeen(p, true, equalTo(1));
+                    checkSeen(p, equalTo(1));
                     count += getCount(p);
                 }
                 if (limit < numDocs) {
@@ -110,7 +110,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
                 long count = 0;
                 for (Page p : results) {
                     assertThat(p.getBlockCount(), equalTo(2));
-                    checkSeen(p, true, equalTo(1));
+                    checkSeen(p, equalTo(1));
                     count += getCount(p);
                 }
                 assertThat(count, equalTo((long) Math.min(numDocs, 1)));
@@ -317,14 +317,11 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         return v.getLong(0);
     }
 
-    private static void checkSeen(Page p, boolean checkConstant, Matcher<Integer> positionCount) {
+    private static void checkSeen(Page p, Matcher<Integer> positionCount) {
         BooleanBlock b = p.getBlock(1);
         BooleanVector v = b.asVector();
         assertThat(v.getPositionCount(), positionCount);
-        if (checkConstant) {
-            // If the page is multivalued the DeepCopy process trashes that constant-ness, so we can't assert it.
-            assertThat(v.isConstant(), equalTo(true));
-        }
+        assertThat(v.isConstant(), equalTo(true));
         assertThat(v.getBoolean(0), equalTo(true));
     }
 
@@ -332,7 +329,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         Map<Integer, Long> totals = new TreeMap<>();
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(3));
-            checkSeen(page, false, greaterThanOrEqualTo(0));
+            checkSeen(page, greaterThanOrEqualTo(0));
             LongBlock countsBlock = page.getBlock(0);
             LongVector counts = countsBlock.asVector();
             IntBlock groupsBlock = page.getBlock(2);

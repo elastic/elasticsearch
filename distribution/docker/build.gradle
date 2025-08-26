@@ -113,7 +113,7 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
-  fips "org.bouncycastle:bc-fips:1.0.2.5"
+  fips "org.bouncycastle:bc-fips:1.0.2.6"
   fips "org.bouncycastle:bctls-fips:1.0.19"
 }
 

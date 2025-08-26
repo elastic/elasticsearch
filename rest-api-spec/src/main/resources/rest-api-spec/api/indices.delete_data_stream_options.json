@@ -1,7 +1,7 @@
 {
   "indices.delete_data_stream_options":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-delete-data-stream-options",
       "description":"Delete data stream options"
     },
     "stability": "stable",

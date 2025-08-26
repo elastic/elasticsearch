@@ -292,7 +292,7 @@ FROM sample_data
 | STATS reqs = COUNT(), max_dur = MAX(event_duration) BY day = TBUCKET(1d), client_ip, @timestamp
 | WHERE max_dur > 1000
 | STATS spikes = COUNT() BY hour = TBUCKET(1h), client_ip, day
-| SORT spikes DESC, hour
+| SORT spikes DESC, client_ip ASC
 ;
 
 spikes:long | hour:datetime            | client_ip:ip | day:datetime

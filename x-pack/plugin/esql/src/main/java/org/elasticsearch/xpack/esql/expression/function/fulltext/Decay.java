@@ -303,33 +303,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
         DataType valueDataType = value.dataType();
 
-        // Handle temporal scale conversion - fold temporal amounts to milliseconds or nanos depending on the value type
-        EvalOperator.ExpressionEvaluator.Factory scaleFactory;
-        if (isTimeDuration(scale.dataType())) {
-            if (isDateNanos(valueDataType)) {
-                scaleFactory = getTemporalScaleAsNanos(toEvaluator);
-            } else {
-                scaleFactory = getTemporalScaleAsMillis(toEvaluator);
-            }
-        } else {
-            scaleFactory = toEvaluator.apply(scale);
-        }
-
-        // Handle temporal offset conversion - fold temporal amounts to milliseconds or nanos depending on the value type
-        EvalOperator.ExpressionEvaluator.Factory offsetFactory;
-        if (offset != null) {
-            if (isTimeDuration(offset.dataType())) {
-                if (isDateNanos(valueDataType)) {
-                    offsetFactory = getTemporalOffsetAsNanos(toEvaluator);
-                } else {
-                    offsetFactory = getTemporalOffsetAsMillis(toEvaluator);
-                }
-            } else {
-                offsetFactory = toEvaluator.apply(offset);
-            }
-        } else {
-            offsetFactory = getDefaultOffset();
-        }
+        EvalOperator.ExpressionEvaluator.Factory scaleFactory = getScaleFactory(toEvaluator, valueDataType);
+        EvalOperator.ExpressionEvaluator.Factory offsetFactory = getOffsetFactory(toEvaluator, valueDataType);
 
         EvalOperator.ExpressionEvaluator.Factory decayFactory = decay != null
             ? toEvaluator.apply(decay)
@@ -405,6 +380,42 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             );
             default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
         };
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory getOffsetFactory(ToEvaluator toEvaluator, DataType valueDataType) {
+        EvalOperator.ExpressionEvaluator.Factory offsetFactory;
+        if (offset != null) {
+            // Handle temporal offset conversion - fold temporal amounts to milliseconds or nanos depending on the value type
+            if (isTimeDuration(offset.dataType())) {
+                if (isDateNanos(valueDataType)) {
+                    offsetFactory = getTemporalOffsetAsNanos(toEvaluator);
+                } else {
+                    offsetFactory = getTemporalOffsetAsMillis(toEvaluator);
+                }
+            } else {
+                offsetFactory = toEvaluator.apply(offset);
+            }
+        } else {
+            offsetFactory = getDefaultOffset();
+        }
+        return offsetFactory;
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory getScaleFactory(ToEvaluator toEvaluator, DataType valueDataType) {
+        EvalOperator.ExpressionEvaluator.Factory scaleFactory;
+
+        // Handle temporal scale conversion - fold temporal amounts to milliseconds or nanos depending on the value type
+        if (isTimeDuration(scale.dataType())) {
+            if (isDateNanos(valueDataType)) {
+                scaleFactory = getTemporalScaleAsNanos(toEvaluator);
+            } else {
+                scaleFactory = getTemporalScaleAsMillis(toEvaluator);
+            }
+        } else {
+            scaleFactory = toEvaluator.apply(scale);
+        }
+
+        return scaleFactory;
     }
 
     @Evaluator(extraName = "Int")

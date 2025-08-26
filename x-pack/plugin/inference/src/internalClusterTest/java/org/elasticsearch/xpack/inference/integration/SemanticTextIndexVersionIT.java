@@ -31,8 +31,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
-import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
@@ -68,8 +66,8 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
         );
         int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
-        Utils.storeSparseModel(modelRegistry);
-        Utils.storeDenseModel(modelRegistry, dimensions, similarity, elementType);
+        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
+        Utils.storeDenseModel("dense-endpoint", modelRegistry, dimensions, similarity, elementType);
 
         Set<IndexVersion> availableVersions = IndexVersionUtils.allReleasedVersions()
             .stream()
@@ -113,11 +111,11 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 .startObject("properties")
                 .startObject(SPARSE_SEMANTIC_FIELD)
                 .field("type", "semantic_text")
-                .field("inference_id", TestSparseInferenceServiceExtension.TestInferenceService.NAME)
+                .field("inference_id", "sparse-endpoint")
                 .endObject()
                 .startObject(DENSE_SEMANTIC_FIELD)
                 .field("type", "semantic_text")
-                .field("inference_id", TestDenseInferenceServiceExtension.TestInferenceService.NAME)
+                .field("inference_id", "dense-endpoint")
                 .endObject()
                 .endObject()
                 .endObject();

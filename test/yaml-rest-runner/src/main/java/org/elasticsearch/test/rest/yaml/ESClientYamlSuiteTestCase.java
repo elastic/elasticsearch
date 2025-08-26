@@ -227,7 +227,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Create parameters for this parameterized test.
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
-        return createParameters(executeableSectionRegistry, resolvePathsProperty(REST_TESTS_SUITE, ""));
+        return createParameters(executeableSectionRegistry, Map.of(), resolvePathsProperty(REST_TESTS_SUITE, ""));
     }
 
     /**
@@ -255,7 +255,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(String... testPaths) throws Exception {
-        return createParameters(Map.of(), testPaths);
+        if (System.getProperty(REST_TESTS_SUITE) != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), testPaths);
     }
 
     /**

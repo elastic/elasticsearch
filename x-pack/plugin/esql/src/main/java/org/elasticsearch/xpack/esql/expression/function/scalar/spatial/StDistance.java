@@ -241,15 +241,15 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
             The second parameter must also have the same coordinate system as the first.
             This means it is not possible to combine `geo_point` and `cartesian_point` parameters.""") Expression right
     ) {
-        super(source, left, right, false, false, true, false);
+        super(source, left, right, false, false, true);
     }
 
     protected StDistance(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
-        super(source, left, right, leftDocValues, rightDocValues, true, false);
+        super(source, left, right, leftDocValues, rightDocValues, true);
     }
 
     private StDistance(StreamInput in) throws IOException {
-        super(in, false, false, true, false);
+        super(in, false, false, true);
     }
 
     @Override

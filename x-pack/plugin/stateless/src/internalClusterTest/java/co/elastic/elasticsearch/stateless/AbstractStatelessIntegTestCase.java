@@ -248,15 +248,19 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return nodePlugins(addMockFsRepository(), multiProjectIntegrationTest());
+    }
+
+    public static Collection<Class<? extends Plugin>> nodePlugins(boolean addMockFsRepository, boolean multiProjectIntegrationTest) {
         var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.add(SystemIndexTestPlugin.class);
         plugins.add(BlobCachePlugin.class);
         plugins.add(Stateless.class);
         plugins.add(MockTransportService.TestPlugin.class);
-        if (addMockFsRepository()) {
+        if (addMockFsRepository) {
             plugins.add(ConcurrentMultiPartUploadsMockFsRepository.Plugin.class);
         }
-        if (multiProjectIntegrationTest()) {
+        if (multiProjectIntegrationTest) {
             plugins.add(ServerlessSecureSettingsPlugin.class);
             plugins.add(ServerlessMultiProjectPlugin.class);
         }

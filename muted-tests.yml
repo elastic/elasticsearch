@@ -678,6 +678,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/133517
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133518
 
 # Examples:
 #

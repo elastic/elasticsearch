@@ -83,14 +83,12 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(buckets);
-        out.writeNamedWriteable(timestamp);
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override

@@ -14,6 +14,6 @@ import java.util.List;
 public class GroupingWritables {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(Bucket.ENTRY, Categorize.ENTRY, TBucket.ENTRY);
+        return List.of(Bucket.ENTRY, Categorize.ENTRY);
     }
 }

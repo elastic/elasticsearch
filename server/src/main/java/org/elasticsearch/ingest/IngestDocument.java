@@ -1292,6 +1292,11 @@ public final class IngestDocument {
         private record Element(String fieldName, Integer arrayIndex) {
             private static final String EMPTY_STRING = "";
 
+            /**
+             * Creates a new FieldPath Element which corresponds to a regular part of a field path.
+             * @param fieldName name of the field to access, or a string to use for array indexing if running in CLASSIC access pattern.
+             * @return A field name element
+             */
             static Element field(String fieldName) {
                 Objects.requireNonNull(fieldName, "fieldName cannot be null");
                 if (fieldName.isEmpty()) {
@@ -1300,6 +1305,12 @@ public final class IngestDocument {
                 return new Element(fieldName, null);
             }
 
+            /**
+             * Creates a new FieldPath Element which corresponds to an array index specified by the square bracket syntax available
+             * when using the {@link IngestPipelineFieldAccessPattern#FLEXIBLE} access pattern.
+             * @param arrayIndex array index specified in square brackets
+             * @return An array index element
+             */
             static Element index(int arrayIndex) {
                 if (arrayIndex < 0) {
                     throw new IndexOutOfBoundsException(arrayIndex);
@@ -1307,15 +1318,31 @@ public final class IngestDocument {
                 return new Element(EMPTY_STRING, arrayIndex);
             }
 
+            /**
+             * @return true if this element is for accessing a regular field
+             */
             boolean isFieldName() {
                 return fieldName.isEmpty() == false && arrayIndex == null;
             }
 
+            /**
+             * @return true if this element is for an array index used for the FLEXIBLE access pattern
+             */
             boolean isArrayIndex() {
-                return fieldName.isEmpty() &&
+                return isFieldName() == false;
+            }
+
+            @Override
+            public String toString() {
+                return isFieldName() ? fieldName : "[" + arrayIndex + "]";
             }
         }
 
+        /**
+         * A compound cache key for tracking previously parsed field paths
+         * @param path The field path as given by the caller
+         * @param accessPattern The access pattern used to parse the field path
+         */
         private record CacheKey(String path, IngestPipelineFieldAccessPattern accessPattern) {}
 
         private static final int MAX_SIZE = 512;
@@ -1370,6 +1397,20 @@ public final class IngestDocument {
             if (pathParts.length == 1 && pathParts[0].isEmpty()) {
                 throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
             }
+            return switch (accessPattern) {
+                case CLASSIC -> Arrays.stream(pathParts).map(Element::field).toArray(Element[]::new);
+                case FLEXIBLE -> parseFlexibleFields(fullPath, pathParts);
+            };
+        }
+
+        /**
+         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#FLEXIBLE} ingest doc access pattern. Supports
+         * syntax like square bracket array access, which is the only way to index arrays in flexible mode.
+         * @param fullPath The un-split path to use for error messages
+         * @param pathParts The tokenized field path to parse
+         * @return An array of Elements
+         */
+        private static Element[] parseFlexibleFields(String fullPath, String[] pathParts) {
             return Arrays.stream(pathParts)
                 .flatMap(pathPart -> {
                     int openBracket = pathPart.indexOf('[');

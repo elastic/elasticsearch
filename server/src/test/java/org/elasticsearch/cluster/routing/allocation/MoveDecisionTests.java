@@ -96,12 +96,12 @@ public class MoveDecisionTests extends ESTestCase {
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Type finalDecision = randomFrom(Type.values());
-        DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
+        DiscoveryNode assignedNode = finalDecision.allowed() ? node1 : null;
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
         nodeDecisions.add(
             new NodeAllocationResult(
                 node2,
-                finalDecision == Type.YES ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
+                finalDecision.allowed() ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
                 1
             )
         );

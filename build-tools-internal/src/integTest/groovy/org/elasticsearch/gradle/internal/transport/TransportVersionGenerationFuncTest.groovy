@@ -16,7 +16,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def runGenerateAndValidateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
-        args.add(":myserver:validateTransportVersionDefinitions")
+        args.add(":myserver:validateTransportVersionResources")
         args.add(":myserver:generateTransportVersionDefinition")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
@@ -30,7 +30,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
     def runValidateTask() {
-        return gradleRunner(":myserver:validateTransportVersionDefinitions")
+        return gradleRunner(":myserver:validateTransportVersionResources")
     }
 
     void assertGenerateSuccess(BuildResult result) {
@@ -42,7 +42,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
     void assertValidateSuccess(BuildResult result) {
-        assert result.task(":myserver:validateTransportVersionDefinitions").outcome == TaskOutcome.SUCCESS
+        assert result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
     }
 
     void assertGenerateAndValidateSuccess(BuildResult result) {
@@ -64,8 +64,8 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         then:
         assertGenerateSuccess(result)
-        assertNamedDefinition("new_tv", "8124000")
-        assertLatest("9.2", "new_tv,8124000")
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
 
         when:
         referencedTransportVersion("new_tv")
@@ -84,8 +84,8 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinition("new_tv", "8124000")
-        assertLatest("9.2", "new_tv,8124000")
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
     }
 
     def "generation fails if branches omitted outside CI"() {
@@ -101,64 +101,64 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "invalid changes to a latest file should be reverted"() {
         given:
-        latestTransportVersion("9.2", "modification", "9000000")
+        transportVersionUpperBound("9.2", "modification", "9000000")
 
         when:
         def result = runGenerateAndValidateTask("--branches=9.2").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertLatest("9.2", "existing_92,8123000")
+        assertUpperBound("9.2", "existing_92,8123000")
     }
 
     def "invalid changes to multiple latest files should be reverted"() {
         given:
-        latestTransportVersion("9.2", "modification", "9000000")
-        latestTransportVersion("9.1", "modification", "9000000")
+        transportVersionUpperBound("9.2", "modification", "9000000")
+        transportVersionUpperBound("9.1", "modification", "9000000")
 
         when:
         def result = runGenerateAndValidateTask("--branches=9.2,9.1").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertLatest("9.2", "existing_92,8123000")
-        assertLatest("9.1", "existing_92,8012001")
+        assertUpperBound("9.2", "existing_92,8123000")
+        assertUpperBound("9.1", "existing_92,8012001")
     }
 
     def "unreferenced referable definition should be reverted"() {
         given:
-        namedTransportVersion("test_tv", "8124000")
-        latestTransportVersion("9.2", "test_tv", "8124000")
+        referableTransportVersion("test_tv", "8124000")
+        transportVersionUpperBound("9.2", "test_tv", "8124000")
 
         when:
         def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinitionDoesNotExist("test_tv")
-        assertLatest("9.2", "existing_92,8123000")
+        assertReferableDefinitionDoesNotExist("test_tv")
+        assertUpperBound("9.2", "existing_92,8123000")
     }
 
     def "unreferenced referable definition in multiple branches should be reverted"() {
         given:
-        namedTransportVersion("test_tv", "8124000")
-        latestTransportVersion("9.2", "test_tv", "8124000")
-        latestTransportVersion("9.1", "test_tv", "8012002")
+        referableTransportVersion("test_tv", "8124000")
+        transportVersionUpperBound("9.2", "test_tv", "8124000")
+        transportVersionUpperBound("9.1", "test_tv", "8012002")
 
         when:
         def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinitionDoesNotExist("test_tv")
-        assertLatest("9.2", "existing_92,8123000")
-        assertLatest("9.1", "existing_92,8012001")
+        assertReferableDefinitionDoesNotExist("test_tv")
+        assertUpperBound("9.2", "existing_92,8123000")
+        assertUpperBound("9.1", "existing_92,8012001")
     }
 
     def "a reference can be renamed"() {
         given:
-        namedTransportVersion("first_tv", "8124000")
-        latestTransportVersion("9.2", "first_tv", "8124000")
+        referableTransportVersion("first_tv", "8124000")
+        transportVersionUpperBound("9.2", "first_tv", "8124000")
         referencedTransportVersion("renamed_tv")
 
         when:
@@ -166,16 +166,16 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinitionDoesNotExist("first_tv")
-        assertNamedDefinition("renamed_tv", "8124000")
-        assertLatest("9.2", "renamed_tv,8124000")
+        assertReferableDefinitionDoesNotExist("first_tv")
+        assertReferableDefinition("renamed_tv", "8124000")
+        assertUpperBound("9.2", "renamed_tv,8124000")
     }
 
     def "a reference with a patch version can be renamed"() {
         given:
-        namedTransportVersion("first_tv", "8124000,8012002")
-        latestTransportVersion("9.2", "first_tv", "8124000")
-        latestTransportVersion("9.1", "first_tv", "8012002")
+        referableTransportVersion("first_tv", "8124000,8012002")
+        transportVersionUpperBound("9.2", "first_tv", "8124000")
+        transportVersionUpperBound("9.1", "first_tv", "8012002")
         referencedTransportVersion("renamed_tv")
 
         when:
@@ -183,84 +183,84 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinitionDoesNotExist("first_tv")
-        assertNamedDefinition("renamed_tv", "8124000,8012002")
-        assertLatest("9.2", "renamed_tv,8124000")
-        assertLatest("9.1", "renamed_tv,8012002")
+        assertReferableDefinitionDoesNotExist("first_tv")
+        assertReferableDefinition("renamed_tv", "8124000,8012002")
+        assertUpperBound("9.2", "renamed_tv,8124000")
+        assertUpperBound("9.1", "renamed_tv,8012002")
     }
 
     def "a missing definition will be regenerated"() {
         given:
         referencedTransportVersion("test_tv")
-        latestTransportVersion("9.2", "test_tv", "8124000")
+        transportVersionUpperBound("9.2", "test_tv", "8124000")
 
         when:
         def result = runGenerateAndValidateTask("--branches=9.2").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinition("test_tv", "8124000")
-        assertLatest("9.2", "test_tv,8124000")
+        assertReferableDefinition("test_tv", "8124000")
+        assertUpperBound("9.2", "test_tv,8124000")
     }
 
     def "a latest file can be regenerated"() {
         given:
-        definedAndUsedTransportVersion("test_tv", "8124000")
+        referableAndReferencedTransportVersion("test_tv", "8124000")
 
         when:
         def result = runGenerateAndValidateTask("--branches=9.2").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertLatest("9.2", "test_tv,8124000")
+        assertUpperBound("9.2", "test_tv,8124000")
     }
 
     def "branches for definition can be removed"() {
         given:
         // previously generated with 9.1 and 9.2
-        definedAndUsedTransportVersion("test_tv", "8124000,8012002")
-        latestTransportVersion("9.2", "test_tv", "8124000")
-        latestTransportVersion("9.1", "test_tv", "8012002")
+        referableAndReferencedTransportVersion("test_tv", "8124000,8012002")
+        transportVersionUpperBound("9.2", "test_tv", "8124000")
+        transportVersionUpperBound("9.1", "test_tv", "8012002")
 
         when:
         def result = runGenerateAndValidateTask("--branches=9.2").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinition("test_tv", "8124000")
-        assertLatest("9.2", "test_tv,8124000")
-        assertLatest("9.1", "existing_92,8012001")
+        assertReferableDefinition("test_tv", "8124000")
+        assertUpperBound("9.2", "test_tv,8124000")
+        assertUpperBound("9.1", "existing_92,8012001")
     }
 
     def "branches for definition can be added"() {
         given:
-        definedAndUsedTransportVersion("test_tv", "8124000")
-        latestTransportVersion("9.2", "test_tv", "8124000")
+        referableAndReferencedTransportVersion("test_tv", "8124000")
+        transportVersionUpperBound("9.2", "test_tv", "8124000")
 
         when:
         def result = runGenerateAndValidateTask("--branches=9.2,9.1").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinition("test_tv", "8124000,8012002")
-        assertLatest("9.2", "test_tv,8124000")
-        assertLatest("9.1", "test_tv,8012002")
+        assertReferableDefinition("test_tv", "8124000,8012002")
+        assertUpperBound("9.2", "test_tv,8124000")
+        assertUpperBound("9.1", "test_tv,8012002")
     }
 
     def "unreferenced definitions are removed"() {
         given:
-        namedTransportVersion("test_tv", "8124000,8012002")
-        latestTransportVersion("9.2", "test_tv", "8124000")
-        latestTransportVersion("9.1", "test_tv", "8012002")
+        referableTransportVersion("test_tv", "8124000,8012002")
+        transportVersionUpperBound("9.2", "test_tv", "8124000")
+        transportVersionUpperBound("9.1", "test_tv", "8012002")
 
         when:
         def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinitionDoesNotExist("test_tv")
-        assertLatest("9.2", "existing_92,8123000")
-        assertLatest("9.1", "existing_92,8012001")
+        assertReferableDefinitionDoesNotExist("test_tv")
+        assertUpperBound("9.2", "existing_92,8123000")
+        assertUpperBound("9.1", "existing_92,8012001")
     }
 
     def "merge conflicts in latest files can be regenerated"() {
@@ -271,17 +271,17 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
             existing_92,8123000
             =======
             second_tv,8123000
-            >>>>>> branch
+            >>>>>> releaseBranch
             """.strip()
-        definedAndUsedTransportVersion("second_tv", "8123000")
+        referableAndReferencedTransportVersion("second_tv", "8123000")
 
         when:
         def result = runGenerateAndValidateTask("--name=second_tv", "--branches=9.2").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertNamedDefinition("existing_92", "8123000,8012001")
-        assertNamedDefinition("second_tv", "8124000")
-        assertLatest("9.2", "second_tv,8124000")
+        assertReferableDefinition("existing_92", "8123000,8012001")
+        assertReferableDefinition("second_tv", "8124000")
+        assertUpperBound("9.2", "second_tv,8124000")
     }
 }

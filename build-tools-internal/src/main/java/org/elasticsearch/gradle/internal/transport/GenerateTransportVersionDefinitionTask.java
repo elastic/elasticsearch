@@ -71,7 +71,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     public abstract Property<String> getTransportVersionName(); // The plugin should always set this, not optional
 
     /**
-     * The release branch names the generated transport version should target.
+     * The release releaseBranch names the generated transport version should target.
      */
     @Optional // In CI we find these from the github PR labels
     @Input
@@ -80,7 +80,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @Input
     @Optional
-    @Option(option = "increment", description = "The amount to increment the primary id for the main branch")
+    @Option(option = "increment", description = "The amount to increment the primary id for the main releaseBranch")
     public abstract Property<Integer> getPrimaryIncrement();
 
     @Input
@@ -100,7 +100,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     public void run() throws IOException {
         TransportVersionResourcesService resources = getResources().get();
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
-        List<String> changedDefinitionNames = resources.getChangedNamedDefinitionNames();
+        List<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
         String name = getTransportVersionName().isPresent()
             ? getTransportVersionName().get()
             : findAddedTransportVersionName(resources, referencedNames, changedDefinitionNames);
@@ -111,7 +111,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         } else {
             List<TransportVersionId> ids = updateLatestFiles(resources, name);
             // (Re)write the definition file.
-            resources.writeNamedDefinition(new TransportVersionDefinition(name, ids));
+            resources.writeReferableDefinition(new TransportVersionDefinition(name, ids));
         }
 
         removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitionNames);
@@ -123,23 +123,23 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         int primaryIncrement = getPrimaryIncrement().get();
         List<TransportVersionId> ids = new ArrayList<>();
 
-        for (TransportVersionLatest mainLatest : resources.getMainLatests()) {
+        for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromMain()) {
 
-            if (name.equals(mainLatest.name())) {
-                if (targetReleaseBranches.contains(mainLatest.releaseBranch()) == false) {
+            if (name.equals(upperBound.name())) {
+                if (targetReleaseBranches.contains(upperBound.releaseBranch()) == false) {
                     // we don't want to target this latest file but we already changed it
                     // Regenerate to make this operation idempotent. Need to undo prior updates to the latest files if the list of minor
                     // versions has changed.
-                    resources.writeLatestFile(mainLatest);
+                    resources.writeUpperBound(upperBound);
                 }
             } else {
-                if (targetReleaseBranches.contains(mainLatest.releaseBranch())) {
-                    int increment = mainLatest.releaseBranch().equals(mainReleaseBranch) ? primaryIncrement : 1;
-                    TransportVersionId id = TransportVersionId.fromInt(mainLatest.id().complete() + increment);
+                if (targetReleaseBranches.contains(upperBound.releaseBranch())) {
+                    int increment = upperBound.releaseBranch().equals(mainReleaseBranch) ? primaryIncrement : 1;
+                    TransportVersionId id = TransportVersionId.fromInt(upperBound.id().complete() + increment);
                     ids.add(id);
-                    resources.writeLatestFile(new TransportVersionLatest(mainLatest.releaseBranch(), name, id));
+                    resources.writeUpperBound(new TransportVersionUpperBound(upperBound.releaseBranch(), name, id));
                 } else {
-                    resources.writeLatestFile(mainLatest);
+                    resources.writeUpperBound(upperBound);
                 }
             }
         }
@@ -180,7 +180,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                 int firstDot = label.indexOf('.');
                 targetReleaseBranches.add(label.substring(1, label.indexOf('.', firstDot + 1)));
             }
-            // if we didn't find any version labels we must be on serverless, so just use the main release branch
+            // if we didn't find any version labels we must be on serverless, so just use the main release releaseBranch
             if (targetReleaseBranches.isEmpty()) {
                 targetReleaseBranches.add(getMainReleaseBranch().get());
             }
@@ -190,8 +190,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     private void resetAllLatestFiles(TransportVersionResourcesService resources) throws IOException {
         // TODO: this should also _delete_ extraneous files from latest?
-        for (TransportVersionLatest latest : resources.getMainLatests()) {
-            resources.writeLatestFile(latest);
+        for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromMain()) {
+            resources.writeUpperBound(upperBound);
         }
     }
 
@@ -204,7 +204,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             if (referencedNames.contains(definitionName) == false) {
                 // we added this definition file, but it's now unreferenced, so delete it
                 getLogger().lifecycle("Deleting unreferenced named transport version definition [" + definitionName + "]");
-                resources.deleteNamedDefinition(definitionName);
+                resources.deleteReferableDefinition(definitionName);
             }
         }
     }
@@ -213,12 +213,12 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         TransportVersionResourcesService resources,
         Set<String> referencedNames,
         List<String> changedDefinitions
-    ) throws IOException {
+    ) {
         // First check for unreferenced names. We only care about the first one. If there is more than one
         // validation will fail later and the developer will have to remove one. When that happens, generation
         // will re-run and we will fixup the state to use whatever new name remains.
         for (String referencedName : referencedNames) {
-            if (resources.namedDefinitionExists(referencedName) == false) {
+            if (resources.referableDefinitionExists(referencedName) == false) {
                 return referencedName;
             }
         }

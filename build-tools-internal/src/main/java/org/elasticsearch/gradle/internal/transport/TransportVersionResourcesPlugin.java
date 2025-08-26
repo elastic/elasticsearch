@@ -52,9 +52,9 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         }
 
         var validateTask = project.getTasks()
-            .register("validateTransportVersionDefinitions", ValidateTransportVersionResourcesTask.class, t -> {
+            .register("validateTransportVersionResources", ValidateTransportVersionResourcesTask.class, t -> {
                 t.setGroup("Transport Versions");
-                t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
+                t.setDescription("Validates that all transport version resources are internally consistent with each other");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
@@ -62,7 +62,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
                 t.setGroup("Transport Versions");
-                t.setDescription("Generate a manifest resource for all the known transport version definitions");
+                t.setDescription("Generate a manifest resource for all transport version definitions");
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {

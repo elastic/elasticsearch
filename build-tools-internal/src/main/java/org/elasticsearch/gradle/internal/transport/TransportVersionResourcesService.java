@@ -43,12 +43,12 @@ import javax.inject.Inject;
  *
  * <p>The layout of the transport version resources are as follows:
  * <ul>
- *     <li><b>/transport/definitions/named/</b>
+ *     <li><b>/transport/definitions/referable/</b>
  *     - Definitions that can be looked up by name. The name is the filename before the .csv suffix.</li>
- *     <li><b>/transport/definitions/unreferenced/</b>
+ *     <li><b>/transport/definitions/unreferable/</b>
  *     - Definitions which contain ids that are known at runtime, but cannot be looked up by name.</li>
- *     <li><b>/transport/latest/</b>
- *     - The latest transport version definition for each release branch.</li>
+ *     <li><b>/transport/upper_bounds/</b>
+ *     - The maximum transport version definition that will be loaded for each release releaseBranch.</li>
  * </ul>
  */
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
@@ -65,9 +65,9 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     public abstract ExecOperations getExecOperations();
 
     private static final Path DEFINITIONS_DIR = Path.of("definitions");
-    private static final Path NAMED_DIR = DEFINITIONS_DIR.resolve("named");
-    private static final Path UNREFERENCED_DIR = DEFINITIONS_DIR.resolve("unreferenced");
-    private static final Path LATEST_DIR = Path.of("latest");
+    private static final Path REFERABLE_DIR = DEFINITIONS_DIR.resolve("referable");
+    private static final Path UNREFERABLE_DIR = DEFINITIONS_DIR.resolve("unreferable");
+    private static final Path UPPER_BOUNDS_DIR = Path.of("upper_bounds");
 
     private final Path transportResourcesDir;
     private final Path rootDir;
@@ -96,62 +96,47 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return transportResourcesDir.resolve(DEFINITIONS_DIR);
     }
 
-    // return the path, relative to the resources dir, of a named definition
-    private Path getNamedDefinitionRelativePath(String name) {
-        return NAMED_DIR.resolve(name + ".csv");
+    // return the path, relative to the resources dir, of a referable definition
+    private Path getReferableDefinitionRelativePath(String name) {
+        return REFERABLE_DIR.resolve(name + ".csv");
     }
 
-    /** Return all named definitions, mapped by their name. */
-    Map<String, TransportVersionDefinition> getNamedDefinitions() throws IOException {
-        Map<String, TransportVersionDefinition> definitions = new HashMap<>();
-        // temporarily include unreferenced in named until validation understands the distinction
-        for (var dir : List.of(NAMED_DIR, UNREFERENCED_DIR)) {
-            Path path = transportResourcesDir.resolve(dir);
-            if (Files.isDirectory(path) == false) {
-                continue;
-            }
-            try (var definitionsStream = Files.list(path)) {
-                for (var definitionFile : definitionsStream.toList()) {
-                    String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();
-                    var definition = TransportVersionDefinition.fromString(definitionFile.getFileName().toString(), contents);
-                    definitions.put(definition.name(), definition);
-                }
-            }
-        }
-        return definitions;
+    /** Return all referable definitions, mapped by their name. */
+    Map<String, TransportVersionDefinition> getReferableDefinitions() throws IOException {
+        return readDefinitions(transportResourcesDir.resolve(REFERABLE_DIR));
     }
 
-    /** Test whether the given named definition exists */
-    TransportVersionDefinition getNamedDefinitionFromMain(String name) {
-        String resourcePath = getNamedDefinitionRelativePath(name).toString();
+    /** Get a referable definition from main if it exists there, or null otherwise */
+    TransportVersionDefinition getReferableDefinitionFromMain(String name) {
+        Path resourcePath = getReferableDefinitionRelativePath(name);
         return getMainFile(resourcePath, TransportVersionDefinition::fromString);
     }
 
-    List<String> getChangedNamedDefinitionNames() {
+    List<String> getChangedReferableDefinitionNames() {
         List<String> changedDefinitions = new ArrayList<>();
-        String namedPrefix = NAMED_DIR.toString();
+        String referablePrefix = REFERABLE_DIR.toString();
         for (String changedPath : getChangedResources()) {
-            if (changedPath.contains(namedPrefix) == false) {
+            if (changedPath.contains(referablePrefix) == false) {
                 continue;
             }
-            String name = changedPath.substring(namedPrefix.length() + 1 /* skip slash */, changedPath.length() - 4 /* .csv */);
+            String name = changedPath.substring(referablePrefix.length() + 1 /* skip slash */, changedPath.length() - 4 /* .csv */);
             changedDefinitions.add(name);
         }
         return changedDefinitions;
     }
 
-    /** Test whether the given named definition exists */
-    boolean namedDefinitionExists(String name) {
-        return Files.exists(transportResourcesDir.resolve(getNamedDefinitionRelativePath(name)));
+    /** Test whether the given referable definition exists */
+    boolean referableDefinitionExists(String name) {
+        return Files.exists(transportResourcesDir.resolve(getReferableDefinitionRelativePath(name)));
     }
 
     /** Return the path within the repository of the given named definition */
-    Path getRepositoryPath(TransportVersionDefinition definition) {
-        return rootDir.relativize(transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name())));
+    Path getReferableDefinitionRepositoryPath(TransportVersionDefinition definition) {
+        return rootDir.relativize(transportResourcesDir.resolve(getReferableDefinitionRelativePath(definition.name())));
     }
 
-    void writeNamedDefinition(TransportVersionDefinition definition) throws IOException {
-        Path path = transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name()));
+    void writeReferableDefinition(TransportVersionDefinition definition) throws IOException {
+        Path path = transportResourcesDir.resolve(getReferableDefinitionRelativePath(definition.name()));
         logger.debug("Writing referable definition [" + definition + "] to [" + path + "]");
         Files.writeString(
             path,
@@ -160,56 +145,77 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         );
     }
 
-    void deleteNamedDefinition(String name) throws IOException {
-        Path path = transportResourcesDir.resolve(getNamedDefinitionRelativePath(name));
+    void deleteReferableDefinition(String name) throws IOException {
+        Path path = transportResourcesDir.resolve(getReferableDefinitionRelativePath(name));
         Files.deleteIfExists(path);
     }
 
-    /** Read all latest files and return them mapped by their release branch */
-    Map<String, TransportVersionLatest> getLatestByReleaseBranch() throws IOException {
-        Map<String, TransportVersionLatest> latests = new HashMap<>();
-        try (var stream = Files.list(transportResourcesDir.resolve(LATEST_DIR))) {
+    // return the path, relative to the resources dir, of an unreferable definition
+    private Path getUnreferableDefinitionRelativePath(String name) {
+        return UNREFERABLE_DIR.resolve(name + ".csv");
+    }
+
+    /** Return all unreferable definitions, mapped by their name. */
+    Map<String, TransportVersionDefinition> getUnreferableDefinitions() throws IOException {
+        return readDefinitions(transportResourcesDir.resolve(UNREFERABLE_DIR));
+    }
+
+    /** Get a referable definition from main if it exists there, or null otherwise */
+    TransportVersionDefinition getUnreferableDefinitionFromMain(String name) {
+        Path resourcePath = getUnreferableDefinitionRelativePath(name);
+        return getMainFile(resourcePath, TransportVersionDefinition::fromString);
+    }
+
+    /** Return the path within the repository of the given referable definition */
+    Path getUnreferableDefinitionRepositoryPath(TransportVersionDefinition definition) {
+        return rootDir.relativize(transportResourcesDir.resolve(getUnreferableDefinitionRelativePath(definition.name())));
+    }
+
+    /** Read all upper bound files and return them mapped by their release releaseBranch */
+    Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
+        Map<String, TransportVersionUpperBound> upperBounds = new HashMap<>();
+        try (var stream = Files.list(transportResourcesDir.resolve(UPPER_BOUNDS_DIR))) {
             for (var latestFile : stream.toList()) {
                 String contents = Files.readString(latestFile, StandardCharsets.UTF_8).strip();
-                var latest = TransportVersionLatest.fromString(latestFile.getFileName().toString(), contents);
-                latests.put(latest.name(), latest);
+                var upperBound = TransportVersionUpperBound.fromString(latestFile, contents);
+                upperBounds.put(upperBound.releaseBranch(), upperBound);
             }
         }
-        return latests;
+        return upperBounds;
     }
 
-    /** Retrieve the latest transport version for the given release branch on main */
-    TransportVersionLatest getLatestFromMain(String releaseBranch) {
-        String resourcePath = getLatestRelativePath(releaseBranch).toString();
-        return getMainFile(resourcePath, TransportVersionLatest::fromString);
+    /** Retrieve the upper bound for the given release releaseBranch on main */
+    TransportVersionUpperBound getUpperBoundFromMain(String releaseBranch) {
+        Path resourcePath = getUpperBoundRelativePath(releaseBranch);
+        return getMainFile(resourcePath, TransportVersionUpperBound::fromString);
     }
 
-    List<TransportVersionLatest> getMainLatests() throws IOException {
-        List<TransportVersionLatest> latestFiles = new ArrayList<>();
-        String latestPrefix = LATEST_DIR.toString();
-        for (String mainPath : getMainResources()) {
-            if (mainPath.startsWith(latestPrefix) == false) {
+    List<TransportVersionUpperBound> getUpperBoundsFromMain() throws IOException {
+        List<TransportVersionUpperBound> upperBounds = new ArrayList<>();
+        for (String mainPathString : getMainResources()) {
+            Path mainPath = Path.of(mainPathString);
+            if (mainPath.startsWith(UPPER_BOUNDS_DIR) == false) {
                 continue;
             }
-            TransportVersionLatest latest = getMainFile(mainPath, TransportVersionLatest::fromString);
-            latestFiles.add(latest);
+            TransportVersionUpperBound upperBound = getMainFile(mainPath, TransportVersionUpperBound::fromString);
+            upperBounds.add(upperBound);
         }
-        return latestFiles;
+        return upperBounds;
+    }
+
+    void writeUpperBound(TransportVersionUpperBound upperBound) throws IOException {
+        Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.releaseBranch()));
+        logger.debug("Writing upper bound [" + upperBound + "] to [" + path + "]");
+        Files.writeString(path, upperBound.name() + "," + upperBound.id().complete() + "\n", StandardCharsets.UTF_8);
     }
 
     /** Return the path within the repository of the given latest */
-    Path getRepositoryPath(TransportVersionLatest latest) {
-        return rootDir.relativize(transportResourcesDir.resolve(getLatestRelativePath(latest.releaseBranch())));
+    Path getUpperBoundRepositoryPath(TransportVersionUpperBound latest) {
+        return rootDir.relativize(transportResourcesDir.resolve(getUpperBoundRelativePath(latest.releaseBranch())));
     }
 
-    void writeLatestFile(TransportVersionLatest latest) throws IOException {
-        Path path = transportResourcesDir.resolve(getLatestRelativePath(latest.releaseBranch()));
-        logger.debug("Writing upper bound [" + latest + "] to [" + path + "]");
-        Files.writeString(path, latest.name() + "," + latest.id().complete() + "\n", StandardCharsets.UTF_8);
-    }
-
-    private Path getLatestRelativePath(String releaseBranch) {
-        return LATEST_DIR.resolve(releaseBranch + ".csv");
+    private Path getUpperBoundRelativePath(String releaseBranch) {
+        return UPPER_BOUNDS_DIR.resolve(releaseBranch + ".csv");
     }
 
     // Return the transport version resources paths that exist in main
@@ -219,7 +225,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 String output = gitCommand("ls-tree", "--name-only", "-r", "main", ".");
 
                 HashSet<String> resources = new HashSet<>();
-                Collections.addAll(resources, output.split(System.lineSeparator()));
+                Collections.addAll(resources, output.split("\n")); // git always outputs LF
                 mainResources.set(resources);
             }
         }
@@ -232,29 +238,46 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             synchronized (changedResources) {
                 HashSet<String> resources = new HashSet<>();
 
-                // gitCommand("add", "."); // TODO this finds the files that have been added without being committed.
                 String diffOutput = gitCommand("diff", "--name-only", "main", ".");
                 if (diffOutput.strip().isEmpty() == false) {
-                    Collections.addAll(resources, diffOutput.split(System.lineSeparator()));
+                    Collections.addAll(resources, diffOutput.split("\n")); // git always outputs LF
                 }
 
                 String untrackedOutput = gitCommand("ls-files", "--others", "--exclude-standard");
                 if (untrackedOutput.strip().isEmpty() == false) {
-                    Collections.addAll(resources, untrackedOutput.split(System.lineSeparator()));
+                    Collections.addAll(resources, untrackedOutput.split("\n")); // git always outputs LF
                 }
+
                 changedResources.set(resources);
             }
         }
         return changedResources.get();
     }
 
-    // Read a transport version resource from the main branch, or return null if it doesn't exist on main
-    private <T> T getMainFile(String resourcePath, BiFunction<String, String, T> parser) {
-        if (getMainResources().contains(resourcePath) == false) {
+    // Read a transport version resource from the main releaseBranch, or return null if it doesn't exist on main
+    private <T> T getMainFile(Path resourcePath, BiFunction<Path, String, T> parser) {
+        String pathString = resourcePath.toString().replace('\\', '/'); // normalize to forward slash that git uses
+        if (getMainResources().contains(pathString) == false) {
             return null;
         }
-        String content = gitCommand("show", "main:./" + resourcePath).strip();
+
+        String content = gitCommand("show", "main:./" + pathString).strip();
         return parser.apply(resourcePath, content);
+    }
+
+    private static Map<String, TransportVersionDefinition> readDefinitions(Path dir) throws IOException {
+        if (Files.isDirectory(dir) == false) {
+            return Map.of();
+        }
+        Map<String, TransportVersionDefinition> definitions = new HashMap<>();
+        try (var definitionsStream = Files.list(dir)) {
+            for (var definitionFile : definitionsStream.toList()) {
+                String contents = Files.readString(definitionFile, StandardCharsets.UTF_8).strip();
+                var definition = TransportVersionDefinition.fromString(definitionFile, contents);
+                definitions.put(definition.name(), definition);
+            }
+        }
+        return definitions;
     }
 
     // run a git command, relative to the transport version resources directory

@@ -675,6 +675,9 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testIntBlock
   issue: https://github.com/elastic/elasticsearch/issues/133596
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
+  method: testSyntheticSourceMany
+  issue: https://github.com/elastic/elasticsearch/issues/133598
 
 # Examples:
 #

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,12 +45,14 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     private final String projectId;
 
     private final RateLimitSettings rateLimitSettings;
+    private final ThinkingConfig thinkingConfig;
 
     // https://cloud.google.com/vertex-ai/docs/quotas#eval-quotas
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1000);
+    private static final ThinkingConfig EMPTY_THINKING_CONFIG = new ThinkingConfig();
 
     public GoogleVertexAiChatCompletionServiceSettings(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readString(), new RateLimitSettings(in));
+        this(in.readString(), in.readString(), in.readString(), new RateLimitSettings(in), new ThinkingConfig(in));
     }
 
     @Override
@@ -58,6 +61,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         builder.field(LOCATION, location);
         builder.field(MODEL_ID, modelId);
         rateLimitSettings.toXContent(builder, params);
+        thinkingConfig.toXContent(builder, params);
         return builder;
     }
 
@@ -78,23 +82,34 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
             context
         );
 
+        // Extract optional thinkingConfig settings
+        ThinkingConfig thinkingConfig = ThinkingConfig.of(
+            map,
+            EMPTY_THINKING_CONFIG,
+            validationException,
+            GoogleVertexAiService.NAME,
+            context
+        );
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, rateLimitSettings);
+        return new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, rateLimitSettings, thinkingConfig);
     }
 
     public GoogleVertexAiChatCompletionServiceSettings(
         String projectId,
         String location,
         String modelId,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable ThinkingConfig thinkingConfig
     ) {
         this.projectId = projectId;
         this.location = location;
         this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.thinkingConfig = Objects.requireNonNullElse(thinkingConfig, EMPTY_THINKING_CONFIG);
     }
 
     public String location() {
@@ -117,6 +132,15 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     }
 
     @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitSettings;
+    }
+
+    public ThinkingConfig thinkingConfig() {
+        return thinkingConfig;
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
         return TransportVersions.ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED;
@@ -134,6 +158,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         out.writeString(location);
         out.writeString(modelId);
         rateLimitSettings.writeTo(out);
+        thinkingConfig.writeTo(out);
     }
 
     @Override
@@ -152,16 +177,17 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         return Objects.equals(location, that.location)
             && Objects.equals(modelId, that.modelId)
             && Objects.equals(projectId, that.projectId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && Objects.equals(thinkingConfig, that.thinkingConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(location, modelId, projectId, rateLimitSettings);
+        return Objects.hash(location, modelId, projectId, rateLimitSettings, thinkingConfig);
     }
 
     @Override
-    public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
+    public String toString() {
+        return Strings.toString(this);
     }
 }

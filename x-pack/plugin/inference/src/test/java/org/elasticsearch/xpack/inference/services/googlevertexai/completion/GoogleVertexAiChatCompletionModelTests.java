@@ -31,9 +31,17 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
     private static final String DEFAULT_MODEL_ID = "gemini-pro";
     private static final String DEFAULT_API_KEY = "test-api-key";
     private static final RateLimitSettings DEFAULT_RATE_LIMIT = new RateLimitSettings(100);
+    private static final ThinkingConfig EMPTY_THINKING_CONFIG = new ThinkingConfig();
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
-        var model = createCompletionModel(DEFAULT_PROJECT_ID, DEFAULT_LOCATION, DEFAULT_MODEL_ID, DEFAULT_API_KEY, DEFAULT_RATE_LIMIT);
+        var model = createCompletionModel(
+            DEFAULT_PROJECT_ID,
+            DEFAULT_LOCATION,
+            DEFAULT_MODEL_ID,
+            DEFAULT_API_KEY,
+            DEFAULT_RATE_LIMIT,
+            EMPTY_THINKING_CONFIG
+        );
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
             "gemini-flash",
@@ -53,12 +61,20 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().projectId(), is(DEFAULT_PROJECT_ID));
         assertThat(overriddenModel.getServiceSettings().location(), is(DEFAULT_LOCATION));
         assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
+        assertThat(overriddenModel.getServiceSettings().thinkingConfig(), is(EMPTY_THINKING_CONFIG));
         assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
         assertThat(overriddenModel.getTaskSettings(), is(model.getTaskSettings()));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
-        var model = createCompletionModel(DEFAULT_PROJECT_ID, DEFAULT_LOCATION, DEFAULT_MODEL_ID, DEFAULT_API_KEY, DEFAULT_RATE_LIMIT);
+        var model = createCompletionModel(
+            DEFAULT_PROJECT_ID,
+            DEFAULT_LOCATION,
+            DEFAULT_MODEL_ID,
+            DEFAULT_API_KEY,
+            DEFAULT_RATE_LIMIT,
+            EMPTY_THINKING_CONFIG
+        );
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
             null,
@@ -77,6 +93,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().projectId(), is(DEFAULT_PROJECT_ID));
         assertThat(overriddenModel.getServiceSettings().location(), is(DEFAULT_LOCATION));
         assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
+        assertThat(overriddenModel.getServiceSettings().thinkingConfig(), is(EMPTY_THINKING_CONFIG));
         assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
         assertThat(overriddenModel.getTaskSettings(), is(model.getTaskSettings()));
 
@@ -100,13 +117,14 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         String location,
         String modelId,
         String apiKey,
-        RateLimitSettings rateLimitSettings
+        RateLimitSettings rateLimitSettings,
+        ThinkingConfig thinkingConfig
     ) {
         return new GoogleVertexAiChatCompletionModel(
             "google-vertex-ai-chat-test-id",
             TaskType.CHAT_COMPLETION,
             "google_vertex_ai",
-            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, rateLimitSettings),
+            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, rateLimitSettings, thinkingConfig),
             new EmptyTaskSettings(),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
         );

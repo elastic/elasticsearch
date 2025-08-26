@@ -80,7 +80,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             originalModelServiceSettings.projectId(),
             originalModelServiceSettings.location(),
             Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
-            originalModelServiceSettings.rateLimitSettings()
+            originalModelServiceSettings.rateLimitSettings(),
+            originalModelServiceSettings.thinkingConfig()
         );
 
         return new GoogleVertexAiChatCompletionModel(

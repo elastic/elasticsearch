@@ -77,7 +77,7 @@ public final class RemoteClusterConnection implements Closeable {
             credentialsManager,
             createConnectionManager(profile, transportService)
         );
-        this.connectionStrategy = config.buildConnectionStrategy(transportService, remoteConnectionManager);
+        this.connectionStrategy = config.buildRemoteConnectionStrategy(transportService, remoteConnectionManager);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         this.remoteConnectionManager.addListener(transportService);
         this.skipUnavailable = config.skipUnavailable();

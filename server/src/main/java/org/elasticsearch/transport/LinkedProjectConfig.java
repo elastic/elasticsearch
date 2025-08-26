@@ -61,7 +61,7 @@ public interface LinkedProjectConfig {
 
     boolean isConnectionEnabled();
 
-    RemoteConnectionStrategy buildConnectionStrategy(TransportService transportService, RemoteConnectionManager connectionManager);
+    RemoteConnectionStrategy buildRemoteConnectionStrategy(TransportService transportService, RemoteConnectionManager connectionManager);
 
     /**
      * Configuration for initializing {@link RemoteClusterConnection}s to linked projects using the {@link ProxyConnectionStrategy}.
@@ -93,7 +93,7 @@ public interface LinkedProjectConfig {
         }
 
         @Override
-        public RemoteConnectionStrategy buildConnectionStrategy(
+        public RemoteConnectionStrategy buildRemoteConnectionStrategy(
             TransportService transportService,
             RemoteConnectionManager connectionManager
         ) {
@@ -132,7 +132,7 @@ public interface LinkedProjectConfig {
         }
 
         @Override
-        public RemoteConnectionStrategy buildConnectionStrategy(
+        public RemoteConnectionStrategy buildRemoteConnectionStrategy(
             TransportService transportService,
             RemoteConnectionManager connectionManager
         ) {

@@ -23,13 +23,12 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
-import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
@@ -42,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
@@ -240,8 +240,6 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     }
 
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
-        // TODO: make this test compatible with batched execution, currently the exceptions are slightly different with batched
-        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
         // are limited to 1
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -262,25 +260,27 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             assertThat(e.getMessage(), containsString("Partial shards failure"));
         });
 
-        // When the search request executes, block all shards except 1.
+        // When the search request executes, allow shards from one node to proceed and block shards from other nodes.
         final List<SearchShardBlockingPlugin> searchShardBlockingPlugins = initSearchShardBlockingPlugin();
-        AtomicBoolean letOneShardProceed = new AtomicBoolean();
-        // Ensure we have at least one task waiting on the latch
+        final AtomicReference<String> selectedNodeId = new AtomicReference<>();
         CountDownLatch waitingTaskLatch = new CountDownLatch(1);
         CountDownLatch shardTaskLatch = new CountDownLatch(1);
         for (SearchShardBlockingPlugin plugin : searchShardBlockingPlugins) {
-            plugin.setRunOnNewReaderContext((ReaderContext c) -> {
-                if (letOneShardProceed.compareAndSet(false, true)) {
-                    // Let one shard continue.
+            plugin.setRunOnPreQueryPhase((SearchContext c) -> {
+                String nodeId = c.shardTarget().getNodeId();
+                if (selectedNodeId.compareAndSet(null, nodeId) || nodeId.equals(selectedNodeId.get())) {
+                    // Let shards on the selected node continue
+                    logger.info("Allowing shard [{}] on node [{}] to proceed", c.shardTarget().getShardId(), nodeId);
                 } else {
                     // Signal that we have a task waiting on the latch
+                    logger.info("Blocking shard [{}] on node [{}]", c.shardTarget().getShardId(), nodeId);
                     waitingTaskLatch.countDown();
-                    safeAwait(shardTaskLatch); // Block the other shards.
+                    safeAwait(shardTaskLatch); // Block shards on other nodes
                 }
             });
         }
 
-        // For the shard that was allowed to proceed, have a single query-execution thread throw an exception.
+        // For the shards that were allowed to proceed, have a single query-execution thread throw an exception.
         final List<ScriptedBlockPlugin> plugins = initBlockFactory();
         AtomicBoolean oneThreadWillError = new AtomicBoolean();
         for (ScriptedBlockPlugin plugin : plugins) {
@@ -313,7 +313,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             shardTaskLatch.countDown(); // unblock the shardTasks, allowing the test to conclude.
             searchThread.join();
             plugins.forEach(plugin -> plugin.setBeforeExecution(() -> {}));
-            searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnNewReaderContext((ReaderContext c) -> {}));
+            searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnPreQueryPhase((SearchContext c) -> {}));
         }
     }
 

@@ -678,6 +678,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLucene
   issue: https://github.com/elastic/elasticsearch/issues/133556
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testFilterNestedFields
+  issue: https://github.com/elastic/elasticsearch/issues/133557
 
 # Examples:
 #

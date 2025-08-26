@@ -157,6 +157,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providersFor(TaskType.CHAT_COMPLETION),
             containsInAnyOrder(
                 List.of(
+                    "amazonbedrock",
                     "deepseek",
                     "elastic",
                     "openai",

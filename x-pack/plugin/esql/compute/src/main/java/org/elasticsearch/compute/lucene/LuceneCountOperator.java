@@ -73,8 +73,8 @@ public class LuceneCountOperator extends LuceneOperator {
         }
     }
 
-    private List<ElementType> tagTypes;
-    private Map<List<Object>, PerTagsState> tagsToState = new HashMap<>();
+    private final List<ElementType> tagTypes;
+    private final Map<List<Object>, PerTagsState> tagsToState = new HashMap<>();
     private int remainingDocs;
 
     public LuceneCountOperator(
@@ -179,7 +179,7 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     private Page buildNonConstantBlocksResult() {
-        BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[1 + tagTypes.size()];
+        BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[tagTypes.size()];
         Block[] blocks = new Block[2 + tagTypes.size()];
         try (LongVector.Builder countBuilder = blockFactory.newLongVectorBuilder(tagsToState.size())) {
             int b = 0;

@@ -1,0 +1,5 @@
+pr: 132646
+summary: Update EIS sparse and dense embedding max batch size to 16
+area: Machine Learning
+type: bug
+issues: []

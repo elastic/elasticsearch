@@ -69,9 +69,7 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
     LongBlock timestampBlock = page.getBlock(channels.get(1));
     FloatVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
-      if (valueBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -95,9 +93,7 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
     }
     LongVector timestampVector = timestampBlock.asVector();
     if (timestampVector == null) {
-      if (timestampBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -384,6 +380,16 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       RateFloatAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(valuesPosition), resets.getDouble(valuesPosition), valuesPosition);
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, FloatBlock valueBlock,
+      LongBlock timestampBlock) {
+    if (valueBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    if (timestampBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

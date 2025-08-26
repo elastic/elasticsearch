@@ -8,17 +8,17 @@
  */
 package org.elasticsearch.gradle.internal.info;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.Jdk;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
 import org.elasticsearch.gradle.internal.conventions.GitInfoPlugin;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -56,29 +56,38 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
+import static org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin.VERSIONS_EXT;
 import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestEABuildNumber;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
+    private static final String DEFAULT_BRANCHES_FILE_URL = "https://raw.githubusercontent.com/elastic/elasticsearch/main/branches.json";
+    private static final String BRANCHES_FILE_LOCATION_PROPERTY = "org.elasticsearch.build.branches-file-location";
+    private static final Pattern LINE_PATTERN = Pattern.compile(
+        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
+    );
 
     private ObjectFactory objectFactory;
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
-    private final ObjectMapper objectMapper;
+    private final BranchesFileParser branchesFileParser;
     private JavaToolchainService toolChainService;
     private Project project;
 
@@ -93,7 +102,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         this.javaInstallationRegistry = javaInstallationRegistry;
         this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
-        this.objectMapper = new ObjectMapper();
+        this.branchesFileParser = new BranchesFileParser(new ObjectMapper());
     }
 
     @Override
@@ -113,21 +122,27 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             throw new GradleException("Gradle " + minimumGradleVersion.getVersion() + "+ is required");
         }
 
-        JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
-        JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
+        project.getPlugins().apply(VersionPropertiesPlugin.class);
+        Properties versionProperties = (Properties) project.getExtensions().getByName(VERSIONS_EXT);
+        JavaVersion minimumCompilerVersion = JavaVersion.toVersion(versionProperties.get("minimumCompilerJava"));
+        JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(versionProperties.get("minimumRuntimeJava"));
+
+        String bundledJdkVersion = versionProperties.getProperty("bundled_jdk");
+        String bundledJdkMajorVersion = bundledJdkVersion.split("[.+]")[0];
+        Version elasticsearchVersionProperty = Version.fromString(versionProperties.getProperty("elasticsearch"));
 
         Provider<File> explicitRuntimeJavaHome = findRuntimeJavaHome();
         boolean isRuntimeJavaHomeExplicitlySet = explicitRuntimeJavaHome.isPresent();
         Provider<File> actualRuntimeJavaHome = isRuntimeJavaHomeExplicitlySet
             ? explicitRuntimeJavaHome
-            : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
+            : resolveJavaHomeFromToolChainService(bundledJdkMajorVersion);
 
         Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
             runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
         );
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
-            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions() : val)
+            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(elasticsearchVersionProperty) : val)
         );
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
@@ -141,9 +156,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                     javaHome -> determineJavaVersion(
                         "runtime java.home",
                         javaHome,
-                        isRuntimeJavaHomeExplicitlySet
-                            ? minimumRuntimeVersion
-                            : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
+                        isRuntimeJavaHomeExplicitlySet ? minimumRuntimeVersion : JavaVersion.toVersion(bundledJdkMajorVersion)
                     )
                 ),
                 isRuntimeJavaHomeExplicitlySet,
@@ -204,32 +217,49 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     /* Introspect all versions of ES that may be tested against for backwards
      * compatibility. It is *super* important that this logic is the same as the
      * logic in VersionUtils.java. */
-    private BwcVersions resolveBwcVersions() {
+    private BwcVersions resolveBwcVersions(Version currentElasticsearchVersion) {
         String versionsFilePath = elvis(
             System.getProperty("BWC_VERSION_SOURCE"),
             new File(Util.locateElasticsearchWorkspace(project.getGradle()), DEFAULT_VERSION_JAVA_FILE_PATH).getPath()
         );
         try (var is = new FileInputStream(versionsFilePath)) {
             List<String> versionLines = IOUtils.readLines(is, "UTF-8");
-            return new BwcVersions(versionLines, getDevelopmentBranches());
+            return new BwcVersions(currentElasticsearchVersion, parseVersionLines(versionLines), getDevelopmentBranches());
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
         }
     }
 
-    private List<String> getDevelopmentBranches() {
-        List<String> branches = new ArrayList<>();
-        File branchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
-        try (InputStream is = new FileInputStream(branchesFile)) {
-            JsonNode json = objectMapper.readTree(is);
-            for (JsonNode node : json.get("branches")) {
-                branches.add(node.get("branch").asText());
+    private List<Version> parseVersionLines(List<String> versionLines) {
+        return versionLines.stream()
+            .map(LINE_PATTERN::matcher)
+            .filter(Matcher::matches)
+            .map(match -> new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3))))
+            .sorted()
+            .toList();
+    }
+
+    private List<DevelopmentBranch> getDevelopmentBranches() {
+        String branchesFileLocation = project.getProviders()
+            .gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
+            .getOrElse(DEFAULT_BRANCHES_FILE_URL);
+        LOGGER.info("Reading branches.json from {}", branchesFileLocation);
+        byte[] branchesBytes;
+        if (branchesFileLocation.startsWith("http")) {
+            try (InputStream in = URI.create(branchesFileLocation).toURL().openStream()) {
+                branchesBytes = in.readAllBytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to download branches.json from: " + branchesFileLocation, e);
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } else {
+            try {
+                branchesBytes = Files.readAllBytes(new File(branchesFileLocation).toPath());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read branches.json from: " + branchesFileLocation, e);
+            }
         }
 
-        return branches;
+        return branchesFileParser.parse(branchesBytes);
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {

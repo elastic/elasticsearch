@@ -620,6 +620,10 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
+    protected boolean pendingTranslogRecovery() {
+        return pendingTranslogRecovery.get();
+    }
+
     private void recoverFromTranslogInternal(
         TranslogRecoveryRunner translogRecoveryRunner,
         long recoverUpToSeqNo,
@@ -3133,7 +3137,7 @@ public class InternalEngine extends Engine {
         return Collections.emptyMap();
     }
 
-    final void ensureCanFlush() {
+    protected void ensureCanFlush() {
         // translog recovery happens after the engine is fully constructed.
         // If we are in this stage we have to prevent flushes from this
         // engine otherwise we might loose documents if the flush succeeds

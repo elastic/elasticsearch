@@ -89,9 +89,12 @@ redirects:
 
   # https://github.com/elastic/elasticsearch/pull/133359
   'reference/elasticsearch/rest-apis/filter-search-results.md':
+    to: 'reference/elasticsearch/rest-apis/filter-search-results.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
     many:
       - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
-        anchors:
-          'rescore': 'rescore-main'
-          'query-rescorer': 'query-rescorer'
-          'multiple-rescores': 'multiple-rescores'
+        anchors: {'rescore'}
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors: {'query-rescorer'}
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors: {'multiple-rescores'}

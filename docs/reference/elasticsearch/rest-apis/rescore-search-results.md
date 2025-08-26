@@ -5,7 +5,7 @@ applies_to:
   stack: all
   serverless: all
 ---
-# Rescore search results [rescore-main]
+# Rescore search results [rescore]
 
 Rescoring can help to improve precision by reordering just the top
 (e.g. 100 - 500) documents returned by initial retrieval phase

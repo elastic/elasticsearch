@@ -529,7 +529,6 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
     @Override
     public void testFold() {
-        // TODO: double-check
         // Decay cannot be folded
     }
 

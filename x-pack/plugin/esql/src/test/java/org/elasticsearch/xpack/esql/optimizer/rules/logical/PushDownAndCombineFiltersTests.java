@@ -385,8 +385,8 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(pushableCondition, topFilter.condition());
         Join optimizedJoin = as(topFilter.child(), Join.class);
         assertEquals(left, optimizedJoin.left());
-        assertEquals(1, optimizedJoin.candidateRightHandFilters().size());
-        assertEquals(pushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(pushableCondition, rightFilter.condition());
     }
 
     public void testPushDownFilterPastLeftJoinWithNonPushable() {
@@ -401,7 +401,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(filter, optimized);
         // And the join inside should not have candidate filters
         Join innerJoin = as(as(optimized, Filter.class).child(), Join.class);
-        assertTrue(innerJoin.candidateRightHandFilters().isEmpty());
+        assertFalse(innerJoin.right() instanceof Filter);
     }
 
     public void testPushDownFilterPastLeftJoinWithPartiallyPushableAnd() {
@@ -421,9 +421,9 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(partialCondition, topFilter.condition());
         Join optimizedJoin = as(topFilter.child(), Join.class);
         assertEquals(left, optimizedJoin.left());
-        assertEquals(1, optimizedJoin.candidateRightHandFilters().size());
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
         // Only the pushable part should be a candidate
-        assertEquals(pushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
+        assertEquals(pushableCondition, rightFilter.condition());
     }
 
     public void testPushDownFilterPastLeftJoinWithOr() {
@@ -441,7 +441,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(filter, optimized);
         // And the join inside should not have candidate filters
         Join innerJoin = as(as(optimized, Filter.class).child(), Join.class);
-        assertTrue(innerJoin.candidateRightHandFilters().isEmpty());
+        assertFalse(innerJoin.right() instanceof Filter);
     }
 
     public void testPushDownFilterPastLeftJoinWithNotPushable() {
@@ -457,8 +457,8 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         Filter topFilter = as(optimized, Filter.class);
         assertEquals(notPushableCondition, topFilter.condition());
         Join optimizedJoin = as(topFilter.child(), Join.class);
-        assertEquals(1, optimizedJoin.candidateRightHandFilters().size());
-        assertEquals(notPushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(notPushableCondition, rightFilter.condition());
     }
 
     public void testPushDownFilterPastLeftJoinWithNotNonPushable() {
@@ -474,8 +474,8 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         Filter topFilter = as(optimized, Filter.class);
         assertEquals(notNonPushableCondition, topFilter.condition());
         Join optimizedJoin = as(topFilter.child(), Join.class);
-        assertEquals(1, optimizedJoin.candidateRightHandFilters().size());
-        assertEquals(notNonPushableCondition, optimizedJoin.candidateRightHandFilters().get(0));
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(notNonPushableCondition, rightFilter.condition());
     }
 
     public void testPushDownFilterPastLeftJoinWithComplexMix() {
@@ -524,7 +524,8 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         // The pushable part of the filter should be added as a candidate to the join
         Join optimizedJoin = as(topFilter.child(), Join.class);
         assertEquals(left, optimizedJoin.left());
-        Set<Expression> actualPushable = new HashSet<>(optimizedJoin.candidateRightHandFilters());
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        Set<Expression> actualPushable = new HashSet<>(Predicates.splitAnd(rightFilter.condition()));
         Set<Expression> expectedPushable = new HashSet<>(List.of(p1, p2, p3, p4, p5, p6));
         assertEquals(expectedPushable, actualPushable);
     }

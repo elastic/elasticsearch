@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -111,19 +112,25 @@ public class LocalMapper {
                     join.rightOutputFields()
                 );
             }
-            if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(
-                    join.source(),
-                    left,
-                    right,
-                    config.leftFields(),
-                    config.rightFields(),
-                    join.rightOutputFields(),
-                    join.candidateRightHandFilters()
-                );
+            if (right instanceof FilterExec filterExec) {
+                LookupJoinExec lookupJoinExec = getLookupJoinExec(join, filterExec.child(), left, config);
+                if (lookupJoinExec != null) {
+                    // build the right child as a FilterExec with the original lookupJoinExec.right() as the child
+                    FilterExec newRightChild = filterExec.replaceChild(lookupJoinExec.right());
+                    return lookupJoinExec.replaceChildren(lookupJoinExec.left(), newRightChild);
+                }
             }
+            LookupJoinExec lookupJoinExec = getLookupJoinExec(join, right, left, config);
+            if (lookupJoinExec != null) return lookupJoinExec;
         }
 
         return MapperUtils.unsupported(binary);
+    }
+
+    private static LookupJoinExec getLookupJoinExec(Join join, PhysicalPlan right, PhysicalPlan left, JoinConfig config) {
+        if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
+            return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+        }
+        return null;
     }
 }

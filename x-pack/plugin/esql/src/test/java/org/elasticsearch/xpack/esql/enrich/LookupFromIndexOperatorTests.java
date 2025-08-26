@@ -43,6 +43,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -70,6 +71,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -189,7 +192,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         );
     }
 
-    private List<Expression> buildLessThanFilter(int value) {
+    private FilterExec buildLessThanFilter(int value) {
         FieldAttribute filterAttribute = new FieldAttribute(
             Source.EMPTY,
             "lint",
@@ -200,7 +203,9 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             filterAttribute,
             new Literal(Source.EMPTY, value, DataType.INTEGER)
         );
-        return List.of(lessThan);
+        EsQueryExec queryExec = new EsQueryExec(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of(), null);
+        FilterExec filterExec = new FilterExec(Source.EMPTY, queryExec, lessThan);
+        return filterExec;
     }
 
     @Override
@@ -209,13 +214,30 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     }
 
     @Override
+    public void testSimpleDescription() {
+        Operator.OperatorFactory factory = simple();
+        String description = factory.describe();
+        assertThat(description, expectedDescriptionOfSimple());
+        try (Operator op = factory.get(driverContext())) {
+            // we use a special pattern here because the description can contain new lines for the right_pre_join_plan
+            String pattern = "^\\w*\\[[\\s\\S]*\\]$";
+            assertThat(description, matchesPattern(pattern));
+        }
+    }
+
+    @Override
     protected Matcher<String> expectedToStringOfSimple() {
         StringBuilder sb = new StringBuilder();
-        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+]");
+        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
         for (int i = 0; i < numberOfJoinColumns; i++) {
-            sb.append(" input_type=LONG match_field=match").append(i).append(" inputChannel=").append(i);
+            sb.append("input_type=LONG match_field=match").append(i).append(" inputChannel=").append(i).append(" ");
         }
-        sb.append(" optional_filter=lint < ").append(LESS_THAN_VALUE).append("]");
+        sb.append("right_pre_join_plan=FilterExec\\[lint\\{f}#\\d+ < ")
+            .append(LESS_THAN_VALUE)
+            .append(
+                "\\[INTEGER]]\\n\\\\_EsQueryExec\\[test], indexMode\\[lookup], query\\[\\]\\[\\],"
+                    + " limit\\[\\], sort\\[\\] estimatedRowSize\\[null]]"
+            );
         return matchesPattern(sb.toString());
     }
 

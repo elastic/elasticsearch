@@ -121,6 +121,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -740,8 +741,8 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
-        if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
+        EsQueryExec localSourceExec = fildEsQueryExec(join.lookup());
+        if (localSourceExec == null || localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
 
@@ -799,10 +800,19 @@ public class LocalExecutionPlanner {
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
-                join.getCandidateRightHandFilters()
+                join.right()
             ),
             layout
         );
+    }
+
+    private EsQueryExec fildEsQueryExec(PhysicalPlan lookup) {
+        if (lookup instanceof EsQueryExec esQueryExec) {
+            return esQueryExec;
+        } else if (lookup instanceof UnaryExec unaryExec) {
+            return fildEsQueryExec(unaryExec.child());
+        }
+        return null;
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

@@ -1919,13 +1919,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
-     * uages{f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages
+     * {f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
      * \_Limit[1000[INTEGER],false]
      *   \_Filter[language_name{f}#19 > a[KEYWORD]]
-     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18],false,language_name{f}#19 > a[KEYWORD]]
+     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18],false]
      *       |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *       \_Filter[language_name{f}#19 > a[KEYWORD]]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testPushDownGreaterThanFilterPastLookupJoin() {
         var plan = plan("""
@@ -1939,8 +1940,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var join = as(filter.child(), Join.class);
-        var right = as(join.right(), EsRelation.class);
-        assertThat(join.candidateRightHandFilters().toString(), is("[language_name > \"a\"]"));
+        var rightFilter = as(join.right(), Filter.class);
+        assertThat(rightFilter.condition().toString(), is("language_name > \"a\""));
     }
 
     /**
@@ -1968,13 +1969,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages{f}#10
-     *      AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     *
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages
+     * {f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
      * \_Limit[1000[INTEGER],false]
      *   \_Filter[ISNOTNULL(language_name{f}#19)]
-     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18],false,ISNOTNULL(language_name{f}#19)]
+     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18],false]
      *       |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *       \_Filter[ISNOTNULL(language_name{f}#19)]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testPushDownIsNotNullFilterPastLookupJoin() {
         var plan = plan("""
@@ -1988,8 +1991,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var join = as(filter.child(), Join.class);
-        var right = as(join.right(), EsRelation.class);
-        assertThat(join.candidateRightHandFilters().toString(), is("[language_name IS NOT NULL]"));
+        var rightFilter = as(join.right(), Filter.class);
+        assertThat(rightFilter.condition().toString(), is("language_name IS NOT NULL"));
     }
 
     /**
@@ -7148,13 +7151,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expects
      *
      * <pre>{@code
-     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
-     * uages{f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages
+     * {f}#10 AS language_code#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
      * \_Limit[1000[INTEGER],false]
      *   \_Filter[language_name{f}#19 == English[KEYWORD]]
-     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18],false,language_name{f}#19 == English[KEYWORD]]
+     *     \_Join[LEFT,[languages{f}#10],[languages{f}#10],[language_code{f}#18],false]
      *       |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *       \_Filter[language_name{f}#19 == English[KEYWORD]]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      * }</pre>
      */
     public void testLookupJoinPushDownDisabledForLookupField() {
@@ -7183,8 +7187,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
 
         var leftRel = as(join.left(), EsRelation.class);
-        assertEquals("[language_name == \"English\"]", join.candidateRightHandFilters().toString());
-        var joinRightEsRelation = as(join.right(), EsRelation.class);
+        var rightFilter = as(join.right(), Filter.class);
+        assertEquals("language_name == \"English\"", rightFilter.condition().toString());
+        var joinRightEsRelation = as(rightFilter.child(), EsRelation.class);
 
     }
 
@@ -7194,14 +7199,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expects
      *
      * <pre>{@code
-     * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
-     * guages{f}#11 AS language_code#4, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
+     * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, languages
+     * {f}#11 AS language_code#4, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
      * \_Limit[1000[INTEGER],false]
      *   \_Filter[language_name{f}#20 == English[KEYWORD]]
-     *     \_Join[LEFT,[languages{f}#11],[languages{f}#11],[language_code{f}#19],false,language_name{f}#20 == English[KEYWORD]]
+     *     \_Join[LEFT,[languages{f}#11],[languages{f}#11],[language_code{f}#19],false]
      *       |_Filter[emp_no{f}#8 > 1[INTEGER]]
      *       | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     *       \_Filter[language_name{f}#20 == English[KEYWORD]]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      * }</pre>
      */
     public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
@@ -7238,8 +7244,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(literal.value(), equalTo(1));
 
         var leftRel = as(filter.child(), EsRelation.class);
-        assertEquals("[language_name == \"English\"]", join.candidateRightHandFilters().toString());
-        var rightRel = as(join.right(), EsRelation.class);
+        var rightFilter = as(join.right(), Filter.class);
+        assertEquals("language_name == \"English\"", rightFilter.condition().toString());
+        var rightRel = as(rightFilter.child(), EsRelation.class);
     }
 
     /**

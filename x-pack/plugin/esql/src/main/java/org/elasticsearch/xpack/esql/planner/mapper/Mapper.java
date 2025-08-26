@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -226,21 +227,24 @@ public class Mapper {
                     join.rightOutputFields()
                 );
             }
-            if (right instanceof FragmentExec fragment
-                && fragment.fragment() instanceof EsRelation relation
-                && relation.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(
-                    join.source(),
-                    left,
-                    right,
-                    config.leftFields(),
-                    config.rightFields(),
-                    join.rightOutputFields(),
-                    join.candidateRightHandFilters()
-                );
+            if (right instanceof FragmentExec fragment) {
+                boolean isIndexModeLookup = fragment.fragment() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
+                isIndexModeLookup = isIndexModeLookup
+                    || fragment.fragment() instanceof Filter filter
+                        && filter.child() instanceof EsRelation relation
+                        && relation.indexMode() == IndexMode.LOOKUP;
+                if (isIndexModeLookup) {
+                    return new LookupJoinExec(
+                        join.source(),
+                        left,
+                        right,
+                        config.leftFields(),
+                        config.rightFields(),
+                        join.rightOutputFields()
+                    );
+                }
             }
         }
-
         return MapperUtils.unsupported(bp);
     }
 

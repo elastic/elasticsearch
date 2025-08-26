@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -63,6 +64,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -229,17 +233,18 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private List<Expression> buildGreaterThanFilter(long value) {
+    private PhysicalPlan buildGreaterThanFilter(long value) {
         FieldAttribute filterAttribute = new FieldAttribute(
             Source.EMPTY,
             "l",
             new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         Expression greaterThan = new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
-        return List.of(greaterThan);
+        EsQueryExec queryExec = new EsQueryExec(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of(), null);
+        return new FilterExec(Source.EMPTY, queryExec, greaterThan);
     }
 
-    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, List<Expression> filters) throws IOException {
+    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, PhysicalPlan filters) throws IOException {
         String[] fieldMappers = new String[keyTypes.size() * 2];
         for (int i = 0; i < keyTypes.size(); i++) {
             fieldMappers[2 * i] = "key" + i;
@@ -269,9 +274,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
         Predicate<Integer> filterPredicate = l -> true;
-        if (filters != null) {
-            if (filters.size() == 1
-                && filters.get(0) instanceof GreaterThan gt
+        if (filters instanceof FilterExec filterExec) {
+            if (filterExec.condition() instanceof GreaterThan gt
                 && gt.left() instanceof FieldAttribute fa
                 && fa.name().equals("l")
                 && gt.right() instanceof Literal lit) {

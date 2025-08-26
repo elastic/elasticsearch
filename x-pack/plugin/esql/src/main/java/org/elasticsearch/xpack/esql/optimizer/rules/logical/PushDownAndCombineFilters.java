@@ -161,11 +161,12 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             }
             // push the right scoped filter down to the right child
             // We don't want to execute this rule more than once per join, so we check if we
-            // already pushed some filters to the right, and we only apply the rule if join.candidateRightHandFilters() is not empty
-            if (scoped.rightFilters().isEmpty() == false && join.candidateRightHandFilters().isEmpty()) {
+            if (scoped.rightFilters().isEmpty() == false && (join.right() instanceof Filter == false)) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters(), foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
-                    join = join.withCandidateRightHandFilters(rightPushableFilters);
+                    right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
+                    // update the join with the new right child
+                    join = (Join) join.replaceRight(right);
                     optimizationApplied = true;
                 }
                 /*

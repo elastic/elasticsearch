@@ -18,7 +18,12 @@ import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
@@ -42,43 +47,60 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     public ExpressionQueryList(
         List<QueryList> queryLists,
         SearchExecutionContext context,
-        List<Expression> candidateRightHandFilters,
+        PhysicalPlan rightPreJoinPlan,
         ClusterService clusterService
     ) {
-        if (queryLists.size() < 2 && (candidateRightHandFilters == null || candidateRightHandFilters.isEmpty())) {
-            throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists");
+        if (queryLists.size() < 2
+            && (rightPreJoinPlan == null || rightPreJoinPlan instanceof EsQueryExec esQueryExec && esQueryExec.query() == null)) {
+            throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists or a pre-join filter");
         }
         this.queryLists = queryLists;
         this.context = context;
-        buildPrePostJoinFilter(candidateRightHandFilters, clusterService);
+        buildPrePostJoinFilter(rightPreJoinPlan, clusterService);
     }
 
-    private void buildPrePostJoinFilter(List<Expression> candidateRightHandFilters, ClusterService clusterService) {
-        if (candidateRightHandFilters == null || candidateRightHandFilters.isEmpty()) {
-            return; // no filters to apply
+    private void addToPreJoinFilters(org.elasticsearch.index.query.QueryBuilder query) {
+        try {
+            if (query != null) {
+                preJoinFilters.add(query.toQuery(context));
+            }
+        } catch (IOException e) {
+            // as we treat the filter as optional an error in its application will be ignored
+            logger.error(() -> "Failed to translate optional pre-join filter: [" + query + "]", e);
         }
-        for (Expression filter : candidateRightHandFilters) {
-            try {
+    }
+
+    private void buildPrePostJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
+        if (rightPreJoinPlan instanceof EsQueryExec esQueryExec) {
+            if (esQueryExec.query() != null) {
+                addToPreJoinFilters(esQueryExec.query());
+            }
+        } else if (rightPreJoinPlan instanceof FilterExec filterExec) {
+            List<Expression> candidateRightHandFilters = Predicates.splitAnd(filterExec.condition());
+            for (Expression filter : candidateRightHandFilters) {
                 if (filter instanceof TranslationAware translationAware) {
                     LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
                         SearchContextStats.from(List.of(context)),
                         new EsqlFlags(clusterService.getClusterSettings())
                     );
                     if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
-                        preJoinFilters.add(
-                            translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder().toQuery(context)
-                        );
+                        addToPreJoinFilters(translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder());
                     }
                 }
                 // If the filter is not translatable we will not apply it for now
                 // as performance testing showed no performance improvement.
                 // We can revisit this in the future if needed, once we have more optimized workflow in place.
                 // The filter is optional, so it is OK to ignore it if it cannot be translated.
-            } catch (IOException e) {
-                // as the filter is optional an error in its application will be ignored
-                logger.error(() -> "Failed to translate optional pre-join filter: [" + filter + "]", e);
             }
+            // call recursively to find other filters that might be present
+            // either in another FilterExec or in an EsQueryExec
+            buildPrePostJoinFilter(filterExec.child(), clusterService);
+        } else if (rightPreJoinPlan instanceof UnaryExec unaryExec) {
+            // there can be other nodes in the plan such as FieldExtractExec
+            buildPrePostJoinFilter(unaryExec.child(), clusterService);
         }
+        // else we do nothing, as the filters are optional and we don't want to fail the query if there are any errors
+        // this also covers the case of rightPreJoinPlan being null
     }
 
     @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -49,7 +50,17 @@ public abstract class BinaryExec extends PhysicalPlan {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(left);
-        out.writeNamedWriteable(right);
+        PhysicalPlan rightToSerialize = right;
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER) == false
+            && this instanceof LookupJoinExec) {
+            // Prior to TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER
+            // we do not support a filter on top of the right side of the join
+            // As we consider the filters optional, we remove them here
+            while (rightToSerialize instanceof FilterExec filterExec) {
+                rightToSerialize = filterExec.child();
+            }
+        }
+        out.writeNamedWriteable(rightToSerialize);
     }
 
     @Override

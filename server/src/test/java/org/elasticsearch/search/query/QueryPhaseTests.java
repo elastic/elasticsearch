@@ -1055,7 +1055,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             @Override
             public ReaderContext readerContext() {
-                return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false);
+                return new ReaderContext(new ShardSearchContextId("test", 1L), indexShard, null, 0L, false);
             }
         }) {
 

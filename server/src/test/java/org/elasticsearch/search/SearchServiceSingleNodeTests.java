@@ -2896,7 +2896,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
-            indexService,
             indexShard,
             indexShard.acquireSearcherSupplier(),
             randomNonNegativeLong(),

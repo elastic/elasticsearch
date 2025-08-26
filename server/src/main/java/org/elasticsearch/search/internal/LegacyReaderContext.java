@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
@@ -27,13 +26,12 @@ public final class LegacyReaderContext extends ReaderContext {
 
     public LegacyReaderContext(
         ShardSearchContextId id,
-        IndexService indexService,
         IndexShard indexShard,
         Engine.SearcherSupplier reader,
         ShardSearchRequest shardSearchRequest,
         long keepAliveInMillis
     ) {
-        super(id, indexService, indexShard, reader, keepAliveInMillis, false);
+        super(id, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
         assert id.getSearcherId() == null : "Legacy reader context must not have searcher id";

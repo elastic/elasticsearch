@@ -164,6 +164,7 @@ final class DefaultSearchContext extends SearchContext {
 
     DefaultSearchContext(
         ReaderContext readerContext,
+        IndexService indexService,
         ShardSearchRequest request,
         SearchShardTarget shardTarget,
         LongSupplier relativeTimeSupplier,
@@ -183,7 +184,7 @@ final class DefaultSearchContext extends SearchContext {
         try {
             this.searchType = request.searchType();
             this.shardTarget = shardTarget;
-            this.indexService = readerContext.indexService();
+            this.indexService = indexService;
             this.indexShard = readerContext.indexShard();
             this.memoryAccountingBufferSize = memoryAccountingBufferSize;
 
@@ -193,7 +194,7 @@ final class DefaultSearchContext extends SearchContext {
                 request,
                 resultsType,
                 enableQueryPhaseParallelCollection,
-                field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
+                field -> getFieldCardinality(field, indexService, engineSearcher.getDirectoryReader())
             );
             if (executor == null || maximumNumberOfSlices <= 1) {
                 this.searcher = new ContextIndexSearcher(

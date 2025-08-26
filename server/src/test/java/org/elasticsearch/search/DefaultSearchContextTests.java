@@ -172,7 +172,6 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
 
             ReaderContext readerWithoutScroll = new ReaderContext(
                 newContextId(),
-                indexService,
                 indexShard,
                 searcherSupplier.get(),
                 randomNonNegativeLong(),
@@ -180,6 +179,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             );
             DefaultSearchContext contextWithoutScroll = new DefaultSearchContext(
                 readerWithoutScroll,
+                indexService,
                 shardSearchRequest,
                 target,
                 null,
@@ -214,7 +214,6 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMillis(randomInt(1000)));
             ReaderContext readerContext = new LegacyReaderContext(
                 newContextId(),
-                indexService,
                 indexShard,
                 searcherSupplier.get(),
                 shardSearchRequest,
@@ -223,6 +222,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             try (
                 DefaultSearchContext context1 = new DefaultSearchContext(
                     readerContext,
+                    indexService,
                     shardSearchRequest,
                     target,
                     null,
@@ -288,14 +288,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             }
 
             readerContext.close();
-            readerContext = new ReaderContext(
-                newContextId(),
-                indexService,
-                indexShard,
-                searcherSupplier.get(),
-                randomNonNegativeLong(),
-                false
-            ) {
+            readerContext = new ReaderContext(newContextId(), indexShard, searcherSupplier.get(), randomNonNegativeLong(), false) {
                 @Override
                 public ScrollContext scrollContext() {
                     ScrollContext scrollContext = new ScrollContext();
@@ -307,6 +300,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             try (
                 DefaultSearchContext context2 = new DefaultSearchContext(
                     readerContext,
+                    indexService,
                     shardSearchRequest,
                     target,
                     null,
@@ -350,6 +344,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             try (
                 DefaultSearchContext context3 = new DefaultSearchContext(
                     readerContext,
+                    indexService,
                     shardSearchRequest,
                     target,
                     null,
@@ -369,19 +364,13 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 when(searchExecutionContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
 
                 readerContext.close();
-                readerContext = new ReaderContext(
-                    newContextId(),
-                    indexService,
-                    indexShard,
-                    searcherSupplier.get(),
-                    randomNonNegativeLong(),
-                    false
-                );
+                readerContext = new ReaderContext(newContextId(), indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             }
 
             try (
                 DefaultSearchContext context4 = new DefaultSearchContext(
                     readerContext,
+                    indexService,
                     shardSearchRequest,
                     target,
                     null,
@@ -444,16 +433,10 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 }
             };
             SearchShardTarget target = new SearchShardTarget("node", shardId, null);
-            ReaderContext readerContext = new ReaderContext(
-                newContextId(),
-                indexService,
-                indexShard,
-                searcherSupplier,
-                randomNonNegativeLong(),
-                false
-            );
+            ReaderContext readerContext = new ReaderContext(newContextId(), indexShard, searcherSupplier, randomNonNegativeLong(), false);
             DefaultSearchContext context = new DefaultSearchContext(
                 readerContext,
+                indexService,
                 shardSearchRequest,
                 target,
                 null,
@@ -1066,7 +1049,6 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
 
             ReaderContext readerContext = new ReaderContext(
                 newContextId(),
-                indexService,
                 indexShard,
                 searcherSupplier.get(),
                 randomNonNegativeLong(),
@@ -1074,6 +1056,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             );
             return new DefaultSearchContext(
                 readerContext,
+                indexService,
                 shardSearchRequest,
                 target,
                 null,

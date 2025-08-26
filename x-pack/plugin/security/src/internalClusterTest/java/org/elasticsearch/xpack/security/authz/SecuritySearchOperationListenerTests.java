@@ -67,7 +67,6 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
-                indexService,
                 shard,
                 shard.acquireSearcherSupplier(),
                 shardSearchRequest,
@@ -103,7 +102,6 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
-                indexService,
                 shard,
                 shard.acquireSearcherSupplier(),
                 shardSearchRequest,
@@ -247,7 +245,6 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(
                 shardSearchContextId,
-                indexService,
                 shard,
                 shard.acquireSearcherSupplier(),
                 shardSearchRequest,

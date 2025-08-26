@@ -94,6 +94,16 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         assertOutputContains(result.output, expectedOutput)
     }
 
+    void assertNamedDefinition(String name, String content) {
+        File definitionFile = file("myserver/src/main/resources/transport/definitions/named/${name}.csv")
+        assert definitionFile.exists()
+        assert definitionFile.text.strip() == content
+    }
+
+    void assertNamedDefinitionDoesNotExist(String name) {
+        assert file("myserver/src/main/resources/transport/definitions/named/${name}.csv").exists() == false
+    }
+
     void assertLatest(String releaseBranch, String content) {
         assert file("myserver/src/main/resources/transport/latest/${releaseBranch}.csv").text.strip() == content
     }

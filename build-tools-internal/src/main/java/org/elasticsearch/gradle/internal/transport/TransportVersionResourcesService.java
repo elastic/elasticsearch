@@ -10,6 +10,8 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
@@ -50,6 +52,8 @@ import javax.inject.Inject;
  * </ul>
  */
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
+
+    private static final Logger logger = Logging.getLogger(TransportVersionResourcesService.class);
 
     public interface Parameters extends BuildServiceParameters {
         DirectoryProperty getTransportResourcesDirectory();
@@ -147,8 +151,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     void writeNamedDefinition(TransportVersionDefinition definition) throws IOException {
-        System.out.println("Writing definition: " + definition);
         Path path = transportResourcesDir.resolve(getNamedDefinitionRelativePath(definition.name()));
+        logger.debug("Writing referable definition [" + definition + "] to [" + path + "]");
         Files.writeString(
             path,
             definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
@@ -199,8 +203,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     void writeLatestFile(TransportVersionLatest latest) throws IOException {
-        System.out.println("Writing latest file: " + latest);
         Path path = transportResourcesDir.resolve(getLatestRelativePath(latest.releaseBranch()));
+        logger.debug("Writing upper bound [" + latest + "] to [" + path + "]");
         Files.writeString(path, latest.name() + "," + latest.id().complete() + "\n", StandardCharsets.UTF_8);
     }
 

@@ -149,7 +149,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     }
 
     private Set<String> getTargetReleaseBranches() {
-        if (getBranches().get().isEmpty() == false) {
+        if (getBranches().isPresent()) {
             return Arrays.stream(getBranches().get().split(","))
                 .map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch)
                 .collect(Collectors.toSet());

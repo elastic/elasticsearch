@@ -111,6 +111,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.U
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1414,6 +1415,34 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT));
         assertThat(e.getMessage(), containsString("Unsupported index options type invalid"));
 
+    }
+
+    /**
+     * Semantic text version error supersedes deprecated boost warning
+     * @throws IOException
+     */
+    @Override
+    public void testDeprecatedBoostWarning() throws IOException {
+        try {
+            createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
+                minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);
+                b.field("boost", 2.0);
+            }));
+            String[] warnings = Strings.concatStringArrays(
+                getParseMinimalWarnings(DEPRECATED_BOOST_INDEX_VERSION),
+                new String[] { "Parameter [boost] on field [field] is deprecated and has no effect" }
+            );
+            assertWarnings(warnings);
+        } catch (MapperParsingException e) {
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    containsString(UNSUPPORTED_INDEX_MESSAGE),
+                    containsString("Unknown parameter [boost]"),
+                    containsString("[boost : 2.0]")
+                )
+            );
+        }
     }
 
     public static SemanticTextIndexOptions randomSemanticTextIndexOptions() {

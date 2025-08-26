@@ -8,38 +8,39 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
-import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xpack.core.common.snippets.SnippetScorer;
+import org.elasticsearch.xpack.inference.chunking.Chunker;
+import org.elasticsearch.xpack.inference.chunking.ChunkerBuilder;
+import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.SnippetConfig.DEFAULT_NUM_SNIPPETS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder.DEFAULT_TOKEN_SIZE_LIMIT;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
 
-    private final SnippetConfig snippetRankInput;
+    private final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new SentenceBoundaryChunkingSettings(DEFAULT_TOKEN_SIZE_LIMIT, 0);
 
-    // Rough approximation of token size vs. characters in highlight fragments.
-    // TODO: highlighter should be able to set fragment size by token not length
-    private static final int TOKEN_SIZE_LIMIT_MULTIPLIER = 5;
+    private final SnippetConfig snippetRankInput;
+    private final ChunkingSettings chunkingSettings;
+    private final Chunker chunker;
 
     public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable SnippetConfig snippetRankInput) {
         super(field);
         this.snippetRankInput = snippetRankInput;
+        // TODO allow customization through snippetRankInput
+        chunkingSettings = DEFAULT_CHUNKING_SETTINGS;
+        chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
     }
 
     @Override
@@ -49,49 +50,35 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
             rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
             SearchHit hit = hits.getHits()[i];
             DocumentField docField = hit.field(field);
-            if (snippetRankInput == null && docField != null) {
-                rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
-            } else {
-                Map<String, HighlightField> highlightFields = hit.getHighlightFields();
-                if (highlightFields != null && highlightFields.containsKey(field) && highlightFields.get(field).fragments().length > 0) {
-                    List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
-                    rankFeatureDocs[i].featureData(snippets);
-                } else if (docField != null) {
-                    // If we did not get highlighting results, backfill with the doc field value
-                    // but pass in a warning because we are not reranking on snippets only
+            if (docField != null) {
+                if (snippetRankInput != null) {
+                    int numSnippets = snippetRankInput.numSnippets() != null ? snippetRankInput.numSnippets() : DEFAULT_NUM_SNIPPETS;
+                    List<Chunker.ChunkOffset> chunkOffsets = chunker.chunk(docField.getValue().toString(), chunkingSettings);
+                    List<String> chunks = chunkOffsets.stream()
+                        .map(offset -> { return docField.getValue().toString().substring(offset.start(), offset.end()); })
+                        .toList();
+
+                    List<String> bestChunks;
+                    try {
+                        SnippetScorer scorer = new SnippetScorer();
+                        List<SnippetScorer.ScoredSnippet> scoredSnippets = scorer.scoreSnippets(
+                            chunks,
+                            snippetRankInput.inferenceText(),
+                            numSnippets
+                        );
+                        bestChunks = scoredSnippets.stream().map(SnippetScorer.ScoredSnippet::content).limit(numSnippets).toList();
+                    } catch (IOException e) {
+                        // TODO - Should this throw, or truncate/send a warning header?
+                        throw new IllegalStateException("Could not generate snippets for input to reranker", e);
+                    }
+                    rankFeatureDocs[i].featureData(bestChunks);
+
+                } else {
                     rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
-                    HeaderWarning.addWarning(
-                        "Reranking on snippets requested, but no snippets were found for field [" + field + "]. Using field value instead."
-                    );
                 }
             }
         }
         return new RankFeatureShardResult(rankFeatureDocs);
-    }
-
-    @Override
-    public void prepareForFetch(SearchContext context) {
-        if (snippetRankInput != null) {
-            try {
-                HighlightBuilder highlightBuilder = new HighlightBuilder();
-                highlightBuilder.highlightQuery(snippetRankInput.snippetQueryBuilder());
-                // Stripping pre/post tags as they're not useful for snippet creation
-                highlightBuilder.field(field).preTags("").postTags("");
-                // Return highest scoring fragments
-                highlightBuilder.order(HighlightBuilder.Order.SCORE);
-                int numSnippets = snippetRankInput.numSnippets() != null ? snippetRankInput.numSnippets() : DEFAULT_NUM_SNIPPETS;
-                highlightBuilder.numOfFragments(numSnippets);
-                // Rely on the model to determine the fragment size
-                int tokenSizeLimit = snippetRankInput.tokenSizeLimit();
-                int fragmentSize = tokenSizeLimit * TOKEN_SIZE_LIMIT_MULTIPLIER;
-                highlightBuilder.fragmentSize(fragmentSize);
-                highlightBuilder.noMatchSize(fragmentSize);
-                SearchHighlightContext searchHighlightContext = highlightBuilder.build(context.getSearchExecutionContext());
-                context.highlight(searchHighlightContext);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to generate snippet request", e);
-            }
-        }
     }
 
 }

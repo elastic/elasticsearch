@@ -163,6 +163,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "ai21",
+                    "amazonbedrock",
                     "llama",
                     "deepseek",
                     "elastic",

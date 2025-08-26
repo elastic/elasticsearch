@@ -19,12 +19,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionEntityFactory;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockUnifiedChatCompletionEntityFactory;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseHandler;
 
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs.createUnsupportedTypeException;
 
 public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequestManager {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockChatCompletionRequestManager.class);
@@ -46,9 +51,45 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
-        var inputs = chatCompletionInput.getInputs();
-        var stream = chatCompletionInput.stream();
+        switch (inferenceInputs) {
+            case UnifiedChatInput uci -> execute(uci, requestSender, hasRequestCompletedFunction, listener);
+            case ChatCompletionInput cci -> execute(cci, requestSender, hasRequestCompletedFunction, listener);
+            default -> throw createUnsupportedTypeException(inferenceInputs, UnifiedChatInput.class);
+        }
+    }
+
+    private void execute(
+        UnifiedChatInput inferenceInputs,
+        RequestSender requestSender,
+        Supplier<Boolean> hasRequestCompletedFunction,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        var inputs = inferenceInputs.getRequest();
+        var stream = inferenceInputs.stream();
+        var requestEntity = AmazonBedrockUnifiedChatCompletionEntityFactory.createEntity(model, inputs);
+        var request = new AmazonBedrockUnifiedChatCompletionRequest(model, requestEntity, timeout, stream);
+        var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
+
+        try {
+            requestSender.send(logger, request, hasRequestCompletedFunction, responseHandler, listener);
+        } catch (Exception e) {
+            var errorMessage = Strings.format(
+                "Failed to send [completion] request from inference entity id [%s]",
+                request.getInferenceEntityId()
+            );
+            logger.warn(errorMessage, e);
+            listener.onFailure(new ElasticsearchException(errorMessage, e));
+        }
+    }
+
+    private void execute(
+        ChatCompletionInput inferenceInputs,
+        RequestSender requestSender,
+        Supplier<Boolean> hasRequestCompletedFunction,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        var inputs = inferenceInputs.getInputs();
+        var stream = inferenceInputs.stream();
         var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, inputs);
         var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout, stream);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.InferenceConfiguration;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
@@ -28,6 +30,15 @@ public final class AmazonBedrockConverseUtils {
             .toList();
     }
 
+    public static List<Message> getUnifiedConverseMessageList(List<UnifiedCompletionRequest.Message> messages) {
+        return messages.stream()
+            .map(message -> Message.builder().role(message.role())
+                .content(ContentBlock.builder()
+                    .text(message.content().toString())
+                    .build()).build())
+            .toList();
+    }
+
     public static Optional<InferenceConfiguration> inferenceConfig(AmazonBedrockConverseRequestEntity request) {
         if (request.temperature() != null || request.topP() != null || request.maxTokenCount() != null) {
             var builder = InferenceConfiguration.builder();
@@ -41,6 +52,25 @@ public final class AmazonBedrockConverseUtils {
 
             if (request.maxTokenCount() != null) {
                 builder.maxTokens(request.maxTokenCount());
+            }
+            return Optional.of(builder.build());
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<InferenceConfiguration> inferenceConfig(AmazonBedrockUnifiedConverseRequestEntity request) {
+        if (request.temperature() != null || request.topP() != null || request.maxCompletionTokens() != null) {
+            var builder = InferenceConfiguration.builder();
+            if (request.temperature() != null) {
+                builder.temperature(request.temperature().floatValue());
+            }
+
+            if (request.topP() != null) {
+                builder.topP(request.topP().floatValue());
+            }
+
+            if (request.maxCompletionTokens() != null) {
+                builder.maxTokens(Math.toIntExact(request.maxCompletionTokens()));
             }
             return Optional.of(builder.build());
         }

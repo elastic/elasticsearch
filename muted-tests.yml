@@ -687,6 +687,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/10_source_filtering/no filtering}
   issue: https://github.com/elastic/elasticsearch/issues/133561
+- class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
+  method: testShardDataPartitioning
+  issue: https://github.com/elastic/elasticsearch/issues/133574
 
 # Examples:
 #

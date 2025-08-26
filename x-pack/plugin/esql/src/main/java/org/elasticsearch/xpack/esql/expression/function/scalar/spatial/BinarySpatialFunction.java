@@ -153,7 +153,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             }
         }
 
-        protected Expression.TypeResolution isSpatial(Expression e, TypeResolutions.ParamOrdinal paramOrd) {
+        protected Expression.TypeResolution isCompatibleSpatial(Expression e, TypeResolutions.ParamOrdinal paramOrd) {
             return pointsOnly
                 ? EsqlTypeResolutions.isSpatialPoint(e, sourceText(), paramOrd)
                 : (supportsGrid
@@ -171,8 +171,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             TypeResolutions.ParamOrdinal leftOrdinal,
             TypeResolutions.ParamOrdinal rightOrdinal
         ) {
-            TypeResolution leftResolution = isSpatial(leftExpression, leftOrdinal);
-            TypeResolution rightResolution = isSpatial(rightExpression, rightOrdinal);
+            TypeResolution leftResolution = isCompatibleSpatial(leftExpression, leftOrdinal);
+            TypeResolution rightResolution = isCompatibleSpatial(rightExpression, rightOrdinal);
             if (leftResolution.resolved()) {
                 return resolveType(leftExpression, rightExpression, rightOrdinal);
             } else if (rightResolution.resolved()) {
@@ -188,7 +188,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             TypeResolutions.ParamOrdinal otherParamOrdinal
         ) {
             if (isNull(spatialExpression.dataType())) {
-                return isSpatial(otherExpression, otherParamOrdinal);
+                return isCompatibleSpatial(otherExpression, otherParamOrdinal);
             }
             TypeResolution resolution = isSameSpatialType(spatialExpression.dataType(), otherExpression, sourceText(), otherParamOrdinal);
             // TODO Remove these grid checks once we support geo_shape relation to geoGrid

@@ -678,6 +678,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
   method: testSyntheticSourceMany
   issue: https://github.com/elastic/elasticsearch/issues/133598
+- class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
+  method: testWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/133600
 
 # Examples:
 #

@@ -193,6 +193,7 @@ public class BasicBlockTests extends ESTestCase {
         }
         assertKeepMask(initialBlock);
         assertKeepMask(initialBlock.asVector());
+        assertDeepCopy(initialBlock);
     }
 
     public void testIntBlock() {
@@ -223,6 +224,7 @@ public class BasicBlockTests extends ESTestCase {
             assertEmptyLookup(blockFactory, block);
             assertThat(block.asVector().min(), equalTo(0));
             assertThat(block.asVector().max(), equalTo(positionCount - 1));
+            assertDeepCopy(block);
 
             try (IntBlock.Builder blockBuilder = blockFactory.newIntBlockBuilder(1)) {
                 IntBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -255,6 +257,7 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(vector.min(), equalTo(0));
                 assertThat(vector.max(), equalTo(positionCount - 1));
                 assertInsertNulls(vector.asBlock());
+                assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
             }
         }
@@ -278,6 +281,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.asVector().min(), equalTo(Integer.MAX_VALUE));
             assertThat(block.asVector().max(), equalTo(Integer.MIN_VALUE));
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
 
             try (IntVector.Builder vectorBuilder = blockFactory.newIntVectorBuilder(0)) {
@@ -285,6 +289,7 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(vector.min(), equalTo(Integer.MAX_VALUE));
                 assertThat(vector.max(), equalTo(Integer.MIN_VALUE));
                 assertInsertNulls(vector.asBlock());
+                assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
             }
         }
@@ -325,6 +330,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.asVector().min(), equalTo(value));
             assertThat(block.asVector().max(), equalTo(value));
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -359,6 +365,7 @@ public class BasicBlockTests extends ESTestCase {
                 LongBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
                 assertThat(copy, equalTo(block));
                 assertInsertNulls(block);
+                assertDeepCopy(block);
                 releaseAndAssertBreaker(block, copy);
             }
 
@@ -382,6 +389,7 @@ public class BasicBlockTests extends ESTestCase {
             LongVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
             assertInsertNulls(vector.asBlock());
+            assertDeepCopy(vector.asBlock());
             releaseAndAssertBreaker(vector.asBlock());
         }
     }
@@ -419,6 +427,7 @@ public class BasicBlockTests extends ESTestCase {
             );
             assertEmptyLookup(blockFactory, block);
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -454,6 +463,7 @@ public class BasicBlockTests extends ESTestCase {
                 DoubleBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
                 assertThat(copy, equalTo(block));
                 assertInsertNulls(block);
+                assertDeepCopy(block);
                 releaseAndAssertBreaker(block, copy);
             }
 
@@ -479,6 +489,7 @@ public class BasicBlockTests extends ESTestCase {
                 DoubleVector vector = vectorBuilder.build();
                 assertSingleValueDenseBlock(vector.asBlock());
                 assertInsertNulls(vector.asBlock());
+                assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
             }
         }
@@ -515,6 +526,7 @@ public class BasicBlockTests extends ESTestCase {
             );
             assertEmptyLookup(blockFactory, block);
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -551,6 +563,7 @@ public class BasicBlockTests extends ESTestCase {
                 FloatBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
                 assertThat(copy, equalTo(block));
                 assertInsertNulls(block);
+                assertDeepCopy(block);
                 releaseAndAssertBreaker(block, copy);
             }
 
@@ -576,6 +589,7 @@ public class BasicBlockTests extends ESTestCase {
                 DoubleVector vector = vectorBuilder.build();
                 assertSingleValueDenseBlock(vector.asBlock());
                 assertInsertNulls(vector.asBlock());
+                assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
             }
         }
@@ -612,6 +626,7 @@ public class BasicBlockTests extends ESTestCase {
             );
             assertEmptyLookup(blockFactory, block);
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -664,6 +679,7 @@ public class BasicBlockTests extends ESTestCase {
             BytesRefBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
             assertThat(copy, equalTo(block));
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block, copy);
         }
 
@@ -690,6 +706,7 @@ public class BasicBlockTests extends ESTestCase {
             BytesRefVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
             assertInsertNulls(vector.asBlock());
+            assertDeepCopy(vector.asBlock());
             releaseAndAssertBreaker(vector.asBlock());
         }
     }
@@ -746,6 +763,7 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertKeepMask(block);
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -786,6 +804,7 @@ public class BasicBlockTests extends ESTestCase {
             );
             assertEmptyLookup(blockFactory, block);
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -832,6 +851,7 @@ public class BasicBlockTests extends ESTestCase {
                 BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
                 assertThat(copy, equalTo(block));
                 assertInsertNulls(block);
+                assertDeepCopy(block);
                 releaseAndAssertBreaker(block, copy);
             }
 
@@ -875,6 +895,7 @@ public class BasicBlockTests extends ESTestCase {
                 }
             }
             assertInsertNulls(vector.asBlock());
+            assertDeepCopy(vector.asBlock());
             releaseAndAssertBreaker(vector.asBlock());
         }
     }
@@ -917,6 +938,7 @@ public class BasicBlockTests extends ESTestCase {
                 assertTrue(block.asVector().allFalse());
             }
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -960,6 +982,7 @@ public class BasicBlockTests extends ESTestCase {
                 b -> assertThat(b, instanceOf(ConstantNullBlock.class))
             );
             assertInsertNulls(block);
+            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -1328,18 +1351,46 @@ public class BasicBlockTests extends ESTestCase {
     void releaseAndAssertBreaker(Block... blocks) {
         assertThat(breaker.getUsed(), greaterThan(0L));
         Page[] pages = Arrays.stream(blocks).map(Page::new).toArray(Page[]::new);
+
+        /*
+         * Deep copy the block into the non-breaking instance to make
+         * sure that works and that we can read from the deep copy after
+         * this has been released.
+         */
+        Block[] deepCopies = new Block[blocks.length];
+        for (int b = 0; b < blocks.length; b++) {
+            Block copiedOutOfBreaker = blocks[b].deepCopy(TestBlockFactory.getNonBreakingInstance());
+            assertThat(copiedOutOfBreaker, equalTo(blocks[b]));
+            deepCopies[b] = copiedOutOfBreaker;
+        }
+
         Releasables.closeExpectNoException(blocks);
         Arrays.stream(blocks).forEach(block -> assertThat(block.isReleased(), is(true)));
         Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotDoubleRelease);
         Arrays.stream(pages).forEach(BasicBlockTests::assertCannotReadFromPage);
         Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotAddToPage);
         assertThat(breaker.getUsed(), is(0L));
+
+        for (int b = 0; b < deepCopies.length; b++) {
+            BlockTestUtils.readInto(new ArrayList<>(), deepCopies[b]);
+        }
     }
 
     void releaseAndAssertBreaker(Vector vector) {
         assertThat(breaker.getUsed(), greaterThan(0L));
+
+        /*
+         * Deep copy the vector into the non-breaking instance to make
+         * sure that works and that we can read from the deep copy after
+         * this has been released.
+         */
+        Vector copiedOutOfBreaker = vector.deepCopy(TestBlockFactory.getNonBreakingInstance());
+        assertThat(copiedOutOfBreaker, equalTo(vector));
+
         Releasables.closeExpectNoException(vector);
         assertThat(breaker.getUsed(), is(0L));
+
+        BlockTestUtils.readInto(new ArrayList<>(), copiedOutOfBreaker.asBlock());
     }
 
     static void assertCannotDoubleRelease(Block block) {
@@ -1712,6 +1763,24 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertThat(lookup.hasNext(), equalTo(false));
         }
+    }
+
+    public static Block assertDeepCopy(Block block) {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-into", ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+        BlockFactory into = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        try (Block deepCopy = block.deepCopy(into)) {
+            assertThat(deepCopy, equalTo(block));
+
+            assertThat(
+                deepCopy.asVector() != null && deepCopy.asVector().isConstant(),
+                equalTo(block.asVector() != null && block.asVector().isConstant())
+            );
+        }
+        Block untracked = block.deepCopy(TestBlockFactory.getNonBreakingInstance());
+        assertThat(untracked, equalTo(block));
+        // untracked doesn't need to be released
+        return untracked;
     }
 
     static void assertKeepMask(Vector vector) {

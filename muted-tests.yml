@@ -354,9 +354,6 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/130821
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLookupJoinAliases
-  issue: https://github.com/elastic/elasticsearch/issues/131166
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test090SecurityCliPackaging
   issue: https://github.com/elastic/elasticsearch/issues/131107
@@ -384,9 +381,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
-  method: testDataStreamLifecycleDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/131394
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/131412
@@ -408,12 +402,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
-- class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
-  method: testReader
-  issue: https://github.com/elastic/elasticsearch/issues/131573
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLookupJoinAliasesSkipOld
-  issue: https://github.com/elastic/elasticsearch/issues/131697
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
@@ -444,15 +432,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/132558
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132600
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132601
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132602
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/132349
@@ -603,6 +582,111 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:change_point.Values null column}
   issue: https://github.com/elastic/elasticsearch/issues/133334
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/110_field_collapsing/field collapsing}
+  issue: https://github.com/elastic/elasticsearch/issues/133361
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/133364
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
+  issue: https://github.com/elastic/elasticsearch/issues/127302
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/133370
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSourceMany
+  issue: https://github.com/elastic/elasticsearch/issues/133394
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_int4_flat/kNN search with filter}
+  issue: https://github.com/elastic/elasticsearch/issues/133420
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSourceInNestedObject
+  issue: https://github.com/elastic/elasticsearch/issues/133426
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on date field in empty index}
+  issue: https://github.com/elastic/elasticsearch/issues/133439
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
+  issue: https://github.com/elastic/elasticsearch/issues/133442
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133449
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
+  method: testFilterWithUnavailableRemote
+  issue: https://github.com/elastic/elasticsearch/issues/133450
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133461
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesRateIT
+  method: testRateWithTimeBucketAndClusterMultipleMetricsByMin
+  issue: https://github.com/elastic/elasticsearch/issues/133478
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  method: testLookupJoinOthers
+  issue: https://github.com/elastic/elasticsearch/issues/133480
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/133481
+- class: org.elasticsearch.index.mapper.LongFieldMapperTests
+  method: testSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/133496
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/132601
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/132600
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/132602
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133497
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133498
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133499
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/133503
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/133504
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/133505
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/133507
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
+  issue: https://github.com/elastic/elasticsearch/issues/133508
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133516
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133517
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133518
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/133520
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testTopNPushedToLucene
+  issue: https://github.com/elastic/elasticsearch/issues/133556
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testFilterNestedFields
+  issue: https://github.com/elastic/elasticsearch/issues/133557
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133560
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/10_source_filtering/no filtering}
+  issue: https://github.com/elastic/elasticsearch/issues/133561
 
 # Examples:
 #

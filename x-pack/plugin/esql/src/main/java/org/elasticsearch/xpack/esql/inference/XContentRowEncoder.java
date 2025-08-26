@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -35,6 +36,8 @@ import java.util.stream.Collectors;
  * Extracted columns can be specified using {@link ExpressionEvaluator}
  */
 public class XContentRowEncoder implements ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(XContentRowEncoder.class);
+
     private final XContentType xContentType;
     private final BlockFactory blockFactory;
     private final ColumnInfoImpl[] columnsInfo;
@@ -120,6 +123,15 @@ public class XContentRowEncoder implements ExpressionEvaluator {
         } finally {
             Releasables.closeExpectNoException(fieldValueBlocks);
         }
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        for (ExpressionEvaluator e : fieldsValueEvaluators) {
+            baseRamBytesUsed += e.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
     }
 
     public List<String> fieldNames() {

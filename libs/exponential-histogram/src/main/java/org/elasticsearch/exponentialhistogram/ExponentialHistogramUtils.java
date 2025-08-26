@@ -21,6 +21,7 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 
@@ -75,7 +76,11 @@ public class ExponentialHistogramUtils {
      * @param positiveBuckets the positive buckets of the histogram
      * @return the estimated minimum
      */
-    public static OptionalDouble estimateMin(ZeroBucket zeroBucket, ExponentialHistogram.Buckets negativeBuckets, ExponentialHistogram.Buckets positiveBuckets) {
+    public static OptionalDouble estimateMin(
+        ZeroBucket zeroBucket,
+        ExponentialHistogram.Buckets negativeBuckets,
+        ExponentialHistogram.Buckets positiveBuckets
+    ) {
         OptionalLong negativeMaxIndex = negativeBuckets.maxBucketIndex();
         int scale = negativeBuckets.iterator().scale();
         assert scale == positiveBuckets.iterator().scale();
@@ -84,6 +89,10 @@ public class ExponentialHistogramUtils {
             return OptionalDouble.of(-ExponentialScaleUtils.getUpperBucketBoundary(negativeMaxIndex.getAsLong(), scale));
         }
         if (zeroBucket.count() > 0) {
+            if (zeroBucket.zeroThreshold() == 0.0) {
+                // avoid negative zero
+                return OptionalDouble.of(0.0);
+            }
             return OptionalDouble.of(-zeroBucket.zeroThreshold());
         }
         BucketIterator positiveBucketsIt = positiveBuckets.iterator();

@@ -82,6 +82,7 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
      */
     void reset() {
         sum = 0;
+        min = Double.NaN;
         setZeroBucket(ZeroBucket.minimalEmpty());
         resetBuckets(MAX_SCALE);
     }

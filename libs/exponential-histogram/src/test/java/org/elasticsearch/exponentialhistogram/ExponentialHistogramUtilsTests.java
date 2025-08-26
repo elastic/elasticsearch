@@ -25,7 +25,6 @@ import java.util.OptionalDouble;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase {
 
@@ -156,5 +155,15 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
         );
         assertThat(estimate.isPresent(), equalTo(true));
         assertThat(estimate.getAsDouble(), equalTo(Double.NEGATIVE_INFINITY));
+    }
+
+    public void testMinimumEstimationSanitizedNegativeZero() {
+        OptionalDouble estimate = ExponentialHistogramUtils.estimateMin(
+            ZeroBucket.minimalWithCount(42),
+            ExponentialHistogram.empty().negativeBuckets(),
+            ExponentialHistogram.empty().positiveBuckets()
+        );
+        assertThat(estimate.isPresent(), equalTo(true));
+        assertThat(estimate.getAsDouble(), equalTo(0.0));
     }
 }

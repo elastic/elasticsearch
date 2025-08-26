@@ -43,8 +43,15 @@ public interface BlockLoader {
     interface ColumnAtATimeReader extends Reader {
         /**
          * Reads the values of all documents in {@code docs}.
+         *
+         * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field;
+         *                      otherwise, the guarantee is unknown. This enables optimizations for block loaders,
+         *                      treating the field as dense (every document has value) even if it is sparse in
+         *                      the index. For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out
+         *                      documents without value for field x, all target documents returned from the source operator
+         *                      will have a value for field x whether x is dense or sparse in the index.
          */
-        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException;
+        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
     }
 
     /**
@@ -166,7 +173,7 @@ public interface BlockLoader {
      */
     class ConstantNullsReader implements AllReader {
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             return factory.constantNulls(docs.count() - offset);
         }
 
@@ -200,7 +207,7 @@ public interface BlockLoader {
             public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
                 return new ColumnAtATimeReader() {
                     @Override
-                    public Block read(BlockFactory factory, Docs docs, int offset) {
+                    public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
                         return factory.constantBytes(value, docs.count() - offset);
                     }
 
@@ -278,8 +285,8 @@ public interface BlockLoader {
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-                    return reader.read(factory, docs, offset);
+                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                    return reader.read(factory, docs, offset, nullsFiltered);
                 }
 
                 @Override
@@ -447,7 +454,7 @@ public interface BlockLoader {
         /**
          * Build a reader for reading {@link SortedDocValues}
          */
-        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
+        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
 
         /**
          * Build a reader for reading {@link SortedSetDocValues}
@@ -548,6 +555,8 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+
+        SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
     }
 
     interface SortedSetOrdinalsBuilder extends Builder {

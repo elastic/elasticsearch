@@ -268,7 +268,11 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
+            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(
+                SortedDocValues ordinals,
+                int expectedCount,
+                boolean isDense
+            ) {
                 class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
                     private SingletonOrdsBuilder() {
                         super(expectedCount);
@@ -277,11 +281,19 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public SingletonOrdsBuilder appendOrd(int value) {
                         try {
-                            add(ordinals.lookupOrd(value));
+                            add(BytesRef.deepCopyOf(ordinals.lookupOrd(value)));
                             return this;
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+                        for (int i = from; i < from + length; i++) {
+                            appendOrd(values[i]);
+                        }
+                        return this;
                     }
                 }
                 return new SingletonOrdsBuilder();

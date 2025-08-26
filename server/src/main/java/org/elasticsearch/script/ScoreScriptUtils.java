@@ -284,5 +284,4 @@ public final class ScoreScriptUtils {
             return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
         }
     }
-
 }

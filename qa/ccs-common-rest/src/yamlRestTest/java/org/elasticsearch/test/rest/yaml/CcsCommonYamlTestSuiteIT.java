@@ -69,7 +69,7 @@ import static java.util.Collections.unmodifiableList;
  * using the client running against the "write" cluster.
  *
  */
-@TimeoutSuite(millis = 15 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // to account for slow as hell VMs especially in encrypted rest tests
 public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(CcsCommonYamlTestSuiteIT.class);

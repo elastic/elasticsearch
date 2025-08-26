@@ -9,14 +9,12 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -141,34 +139,21 @@ public sealed interface LinkedProjectConfig {
         }
     }
 
-    TimeValue DEFAULT_TRANSPORT_CONNECT_TIMEOUT = TimeValue.timeValueSeconds(30);
-    Compression.Enabled DEFAULT_CONNECTION_COMPRESSION = Compression.Enabled.INDEXING_DATA;
-    Compression.Scheme DEFAULT_CONNECTION_COMPRESSION_SCHEME = Compression.Scheme.LZ4;
-    TimeValue DEFAULT_CLUSTER_PING_SCHEDULE = TimeValue.MINUS_ONE;
-    TimeValue DEFAULT_INITIAL_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
-    boolean DEFAULT_SKIP_UNAVAILABLE = true;
-    int DEFAULT_REMOTE_MAX_PENDING_CONNECTION_LISTENERS = 1000;
-    int DEFAULT_PROXY_NUM_SOCKET_CONNECTIONS = 18;
-    int DEFAULT_SNIFF_MAX_NUM_CONNECTIONS = 3;
-    List<String> DEFAULT_SNIFF_SEED_NODES = Collections.emptyList();
-    Predicate<DiscoveryNode> DEFAULT_SNIFF_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-        && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
-
     abstract class Builder<C extends LinkedProjectConfig, B extends Builder<C, B>> {
         protected final ProjectId originProjectId;
         protected final ProjectId linkedProjectId;
         protected final String linkedProjectAlias;
         protected final ConnectionStrategy connectionStrategy;
         private final B concreteBuilder;
-        protected TimeValue transportConnectTimeout = DEFAULT_TRANSPORT_CONNECT_TIMEOUT;
-        protected Compression.Enabled connectionCompression = DEFAULT_CONNECTION_COMPRESSION;
-        protected Compression.Scheme connectionCompressionScheme = DEFAULT_CONNECTION_COMPRESSION_SCHEME;
-        protected TimeValue clusterPingSchedule = DEFAULT_CLUSTER_PING_SCHEDULE;
-        protected TimeValue initialConnectionTimeout = DEFAULT_INITIAL_CONNECTION_TIMEOUT;
-        protected boolean skipUnavailable = DEFAULT_SKIP_UNAVAILABLE;
+        protected TimeValue transportConnectTimeout = TransportSettings.DEFAULT_CONNECT_TIMEOUT;
+        protected Compression.Enabled connectionCompression = TransportSettings.DEFAULT_TRANSPORT_COMPRESS;
+        protected Compression.Scheme connectionCompressionScheme = TransportSettings.DEFAULT_TRANSPORT_COMPRESSION_SCHEME;
+        protected TimeValue clusterPingSchedule = TransportSettings.DEFAULT_PING_SCHEDULE;
+        protected TimeValue initialConnectionTimeout = RemoteClusterSettings.DEFAULT_INITIAL_CONNECTION_TIMEOUT;
+        protected boolean skipUnavailable = RemoteClusterSettings.DEFAULT_SKIP_UNAVAILABLE;
         protected String proxyAddress = "";
         protected int maxNumConnections;
-        protected int maxPendingConnectionListeners = DEFAULT_REMOTE_MAX_PENDING_CONNECTION_LISTENERS;
+        protected int maxPendingConnectionListeners = RemoteClusterSettings.DEFAULT_MAX_PENDING_CONNECTION_LISTENERS;
 
         private Builder(
             ProjectId originProjectId,
@@ -182,8 +167,8 @@ public sealed interface LinkedProjectConfig {
             this.connectionStrategy = Objects.requireNonNull(connectionStrategy);
             this.concreteBuilder = self();
             this.maxNumConnections = switch (connectionStrategy) {
-                case PROXY -> DEFAULT_PROXY_NUM_SOCKET_CONNECTIONS;
-                case SNIFF -> DEFAULT_SNIFF_MAX_NUM_CONNECTIONS;
+                case PROXY -> RemoteClusterSettings.ProxyConnectionStrategySettings.DEFAULT_REMOTE_SOCKET_CONNECTIONS;
+                case SNIFF -> RemoteClusterSettings.SniffConnectionStrategySettings.DEFAULT_REMOTE_CONNECTIONS_PER_CLUSTER;
             };
         }
 
@@ -295,8 +280,8 @@ public sealed interface LinkedProjectConfig {
     }
 
     class SniffLinkedProjectConfigBuilder extends Builder<SniffLinkedProjectConfig, SniffLinkedProjectConfigBuilder> {
-        private Predicate<DiscoveryNode> nodePredicate = DEFAULT_SNIFF_NODE_PREDICATE;
-        private List<String> seedNodes = DEFAULT_SNIFF_SEED_NODES;
+        private Predicate<DiscoveryNode> nodePredicate = RemoteClusterSettings.SniffConnectionStrategySettings.DEFAULT_NODE_PREDICATE;
+        private List<String> seedNodes = RemoteClusterSettings.SniffConnectionStrategySettings.DEFAULT_SEED_NODES;
 
         public SniffLinkedProjectConfigBuilder(String linkedProjectAlias) {
             super(ProjectId.DEFAULT, ProjectId.DEFAULT, linkedProjectAlias, ConnectionStrategy.SNIFF);

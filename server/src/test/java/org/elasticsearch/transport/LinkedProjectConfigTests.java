@@ -12,6 +12,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -163,7 +164,7 @@ public class LinkedProjectConfigTests extends ESTestCase {
         assertThat(config.transportConnectTimeout(), equalTo(TransportSettings.CONNECT_TIMEOUT.getDefault(EMPTY)));
         assertThat(config.connectionCompression(), equalTo(getDefault(REMOTE_CLUSTER_COMPRESS, alias)));
         assertThat(config.connectionCompressionScheme(), equalTo(getDefault(REMOTE_CLUSTER_COMPRESSION_SCHEME, alias)));
-        assertThat(config.clusterPingSchedule(), equalTo(getDefault(REMOTE_CLUSTER_PING_SCHEDULE, alias)));
+        assertThat(config.clusterPingSchedule().toString(), equalTo(getDefault(REMOTE_CLUSTER_PING_SCHEDULE, alias).toString()));
         assertThat(config.initialConnectionTimeout(), equalTo(REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.getDefault(EMPTY)));
         assertThat(config.maxPendingConnectionListeners(), equalTo(REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getDefault(EMPTY)));
         assertThat(config.skipUnavailable(), equalTo(getDefault(REMOTE_CLUSTER_SKIP_UNAVAILABLE, alias)));

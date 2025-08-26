@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -41,12 +42,13 @@ import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStr
 
 public class RemoteClusterSettings {
 
+    public static final TimeValue DEFAULT_INITIAL_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     /**
      * The initial connect timeout for remote cluster connections
      */
     public static final Setting<TimeValue> REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "cluster.remote.initial_connect_timeout",
-        TimeValue.timeValueSeconds(30),
+        DEFAULT_INITIAL_CONNECTION_TIMEOUT,
         Setting.Property.NodeScope
     );
 
@@ -61,10 +63,17 @@ public class RemoteClusterSettings {
         Setting.Property.NodeScope
     );
 
+    public static final boolean DEFAULT_SKIP_UNAVAILABLE = true;
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE = Setting.affixKeySetting(
         "cluster.remote.",
         "skip_unavailable",
-        (ns, key) -> boolSetting(key, true, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
+        (ns, key) -> boolSetting(
+            key,
+            DEFAULT_SKIP_UNAVAILABLE,
+            new RemoteConnectionEnabled<>(ns, key),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+        )
     );
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
@@ -123,10 +132,11 @@ public class RemoteClusterSettings {
         )
     );
 
+    public static final int DEFAULT_MAX_PENDING_CONNECTION_LISTENERS = 1000;
     // this setting is intentionally not registered, it is only used in tests
     public static final Setting<Integer> REMOTE_MAX_PENDING_CONNECTION_LISTENERS = Setting.intSetting(
         "cluster.remote.max_pending_connection_listeners",
-        1000,
+        DEFAULT_MAX_PENDING_CONNECTION_LISTENERS,
         Setting.Property.NodeScope
     );
 
@@ -149,6 +159,7 @@ public class RemoteClusterSettings {
             )
         );
 
+        public static final int DEFAULT_REMOTE_SOCKET_CONNECTIONS = 18;
         /**
          * The maximum number of socket connections that will be established to a remote cluster. The default is 18.
          */
@@ -157,7 +168,7 @@ public class RemoteClusterSettings {
             "proxy_socket_connections",
             (ns, key) -> intSetting(
                 key,
-                18,
+                DEFAULT_REMOTE_SOCKET_CONNECTIONS,
                 1,
                 new StrategyValidator<>(ns, key, RemoteConnectionStrategy.ConnectionStrategy.PROXY),
                 Setting.Property.Dynamic,
@@ -195,13 +206,14 @@ public class RemoteClusterSettings {
     }
 
     public static class SniffConnectionStrategySettings {
+        public static final List<String> DEFAULT_SEED_NODES = Collections.emptyList();
         /**
          * A list of initial seed nodes to discover eligible nodes from the remote cluster
          */
         public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
             "cluster.remote.",
             "seeds",
-            (ns, key) -> Setting.listSetting(key, Collections.emptyList(), s -> {
+            (ns, key) -> Setting.listSetting(key, DEFAULT_SEED_NODES, s -> {
                 // validate seed address
                 RemoteConnectionStrategy.parsePort(s);
                 return s;
@@ -234,13 +246,14 @@ public class RemoteClusterSettings {
             () -> REMOTE_CLUSTER_SEEDS
         );
 
+        public static final int DEFAULT_REMOTE_CONNECTIONS_PER_CLUSTER = 3;
         /**
          * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
          * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
          */
         public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER = intSetting(
             "cluster.remote.connections_per_cluster",
-            3,
+            DEFAULT_REMOTE_CONNECTIONS_PER_CLUSTER,
             1,
             Setting.Property.NodeScope
         );
@@ -277,15 +290,16 @@ public class RemoteClusterSettings {
                 .maxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
         }
 
+        public static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
+            && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
+
         static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
             if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
                 // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
                 String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
-                return LinkedProjectConfig.DEFAULT_SNIFF_NODE_PREDICATE.and(
-                    (node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false"))
-                );
+                return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
             }
-            return LinkedProjectConfig.DEFAULT_SNIFF_NODE_PREDICATE;
+            return DEFAULT_NODE_PREDICATE;
         }
     }
 

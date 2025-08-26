@@ -37,6 +37,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
@@ -662,9 +663,16 @@ class KnnSearcher {
 
     private static class BitSetQuery extends Query {
         private final BitSet[] segmentDocs;
+        private final int[] cardinalities;
+        private final int hashCode;
 
         BitSetQuery(BitSet[] segmentDocs) {
             this.segmentDocs = segmentDocs;
+            this.hashCode = Arrays.hashCode(segmentDocs);
+            this.cardinalities = new int[segmentDocs.length];
+            for (int i = 0; i < segmentDocs.length; i++) {
+                cardinalities[i] = segmentDocs[i].cardinality();
+            }
         }
 
         @Override
@@ -672,8 +680,13 @@ class KnnSearcher {
             return new ConstantScoreWeight(this, boost) {
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     var bitSet = segmentDocs[context.ord];
-                    var cardinality = bitSet.cardinality();
-                    var scorer = new ConstantScoreScorer(score(), scoreMode, new BitSetIterator(bitSet, cardinality));
+                    var cardinality = cardinalities[context.ord];
+                    var scorer = new ConstantScoreScorer(
+                        score(),
+                        scoreMode,
+                        // we do this to simulate an actual query that needs to iterate matches
+                        new DocIdSetIteratorWrapper(new BitSetIterator(bitSet, cardinality))
+                    );
                     return new ScorerSupplier() {
                         @Override
                         public Scorer get(long leadCost) throws IOException {
@@ -709,7 +722,36 @@ class KnnSearcher {
 
         @Override
         public int hashCode() {
-            return 31 * classHash() + Arrays.hashCode(segmentDocs);
+            return 31 * classHash() + hashCode;
+        }
+    }
+
+    private static class DocIdSetIteratorWrapper extends DocIdSetIterator {
+        int doc = -1;
+        DocIdSetIterator delegate;
+
+        DocIdSetIteratorWrapper(DocIdSetIterator delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return doc = delegate.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return doc = delegate.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return delegate.cost();
         }
     }
 

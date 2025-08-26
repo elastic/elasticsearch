@@ -36,9 +36,10 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * Note: this query was originally adapted from Lucene's DocAndScoreQuery from the class
  * {@link org.apache.lucene.search.KnnFloatVectorQuery}, which is package-private.
  */
-public class KnnScoreDocQuery extends Query {
+public final class KnnScoreDocQuery extends Query {
     private final int[] docs;
     private final float[] scores;
+    private final int objectHash;
 
     // the indexes in docs and scores corresponding to the first matching document in each segment.
     // If a segment has no matching documents, it should be assigned the index of the next segment that does.
@@ -65,6 +66,13 @@ public class KnnScoreDocQuery extends Query {
         }
         this.segmentStarts = findSegmentStarts(reader, docs);
         this.contextIdentity = reader.getContext().id();
+        this.objectHash = Objects.hash(
+            KnnScoreDocQuery.class.getName().hashCode(),
+            Arrays.hashCode(docs),
+            Arrays.hashCode(scores),
+            Arrays.hashCode(segmentStarts),
+            contextIdentity
+        );
     }
 
     private static int[] findSegmentStarts(IndexReader reader, int[] docs) {
@@ -247,6 +255,6 @@ public class KnnScoreDocQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), Arrays.hashCode(docs), Arrays.hashCode(scores), Arrays.hashCode(segmentStarts), contextIdentity);
+        return objectHash;
     }
 }

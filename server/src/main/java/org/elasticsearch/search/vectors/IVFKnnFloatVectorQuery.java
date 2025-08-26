@@ -77,7 +77,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     protected TopDocs approximateSearch(
         LeafReaderContext context,
         Bits acceptDocs,
-        int visitedLimit,
         KnnCollectorManager knnCollectorManager,
         float visitRatio
     ) throws IOException {
@@ -91,7 +90,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             return NO_RESULTS;
         }
         KnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio);
-        KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
+        KnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;
         }

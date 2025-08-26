@@ -684,6 +684,9 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testDoubleBlock
   issue: https://github.com/elastic/elasticsearch/issues/133606
+- class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
+  method: testShardDataPartitioningWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/133607
 
 # Examples:
 #

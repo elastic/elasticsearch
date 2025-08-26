@@ -710,7 +710,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
 
-        // doesn't populate index.dimensions because the "labels" dynamic template doesn't have a path_math
+        // doesn't populate the time_series_dimensions custom metadata because the "labels" dynamic template doesn't have a path_math
         assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
 
         // index doc
@@ -770,7 +770,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
 
-        // doesn't populate index.dimensions because the "label" dynamic template doesn't have a path_math
+        // doesn't populate the time_series_dimensions custom metadata because the "label" dynamic template doesn't have a path_math
         assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
 
         // index doc

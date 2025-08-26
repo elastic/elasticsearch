@@ -5,12 +5,15 @@ applies_to:
   stack: all
   serverless: all
 ---
-# Rescore search results [rescore]
+
+# Rescore search results
 
 Rescoring can help to improve precision by reordering just the top
 (e.g. 100 - 500) documents returned by initial retrieval phase
 (query, knn search) by using a secondary (usually more costly) algorithm,
 instead of applying the costly algorithm to all documents in the index.
+
+## How `rescore` works [rescore]
 
 A `rescore` request is executed on each shard before it returns its results
 to be sorted by the node handling the overall search request.
@@ -30,7 +33,7 @@ Changing it while advancing through results (by using different `from` values)
 can cause the top hits to shift, leading to a confusing user experience.
 ::::
 
-### Query Rescorer [query-rescorer]
+## Query Rescorer [query-rescorer]
 
 The query rescorer executes a second query only on the top documents returned
 from the previous phase. The number of docs which is examined on each shard
@@ -89,7 +92,7 @@ The way the scores are combined can be controlled with the `score_mode`:
 | `max` | Take the max of original score and the rescore query score.                                                                                                             |
 | `min` | Take the min of the original score and the rescore query score.                                                                                                         |
 
-### Script rescorer  [script-rescorer]
+## Script rescorer  [script-rescorer]
 ```{applies_to}
 stack: ga 9.2
 ```
@@ -126,7 +129,7 @@ POST /_search
 }
 ```
 
-### Learning to rank rescorer [learning-to-rank-rescorer]
+## Learning to rank rescorer [learning-to-rank-rescorer]
 `learning_to_rank` uses an LTR model to rescore the top documents. You must
 provide the `model_id` of a deployed model, as well as any named parameters
 required by the query templates for features used by the model.
@@ -152,7 +155,7 @@ GET my-index/_search
 }
 ```
 
-### Multiple rescores [multiple-rescores]
+## Multiple rescores [multiple-rescores]
 
 You can apply multiple rescoring operations in sequence. The first rescorer
 works on the top documents from the initial retrieval phase, while the second

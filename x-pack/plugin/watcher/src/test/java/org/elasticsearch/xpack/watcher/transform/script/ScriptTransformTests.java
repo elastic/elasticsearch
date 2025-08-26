@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.transform.script;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -203,6 +204,12 @@ public class ScriptTransformTests extends ESTestCase {
         Map<String, ScriptContext<?>> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
+        return new ScriptService(
+            settings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 }

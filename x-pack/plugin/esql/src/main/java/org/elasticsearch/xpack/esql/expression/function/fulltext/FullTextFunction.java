@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
@@ -17,11 +16,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -55,8 +55,11 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 /**
  * Base class for full-text functions that use ES queries to match documents.
@@ -68,7 +71,9 @@ public abstract class FullTextFunction extends Function
         TranslationAware,
         PostAnalysisPlanVerificationAware,
         EvaluatorMapper,
-        ExpressionScoreMapper {
+        ExpressionScoreMapper,
+        PostOptimizationVerificationAware,
+        RewriteableAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -108,21 +113,19 @@ public abstract class FullTextFunction extends Function
      * @return type resolution for the query parameter
      */
     protected TypeResolution resolveQuery(TypeResolutions.ParamOrdinal queryOrdinal) {
-        return isString(query(), sourceText(), queryOrdinal).and(isNotNullAndFoldable(query(), sourceText(), queryOrdinal));
+        TypeResolution result = isString(query(), sourceText(), queryOrdinal).and(isNotNull(query(), sourceText(), queryOrdinal));
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     public Expression query() {
         return query;
-    }
-
-    /**
-     * Returns the resulting query as an object
-     *
-     * @return query expression as an object
-     */
-    public Object queryAsObject() {
-        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
-        return BytesRefs.toString(queryAsObject);
     }
 
     @Override
@@ -163,13 +166,12 @@ public abstract class FullTextFunction extends Function
         return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
     }
 
+    @Override
     public QueryBuilder queryBuilder() {
         return queryBuilder;
     }
 
     protected abstract Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
-
-    public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
@@ -416,5 +418,10 @@ public abstract class FullTextFunction extends Function
             fieldExpression = convertFunction.field();
         }
         return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        resolveTypeQuery(query(), sourceText(), forPostOptimizationValidation(query(), failures));
     }
 }

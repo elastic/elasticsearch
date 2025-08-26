@@ -49,6 +49,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER;
@@ -68,6 +70,11 @@ import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
     private static final Logger logger = LogManager.getLogger(SnapshotsInProgress.class);
+
+    private static final Tuple<Map<State, Integer>, Map<ShardState, Integer>> NO_SNAPSHOTS_IN_PROGRESS_STATS = Tuple.tuple(
+        Arrays.stream(State.values()).collect(Collectors.toUnmodifiableMap(v -> v, v -> 0)),
+        Arrays.stream(ShardState.values()).collect(Collectors.toUnmodifiableMap(v -> v, v -> 0))
+    );
 
     public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(Map.of(), Set.of());
 
@@ -176,6 +183,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public List<Entry> forRepo(ProjectId projectId, String repository) {
         return forRepo(new ProjectRepo(projectId, repository));
+    }
+
+    /**
+     * Calculate snapshot and shard state summaries for this repository
+     *
+     * @param projectId The project ID
+     * @param repository The repository name
+     * @return A tuple containing the snapshot and shard stat summaries
+     */
+    public Tuple<Map<State, Integer>, Map<ShardState, Integer>> shardStateSummaryForRepository(ProjectId projectId, String repository) {
+        ByRepo byRepo = entries.get(new ProjectRepo(projectId, repository));
+        if (byRepo != null) {
+            return byRepo.calculateStateSummaries();
+        } else {
+            return NO_SNAPSHOTS_IN_PROGRESS_STATS;
+        }
     }
 
     /**
@@ -1893,6 +1916,31 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         private ByRepo(List<Entry> entries) {
             this.entries = List.copyOf(entries);
+        }
+
+        /**
+         * Calculate summaries of how many shards and snapshots are in each shard/snapshot state
+         *
+         * @return a {@link Tuple} containing the snapshot and shard state summaries respectively
+         */
+        public Tuple<Map<State, Integer>, Map<ShardState, Integer>> calculateStateSummaries() {
+            final int[] snapshotCounts = new int[State.values().length];
+            final int[] shardCounts = new int[ShardState.values().length];
+            for (Entry entry : entries) {
+                snapshotCounts[entry.state().ordinal()]++;
+                if (entry.isClone()) {
+                    // Can't get shards for clone entry
+                    continue;
+                }
+                for (ShardSnapshotStatus shardSnapshotStatus : entry.shards().values()) {
+                    shardCounts[shardSnapshotStatus.state().ordinal()]++;
+                }
+            }
+            final Map<State, Integer> snapshotStates = Arrays.stream(State.values())
+                .collect(Collectors.toUnmodifiableMap(state -> state, state -> snapshotCounts[state.ordinal()]));
+            final Map<ShardState, Integer> shardStates = Arrays.stream(ShardState.values())
+                .collect(Collectors.toUnmodifiableMap(shardState -> shardState, state -> shardCounts[state.ordinal()]));
+            return Tuple.tuple(snapshotStates, shardStates);
         }
 
         @Override

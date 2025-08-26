@@ -112,7 +112,7 @@ class ValuesFromSingleReader extends ValuesReader {
                 loadFromRowStrideReaders(jumboBytes, target, storedFieldsSpec, rowStrideReaders, ctx, docs, offset);
             }
             for (ColumnAtATimeWork r : columnAtATimeReaders) {
-                target[r.idx] = (Block) r.reader.read(loaderBlockFactory, docs, offset);
+                target[r.idx] = (Block) r.reader.read(loaderBlockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered());
                 operator.sanityCheckBlock(r.reader, docs.count() - offset, target[r.idx], r.idx);
             }
             if (log.isDebugEnabled()) {
@@ -205,11 +205,9 @@ class ValuesFromSingleReader extends ValuesReader {
     private record ColumnAtATimeWork(BlockLoader.ColumnAtATimeReader reader, int idx) {}
 
     /**
-     * Work for
-     * @param reader
-     * @param builder
-     * @param loader
-     * @param idx
+     * Work for rows stride readers.
+     * @param reader reads the values
+     * @param idx destination in array of {@linkplain Block}s we build
      */
     private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int idx)
         implements

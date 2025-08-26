@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Full text function that performs a {@link KqlQuery} .
@@ -95,7 +95,7 @@ public class Kql extends FullTextFunction {
 
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new KqlQuery(source(), Objects.toString(queryAsObject()));
+        return new KqlQuery(source(), Foldables.queryAsString(query(), sourceText()));
     }
 
     @Override

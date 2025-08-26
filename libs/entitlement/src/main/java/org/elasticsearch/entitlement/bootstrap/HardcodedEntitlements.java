@@ -92,8 +92,9 @@ class HardcodedEntitlements {
                     new CreateClassLoaderEntitlement(),
                     new FilesEntitlement(
                         List.of(
-                            // TODO: what in es.base is accessing shared repo?
+                            // necessary due to lack of delegation ES-12382
                             FilesEntitlement.FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
                             FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )
@@ -122,6 +123,7 @@ class HardcodedEntitlements {
                     new FilesEntitlement(
                         List.of(
                             FilesEntitlement.FileData.ofBaseDirPath(CONFIG, READ),
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
                             FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )
@@ -130,7 +132,12 @@ class HardcodedEntitlements {
             new Scope(
                 "org.apache.lucene.misc",
                 List.of(
-                    new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE))),
+                    new FilesEntitlement(
+                        List.of(
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
+                            FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
+                        )
+                    ),
                     new ReadStoreAttributesEntitlement()
                 )
             ),
@@ -145,7 +152,12 @@ class HardcodedEntitlements {
                 "org.elasticsearch.nativeaccess",
                 List.of(
                     new LoadNativeLibrariesEntitlement(),
-                    new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)))
+                    new FilesEntitlement(
+                        List.of(
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
+                            FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
+                        )
+                    )
                 )
             )
         );

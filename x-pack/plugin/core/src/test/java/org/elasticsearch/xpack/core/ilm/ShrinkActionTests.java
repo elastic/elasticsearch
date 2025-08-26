@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -49,7 +50,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
 
-        Client projectClient = Mockito.mock(Client.class);
+        ProjectClient projectClient = Mockito.mock(ProjectClient.class);
         Mockito.when(client.projectClient(Mockito.any())).thenReturn(projectClient);
         Mockito.when(projectClient.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);

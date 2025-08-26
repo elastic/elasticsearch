@@ -499,9 +499,6 @@ tests:
   method: testTermsAggsWithProfile
   issue: https://github.com/elastic/elasticsearch/issues/132880
 - class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetchMany
-  issue: https://github.com/elastic/elasticsearch/issues/132948
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
   method: testFetch
   issue: https://github.com/elastic/elasticsearch/issues/132956
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT

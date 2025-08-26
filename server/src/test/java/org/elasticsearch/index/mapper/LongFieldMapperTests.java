@@ -10,11 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -25,6 +27,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
+
+    private FieldType fieldType;
+
+    @Before
+    public void pickNumberType() {
+        // randomly select between long and double to use for generating random numbers
+        boolean shouldUseLong = randomBoolean();
+        fieldType = shouldUseLong ? FieldType.LONG : FieldType.DOUBLE;
+    }
 
     @Override
     protected Number missingValue() {
@@ -45,7 +56,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "long");
+        b.field("type", fieldType.toString());
     }
 
     @Override
@@ -105,7 +116,8 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected Number randomNumber() {
-        if (randomBoolean()) {
+        // we must be consistent with the type of each number that we generate
+        if (fieldType.equals(FieldType.LONG)) {
             return randomLong();
         }
         if (randomBoolean()) {

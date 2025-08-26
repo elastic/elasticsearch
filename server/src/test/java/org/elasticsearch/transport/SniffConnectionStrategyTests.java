@@ -902,12 +902,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        LinkedProjectConfig.buildForAlias(clusterAlias)
-                            .sniffMaxNumConnections(3)
-                            .sniffNodePredicate(n -> true)
-                            .sniffSeedNodes(seedNodes(accessibleNode))
+                        new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(clusterAlias).maxNumConnections(3)
+                            .nodePredicate(n -> true)
+                            .seedNodes(seedNodes(accessibleNode))
                             .proxyAddress(proxyAddress.toString())
-                            .buildSniffConnectionStrategyConfig(),
+                            .build(),
                         localService,
                         remoteConnectionManager
                     )
@@ -1222,10 +1221,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Predicate<DiscoveryNode> nodePredicate,
         List<String> seedNodes
     ) {
-        return LinkedProjectConfig.buildForAlias(linkedProjectAlias)
-            .sniffMaxNumConnections(maxNumConnections)
-            .sniffNodePredicate(nodePredicate)
-            .sniffSeedNodes(seedNodes)
-            .buildSniffConnectionStrategyConfig();
+        return new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
+            .nodePredicate(nodePredicate)
+            .seedNodes(seedNodes)
+            .build();
     }
 }

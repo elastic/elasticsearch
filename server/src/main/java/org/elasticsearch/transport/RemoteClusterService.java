@@ -435,7 +435,8 @@ public final class RemoteClusterService extends RemoteClusterAware
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
         final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, clusterAlias, mergedSettings);
+        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+        final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
         updateRemoteCluster(linkedProjectConfig, forceRebuild, listener);
     }
 
@@ -505,7 +506,8 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
-            final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, clusterAlias, settings);
+            @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+            final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, settings);
             updateRemoteCluster(linkedProjectConfig, false, listener.map(ignored -> null));
         }
 

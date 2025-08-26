@@ -733,10 +733,9 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         String proxyAddress,
         String proxyServerName
     ) {
-        return LinkedProjectConfig.buildForAlias(linkedProjectAlias)
-            .proxyNumSocketConnections(maxNumConnections)
+        return new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
             .proxyAddress(proxyAddress)
-            .proxyServerName(proxyServerName)
-            .buildProxyConnectionStrategyConfig();
+            .serverName(proxyServerName)
+            .build();
     }
 }

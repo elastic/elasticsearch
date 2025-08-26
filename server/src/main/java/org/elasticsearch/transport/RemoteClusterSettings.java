@@ -35,6 +35,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.enumSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
+import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfigBuilder;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfigBuilder;
 import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStrategy;
 
 public class RemoteClusterSettings {
@@ -181,10 +183,14 @@ public class RemoteClusterSettings {
             return Stream.of(PROXY_ADDRESS);
         }
 
-        static void readSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder builder) {
-            builder.proxyAddress(PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .proxyNumSocketConnections(REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .proxyServerName(SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
+        static ProxyLinkedProjectConfigBuilder readSettings(
+            String clusterAlias,
+            Settings settings,
+            ProxyLinkedProjectConfigBuilder builder
+        ) {
+            return builder.proxyAddress(PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
+                .maxNumConnections(REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings))
+                .serverName(SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
         }
     }
 
@@ -260,11 +266,15 @@ public class RemoteClusterSettings {
             return Stream.of(REMOTE_CLUSTER_SEEDS);
         }
 
-        static void readSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder builder) {
-            builder.sniffNodePredicate(getNodePredicate(settings))
-                .sniffSeedNodes(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings))
+        static SniffLinkedProjectConfigBuilder readSettings(
+            String clusterAlias,
+            Settings settings,
+            SniffLinkedProjectConfigBuilder builder
+        ) {
+            return builder.nodePredicate(getNodePredicate(settings))
+                .seedNodes(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings))
                 .proxyAddress(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .sniffMaxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+                .maxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
         }
 
         static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
@@ -298,28 +308,40 @@ public class RemoteClusterSettings {
         };
     }
 
-    /**
-     * Reads all settings values to create a fully populated {@link LinkedProjectConfig} instance.
-     */
-    public static LinkedProjectConfig toConfig(String clusterAlias, Settings settings) {
-        return toConfigBuilder(clusterAlias, settings).build();
+    // Package-access for testing.
+    static LinkedProjectConfig toConfig(String clusterAlias, Settings settings) {
+        return toConfig(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias, settings);
     }
 
     /**
-     * Reads all settings values to create a fully populated {@link LinkedProjectConfig} instance for the given origin {@link ProjectId}.
+     * Reads all settings values to create a fully populated {@link LinkedProjectConfig} instance for the given origin {@link ProjectId} and
+     * linked {@link ProjectId}.
      */
-    public static LinkedProjectConfig toConfig(ProjectId originProjectId, String clusterAlias, Settings settings) {
-        return toConfigBuilder(clusterAlias, settings).originProjectId(originProjectId).build();
+    public static LinkedProjectConfig toConfig(
+        ProjectId originProjectId,
+        ProjectId linkedProjectId,
+        String linkedProjectAlias,
+        Settings settings
+    ) {
+        final var strategy = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(linkedProjectAlias).get(settings);
+        final var builder = switch (strategy) {
+            case SNIFF -> SniffConnectionStrategySettings.readSettings(
+                linkedProjectAlias,
+                settings,
+                new SniffLinkedProjectConfigBuilder(originProjectId, linkedProjectId, linkedProjectAlias)
+            );
+            case PROXY -> ProxyConnectionStrategySettings.readSettings(
+                linkedProjectAlias,
+                settings,
+                new ProxyLinkedProjectConfigBuilder(originProjectId, linkedProjectId, linkedProjectAlias)
+            );
+        };
+        readConnectionSettings(linkedProjectAlias, settings, builder);
+        return builder.build();
     }
 
-    private static LinkedProjectConfig.Builder toConfigBuilder(String clusterAlias, Settings settings) {
-        final var builder = LinkedProjectConfig.buildForAlias(clusterAlias);
-        readConnectionSettings(clusterAlias, settings, builder);
-        readConnectionStrategySettings(clusterAlias, settings, builder);
-        return builder;
-    }
-
-    private static void readConnectionSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder builder) {
+    // Will become public once LinkedProjectConfigs are built from a ProjectCustom and supplemented with these connection settings.
+    private static void readConnectionSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder<?, ?> builder) {
         builder.transportConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .connectionCompression(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .connectionCompressionScheme(REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(clusterAlias).get(settings))
@@ -329,17 +351,16 @@ public class RemoteClusterSettings {
             .skipUnavailable(REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
-    private static void readConnectionStrategySettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder builder) {
-        final var connectionStrategy = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        builder.connectionStrategy(connectionStrategy);
-        switch (connectionStrategy) {
-            case SNIFF -> SniffConnectionStrategySettings.readSettings(clusterAlias, settings, builder);
-            case PROXY -> ProxyConnectionStrategySettings.readSettings(clusterAlias, settings, builder);
-        }
-    }
-
     public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
-        return toConfig(clusterAlias, settings).isConnectionEnabled();
+        final var mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        return switch (mode) {
+            case SNIFF -> SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias)
+                .get(settings)
+                .isEmpty() == false;
+            case PROXY -> ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias)
+                .get(settings)
+                .isEmpty() == false;
+        };
     }
 
     private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {

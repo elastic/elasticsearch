@@ -20,7 +20,6 @@ import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionS
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
 import static org.elasticsearch.transport.RemoteClusterSettings.toConfig;
-import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStrategy;
 import static org.elasticsearch.transport.RemoteConnectionStrategy.buildConnectionProfile;
 import static org.mockito.Mockito.mock;
 
@@ -182,11 +181,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             RemoteConnectionManager connectionManager,
             RemoteConnectionStrategy.ConnectionStrategy strategy
         ) {
-            super(
-                LinkedProjectConfig.buildForAlias("cluster-alias").connectionStrategy(strategy).build(),
-                transportService,
-                connectionManager
-            );
+            super(switch (strategy) {
+                case PROXY -> new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(clusterAlias).build();
+                case SNIFF -> new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(clusterAlias).build();
+            }, transportService, connectionManager);
             this.strategy = strategy;
         }
 

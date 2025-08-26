@@ -13,12 +13,13 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStrategy;
 
 import java.util.List;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
+import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfig;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfig;
+import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfigBuilder;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfigBuilder;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.SERVER_NAME;
@@ -37,8 +38,8 @@ public class LinkedProjectConfigTests extends ESTestCase {
 
     private static final Settings EMPTY = Settings.EMPTY;
 
-    public void testBuildProxyConnectionStrategyConfig() {
-        final var config = new LinkedProjectConfig.ProxyLinkedProjectConfig(
+    public void testBuildProxyLinkedProjectConfig() {
+        final var config = new ProxyLinkedProjectConfig(
             ProjectId.fromId(randomAlphaOfLength(10)),
             ProjectId.fromId(randomAlphaOfLength(10)),
             randomAlphanumericOfLength(20),
@@ -54,30 +55,28 @@ public class LinkedProjectConfigTests extends ESTestCase {
             randomAlphaOfLength(20)
         );
 
-        final var builtConfig = LinkedProjectConfig.buildForLinkedProject(
+        final var builtConfig = new ProxyLinkedProjectConfigBuilder(
             config.originProjectId(),
             config.linkedProjectId(),
             config.linkedProjectAlias()
-        )
-            .transportConnectTimeout(config.transportConnectTimeout())
+        ).transportConnectTimeout(config.transportConnectTimeout())
             .connectionCompression(config.connectionCompression())
             .connectionCompressionScheme(config.connectionCompressionScheme())
             .clusterPingSchedule(config.clusterPingSchedule())
             .initialConnectionTimeout(config.initialConnectionTimeout())
             .skipUnavailable(config.skipUnavailable())
             .maxPendingConnectionListeners(config.maxPendingConnectionListeners())
-            .connectionStrategy(ConnectionStrategy.PROXY)
-            .proxyNumSocketConnections(config.maxNumConnections())
+            .maxNumConnections(config.maxNumConnections())
             .proxyAddress(config.proxyAddress())
-            .proxyServerName(config.serverName())
+            .serverName(config.serverName())
             .build();
 
         assertThat("expect builder generated config to match the original config", builtConfig, equalTo(config));
     }
 
-    public void testBuildSniffConnectionStrategyConfig() {
+    public void testBuildSniffLinkedProjectConfig() {
         final var seedNodes = List.of("foo:9400", "bar:9400", "baz:9400");
-        final var config = new LinkedProjectConfig.SniffLinkedProjectConfig(
+        final var config = new SniffLinkedProjectConfig(
             ProjectId.fromId(randomAlphaOfLength(10)),
             ProjectId.fromId(randomAlphaOfLength(10)),
             randomAlphanumericOfLength(20),
@@ -94,22 +93,20 @@ public class LinkedProjectConfigTests extends ESTestCase {
             randomFrom(seedNodes)
         );
 
-        final var builtConfig = LinkedProjectConfig.buildForLinkedProject(
+        final var builtConfig = new SniffLinkedProjectConfigBuilder(
             config.originProjectId(),
             config.linkedProjectId(),
             config.linkedProjectAlias()
-        )
-            .transportConnectTimeout(config.transportConnectTimeout())
+        ).transportConnectTimeout(config.transportConnectTimeout())
             .connectionCompression(config.connectionCompression())
             .connectionCompressionScheme(config.connectionCompressionScheme())
             .clusterPingSchedule(config.clusterPingSchedule())
             .initialConnectionTimeout(config.initialConnectionTimeout())
             .skipUnavailable(config.skipUnavailable())
             .maxPendingConnectionListeners(config.maxPendingConnectionListeners())
-            .connectionStrategy(ConnectionStrategy.SNIFF)
-            .sniffMaxNumConnections(config.maxNumConnections())
-            .sniffNodePredicate(config.nodePredicate())
-            .sniffSeedNodes(config.seedNodes())
+            .maxNumConnections(config.maxNumConnections())
+            .nodePredicate(config.nodePredicate())
+            .seedNodes(config.seedNodes())
             .proxyAddress(config.proxyAddress())
             .build();
 
@@ -117,37 +114,35 @@ public class LinkedProjectConfigTests extends ESTestCase {
     }
 
     public void testValidations() {
-        assertThrows(NullPointerException.class, () -> LinkedProjectConfig.buildForAlias(null));
-        assertThrows(IllegalArgumentException.class, () -> LinkedProjectConfig.buildForAlias(""));
-        assertThrows(NullPointerException.class, () -> LinkedProjectConfig.buildForLinkedProject(null, ProjectId.DEFAULT, "alias"));
-        assertThrows(NullPointerException.class, () -> LinkedProjectConfig.buildForLinkedProject(ProjectId.DEFAULT, null, "alias"));
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::originProjectId);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::linkedProjectId);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::linkedProjectAlias);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::transportConnectTimeout);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::connectionCompression);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::connectionCompressionScheme);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::clusterPingSchedule);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::initialConnectionTimeout);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::connectionStrategy);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::sniffNodePredicate);
-        assertChecksForNullPointer(LinkedProjectConfig.Builder::sniffSeedNodes);
-        assertChecksGreaterThanZero(LinkedProjectConfig.Builder::proxyNumSocketConnections);
-        assertChecksGreaterThanZero(LinkedProjectConfig.Builder::sniffMaxNumConnections);
-        assertChecksGreaterThanZero(LinkedProjectConfig.Builder::maxPendingConnectionListeners);
-        // Check port parsing validation.
-        assertChecksIllegalArgument(builder -> builder.proxyAddress("invalid:port"));
-        assertChecksIllegalArgument(builder -> builder.sniffSeedNodes(List.of("invalid:port")));
-        // Checks that the ConnectionStrategy is correct if it was set before a specific strategy config build method is called.
-        assertChecksIllegalArgument(builder -> builder.connectionStrategy(ConnectionStrategy.SNIFF).buildProxyConnectionStrategyConfig());
-        assertChecksIllegalArgument(builder -> builder.connectionStrategy(ConnectionStrategy.PROXY).buildSniffConnectionStrategyConfig());
-        // Check that the ConnectionStrategy is set before trying to build.
-        assertChecksIllegalArgument(LinkedProjectConfig.Builder::build);
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder(null));
+        assertThrows(NullPointerException.class, () -> new SniffLinkedProjectConfigBuilder(null));
+        assertThrows(IllegalArgumentException.class, () -> new ProxyLinkedProjectConfigBuilder(""));
+        assertThrows(IllegalArgumentException.class, () -> new SniffLinkedProjectConfigBuilder(""));
+        assertChecksForNullPointer(null, ProjectId.DEFAULT, "alias");
+        assertChecksForNullPointer(ProjectId.DEFAULT, null, "alias");
+        assertChecksForNullPointer(ProjectId.DEFAULT, ProjectId.DEFAULT, null);
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").transportConnectTimeout(null));
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").connectionCompression(null));
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").connectionCompressionScheme(null));
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").clusterPingSchedule(null));
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").initialConnectionTimeout(null));
+        assertThrows(NullPointerException.class, () -> new SniffLinkedProjectConfigBuilder("alias").seedNodes(null));
+        assertThrows(NullPointerException.class, () -> new SniffLinkedProjectConfigBuilder("alias").nodePredicate(null));
+        assertThrows(IllegalArgumentException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").proxyAddress("invalid:port"));
+        assertThrows(IllegalArgumentException.class, () -> new SniffLinkedProjectConfigBuilder("alias").seedNodes(List.of("invalid:port")));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new ProxyLinkedProjectConfigBuilder("alias").maxNumConnections(-randomNonNegativeInt())
+        );
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new ProxyLinkedProjectConfigBuilder("alias").maxPendingConnectionListeners(-randomNonNegativeInt())
+        );
     }
 
     public void testSniffDefaultsMatchSettingsDefaults() {
         final var alias = "foo";
-        final var config = LinkedProjectConfig.buildForAlias(alias).buildSniffConnectionStrategyConfig();
+        final var config = new SniffLinkedProjectConfigBuilder(alias).build();
         assertLinkedProjectConfigDefaultsMatchSettingsDefaults(config, alias);
         assertThat(config.nodePredicate(), equalTo(RemoteClusterSettings.SniffConnectionStrategySettings.getNodePredicate(EMPTY)));
         assertThat(config.seedNodes(), equalTo(getDefault(REMOTE_CLUSTER_SEEDS, alias)));
@@ -157,7 +152,7 @@ public class LinkedProjectConfigTests extends ESTestCase {
 
     public void testProxyDefaultsMatchSettingsDefaults() {
         final var alias = "foo";
-        final var config = LinkedProjectConfig.buildForAlias(alias).buildProxyConnectionStrategyConfig();
+        final var config = new ProxyLinkedProjectConfigBuilder(alias).build();
         assertLinkedProjectConfigDefaultsMatchSettingsDefaults(config, alias);
         assertThat(config.proxyAddress(), equalTo(getDefault(PROXY_ADDRESS, alias)));
         assertThat(config.maxNumConnections(), equalTo(getDefault(REMOTE_SOCKET_CONNECTIONS, alias)));
@@ -178,22 +173,8 @@ public class LinkedProjectConfigTests extends ESTestCase {
         return setting.getConcreteSettingForNamespace(alias).getDefault(EMPTY);
     }
 
-    private static <T> void assertChecksForNullPointer(BiFunction<LinkedProjectConfig.Builder, T, LinkedProjectConfig.Builder> setter) {
-        assertThrows(NullPointerException.class, () -> setter.apply(LinkedProjectConfig.buildForAlias("alias"), null));
-    }
-
-    private static void assertChecksGreaterThanZero(BiFunction<LinkedProjectConfig.Builder, Integer, LinkedProjectConfig.Builder> setter) {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> setter.apply(LinkedProjectConfig.buildForAlias("alias"), -randomNonNegativeInt())
-        );
-    }
-
-    private static <T extends Throwable> void assertThrows(Class<T> exceptionClass, Consumer<LinkedProjectConfig.Builder> consumer) {
-        assertThrows(exceptionClass, () -> consumer.accept(LinkedProjectConfig.buildForAlias("alias")));
-    }
-
-    private static <T> void assertChecksIllegalArgument(Consumer<LinkedProjectConfig.Builder> consumer) {
-        assertThrows(IllegalArgumentException.class, consumer);
+    private static <T> void assertChecksForNullPointer(ProjectId originProjectId, ProjectId linkedProjectId, String alias) {
+        assertThrows(NullPointerException.class, () -> new ProxyLinkedProjectConfigBuilder(originProjectId, linkedProjectId, alias));
+        assertThrows(NullPointerException.class, () -> new SniffLinkedProjectConfigBuilder(originProjectId, linkedProjectId, alias));
     }
 }

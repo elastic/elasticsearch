@@ -72,7 +72,8 @@ public abstract class MappedFieldType {
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
 
-    // we're using Boolean here instead of boolean by design - to throw an NPE when users attempt to use these fields without setting them
+    // we're using Boolean here instead of boolean by design - to throw a NPE when users attempt to use these fields without
+    // initializing them first
     private final Boolean isSyntheticSourceEnabled;
     private final Boolean isWithinMultiField;
 
@@ -110,10 +111,12 @@ public abstract class MappedFieldType {
     }
 
     public boolean isSyntheticSourceEnabled() {
+        Objects.requireNonNull(isSyntheticSourceEnabled, "You're attempting to use isSyntheticSourceEnabled without setting it first!");
         return isSyntheticSourceEnabled;
     }
 
     public boolean isWithinMultiField() {
+        Objects.requireNonNull(isWithinMultiField, "You're attempting to use isWithinMultiField without setting it first!");
         return isWithinMultiField;
     }
 

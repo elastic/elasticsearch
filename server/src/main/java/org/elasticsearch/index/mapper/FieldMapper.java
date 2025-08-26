@@ -1418,8 +1418,8 @@ public abstract class FieldMapper extends Mapper {
 
         // we're using Boolean here instead of boolean by design - to throw a NPE when users attempt to use these fields without
         // initializing them first
-        protected final Boolean isSyntheticSourceEnabled;
-        protected final Boolean isWithinMultiField;
+        private final Boolean isSyntheticSourceEnabled;
+        private final Boolean isWithinMultiField;
 
         /**
          * Creates a new Builder with a field name
@@ -1445,6 +1445,16 @@ public abstract class FieldMapper extends Mapper {
                 multiFieldsBuilder.add(subField);
             }
             return this;
+        }
+
+        public boolean isSyntheticSourceEnabled() {
+            Objects.requireNonNull(isSyntheticSourceEnabled, "You're attempting to use isSyntheticSourceEnabled without setting it first!");
+            return isSyntheticSourceEnabled;
+        }
+
+        public boolean isWithinMultiField() {
+            Objects.requireNonNull(isWithinMultiField, "You're attempting to use isWithinMultiField without setting it first!");
+            return isWithinMultiField;
         }
 
         public Builder addMultiField(FieldMapper.Builder builder) {

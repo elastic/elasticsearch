@@ -116,7 +116,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             if (TextFieldMapper.keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
                 return false;
             }
-            return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            return isSyntheticSourceEnabled() && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
         }
 
         @Override
@@ -146,7 +146,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 store.getValue(),
                 tsi,
                 context.isSourceSynthetic(),
-                isWithinMultiField,
+                isWithinMultiField(),
                 TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                 meta.getValue()
             );

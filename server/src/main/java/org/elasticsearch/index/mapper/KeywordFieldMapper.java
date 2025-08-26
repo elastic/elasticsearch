@@ -1123,8 +1123,16 @@ public final class KeywordFieldMapper extends FieldMapper {
          * Returns whether the value for this field will be ignored (not indexed/stored) during parsing.
          */
         boolean isIgnored(final String value) {
+            return isIgnoredInternal(value.length());
+        }
+
+        public boolean isIgnored(final XContentString value) {
+            return isIgnoredInternal(value.stringLength());
+        }
+
+        private boolean isIgnoredInternal(final int stringLength) {
             // all values that exceed ignore_above limits that are multi fields are ignored
-            return value.length() > ignoreAbove && isWithinMultiField();
+            return stringLength > ignoreAbove && isWithinMultiField();
         }
     }
 

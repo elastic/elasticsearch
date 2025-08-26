@@ -65,6 +65,7 @@ import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -143,7 +144,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 indexAnalyzer,
                 context.isSourceSynthetic(),
                 meta.getValue(),
-                isWithinMultiField,
+                isWithinMultiField(),
                 storedFieldInBinaryFormat,
                 TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(getFieldType(), multiFields)
             );
@@ -219,6 +220,20 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 false,
                 null
             );
+        }
+
+        /**
+         * Returns whether this field can use its delegate keyword field for synthetic source.
+         *
+         * Note, this method is a copy of the one in {@link TextFieldType}. This is because match only text uses a more optimized
+         * representation of a string, namely {@link XContentString}, which text currently does not.
+         */
+        private boolean canUseSyntheticSourceDelegateForSyntheticSource(final XContentString value) {
+            if (textFieldType.syntheticSourceDelegate().isPresent()) {
+                // if the keyword field is going to be ignored, then we can't rely on it for synthetic source
+                return textFieldType.syntheticSourceDelegate().get().isIgnored(value) == false;
+            }
+            return false;
         }
 
         @Override
@@ -677,7 +692,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it
         if (fieldType().textFieldType.needsToSupportSyntheticSource(indexCreatedVersion)) {
             // check if we can use the delegate
-            if (fieldType().textFieldType.canUseSyntheticSourceDelegateForSyntheticSource(value.string())) {
+            if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
             }
 

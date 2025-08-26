@@ -329,11 +329,11 @@ public final class TextFieldMapper extends FieldMapper {
 
             // however, because historically we set store to true to support synthetic source, we must also keep that logic:
             if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
-                return isSyntheticSourceEnabled
-                    && isWithinMultiField == false
+                return isSyntheticSourceEnabled()
+                    && isWithinMultiField() == false
                     && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
             } else {
-                return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                return isSyntheticSourceEnabled() && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
             }
         }
 
@@ -409,8 +409,8 @@ public final class TextFieldMapper extends FieldMapper {
                     index.getValue(),
                     store.getValue(),
                     tsi,
-                    isSyntheticSourceEnabled,
-                    isWithinMultiField,
+                    isSyntheticSourceEnabled(),
+                    isWithinMultiField(),
                     SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),

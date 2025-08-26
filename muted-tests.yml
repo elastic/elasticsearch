@@ -687,6 +687,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
   method: testShardDataPartitioningWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/133607
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testBooleanBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133608
 
 # Examples:
 #

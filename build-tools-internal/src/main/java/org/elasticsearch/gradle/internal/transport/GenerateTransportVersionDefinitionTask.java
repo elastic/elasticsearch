@@ -121,6 +121,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         Set<String> targetReleaseBranches = getTargetReleaseBranches();
         String mainReleaseBranch = getMainReleaseBranch().get();
         int primaryIncrement = getPrimaryIncrement().get();
+        if (primaryIncrement <= 0) {
+            throw new IllegalArgumentException("Invalid increment: must be a positive integer > 0");
+        }
         List<TransportVersionId> ids = new ArrayList<>();
 
         TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromMain(name);

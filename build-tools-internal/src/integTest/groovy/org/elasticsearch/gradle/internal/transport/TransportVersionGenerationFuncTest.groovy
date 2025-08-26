@@ -316,7 +316,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "test_tv,8124000")
     }
 
-    def "can add backport to existing definition"() {
+    def "can add backport to an existing definition"() {
         when:
         def result = runGenerateAndValidateTask("--name=existing_92", "--branches=9.2,9.1,9.0").build()
 
@@ -344,7 +344,14 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
     def "an invalid increment should fail"() {
-        // TODO should we have this?
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateTask("--branches=9.2", "--increment=0").buildAndFail()
+
+        then:
+        assertOutputContains(result.output, "Invalid increment: must be a positive integer > 0")
     }
 
     def "a new definition exists and is in the latest file, but the version id is wrong and needs to be updated"(){
@@ -362,4 +369,16 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.1", "existing_92,8012001")
     }
 
+    def "branches=main should be translated to 9.2"() {
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateAndValidateTask("--branches=main").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
+    }
 }

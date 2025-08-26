@@ -27,6 +27,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
@@ -54,7 +55,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
@@ -139,14 +139,14 @@ public final class CsvTestUtils {
                         builderWrapper().builder().endPositionEntry();
                         return;
                     }
-                    stringValue = mvStrings[0].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                } else if (stringValue.contains(",")) {// multi-value field
+                    stringValue = mvStrings[0];
+                } else if (stringValue.matches(".*" + COMMA_ESCAPING_REGEX + ".*")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
-                    String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");
+                    String[] arrayOfValues = stringValue.split(COMMA_ESCAPING_REGEX, -1);
                     List<Object> convertedValues = new ArrayList<>(arrayOfValues.length);
                     for (String value : arrayOfValues) {
-                        convertedValues.add(type.convert(value));
+                        convertedValues.add(type.convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
                     }
                     Stream<Object> convertedValuesStream = convertedValues.stream();
                     if (type.sortMultiValues()) {
@@ -158,7 +158,7 @@ public final class CsvTestUtils {
                     return;
                 }
 
-                var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
+                var converted = stringValue.length() == 0 ? null : type.convert(stringValue.replace(ESCAPED_COMMA_SEQUENCE, ","));
                 builderWrapper().append().accept(converted);
             }
 
@@ -492,6 +492,7 @@ public final class CsvTestUtils {
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
+        EXPONENTIAL_HISTOGRAM(x -> x == null ? null : JsonBackedExponentialHistogram.createFromJson(x), ExponentialHistogram.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -587,6 +588,7 @@ public final class CsvTestUtils {
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
+                case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

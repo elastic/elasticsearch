@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "name": {
+      "type": "keyword"
+    },
+    "histo": {
+      "type": "exponential_histogram"
+    }
+  }
+}

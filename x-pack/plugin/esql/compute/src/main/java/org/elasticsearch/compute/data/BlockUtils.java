@@ -12,6 +12,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -216,6 +217,7 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
+            case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
@@ -298,6 +300,7 @@ public final class BlockUtils {
                     aggBlock.countBlock().getInt(offset)
                 );
             }
+            case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramArrayBlock) block).getExponentialHistogram(offset);
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

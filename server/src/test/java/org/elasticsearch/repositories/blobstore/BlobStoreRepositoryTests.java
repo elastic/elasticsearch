@@ -766,59 +766,16 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     private final int ONE_GIGABYTE_IN_BYTES = 1024 * 1024 * 1024;
 
     public void testShardBlobsToDeleteWithHeapSpace() {
-        final var repo = setupRepo();
-        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
-            final var expectedShardGenerations = ShardGenerations.builder();
-            final var expectedBlobsToDelete = new HashSet<String>();
-
-            final var countDownLatch = new CountDownLatch(1);
-            int blobCount = 0;
-            try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                for (int index = between(0, 1000); index > 0; index--) {
-                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
-                    for (int shard = between(1, 30); shard > 0; shard--) {
-                        final var shardId = shard;
-                        final var shardGeneration = new ShardGeneration(randomUUID());
-                        expectedShardGenerations.put(indexId, shard, shardGeneration);
-                        final var blobsToDelete = randomList(
-                            100,
-                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
-                                "",
-                                METADATA_BLOB_NAME_SUFFIX
-                            )
-                        );
-                        blobCount += blobsToDelete.size();
-                        final var indexPath = repo.basePath()
-                            .add("indices")
-                            .add(indexId.getId())
-                            .add(Integer.toString(shard))
-                            .buildAsString();
-                        for (final var blobToDelete : blobsToDelete) {
-                            expectedBlobsToDelete.add(indexPath + blobToDelete);
-                        }
-
-                        repo.threadPool()
-                            .generic()
-                            .execute(
-                                ActionRunnable.run(
-                                    refs.acquireListener(),
-                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
-                                )
-                            );
-                    }
-                }
-            }
-            safeAwait(countDownLatch);
-            assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
-            shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
-            assertThat(expectedBlobsToDelete, empty());
-            assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
-        }
+        testShardBlobsToDeleteInternal();
     }
 
     public void testShardBlobsToDeleteWithOutHeapSpace() {
         // If the max heap isn't initialised then this is represented by MemoryUsage.getMax() == -1
         setUpMemoryMXBeanMock(-1L, 0);
+        testShardBlobsToDeleteInternal();
+    }
+
+    private void testShardBlobsToDeleteInternal() {
         final var repo = setupRepo();
         try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
             final var expectedShardGenerations = ShardGenerations.builder();
@@ -869,14 +826,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
     }
 
-    // #116379
     public void testCalculateMaximumShardDeleteResultsSizeWithUndefinedHeap() {
         // If the max heap isn't initialised then this is represented by MemoryUsage.getMax() == -1
         setUpMemoryMXBeanMock(-1L, 0);
         TestBlobStoreRepository testBlobStoreRepository = generateTestBlockStoreRepository();
 
         try (var shardBlobsToDelete = testBlobStoreRepository.new TestShardBlobsToDelete()) {
-            assertEquals(8, shardBlobsToDelete.calculateMaximumShardDeleteResultsSize());
+            assertEquals(0, shardBlobsToDelete.calculateMaximumShardDeleteResultsSize());
         }
     }
 

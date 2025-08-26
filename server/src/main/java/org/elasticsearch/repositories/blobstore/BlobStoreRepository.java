@@ -1474,16 +1474,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // ---------------------------------------------------------------------------------------------------------------------------------
         // Cleaning up dangling blobs
 
-        void cleanupUnlinkedShardLevelBlobs(ActionListener<Void> listener) {
-            final Iterator<String> filesToDelete;
-            try {
-                filesToDelete = resolveFilesToDelete();
-            } catch (Exception e) {
-                logger.warn(() -> format("%s Failed to resolve files to delete during snapshot delete", snapshotIds), e);
-                listener.onFailure(e);
-                return;
-            }
-
+        private void cleanupUnlinkedShardLevelBlobs(ActionListener<Void> listener) {
+            final Iterator<String> filesToDelete = resolveFilesToDelete();
             if (filesToDelete.hasNext() == false) {
                 listener.onResponse(null);
                 return;
@@ -1729,7 +1721,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         /**
          * Calculates the maximum size of the shardDeleteResults BytesStreamOutput
-         * The size should at most be 2GB, but less for smaller nodes, and no more than 25% of the total remaining heap space
+         * The size should at most be 2GB, but no more than 25% of the total remaining heap space
          * @return The maximum number of bytes the shardDeleteResults BytesStreamOutput can consume in the heap
          */
         int calculateMaximumShardDeleteResultsSize() {
@@ -1741,8 +1733,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // Undefined heap
             if (maxHeapUsageInBytes == -1) {
-                // A tiny amount of bytes to allow resources.close() to succeed
-                return 8;
+                logger.warn("The heap is undefined when attempting to instantiate shardDeleteResults");
+                return 0;
             }
 
             long heapSpaceLeftInBytes = maxHeapUsageInBytes - heapUsageInBytes;

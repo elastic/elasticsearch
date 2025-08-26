@@ -37,6 +37,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -121,6 +123,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
@@ -131,6 +134,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -4246,6 +4250,65 @@ public class AnalyzerTests extends ESTestCase {
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {
         assertEquals(expectedName, actualName);
         assertEquals(expectedType, actualType);
+    }
+
+    public void testImplicitCastingForAggregateMetricDouble() {
+        assumeTrue(
+            "aggregate metric double implicit casting must be available",
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.isEnabled()
+        );
+        Map<String, EsField> mapping = Map.of(
+            "@timestamp",
+            new EsField("@timestamp", DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "cluster",
+            new EsField("cluster", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+            "metric_field",
+            new InvalidMappedField("metric_field", Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "double", Set.of("k8s")))
+        );
+
+        var esIndex = new EsIndex(
+            "k8s*",
+            mapping,
+            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Set.of()
+        );
+        var indexResolution = IndexResolution.valid(esIndex);
+        var analyzer = new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                defaultEnrichResolution(),
+                defaultInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from k8s* | stats std_dev(metric_field)
+            """, analyzer));
+        assertThat(
+            e.getMessage(),
+            containsString("Cannot use field [metric_field] due to ambiguities being mapped as [2] incompatible types")
+        );
+
+        var plan = analyze("""
+            from k8s* | stats max = max(metric_field),
+            avg = avg(metric_field),
+            sum = sum(metric_field),
+            min = min(metric_field),
+            count = count(metric_field)
+            """, analyzer);
+        assertProjection(plan, "max", "avg", "sum", "min", "count");
+
+        var plan2 = analyze("""
+            TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
+            s2 = sum(avg_over_time(metric_field)),
+            min = min(max_over_time(metric_field)),
+            count = count(count_over_time(metric_field)),
+            avg = avg(min_over_time(metric_field))
+            by cluster, time_bucket = bucket(@timestamp,1minute)
+            """, analyzer);
+        assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

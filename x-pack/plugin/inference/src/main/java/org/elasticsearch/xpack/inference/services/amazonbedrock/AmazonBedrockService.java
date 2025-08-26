@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -65,7 +66,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
@@ -84,10 +84,12 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 public class AmazonBedrockService extends SenderService {
     public static final String NAME = "amazonbedrock";
     private static final String SERVICE_NAME = "Amazon Bedrock";
+    public static final String COMPLETION_ERROR_PREFIX = "Amazon Bedrock chat completion";
 
     private final Sender amazonBedrockSender;
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+        TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
     private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
@@ -125,11 +127,21 @@ public class AmazonBedrockService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        throwUnsupportedUnifiedCompletionOperation(NAME);
+        infer(model, inputs, null, timeout, listener);
     }
 
     @Override
     protected void doInfer(
+        Model model,
+        InferenceInputs inputs,
+        Map<String, Object> taskSettings,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        infer(model, inputs, taskSettings, timeout, listener);
+    }
+
+    private void infer(
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
@@ -306,6 +318,19 @@ public class AmazonBedrockService extends SenderService {
                 checkTaskSettingsForTextEmbeddingModel(model);
                 return model;
             }
+            case CHAT_COMPLETION -> {
+                var model = new AmazonBedrockChatCompletionModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    serviceSettings,
+                    taskSettings,
+                    secretSettings,
+                    context
+                );
+                checkProviderForTask(TaskType.CHAT_COMPLETION, model.provider());
+                return model;
+            }
             case COMPLETION -> {
                 var model = new AmazonBedrockChatCompletionModel(
                     inferenceEntityId,
@@ -331,7 +356,7 @@ public class AmazonBedrockService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     @Override

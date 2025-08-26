@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
 
@@ -76,6 +77,16 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
             case COMPLETION -> {
                 return new AmazonBedrockChatCompletionExecutor(
                     (AmazonBedrockChatCompletionRequest) awsRequest,
+                    awsResponse,
+                    logger,
+                    hasRequestTimedOutFunction,
+                    listener,
+                    clientCache
+                );
+            }
+            case CHAT_COMPLETION -> {
+                return new AmazonBedrockUnifiedChatCompletionExecutor(
+                    (AmazonBedrockUnifiedChatCompletionRequest) awsRequest,
                     awsResponse,
                     logger,
                     hasRequestTimedOutFunction,

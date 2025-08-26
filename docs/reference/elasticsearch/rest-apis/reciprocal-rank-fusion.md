@@ -114,7 +114,7 @@ The `rrf` retriever does not currently support:
 
 * [scroll](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-scroll-query-param)
 * [sort](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
-* [rescore](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore)
+* [rescore](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore)
 
 Using unsupported features as part of a search with an `rrf` retriever results in an exception.
 

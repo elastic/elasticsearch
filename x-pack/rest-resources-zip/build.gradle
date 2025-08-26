@@ -58,6 +58,6 @@ def restResourcesZip = tasks.register('restResourcesZip', Zip) {
   }
 }
 
-artifacts {
-  archives restResourcesZip
+tasks.named('assemble').configure {
+  dependsOn restResourcesZip
 }

@@ -367,9 +367,7 @@ public class PolicyManager {
      * @return true if permission is granted regardless of the entitlement
      */
     boolean isTriviallyAllowed(Class<?> requestingClass) {
-        if (generalLogger.isTraceEnabled()) {
-            generalLogger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
-        }
+        // note: do not log exceptions in here, this could interfere with loading of additionally necessary classes such as ThrowableProxy
         if (requestingClass == null) {
             generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;

@@ -54,7 +54,7 @@ import java.util.Arrays;
  *
  * Of course, decoding follows the opposite order with respect to encoding.
  */
-public class TSDBDocValuesEncoder {
+public final class TSDBDocValuesEncoder {
     private final DocValuesForUtil forUtil;
     private final int numericBlockSize;
 

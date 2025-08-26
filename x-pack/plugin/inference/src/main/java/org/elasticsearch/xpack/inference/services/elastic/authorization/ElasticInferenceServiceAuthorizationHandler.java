@@ -243,14 +243,15 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
     }
 
     private synchronized void setAuthorizedContent(ElasticInferenceServiceAuthorizationModel auth) {
-        logger.debug("Received authorization response");
-        var authorizedTaskTypesAndModels = authorizedContent.get().taskTypesAndModels.merge(auth)
-            .newLimitedToTaskTypes(EnumSet.copyOf(implementedTaskTypes));
+        logger.debug(() -> Strings.format("Received authorization response, %s", auth));
+
+        var authorizedTaskTypesAndModels = auth.newLimitedToTaskTypes(EnumSet.copyOf(implementedTaskTypes));
+        logger.debug(() -> Strings.format("Authorization entity limited to service task types, %s", authorizedTaskTypesAndModels));
 
         // recalculate which default config ids and models are authorized now
-        var authorizedDefaultModelIds = getAuthorizedDefaultModelIds(auth);
+        var authorizedDefaultModelIds = getAuthorizedDefaultModelIds(authorizedTaskTypesAndModels);
 
-        var authorizedDefaultConfigIds = getAuthorizedDefaultConfigIds(authorizedDefaultModelIds, auth);
+        var authorizedDefaultConfigIds = getAuthorizedDefaultConfigIds(authorizedDefaultModelIds, authorizedTaskTypesAndModels);
         var authorizedDefaultModelObjects = getAuthorizedDefaultModelsObjects(authorizedDefaultModelIds);
         authorizedContent.set(
             new AuthorizedContent(authorizedTaskTypesAndModels, authorizedDefaultConfigIds, authorizedDefaultModelObjects)
@@ -337,7 +338,12 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
             firstAuthorizationCompletedLatch.countDown();
         });
 
-        logger.debug("Synchronizing default inference endpoints");
+        logger.debug(
+            () -> Strings.format(
+                "Synchronizing default inference endpoints, attempting to remove ids: %s",
+                unauthorizedDefaultInferenceEndpointIds
+            )
+        );
         modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener);
     }
 }

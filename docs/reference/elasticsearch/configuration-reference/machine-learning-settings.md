@@ -119,7 +119,7 @@ $$$xpack.ml.model_repository$$$
     or
 
     ```
-    xpack.ml.model_repository: https://my-custom-backend
+    xpack.ml.model_repository: <MY_CUSTOM_BACKEND_URL>
     ```
 
     If `xpack.ml.model_repository` is a file location, it must point to a subdirectory of the `config` directory of {{es}}.

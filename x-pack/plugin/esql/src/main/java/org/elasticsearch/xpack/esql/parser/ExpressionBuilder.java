@@ -261,8 +261,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) {
+        return visitQualifiedName(ctx, null);
+    }
+
+    public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx, UnresolvedAttribute defaultValue) {
         if (ctx == null) {
-            return null;
+            return defaultValue;
         }
         List<Object> items = visitList(this, ctx.identifierOrParameter(), Object.class);
         List<String> strings = new ArrayList<>(items.size());
@@ -611,7 +615,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = expressions(ctx.booleanExpression());
+        List<Expression> args = new ArrayList<>(expressions(ctx.booleanExpression()));
         if (ctx.mapExpression() != null) {
             MapExpression mapArg = visitMapExpression(ctx.mapExpression());
             args.add(mapArg);
@@ -633,9 +637,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        var name = visitIdentifierOrParameter(ctx.identifierOrParameter());
+        String name = functionName(ctx);
         context.telemetry().function(name);
         return name;
+    }
+
+    private String functionName(EsqlBaseParser.FunctionNameContext ctx) {
+        /*
+         * FIRST and LAST are valid function names AND tokens used in `NULLS LAST`.
+         * So we have to have special handling for them here.
+         */
+        TerminalNode first = ctx.FIRST();
+        if (first != null) {
+            return first.getText();
+        }
+        TerminalNode last = ctx.LAST();
+        if (last != null) {
+            return last.getText();
+        }
+        return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
 
     @Override
@@ -647,33 +667,33 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.StringContext stringCtx = entry.string();
             String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
             if (key.isBlank()) {
-                throw new ParsingException(
-                    source(ctx),
-                    "Invalid named function argument [{}], empty key is not supported",
-                    entry.getText()
-                );
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], empty key is not supported", entry.getText());
             }
             if (names.contains(key)) {
-                throw new ParsingException(source(ctx), "Duplicated function arguments with the same name [{}] is not supported", key);
+                throw new ParsingException(source(ctx), "Duplicated named parameters with the same name [{}] is not supported", key);
             }
-            Expression value = expression(entry.constant());
+            Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
                 if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
+                    throw new ParsingException(source(ctx), "Invalid named parameter [{}], NULL is not supported", entryText);
                 }
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);
+            } else if (value instanceof MapExpression) {
+                namedArgs.add(Literal.keyword(source(stringCtx), key));
+                namedArgs.add(value);
             } else {
-                throw new ParsingException(
-                    source(ctx),
-                    "Invalid named function argument [{}], only constant value is supported",
-                    entryText
-                );
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], only constant value is supported", entryText);
             }
         }
-        return new MapExpression(Source.EMPTY, namedArgs);
+        return new MapExpression(source(ctx), namedArgs);
+    }
+
+    @Override
+    public MapExpression visitCommandNamedParameters(EsqlBaseParser.CommandNamedParametersContext ctx) {
+        return ctx == null || ctx.mapExpression() == null ? null : visitMapExpression(ctx.mapExpression());
     }
 
     @Override

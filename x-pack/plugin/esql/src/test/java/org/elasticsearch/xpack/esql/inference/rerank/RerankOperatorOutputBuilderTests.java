@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
@@ -24,15 +23,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RerankOperatorOutputBuilderTests extends ComputeTestCase {
 
-    public void testBuildSmallOutput() {
+    public void testBuildSmallOutput() throws Exception {
         assertBuildOutput(between(1, 100));
     }
 
-    public void testBuildLargeOutput() {
+    public void testBuildLargeOutput() throws Exception {
         assertBuildOutput(between(10_000, 100_000));
     }
 
-    private void assertBuildOutput(int size) {
+    private void assertBuildOutput(int size) throws Exception {
         final Page inputPage = randomInputPage(size, between(1, 20));
         final int scoreChannel = randomIntBetween(0, inputPage.getBlockCount());
         try (
@@ -56,23 +55,15 @@ public class RerankOperatorOutputBuilderTests extends ComputeTestCase {
             final Page outputPage = outputBuilder.buildOutput();
             try {
                 assertThat(outputPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-                LogManager.getLogger(RerankOperatorOutputBuilderTests.class)
-                    .info(
-                        "{} , {}, {}, {}",
-                        scoreChannel,
-                        inputPage.getBlockCount(),
-                        outputPage.getBlockCount(),
-                        Math.max(scoreChannel + 1, inputPage.getBlockCount())
-                    );
                 assertThat(outputPage.getBlockCount(), equalTo(Integer.max(scoreChannel + 1, inputPage.getBlockCount())));
                 assertOutputContent(outputPage.getBlock(scoreChannel));
             } finally {
                 outputPage.releaseBlocks();
             }
 
-        } finally {
-            inputPage.releaseBlocks();
         }
+
+        allBreakersEmpty();
     }
 
     private float relevanceScore(int position) {

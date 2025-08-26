@@ -11,7 +11,7 @@ applies_to:
 A retriever is a specification to describe top documents returned from a search. A retriever replaces other elements of the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) that also return top documents such as [`query`](/reference/query-languages/querydsl.md) and [`knn`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn). A retriever may have child retrievers where a retriever with two or more children is considered a compound retriever. This allows for complex behavior to be depicted in a tree-like structure, called the retriever tree, which clarifies the order of operations that occur during a search.
 
 ::::{tip}
-Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) for a high level overview of the retrievers abstraction. Refer to [Retrievers examples](docs-content://solutions/search/retrievers-examples.md) for additional examples.
+Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) for a high level overview of the retrievers abstraction. Refer to [Retrievers examples](retrievers/retrievers-examples.md) for additional examples.
 
 ::::
 
@@ -27,7 +27,7 @@ The following retrievers are available:
 :   The [pinned](retrievers/pinned-retriever.md) retriever always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
 
 `rescorer`
-:   The [rescorer](retrievers/rescorer-retriever.md) retriever replaces the functionality of the [query rescorer](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore).
+:   The [rescorer](retrievers/rescorer-retriever.md) retriever replaces the functionality of the [query rescorer](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore).
 
 `rrf`
 :   The [rrf](retrievers/rrf-retriever.md) retriever produces top documents from [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md).
@@ -63,7 +63,7 @@ When a retriever is specified as part of a search, the following elements are no
 * [`search_after`](/reference/elasticsearch/rest-apis/paginate-search-results.md#search-after)
 * [`terminate_after`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-search-terminate-after)
 * [`sort`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
-* [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) use a [rescorer retriever](retrievers/rescorer-retriever.md) instead
+* [`rescore`](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) use a [rescorer retriever](retrievers/rescorer-retriever.md) instead
 
 
 ## Multi-field query format [multi-field-query-format]
@@ -238,5 +238,5 @@ Note, however, that wildcard field patterns will only resolve to fields that eit
 
 ### Examples
 
-- [RRF with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-rrf-multi-field-query-format)
-- [Linear retriever with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-multi-field-query-format)
+- [RRF with the multi-field query format](retrievers/retrievers-examples.md#retrievers-examples-rrf-multi-field-query-format)
+- [Linear retriever with the multi-field query format](retrievers/retrievers-examples.md#retrievers-examples-linear-multi-field-query-format)

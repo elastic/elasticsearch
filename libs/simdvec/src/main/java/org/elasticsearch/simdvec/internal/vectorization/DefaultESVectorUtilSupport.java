@@ -46,14 +46,25 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float calculateOSQLoss(float[] target, float[] interval, float step, float invStep, float norm2, float lambda) {
-        float a = interval[0];
-        float b = interval[1];
+    public float calculateOSQLoss(
+        float[] target,
+        float low,
+        float high,
+        float step,
+        float invStep,
+        float norm2,
+        float lambda,
+        int[] quantize
+    ) {
+        float a = low;
+        float b = high;
         float xe = 0f;
         float e = 0f;
-        for (float xi : target) {
+        for (int i = 0; i < target.length; ++i) {
+            float xi = target[i];
             // this is quantizing and then dequantizing the vector
-            float xiq = fma(step, Math.round((Math.min(Math.max(xi, a), b) - a) * invStep), a);
+            quantize[i] = Math.round((Math.min(Math.max(xi, a), b) - a) * invStep);
+            float xiq = fma(step, quantize[i], a);
             // how much does the de-quantized value differ from the original value
             float xiiq = xi - xiq;
             e = fma(xiiq, xiiq, e);
@@ -63,17 +74,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void calculateOSQGridPoints(float[] target, float[] interval, int points, float invStep, float[] pts) {
-        float a = interval[0];
-        float b = interval[1];
+    public void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
         float daa = 0;
         float dab = 0;
         float dbb = 0;
         float dax = 0;
         float dbx = 0;
-        for (float v : target) {
-            float k = Math.round((Math.min(Math.max(v, a), b) - a) * invStep);
-            float s = k / (points - 1);
+        float invPmOnes = 1f / (points - 1f);
+        for (int i = 0; i < target.length; ++i) {
+            float v = target[i];
+            float k = quantize[i];
+            float s = k * invPmOnes;
             float ms = 1f - s;
             daa = fma(ms, ms, daa);
             dab = fma(ms, s, dab);
@@ -273,14 +284,123 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
         float nSteps = ((1 << bits) - 1);
-        float step = (upperInterval - lowInterval) / nSteps;
+        float invStep = nSteps / (upperInterval - lowInterval);
         int sumQuery = 0;
         for (int h = 0; h < vector.length; h++) {
             float xi = Math.min(Math.max(vector[h], lowInterval), upperInterval);
-            int assignment = Math.round((xi - lowInterval) / step);
+            int assignment = Math.round((xi - lowInterval) * invStep);
             sumQuery += assignment;
             destination[h] = assignment;
         }
         return sumQuery;
+    }
+
+    @Override
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        distances[0] = VectorUtil.squareDistance(query, v0);
+        distances[1] = VectorUtil.squareDistance(query, v1);
+        distances[2] = VectorUtil.squareDistance(query, v2);
+        distances[3] = VectorUtil.squareDistance(query, v3);
+    }
+
+    @Override
+    public void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        distances[0] = soarDistance(v1, c0, originalResidual, soarLambda, rnorm);
+        distances[1] = soarDistance(v1, c1, originalResidual, soarLambda, rnorm);
+        distances[2] = soarDistance(v1, c2, originalResidual, soarLambda, rnorm);
+        distances[3] = soarDistance(v1, c3, originalResidual, soarLambda, rnorm);
+    }
+
+    @Override
+    public void packAsBinary(int[] vector, byte[] packed) {
+        packAsBinaryImpl(vector, packed);
+    }
+
+    public static void packAsBinaryImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert vector[i] == 0 || vector[i] == 1;
+            assert vector[i + 1] == 0 || vector[i + 1] == 1;
+            assert vector[i + 2] == 0 || vector[i + 2] == 1;
+            assert vector[i + 3] == 0 || vector[i + 3] == 1;
+            assert vector[i + 4] == 0 || vector[i + 4] == 1;
+            assert vector[i + 5] == 0 || vector[i + 5] == 1;
+            assert vector[i + 6] == 0 || vector[i + 6] == 1;
+            assert vector[i + 7] == 0 || vector[i + 7] == 1;
+            int result = vector[i] << 7 | (vector[i + 1] << 6) | (vector[i + 2] << 5) | (vector[i + 3] << 4) | (vector[i + 4] << 3)
+                | (vector[i + 5] << 2) | (vector[i + 6] << 1) | (vector[i + 7]);
+            packed[index] = (byte) result;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        byte result = 0;
+        for (int j = 7; j >= 0 && i < vector.length; i++, j--) {
+            assert vector[i] == 0 || vector[i] == 1;
+            result |= (byte) ((vector[i] & 1) << j);
+        }
+        packed[index] = result;
+    }
+
+    @Override
+    public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+        transposeHalfByteImpl(q, quantQueryByte);
+    }
+
+    public static void transposeHalfByteImpl(int[] q, byte[] quantQueryByte) {
+        int limit = q.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert q[i] >= 0 && q[i] <= 15;
+            assert q[i + 1] >= 0 && q[i + 1] <= 15;
+            assert q[i + 2] >= 0 && q[i + 2] <= 15;
+            assert q[i + 3] >= 0 && q[i + 3] <= 15;
+            assert q[i + 4] >= 0 && q[i + 4] <= 15;
+            assert q[i + 5] >= 0 && q[i + 5] <= 15;
+            assert q[i + 6] >= 0 && q[i + 6] <= 15;
+            assert q[i + 7] >= 0 && q[i + 7] <= 15;
+            int lowerByte = (q[i] & 1) << 7 | (q[i + 1] & 1) << 6 | (q[i + 2] & 1) << 5 | (q[i + 3] & 1) << 4 | (q[i + 4] & 1) << 3 | (q[i
+                + 5] & 1) << 2 | (q[i + 6] & 1) << 1 | (q[i + 7] & 1);
+            int lowerMiddleByte = ((q[i] >> 1) & 1) << 7 | ((q[i + 1] >> 1) & 1) << 6 | ((q[i + 2] >> 1) & 1) << 5 | ((q[i + 3] >> 1) & 1)
+                << 4 | ((q[i + 4] >> 1) & 1) << 3 | ((q[i + 5] >> 1) & 1) << 2 | ((q[i + 6] >> 1) & 1) << 1 | ((q[i + 7] >> 1) & 1);
+            int upperMiddleByte = ((q[i] >> 2) & 1) << 7 | ((q[i + 1] >> 2) & 1) << 6 | ((q[i + 2] >> 2) & 1) << 5 | ((q[i + 3] >> 2) & 1)
+                << 4 | ((q[i + 4] >> 2) & 1) << 3 | ((q[i + 5] >> 2) & 1) << 2 | ((q[i + 6] >> 2) & 1) << 1 | ((q[i + 7] >> 2) & 1);
+            int upperByte = ((q[i] >> 3) & 1) << 7 | ((q[i + 1] >> 3) & 1) << 6 | ((q[i + 2] >> 3) & 1) << 5 | ((q[i + 3] >> 3) & 1) << 4
+                | ((q[i + 4] >> 3) & 1) << 3 | ((q[i + 5] >> 3) & 1) << 2 | ((q[i + 6] >> 3) & 1) << 1 | ((q[i + 7] >> 3) & 1);
+            quantQueryByte[index] = (byte) lowerByte;
+            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+        }
+        if (i == q.length) {
+            return; // all done
+        }
+        int lowerByte = 0;
+        int lowerMiddleByte = 0;
+        int upperMiddleByte = 0;
+        int upperByte = 0;
+        for (int j = 7; i < q.length; j--, i++) {
+            lowerByte |= (q[i] & 1) << j;
+            lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+            upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+            upperByte |= ((q[i] >> 3) & 1) << j;
+        }
+        quantQueryByte[index] = (byte) lowerByte;
+        quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+        quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+        quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
     }
 }

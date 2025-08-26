@@ -35,12 +35,18 @@ public class CastOperatorTests extends ESTestCase {
             TestCastOperator.class,
             DocsV3Support.OperatorCategory.CAST
         );
-        var docs = new DocsV3Support.OperatorsDocsSupport("cast", CastOperatorTests.class, op, CastOperatorTests::signatures);
+        var docs = new DocsV3Support.OperatorsDocsSupport(
+            "cast",
+            CastOperatorTests.class,
+            op,
+            CastOperatorTests::signatures,
+            DocsV3Support.callbacksFromSystemProperty()
+        );
         docs.renderSignature();
         docs.renderDocs();
     }
 
-    public static Map<List<DataType>, DataType> signatures() {
+    public static Map<List<DocsV3Support.Param>, DataType> signatures() {
         // The cast operator cannot produce sensible signatures unless we consider the type as an extra parameter
         return Map.of();
     }

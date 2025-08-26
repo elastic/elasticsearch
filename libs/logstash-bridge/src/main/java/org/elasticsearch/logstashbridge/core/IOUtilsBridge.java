@@ -12,6 +12,9 @@ import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 
+/**
+ * An external bridge for {@link IOUtils}
+ */
 public class IOUtilsBridge {
     public static void closeWhileHandlingException(final Iterable<? extends Closeable> objects) {
         IOUtils.closeWhileHandlingException(objects);

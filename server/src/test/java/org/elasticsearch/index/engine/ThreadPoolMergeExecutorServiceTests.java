@@ -328,6 +328,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
             Semaphore runMergeSemaphore = new Semaphore(0);
             Set<MergeTask> currentlyRunningMergeTasksSet = ConcurrentCollections.newConcurrentSet();
+
             while (mergesStillToComplete > 0) {
                 if (mergesStillToSubmit > 0 && (currentlyRunningMergeTasksSet.isEmpty() || randomBoolean())) {
                     MergeTask mergeTask = mock(MergeTask.class);

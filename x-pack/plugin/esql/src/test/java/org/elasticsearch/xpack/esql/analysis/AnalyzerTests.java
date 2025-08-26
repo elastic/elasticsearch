@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
@@ -54,9 +55,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -121,6 +124,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnr
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -2008,18 +2012,14 @@ public class AnalyzerTests extends ESTestCase {
               row x = to_unsigned_long(\"10\")
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """, """
-            Found 8 problems
+            Found 6 problems
             line 2:12: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
-            line 2:39: argument of [max(x)] must be [representable except unsigned_long and spatial types],\
-             found value [x] type [unsigned_long]
             line 2:47: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
-             found value [x] type [unsigned_long]
-            line 2:88: argument of [min(x)] must be [representable except unsigned_long and spatial types],\
              found value [x] type [unsigned_long]
             line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
              found value [x] type [unsigned_long]
@@ -2342,11 +2342,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingKnn() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
-        var plan = analyze("""
-            from test | where knn(vector, [0.342, 0.164, 0.234], 10)
-            """, "mapping-dense_vector.json");
+        checkDenseVectorCastingKnn("float_vector");
+    }
+
+    private static void checkDenseVectorCastingKnn(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | where knn(%s, [0.342, 0.164, 0.234], 10)
+            """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2359,8 +2363,39 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [0.342, 0.164, 0.234])", List.of(0.342f, 0.164f, 0.234f));
-            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_cosine(float_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+        }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_l1_norm(float_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_l2_norm(float_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_hamming(byte_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
     }
 
@@ -2375,7 +2410,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertEquals("vector", left.name());
+        assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
         var right = as(similarity.right(), Literal.class);
         assertThat(right.dataType(), is(DENSE_VECTOR));
         assertThat(right.value(), equalTo(expectedElems));
@@ -2384,6 +2419,18 @@ public class AnalyzerTests extends ESTestCase {
     public void testNoDenseVectorFailsSimilarityFunction() {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkNoDenseVectorFailsSimilarityFunction("v_cosine([0, 1, 2], 0.342)");
+        }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_dot_product([0, 1, 2], 0.342)");
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_l1_norm([0, 1, 2], 0.342)");
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_l2_norm([0, 1, 2], 0.342)");
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_hamming([0, 1, 2], 0.342)");
         }
     }
 
@@ -2396,8 +2443,36 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testMagnitudePlanWithDenseVectorImplicitCasting() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | eval scalar = v_magnitude([1, 2, 3])
+            """), "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("scalar", alias.name());
+        var scalar = as(alias.child(), Magnitude.class);
+        var child = as(scalar.field(), Literal.class);
+        assertThat(child.dataType(), is(DENSE_VECTOR));
+        assertThat(child.value(), equalTo(List.of(1.0f, 2.0f, 3.0f)));
+    }
+
+    public void testNoDenseVectorFailsForMagnitude() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
+        var query = String.format(Locale.ROOT, "row a = 1 |  eval scalar = v_magnitude(0.342)");
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
+        assertThat(
+            error.getMessage(),
+            containsString("first argument of [v_magnitude(0.342)] must be [dense_vector], found value [0.342] type [double]")
+        );
+    }
+
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
@@ -3381,14 +3456,14 @@ public class AnalyzerTests extends ESTestCase {
             | FORK (EVAL a = 1) (EVAL a = 2)
             | FORK (EVAL b = 3) (EVAL b = 4)
             """));
-        assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
+        assertThat(e.getMessage(), containsString("Only a single FORK command is supported, but found multiple"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             FROM test
             | FORK (FORK (WHERE true) (WHERE true))
                    (WHERE true)
             """));
-        assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
+        assertThat(e.getMessage(), containsString("Only a single FORK command is supported, but found multiple"));
     }
 
     public void testValidFuse() {
@@ -3526,26 +3601,21 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveRerankInferenceId() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         {
-            LogicalPlan plan = analyze(
-                "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`reranking-inference-id`",
-                "mapping-books.json"
-            );
+            LogicalPlan plan = analyze("""
+                FROM books METADATA _score
+                | RERANK "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
+                """, "mapping-books.json");
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
         }
 
         {
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`completion-inference-id`",
-                    "mapping-books.json"
-                )
+            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
+                FROM books METADATA _score
+                | RERANK "italian food recipe" ON title WITH { "inference_id" : "completion-inference-id" }
+                """, "mapping-books.json"));
 
-            );
             assertThat(
                 ve.getMessage(),
                 containsString(
@@ -3556,33 +3626,24 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         {
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`error-inference-id`",
-                    "mapping-books.json"
-                )
+            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
+                FROM books METADATA _score
+                | RERANK "italian food recipe" ON title WITH { "inference_id" : "error-inference-id" }
+                """, "mapping-books.json"));
 
-            );
             assertThat(ve.getMessage(), containsString("error with inference resolution"));
         }
 
         {
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> analyze(
-                    "FROM books  METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`unknown-inference-id`",
-                    "mapping-books.json"
-                )
-
-            );
+            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
+                FROM books  METADATA _score
+                | RERANK "italian food recipe" ON title WITH { "inference_id" : "unknown-inference-id" }
+                """, "mapping-books.json"));
             assertThat(ve.getMessage(), containsString("unresolved inference [unknown-inference-id]"));
         }
     }
 
     public void testResolveRerankFields() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         {
             // Single field.
             LogicalPlan plan = analyze("""
@@ -3590,7 +3651,7 @@ public class AnalyzerTests extends ESTestCase {
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | KEEP description, title, year, _score
                 | DROP description
-                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3615,7 +3676,7 @@ public class AnalyzerTests extends ESTestCase {
                 FROM books METADATA _score
                 | WHERE title:"food"
                 | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year
-                  WITH inferenceId=`reranking-inference-id`
+                  WITH { "inference_id" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3648,28 +3709,12 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         {
-            // Unnamed field.
-            try {
-                LogicalPlan plan = analyze("""
-                    FROM books METADATA _score
-                    | WHERE title:"food"
-                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH inferenceId=`reranking-inference-id`
-                    """, "mapping-books.json");
-            } catch (ParsingException ex) {
-                assertThat(
-                    ex.getMessage(),
-                    containsString("line 3:36: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}")
-                );
-            }
-        }
-
-        {
             VerificationException ve = expectThrows(
                 VerificationException.class,
-                () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON missingField WITH inferenceId=`reranking-inference-id`",
-                    "mapping-books.json"
-                )
+                () -> analyze("""
+                    FROM books METADATA _score
+                    | RERANK \"italian food recipe\" ON missingField WITH { "inference_id" : "reranking-inference-id" }
+                    """, "mapping-books.json")
 
             );
             assertThat(ve.getMessage(), containsString("Unknown column [missingField]"));
@@ -3677,14 +3722,12 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveRerankScoreField() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         {
             // When the metadata field is required in FROM, it is reused.
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3702,7 +3745,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3720,7 +3763,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`, scoreColumn=rerank_score
+                | RERANK rerank_score = "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3738,7 +3781,7 @@ public class AnalyzerTests extends ESTestCase {
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | EVAL rerank_score = _score
-                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`, scoreColumn=rerank_score
+                | RERANK rerank_score = "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3752,11 +3795,90 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testRerankInvalidQueryTypes() {
+        assertError("""
+            FROM books METADATA _score
+            | RERANK rerank_score = 42 ON title WITH { "inference_id" : "reranking-inference-id" }
+            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [42]");
+
+        assertError("""
+            FROM books METADATA _score
+            | RERANK rerank_score = null ON title WITH { "inference_id" : "reranking-inference-id" }
+            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [null]");
+    }
+
+    public void testRerankFieldsInvalidTypes() {
+        List<String> invalidFieldNames = DENSE_VECTOR_FEATURE_FLAG.isEnabled()
+            ? List.of("date", "date_nanos", "ip", "version", "dense_vector")
+            : List.of("date", "date_nanos", "ip", "version");
+
+        for (String fieldName : invalidFieldNames) {
+            LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);
+            assertError(
+                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
+                    + fieldName
+                    + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
+                "mapping-all-types.json",
+                new QueryParams(),
+                "rerank field must be a valid string, numeric or boolean expression, found [" + fieldName + "]"
+            );
+        }
+    }
+
+    public void testRerankFieldValidTypes() {
+        List<String> validFieldNames = List.of(
+            "boolean",
+            "byte",
+            "constant_keyword-foo",
+            "double",
+            "float",
+            "half_float",
+            "scaled_float",
+            "integer",
+            "keyword",
+            "long",
+            "unsigned_long",
+            "short",
+            "text",
+            "wildcard"
+        );
+
+        for (String fieldName : validFieldNames) {
+            LogicalPlan plan = analyze(
+                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
+                    + fieldName
+                    + "` WITH { \"inference_id\" : \"reranking-inference-id\" }",
+                "mapping-all-types.json"
+            );
+
+            Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
+            EsRelation relation = as(rerank.child(), EsRelation.class);
+            Attribute fieldAttribute = getAttributeByName(relation.output(), fieldName);
+            if (DataType.isString(fieldAttribute.dataType())) {
+                assertThat(rerank.rerankFields(), equalTo(List.of(alias(fieldName, fieldAttribute))));
+
+            } else {
+                assertThat(
+                    rerank.rerankFields(),
+                    equalTo(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
+                );
+            }
+        }
+    }
+
+    public void testInvalidValidRerankQuery() {
+        assertError("""
+            FROM books METADATA _score
+            | RERANK rerank_score = 42 ON title WITH { "inference_id" : "reranking-inference-id" }
+            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [42]");
+    }
+
     public void testResolveCompletionInferenceId() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
+            | COMPLETION CONCAT("Translate this text in French\\n", description) WITH { "inference_id" : "completion-inference-id" }
             """, "mapping-books.json");
+
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.inferenceId(), equalTo(string("completion-inference-id")));
     }
@@ -3765,7 +3887,7 @@ public class AnalyzerTests extends ESTestCase {
         assertError(
             """
                 FROM books METADATA _score
-                | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `reranking-inference-id`
+                | COMPLETION CONCAT("Translate this text in French\\n", description) WITH { "inference_id" : "reranking-inference-id" }
                 """,
             "mapping-books.json",
             new QueryParams(),
@@ -3777,21 +3899,22 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionInferenceMissingInferenceId() {
         assertError("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `unknown-inference-id`
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH { "inference_id" : "unknown-inference-id" }
             """, "mapping-books.json", new QueryParams(), "unresolved inference [unknown-inference-id]");
     }
 
     public void testResolveCompletionInferenceIdResolutionError() {
         assertError("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `error-inference-id`
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH { "inference_id" : "error-inference-id" }
             """, "mapping-books.json", new QueryParams(), "error with inference resolution");
     }
 
     public void testResolveCompletionTargetField() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION translation=CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
+            | COMPLETION translation = CONCAT("Translate the following text in French\\n", description)
+              WITH { "inference_id" : "completion-inference-id" }
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3801,7 +3924,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionDefaultTargetField() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
+            | COMPLETION CONCAT("Translate this text in French\\n", description) WITH { "inference_id" : "completion-inference-id" }
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3811,7 +3934,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionPrompt() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
+            | COMPLETION CONCAT("Translate this text in French\\n", description) WITH { "inference_id" : "completion-inference-id" }
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3819,21 +3942,22 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             as(completion.prompt(), Concat.class).children(),
-            equalTo(List.of(string("Translate the following text in French\n"), getAttributeByName(esRelation.output(), "description")))
+            equalTo(List.of(string("Translate this text in French\n"), getAttributeByName(esRelation.output(), "description")))
         );
     }
 
     public void testResolveCompletionPromptInvalidType() {
         assertError("""
             FROM books METADATA _score
-            | COMPLETION LENGTH(description) WITH `completion-inference-id`
+            | COMPLETION LENGTH(description) WITH { "inference_id" : "completion-inference-id" }
             """, "mapping-books.json", new QueryParams(), "prompt must be of type [text] but is [integer]");
     }
 
-    public void testResolveCompletionOutputField() {
+    public void testResolveCompletionOutputFieldOverwriteInputField() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION description=CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
+            | COMPLETION description = CONCAT("Translate the following text in French\\n", description)
+              WITH { "inference_id" : "completion-inference-id" }
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -4112,7 +4236,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V10.isEnabled());
         verifyUnsupported("""
             from test
             | inlinestats MIN(salary) BY x = languages, x = x + 1

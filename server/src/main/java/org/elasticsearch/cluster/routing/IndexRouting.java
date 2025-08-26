@@ -329,7 +329,9 @@ public abstract class IndexRouting {
             List<String> includePaths;
             includePaths = metadata.getRoutingPaths();
             if (indexMode == IndexMode.TIME_SERIES) {
-                if (metadata.getTimeSeriesDimensions().isEmpty() == false && metadata.getRoutingPaths().isEmpty()) {
+                if (metadata.getTimeSeriesDimensions().isEmpty() == false
+                    && metadata.getRoutingPaths().isEmpty()
+                    && metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
                     // This optimization is only available for new indices where
                     // the dimensions index setting is automatically populated from the mappings.
                     // If users manually set the routing paths, the optimization is not applied.

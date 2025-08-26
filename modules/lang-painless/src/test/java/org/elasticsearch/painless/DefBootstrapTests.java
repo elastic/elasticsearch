@@ -139,7 +139,7 @@ public class DefBootstrapTests extends ESTestCase {
         map.put("a", "b");
         assertEquals(2, (int) handle.invokeExact((Object) map));
 
-        final PainlessWrappedError pwe = expectThrows(PainlessWrappedError.class, () -> {
+        final PainlessWrappedException pwe = expectThrows(PainlessWrappedException.class, () -> {
             Integer.toString((int) handle.invokeExact(new Object()));
         });
         assertTrue(pwe.getCause() instanceof IllegalArgumentException);

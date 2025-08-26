@@ -14,13 +14,13 @@ package org.elasticsearch.painless;
  * which leads to unexpected behavior in Painless. This class is used as a
  * workaround for that exception wrapping.
  */
-public class PainlessWrappedError extends Error {
+public class PainlessWrappedException extends Error {
 
     /**
      * Constructor.
-     * @param cause The {@link Throwable} cause.
+     * @param cause The {@link Exception} cause.
      */
-    public PainlessWrappedError(final Throwable cause) {
+    public PainlessWrappedException(final Exception cause) {
         super(cause);
     }
 }

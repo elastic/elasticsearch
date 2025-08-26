@@ -133,8 +133,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         metadata = state.getMetadata();
     }
 
-    private SearchRunner createSearchRunner(ProjectMetadata project, String indexAlias) {
-        Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
+    private SearchRunner createSearchRunner(final ProjectMetadata project, final String indexAlias) {
+        final Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (value, maxMatches, reqSupplier, handler) -> {
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(

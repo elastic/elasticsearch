@@ -791,7 +791,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         final var indexMetadata = createIndex("test-index");
         final var shardId = new ShardId(indexMetadata.getIndex(), 0);
-        projectBuilder.put(indexMetadata, false);
         final ShardRouting shardRouting = ShardRoutingHelper.moveToStarted(
             ShardRoutingHelper.initialize(
                 ShardRouting.newUnassigned(
@@ -805,6 +804,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             )
         );
         routingTableBuilder.add(IndexRoutingTable.builder(shardId.getIndex()).addShard(shardRouting).build());
+        projectBuilder.put(
+            IndexMetadata.builder(indexMetadata).putInSyncAllocationIds(0, Set.of(shardRouting.allocationId().getId())).build(),
+            false
+        );
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodesBuilder)
@@ -835,6 +838,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
         };
 
+        final var allocationServiceRef = new AtomicReference<AllocationService>();
         var clusterSettings = createBuiltInClusterSettings();
         var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator);
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
@@ -842,17 +846,19 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
+            (reconcilerClusterState, rerouteStrategy) -> allocationServiceRef.get()
+                .executeWithRoutingAllocation(reconcilerClusterState, "reconcile-desired-balance", rerouteStrategy),
             TelemetryProvider.NOOP,
             EMPTY_NODE_ALLOCATION_STATS
         ) {
             @Override
             protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
-                // Do not reconcile anything
+                logger.info("--> reconcile called");
+                super.reconcile(desiredBalance, allocation);
             }
         };
 
-        // A fixed clusterInfo from one polling cycle
+        // A fixed clusterInfo from one polling cycle with hotspot on first node
         final Map<String, NodeUsageStatsForThreadPools> initialThreadPoolStats = Map.of(
             firstNode.getId(),
             new NodeUsageStatsForThreadPools(firstNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 10.0f, 30))),
@@ -872,9 +878,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             () -> SnapshotShardSizeInfo.EMPTY,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
+        allocationServiceRef.set(service);
 
         try {
-            rerouteAndWait(service, clusterState, "first-allocation-call");
+            // 1. Initial reroute should produce a desired balance which moves the shard from first node to second node.
+            rerouteAndWait(service, clusterState, "first-reroute");
             final DesiredBalance desiredBalance = desiredBalanceShardsAllocator.getDesiredBalance();
             assertNotNull(desiredBalance.assignments().get(shardId));
 
@@ -904,8 +912,41 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertThat(secondNodeUpdatedStats.averageThreadPoolUtilization(), equalTo(1.0f));
             assertThat(secondNodeUpdatedStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
 
-            // Compute again and the cluster info used is recomputed again based on the previous balance
-            rerouteAndWait(service, clusterState, "second-allocation-call");
+            // 2. Reroute again and the cluster info is updated/recomputed based on the previous desired balance
+            rerouteAndWait(service, clusterService.state(), "reroute-with-desired-shard-movement");
+            assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
+
+            // 3. Wait until reconciliation is completed for the moved shard. This means the shard is now relocating in the
+            // actual cluster state, i.e. not just in the desired balance assignments.
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService,
+                state -> state.routingTable(ProjectId.DEFAULT).shardRoutingTable(shardId).primaryShard().relocating()
+            );
+            // Reroute again and the cluster info is updated/recomputed since it assumes all initializing shards will eventually start
+            rerouteAndWait(service, clusterService.state(), "reroute-with-reconciled-shard-movement");
+            assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
+
+            // 4. Actually start the shard on the target node, i.e. action to honour the reconciliation result
+            ClusterServiceUtils.setState(
+                clusterService,
+                service.applyStartedShards(
+                    clusterService.state(),
+                    List.of(
+                        clusterService.state()
+                            .routingTable(ProjectId.DEFAULT)
+                            .shardRoutingTable(shardId)
+                            .primaryShard()
+                            .getTargetRelocatingShard()
+                    )
+                )
+            );
+            assertThat(
+                clusterService.state().routingTable(ProjectId.DEFAULT).shardRoutingTable(shardId).primaryShard().currentNodeId(),
+                equalTo(secondNode.getId())
+            );
+            // THIS is the problem. We lost track for the actually started shard when updating/recomputing ClusterInfo so that
+            // it ends up using initialClusterInfo which still shows hotspot
+            rerouteAndWait(service, clusterService.state(), "reroute-with-actual-shard-started-event");
             assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
         } finally {
             clusterService.close();

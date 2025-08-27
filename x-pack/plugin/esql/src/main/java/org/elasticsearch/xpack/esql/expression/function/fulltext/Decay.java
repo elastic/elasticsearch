@@ -89,8 +89,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
-        description = "Decay a numeric, spatial or date type value based on the distance of it to an origin.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        description = "Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value from a target origin, using configurable decay functions.",
         examples = { @Example(file = "decay", tag = "decay") }
     )
     public Decay(
@@ -98,7 +98,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "value",
             type = { "double", "integer", "long", "date", "date_nanos", "geo_point", "cartesian_point" },
-            description = "Value to calculate decayed value for."
+            description = "The input value to apply decay scoring to."
         ) Expression value,
         @Param(
             name = "origin",
@@ -125,7 +125,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "type",
             type = { "keyword" },
-            description = "Function to use: linear, exponential or gaussian decay.",
+            description = "Decay function to use: linear, exponential or gaussian.",
             optional = true
         ) Expression type
     ) {

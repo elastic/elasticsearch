@@ -12,5 +12,4 @@ package org.elasticsearch.entitlement.runtime.policy.entitlements;
 /**
  * Internal entitlement to read code from the jdk, ie jrt urls
  */
-public class ReadJdkCodeEntitlement implements Entitlement {
-}
+public class ReadJdkCodeEntitlement implements Entitlement {}

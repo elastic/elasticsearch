@@ -17,14 +17,20 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
+/**
+ *  Describes the type and location of an argument in the template. A list of argument infos is encoded and stored in a doc value
+ *  column, this is used to re-combine the template and argument columns. Documents with identical templates share the same
+ *  of argument infos, and since indices are sorted by template_id, this doc value column compresses very well.
+ */
 public class Arg {
 
     private static final String SPACE = " ";
+    private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
+    private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
+    private static int VINT_MAX_BYTES = 5;
 
     public enum Type {
-        GENERAL(0),
-        IP4(1),
-        INTEGER(2);
+        GENERIC(0);
 
         private final int code;
         private static final Type[] lookup = new Type[values().length];
@@ -61,11 +67,16 @@ public class Arg {
         }
     }
 
-    private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
-    private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
-    private static int VINT_MAX_BYTES = 5;
+    static boolean isArg(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            if (Character.isDigit(text.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
 
-    public static String encodeInfo(List<Info> arguments) throws IOException {
+    static String encodeInfo(List<Info> arguments) throws IOException {
         int maxSize = VINT_MAX_BYTES  + arguments.size() * (VINT_MAX_BYTES + VINT_MAX_BYTES);
         byte[] buffer = new byte[maxSize];
         var dataInput = new ByteArrayDataOutput(buffer);
@@ -79,7 +90,7 @@ public class Arg {
         return ENCODER.encodeToString(data);
     }
 
-    public static List<Info> decodeInfo(String encoded) throws IOException {
+    static List<Info> decodeInfo(String encoded) throws IOException {
         byte[] encodedBytes = DECODER.decode(encoded);
         var input = new ByteArrayDataInput(encodedBytes);
 
@@ -89,15 +100,6 @@ public class Arg {
             arguments.add(Info.readFrom(input));
         }
         return arguments;
-    }
-
-    static boolean isArg(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            if (Character.isDigit(text.charAt(i))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     static String encodeRemainingArgs(PatternedTextValueProcessor.Parts parts) {

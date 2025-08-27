@@ -179,7 +179,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
     private static String argInfo(int... offsets) throws IOException {
         List<Arg.Info> argsInfo = new ArrayList<>();
         for (var offset : offsets) {
-            argsInfo.add(new Arg.Info(Arg.Type.GENERAL, offset));
+            argsInfo.add(new Arg.Info(Arg.Type.GENERIC, offset));
         }
         return Arg.encodeInfo(argsInfo);
     }

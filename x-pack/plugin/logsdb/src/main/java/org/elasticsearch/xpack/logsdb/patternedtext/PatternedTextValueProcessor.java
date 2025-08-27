@@ -58,7 +58,7 @@ public class PatternedTextValueProcessor {
             } else {
                 if (Arg.isArg(token)) {
                     args.add(token);
-                    argsInfo.add(new Arg.Info(Arg.Type.GENERAL, template.length() - prevArgOffset));
+                    argsInfo.add(new Arg.Info(Arg.Type.GENERIC, template.length() - prevArgOffset));
                     prevArgOffset = template.length();
                 } else {
                     template.append(token);

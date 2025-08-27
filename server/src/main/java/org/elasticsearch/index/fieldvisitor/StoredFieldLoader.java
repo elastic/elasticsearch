@@ -58,7 +58,7 @@ public abstract class StoredFieldLoader {
     }
 
     /**
-     * Crates a new StoredFieldLaoader using a BlockLoader.FieldsSpec
+     * Crates a new StoredFieldLoader using a BlockLoader.FieldsSpec
      */
     public static StoredFieldLoader fromSpec(BlockLoader.FieldsSpec spec, boolean forceSequentialReader) {
         if (spec.noRequirements()) {

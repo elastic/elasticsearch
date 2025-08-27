@@ -35,6 +35,9 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
+/**
+ * Test that the {@link IgnoredSourceFieldLoader} loads the correct stored values.
+ */
 public class IgnoredSourceFieldLoaderTests extends ESTestCase {
     public void testSupports() {
         assertTrue(
@@ -70,6 +73,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
     }
 
     public void testLoadSingle() throws IOException {
+        // Note: normally the stored value is encoded in the ignored source format
+        // (see IgnoredSourceFieldMapper#encodeMultipleValuesForField), but these tests are only verifying the loader, not the encoding.
         BytesRef value = new BytesRef("lorem ipsum");
         Document doc = new Document();
         doc.add(new StoredField("_ignored_source.foo", value));
@@ -89,8 +94,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
         doc.add(new StoredField("_ignored_source.foo", fooValue));
         doc.add(new StoredField("_ignored_source.bar", barValue));
         testLoader(doc, Set.of("foo", "bar"), storedFields -> {
-            assertThat(storedFields, hasEntry(equalTo("foo"), containsInAnyOrder(fooValue)));
-            assertThat(storedFields, hasEntry(equalTo("bar"), containsInAnyOrder(barValue)));
+            assertThat(storedFields, hasEntry(equalTo("_ignored_source.foo"), containsInAnyOrder(fooValue)));
+            assertThat(storedFields, hasEntry(equalTo("_ignored_source.bar"), containsInAnyOrder(barValue)));
         });
     }
 
@@ -103,8 +108,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
         doc.add(new StoredField("_ignored_source.bar", barValue));
 
         testLoader(doc, Set.of("foo"), storedFields -> {
-            assertThat(storedFields, hasEntry(equalTo("foo"), containsInAnyOrder(fooValue)));
-            assertThat(storedFields, not(hasKey("bar")));
+            assertThat(storedFields, hasEntry(equalTo("_ignored_source.foo"), containsInAnyOrder(fooValue)));
+            assertThat(storedFields, not(hasKey("_ignored_source.bar")));
         });
     }
 
@@ -121,6 +126,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                 IgnoredSourceFieldLoader loader = new IgnoredSourceFieldLoader(spec, false);
                 var leafLoader = loader.getLoader(reader.leaves().getFirst(), new int[] { 0 });
                 leafLoader.advanceTo(0);
+                storedFieldsConsumer.accept(leafLoader.storedFields());
             }
         }
     }

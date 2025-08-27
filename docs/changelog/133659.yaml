@@ -1,0 +1,5 @@
+pr: 133659
+summary: Change `GeneralScriptException` to 400
+area: Infra/Scripting
+type: bug
+issues: []

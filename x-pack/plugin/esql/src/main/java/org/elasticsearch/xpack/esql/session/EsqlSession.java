@@ -246,6 +246,7 @@ public class EsqlSession {
             plan = explain.query();
             parsedPlanString = plan.toString();
         }
+<<<<<<< HEAD
         analyzedPlan(
             plan,
             configuration,

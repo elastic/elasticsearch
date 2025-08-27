@@ -21,7 +21,6 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 

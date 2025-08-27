@@ -28,22 +28,27 @@ import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
-public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShrinkIndexStep> {
+public class CleanupGeneratedIndexStepTests extends AbstractStepTestCase<CleanupGeneratedIndexStep> {
 
     @Override
-    public CleanupShrinkIndexStep createRandomInstance() {
+    public CleanupGeneratedIndexStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        return new CleanupShrinkIndexStep(stepKey, nextStepKey, client);
+        return new CleanupGeneratedIndexStep(stepKey, nextStepKey, client, (index, state) -> randomAlphaOfLength(5) + index);
     }
 
     @Override
-    protected CleanupShrinkIndexStep copyInstance(CleanupShrinkIndexStep instance) {
-        return new CleanupShrinkIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
+    protected CleanupGeneratedIndexStep copyInstance(CleanupGeneratedIndexStep instance) {
+        return new CleanupGeneratedIndexStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getClientWithoutProject(),
+            instance.getTargetIndexNameSupplier()
+        );
     }
 
     @Override
-    public CleanupShrinkIndexStep mutateInstance(CleanupShrinkIndexStep instance) {
+    public CleanupGeneratedIndexStep mutateInstance(CleanupGeneratedIndexStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         switch (between(0, 1)) {
@@ -51,7 +56,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new CleanupShrinkIndexStep(key, nextKey, instance.getClientWithoutProject());
+        return new CleanupGeneratedIndexStep(key, nextKey, instance.getClientWithoutProject(), instance.getTargetIndexNameSupplier());
     }
 
     public void testPerformActionDoesntFailIfShrinkingIndexNameIsMissing() {
@@ -67,7 +72,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
-        CleanupShrinkIndexStep cleanupShrinkIndexStep = createRandomInstance();
+        CleanupGeneratedIndexStep cleanupShrinkIndexStep = createRandomInstance();
         cleanupShrinkIndexStep.performAction(indexMetadata, state, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {}
@@ -100,7 +105,12 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (var threadPool = createThreadPool()) {
             final var client = getDeleteIndexRequestAssertingClient(threadPool, shrinkIndexName);
-            CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
+            CleanupGeneratedIndexStep step = new CleanupGeneratedIndexStep(
+                randomStepKey(),
+                randomStepKey(),
+                client,
+                ShrinkIndexNameSupplier::getShrinkIndexName
+            );
             step.performAction(indexMetadata, state, null, ActionListener.noop());
         }
     }
@@ -125,7 +135,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (var threadPool = createThreadPool()) {
             final var client = getFailingIfCalledClient(threadPool);
-            CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
+            CleanupGeneratedIndexStep step = new CleanupGeneratedIndexStep(randomStepKey(), randomStepKey(), client, (index, s) -> index);
             step.performAction(shrunkIndexMetadata, state, null, ActionListener.noop());
         }
     }

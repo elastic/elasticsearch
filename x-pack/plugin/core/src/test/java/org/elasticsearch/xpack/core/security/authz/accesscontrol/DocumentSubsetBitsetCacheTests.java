@@ -435,7 +435,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         runTestOnIndex(consumer);
     }
 
-    public void testCacheClearEntriesWhenIndexIsClosed() throws Exception {
+    public void testCacheClearsEntriesWhenIndexIsClosed() throws Exception {
         final DocumentSubsetBitsetCache cache = newCache(Settings.EMPTY);
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
@@ -447,9 +447,13 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                     final BitSet bitSet = cache.getBitSet(query, leafContext);
                     assertThat(bitSet, notNullValue());
                 }
+                cache.verifyInternalConsistency();
                 assertThat(cache.entryCount(), not(equalTo(0)));
                 assertThat(cache.ramBytesUsed(), not(equalTo(0L)));
             });
+            cache.verifyInternalConsistency();
+
+            // closing an index results in the associated entries being removed from the cache (at least when single threaded)
             assertThat(cache.entryCount(), equalTo(0));
             assertThat(cache.ramBytesUsed(), equalTo(0L));
         }

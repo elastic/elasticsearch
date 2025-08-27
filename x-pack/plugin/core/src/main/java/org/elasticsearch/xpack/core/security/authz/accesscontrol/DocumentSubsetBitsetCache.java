@@ -364,10 +364,20 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     /**
-     * This method verifies that the two internal data structures ({@link #bitsetCache} and {@link #keysByIndex}) are consistent with one
-     * another. This method is only called by tests.
+     * This test-only method verifies that the two internal data structures ({@link #bitsetCache} and {@link #keysByIndex}) are consistent
+     * with one another.
      */
+    // visible for testing
     void verifyInternalConsistency() {
+        verifyInternalConsistencyCacheToKeys();
+        verifyInternalConsistencyKeysToCache();
+    }
+
+    /**
+     * This test-only method iterates over the {@link #bitsetCache} and checks that {@link #keysByIndex} is consistent with it.
+     */
+    // visible for testing
+    void verifyInternalConsistencyCacheToKeys() {
         bitsetCache.keys().forEach(cacheKey -> {
             final Set<BitsetCacheKey> keys = keysByIndex.get(cacheKey.indexKey);
             if (keys == null || keys.contains(cacheKey) == false) {
@@ -376,6 +386,13 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 );
             }
         });
+    }
+
+    /**
+     * This test-only method iterates over the {@link #keysByIndex} and checks that {@link #bitsetCache} is consistent with it.
+     */
+    // visible for testing
+    void verifyInternalConsistencyKeysToCache() {
         keysByIndex.forEach((indexKey, keys) -> {
             if (keys == null || keys.isEmpty()) {
                 throw new IllegalStateException("The lookup entry for [" + indexKey + "] is null or empty");

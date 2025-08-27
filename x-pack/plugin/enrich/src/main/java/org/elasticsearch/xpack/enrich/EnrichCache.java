@@ -46,10 +46,10 @@ public final class EnrichCache {
     private static final CacheValue EMPTY_CACHE_VALUE = new CacheValue(List.of(), CacheKey.CACHE_KEY_SIZE);
 
     private final Cache<CacheKey, CacheValue> cache;
+    private final LongAdder sizeInBytes = new LongAdder();
     private final LongSupplier relativeNanoTimeProvider;
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
-    private final LongAdder sizeInBytes = new LongAdder();
 
     EnrichCache(long maxSize) {
         this(maxSize, System::nanoTime);

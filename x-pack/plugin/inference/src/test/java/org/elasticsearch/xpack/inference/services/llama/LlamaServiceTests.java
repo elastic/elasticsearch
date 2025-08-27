@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -835,5 +836,10 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
 
     private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
         return buildServiceSettingsMap("id", "url", SimilarityMeasure.COSINE.toString(), null, null, null);
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService();
     }
 }

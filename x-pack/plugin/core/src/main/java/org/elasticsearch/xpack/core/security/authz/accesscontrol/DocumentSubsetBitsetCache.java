@@ -415,12 +415,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     void verifyInternalConsistency() {
         bitsetCache.keys().forEach(cacheKey -> {
             final Set<BitsetCacheKey> keys = keysByIndex.get(cacheKey.indexKey);
-            if (keys == null) {
-                throw new IllegalStateException(
-                    "Key [" + cacheKey + "] is in the cache, but there is no entry for [" + cacheKey.indexKey + "] in the lookup map"
-                );
-            }
-            if (keys.contains(cacheKey) == false) {
+            if (keys == null || keys.contains(cacheKey) == false) {
                 throw new IllegalStateException(
                     "Key [" + cacheKey + "] is in the cache, but the lookup entry for [" + cacheKey.indexKey + "] does not contain that key"
                 );

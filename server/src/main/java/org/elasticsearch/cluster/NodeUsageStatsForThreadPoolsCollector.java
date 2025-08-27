@@ -34,7 +34,7 @@ public class NodeUsageStatsForThreadPoolsCollector {
     };
 
     private static final TransportVersion TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION = TransportVersion.fromName(
-        "transport_node_usage_stats_for_thread_pools"
+        "transport_node_usage_stats_for_thread_pools_action"
     );
 
     /**

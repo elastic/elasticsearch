@@ -29,7 +29,7 @@ import java.util.Objects;
 public class ToChildBlockJoinQueryBuilder extends AbstractQueryBuilder<ToChildBlockJoinQueryBuilder> {
     public static final String NAME = "to_child_block_join";
 
-    private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join");
+    private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join_query");
 
     private final QueryBuilder parentQueryBuilder;
 

@@ -75,7 +75,9 @@ public class Ai21Service extends SenderService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName("ml_inference_ai21_completion");
+    private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
+        "ml_inference_ai21_completion_added"
+    );
 
     public Ai21Service(
         HttpRequestSender.Factory factory,

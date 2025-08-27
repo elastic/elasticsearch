@@ -96,6 +96,18 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 // end::rate-result[]
 ;
 
+oneRateWithTBucket
+required_capability: metrics_command
+required_capability: tbucket
+TS k8s
+| STATS max(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute)
+| SORT time_bucket DESC | LIMIT 2;
+
+max(rate(network.total_bytes_in)): double | time_bucket:date
+6.980660660660663                         | 2024-05-10T00:20:00.000Z
+23.702205882352942                        | 2024-05-10T00:15:00.000Z
+;
+
 twoRatesWithBucket
 required_capability: metrics_command
 TS k8s | STATS max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 3;
@@ -106,6 +118,16 @@ max(rate(network.total_bytes_in)):double | sum(rate(network.total_bytes_in)):dou
 14.97039381153305                        | 63.00652190262822                        | 2024-05-10T00:10:00.000Z
 ;
 
+twoRatesWithTBucket
+required_capability: metrics_command
+required_capability: tbucket
+TS k8s | STATS max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute) | SORT time_bucket DESC | LIMIT 3;
+
+max(rate(network.total_bytes_in)):double | sum(rate(network.total_bytes_in)):double | time_bucket:datetime    
+6.980660660660663                        | 23.959973363184154                       | 2024-05-10T00:20:00.000Z
+23.702205882352942                       | 94.9517511187984                         | 2024-05-10T00:15:00.000Z
+14.97039381153305                        | 63.00652190262822                        | 2024-05-10T00:10:00.000Z
+;
 
 oneRateWithBucketAndCluster
 required_capability: metrics_command

@@ -651,7 +651,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             final Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(currentState);
             final List<PolicySnapshot> newRegistered = new ArrayList<>();
 
-            // TODO: calculate stats for stale registered snapshots
+            // By the time this task is executed, it is likely that the cluster state has changed and there could be more/less
+            // registered snapshots than previously looked up with snapshot info. So we need to re-check the registered set and
+            // TODO: calculate stats for stale registered snapshots, should we assume failure if snapshot info is not found, so that
+            // the size of registered snaps won't grow indefinitely in the worst case?
+
             // calculate stats for stale registered snapshots
 //            int countSnapshotFailure = 0;
 //            int countSnapshotSuccess = 0;

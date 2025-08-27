@@ -162,6 +162,8 @@ public abstract class Engine implements Closeable {
     private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
     private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
 
+    private final boolean isStateless;
+
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still
@@ -190,6 +192,8 @@ public abstract class Engine implements Closeable {
         this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
+
+        this.isStateless = DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings());
     }
 
     /**
@@ -267,7 +271,6 @@ public abstract class Engine implements Closeable {
      */
     public ShardFieldStats shardFieldStats() {
         try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
-            boolean isStateless = DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings());
             return shardFieldStats(searcher.getLeafContexts(), isStateless);
         }
     }

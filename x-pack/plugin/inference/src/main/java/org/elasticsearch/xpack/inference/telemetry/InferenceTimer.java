@@ -30,4 +30,8 @@ public record InferenceTimer(Instant startTime, Clock clock) {
     public long elapsedMillis() {
         return Duration.between(startTime(), clock().instant()).toMillis();
     }
+
+    public long elapsedNanos() {
+        return Duration.between(startTime(), clock().instant()).toNanos();
+    }
 }

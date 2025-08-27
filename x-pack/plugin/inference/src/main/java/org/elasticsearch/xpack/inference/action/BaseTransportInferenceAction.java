@@ -306,7 +306,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 listener.onResponse(new InferenceAction.Response(inferenceResults, streamErrorHandler));
             } else {
                 recordRequestDurationMetrics(model, timer, request, localNodeId, null);
-                listener.onResponse(new InferenceAction.Response(inferenceResults, timer.elapsedMillis()));
+                listener.onResponse(new InferenceAction.Response(inferenceResults, timer.elapsedMillis(), timer.elapsedNanos()));
             }
         }, e -> {
             recordRequestDurationMetrics(model, timer, request, localNodeId, e);

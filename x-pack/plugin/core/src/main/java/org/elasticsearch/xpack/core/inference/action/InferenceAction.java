@@ -488,19 +488,22 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final boolean isStreaming;
         private final Flow.Publisher<InferenceServiceResults.Result> publisher;
         private final long elapsedTimeMs;
+        private final long elapsedTimeNanos;
 
         public Response(InferenceServiceResults results) {
             this.results = results;
             this.isStreaming = false;
             this.publisher = null;
             this.elapsedTimeMs = -1;
+            this.elapsedTimeNanos = -1;
         }
 
-        public Response(InferenceServiceResults results, long elapsedTimeMs) {
+        public Response(InferenceServiceResults results, long elapsedTimeMs, long elapsedTimeNanos) {
             this.results = results;
             this.isStreaming = false;
             this.publisher = null;
             this.elapsedTimeMs = elapsedTimeMs;
+            this.elapsedTimeNanos = elapsedTimeNanos;
         }
 
         public Response(InferenceServiceResults results, Flow.Publisher<InferenceServiceResults.Result> publisher) {
@@ -508,6 +511,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.isStreaming = true;
             this.publisher = publisher;
             this.elapsedTimeMs = -1;
+            this.elapsedTimeNanos = -1;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -522,6 +526,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.isStreaming = false;
             this.publisher = null;
             this.elapsedTimeMs = in.readVLong();
+            this.elapsedTimeNanos = in.readVLong();
         }
 
         @SuppressWarnings("deprecation")
@@ -597,6 +602,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             // streaming isn't supported via Writeable yet
             out.writeNamedWriteable(results);
+            out.writeVLong(elapsedTimeMs);
+            out.writeVLong(elapsedTimeNanos);
         }
 
         @Override
@@ -605,6 +612,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 ChunkedToXContentHelper.startObject(),
                 results.toXContentChunked(params),
                 ChunkedToXContentHelper.field("elapsed_time_ms", params1 -> Iterators.single((b, p) -> b.value(elapsedTimeMs)), params),
+                ChunkedToXContentHelper.field(
+                    "elapsed_time_nanos",
+                    params1 -> Iterators.single((b, p) -> b.value(elapsedTimeNanos)),
+                    params
+                ),
                 ChunkedToXContentHelper.endObject()
             );
         }
@@ -614,12 +626,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(results, response.results);
+            return Objects.equals(results, response.results)
+                && elapsedTimeMs == response.elapsedTimeMs
+                && elapsedTimeNanos == response.elapsedTimeNanos;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(results);
+            return Objects.hash(results, elapsedTimeMs, elapsedTimeNanos);
         }
     }
 }

@@ -65,6 +65,9 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
 
     @Override
     public Block build() {
+        if (values.length != count) {
+            throw new IllegalStateException("expected " + values.length + " values but got " + count);
+        }
         return blockFactory.newDoubleArrayVector(values, count).asBlock();
     }
 

@@ -66,10 +66,18 @@ public interface BlockLoader {
          * Attempts to read the values of all documents in {@code docs}
          * Returns {@code null} if unable to load the values.
          *
+         * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                      see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
          * @param toDouble a function to convert long values to double, or null if no conversion is needed/supported
          */
         @Nullable
-        BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset, BlockDocValuesReader.ToDouble toDouble) throws IOException;
+        BlockLoader.Block tryRead(
+            BlockFactory factory,
+            Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble
+        ) throws IOException;
     }
 
     interface RowStrideReader extends Reader {

@@ -377,7 +377,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BlockDocValuesReader.DoublesBlockLoader(name(), new BlockDocValuesReader.LongToScaledFloat(scalingFactor));
+                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l / scalingFactor);
             }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {

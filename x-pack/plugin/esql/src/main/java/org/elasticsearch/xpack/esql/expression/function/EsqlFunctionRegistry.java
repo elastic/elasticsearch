@@ -449,8 +449,7 @@ public class EsqlFunctionRegistry {
                 def(ToString.class, ToString::new, "to_string", "to_str"),
                 def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
                 def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
-                def(ToVersion.class, ToVersion::new, "to_version", "to_ver"),
-                def(UrlEncode.class, UrlEncode::new, "url_encode"), },
+                def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
             // multivalue functions
             new FunctionDefinition[] {
                 def(MvAppend.class, MvAppend::new, "mv_append"),
@@ -515,7 +514,8 @@ public class EsqlFunctionRegistry {
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming") } };
+                def(Hamming.class, Hamming::new, "v_hamming"),
+                def(UrlEncode.class, UrlEncode::new, "url_encode") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -23,6 +23,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -93,11 +94,11 @@ public class UrlEncodeTests extends AbstractScalarFunctionTestCase {
 
     private static RandomUrl generateRandomUrl() {
         String protocol = randomFrom("http://", "https://", "");
-        String domain = String.format("%s.com", randomAlphaOfLengthBetween(3, 10));
+        String domain = String.format(Locale.ROOT, "%s.com", randomAlphaOfLengthBetween(3, 10));
         String path = randomFrom("", "/" + randomAlphanumericOfLength(5) + "/");
         String query = randomFrom("", "?" + randomAlphaOfLength(5) + "=" + randomAlphanumericOfLength(5));
 
-        String plain = String.format("%s%s%s%s", protocol, domain, path, query);
+        String plain = String.format(Locale.ROOT, "%s%s%s%s", protocol, domain, path, query);
         String encoded = URLEncoder.encode(plain, StandardCharsets.UTF_8);
 
         return new RandomUrl(plain, encoded);

@@ -2481,6 +2481,8 @@ https%3A%2F%2Fwww.example.com%2Fpapers%3Fq%3Dinformation%2Bretrieval%26year%3D20
 ;
 
 url_encode mixed functions tests
+required_capability: url_encode
+
 FROM employees 
 | WHERE emp_no == 10001 
 | EVAL a = TRIM(URL_ENCODE(first_name))
@@ -2492,6 +2494,8 @@ Georgi    | georgi
 ;
 
 url_encode mixed input tests
+required_capability: url_encode
+
 ROW u = ["hello elastic!", "a+b-c%d", "", "!#$&'()*+,/:;=?@[]"] | EVAL u = URL_ENCODE(u);
 
 u:keyword

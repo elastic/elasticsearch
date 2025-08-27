@@ -32,6 +32,6 @@
   "examples" : [
     "ROW u = \"https://www.example.com/papers?q=information+retrieval&year=2024&citations=high\" | EVAL u = URL_ENCODE(u)"
   ],
-  "preview" : false,
-  "snapshot_only" : false
+  "preview" : true,
+  "snapshot_only" : true
 }

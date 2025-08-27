@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -42,8 +44,10 @@ public final class UrlEncode extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        preview = true,
         description = "URL encodes the input.",
-        examples = { @Example(file = "string", tag = "url_encode") }
+        examples = { @Example(file = "string", tag = "url_encode") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
     public UrlEncode(Source source, @Param(name = "string", type = { "keyword", "text" }, description = "URL to encode.") Expression str) {
         super(source, str);

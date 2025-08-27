@@ -557,13 +557,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             logger.trace("removing reader context [{}]", id);
         }
         ReaderContext remove = activeReaders.remove(id);
-        logger.info(
-            "--> node [{}] removing [{}] reader context [{}], current [{}]",
-            clusterService.localNode().getId(),
-            remove != null,
-            id,
-            activeReaders.size()
-        );
         return remove;
     }
 

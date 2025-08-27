@@ -832,11 +832,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     private Join createLeftJoin() {
         FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
         FieldAttribute c = getFieldAttribute("c");
-        EsRelation left = relation(List.of(a, getFieldAttribute("b")));
-        EsRelation right = relation(List.of(c));
+        EsRelation left = relation(List.of(a, b));
+        EsRelation right = relation(List.of(c, b));
 
-        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(a), List.of(c));
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b), List.of(a, b), List.of(b, c));
         return new Join(EMPTY, left, right, joinConfig);
     }
 }

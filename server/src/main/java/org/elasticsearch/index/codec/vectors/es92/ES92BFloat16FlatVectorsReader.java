@@ -39,13 +39,11 @@ import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
@@ -67,8 +65,7 @@ public final class ES92BFloat16FlatVectorsReader extends FlatVectorsReader {
         boolean success = false;
         // Flat formats are used to randomly access vectors from their node ID that is stored
         // in the HNSW graph.
-        dataContext =
-            state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
+        dataContext = state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
         try {
             vectorData = openDataInput(
                 state,

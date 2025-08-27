@@ -45,7 +45,8 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             c.defaultDependencies(t -> {
                 psService.get()
                     .getProjectsByTopic(TRANSPORT_REFERENCES_TOPIC)
-                    .forEach(p -> { t.add(depsHandler.project(Map.of("path", p))); });
+                    .get()
+                    .forEach(path -> t.add(depsHandler.project(Map.of("path", path))));
             });
         });
 

@@ -10,6 +10,8 @@
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Project;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 
@@ -17,14 +19,22 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.inject.Inject;
+
 public abstract class ProjectSubscribeBuildService implements BuildService<BuildServiceParameters.None> {
 
     public static final String TRANSPORT_REFERENCES_TOPIC = "transportReferences";
+    private final ProviderFactory providerFactory;
 
     private Map<String, Collection<String>> versionsByTopic = new HashMap<>();
 
-    public Collection<String> getProjectsByTopic(String topic) {
-        return versionsByTopic.get(topic);
+    @Inject
+    public ProjectSubscribeBuildService(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
+    }
+
+    public Provider<Collection<String>> getProjectsByTopic(String topic) {
+        return providerFactory.provider(() -> versionsByTopic.computeIfAbsent(topic, k -> new java.util.LinkedHashSet<>()));
     }
 
     public void registerProjectForTopic(String topic, Project project) {

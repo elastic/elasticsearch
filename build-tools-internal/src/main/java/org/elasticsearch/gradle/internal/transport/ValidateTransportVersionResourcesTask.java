@@ -22,6 +22,7 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.VerificationException;
 import org.gradle.api.tasks.VerificationTask;
 
 import java.io.IOException;
@@ -256,11 +257,11 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
 
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {
         Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(definition);
-        throw new IllegalStateException("Transport version definition file [" + relativePath + "] " + message);
+        throw new VerificationException("Transport version definition file [" + relativePath + "] " + message);
     }
 
     private void throwUpperBoundFailure(TransportVersionUpperBound upperBound, String message) {
         Path relativePath = getResources().get().getUpperBoundRepositoryPath(upperBound);
-        throw new IllegalStateException("Transport version upper bound file [" + relativePath + "] " + message);
+        throw new VerificationException("Transport version upper bound file [" + relativePath + "] " + message);
     }
 }

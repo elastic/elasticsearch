@@ -27,6 +27,26 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
         return new ByteRefHttpBody(ReleasableBytesReference.empty());
     }
 
+    class NoopStream implements Stream {
+
+        @Override
+        public ChunkHandler handler() {
+            return null;
+        }
+
+        @Override
+        public void addTracingHandler(ChunkHandler chunkHandler) {}
+
+        @Override
+        public void setHandler(ChunkHandler chunkHandler) {}
+
+        @Override
+        public void next() {}
+
+        @Override
+        public void close() {}
+    }
+
     default boolean isFull() {
         return this instanceof Full;
     }

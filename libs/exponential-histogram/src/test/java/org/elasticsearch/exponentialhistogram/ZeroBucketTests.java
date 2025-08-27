@@ -75,6 +75,11 @@ public class ZeroBucketTests extends ExponentialHistogramTestCase {
         assertEqualsContract(ZeroBucket.create(123.56, 123), ZeroBucket.create(123.56, 123));
         assertThat(ZeroBucket.create(123.56, 123), not(equalTo(ZeroBucket.create(123.57, 123))));
         assertThat(ZeroBucket.create(123.56, 123), not(equalTo(ZeroBucket.create(123.56, 12))));
+
+        // the exponentially scaled numbers (index=2, scale=0) and (index=1, scale=-1) both represent 4.0
+        // therefore the zero buckets should be equal
+        assertEqualsContract(ZeroBucket.create(2, 0, 123), ZeroBucket.create(1, -1, 123));
+        assertEqualsContract(ZeroBucket.create(4, 1, 123), ZeroBucket.create(1, -1, 123));
     }
 
     void assertEqualsContract(ZeroBucket a, ZeroBucket b) {

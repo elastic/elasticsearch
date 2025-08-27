@@ -10,12 +10,12 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
-  testImplementation project(path: ':test:test-clusters')
-  yamlRestTestImplementation project(path: xpackModule('rollup'))
+  testImplementation project(':test:test-clusters')
+  yamlRestTestImplementation project(xpackModule('rollup'))
 
-  clusterModules project(path: xpackModule('downsample'))
-  clusterModules project(path: xpackModule('analytics'))
-  clusterModules project(path: xpackModule('ilm'))
+  clusterModules project(xpackModule('downsample'))
+  clusterModules project(xpackModule('analytics'))
+  clusterModules project(xpackModule('ilm'))
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:data-streams')

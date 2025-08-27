@@ -11,6 +11,7 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.exporter.internal.FailedExportException;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.sdk.common.Clock;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
@@ -115,7 +116,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
     }
 
     private void export(List<MetricData> metrics) throws Exception {
-        var result = exporter.export(metrics).join(10, TimeUnit.SECONDS);
+        CompletableResultCode result = exporter.export(metrics).join(10, TimeUnit.SECONDS);
         Throwable failure = result.getFailureThrowable();
         if (failure instanceof Exception e) {
             throw e;

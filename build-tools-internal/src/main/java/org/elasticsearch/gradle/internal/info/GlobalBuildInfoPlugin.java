@@ -116,37 +116,36 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
-        Provider<File> explicitRuntimeJavaHome = findRuntimeJavaHome();
-        boolean isRuntimeJavaHomeExplicitlySet = explicitRuntimeJavaHome.isPresent();
-        Provider<File> actualRuntimeJavaHome = isRuntimeJavaHomeExplicitlySet
-            ? explicitRuntimeJavaHome
-            : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
+        RuntimeJavaHome runtimeJavaHome = findRuntimeJavaHome();
 
-        Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
-            runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
+        Provider<JvmInstallationMetadata> runtimeJdkMetaData = runtimeJavaHome.getJavahome().map(
+            j -> metadataDetector.getMetadata(getJavaInstallation(j))
         );
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
             () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions() : val)
         );
+
+
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
                 BuildParameterExtension.class,
                 BuildParameterExtension.EXTENSION_NAME,
                 DefaultBuildParameterExtension.class,
                 providers,
-                actualRuntimeJavaHome,
+                runtimeJavaHome.getJavahome(),
                 resolveToolchainSpecFromEnv(),
-                actualRuntimeJavaHome.map(
+                runtimeJavaHome.javahome.map(
                     javaHome -> determineJavaVersion(
                         "runtime java.home",
                         javaHome,
-                        isRuntimeJavaHomeExplicitlySet
+                        runtimeJavaHome.javahome.isPresent()
                             ? minimumRuntimeVersion
                             : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
                     )
                 ),
-                isRuntimeJavaHomeExplicitlySet,
+                runtimeJavaHome.expclicitlySet,
+                runtimeJavaHome.earlyAccess,
                 runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)),
                 getAvailableJavaVersions(),
                 minimumCompilerVersion,
@@ -344,7 +343,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private Provider<File> findRuntimeJavaHome() {
+    private RuntimeJavaHome findRuntimeJavaHome() {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
@@ -352,22 +351,25 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 // handle EA builds differently due to lack of support in Gradle toolchain service
                 // we resolve them using JdkDownloadPlugin for now.
                 Integer major = Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 3));
-                return resolveEarlyAccessJavaHome(major);
+                return new RuntimeJavaHome(resolveEarlyAccessJavaHome(major), true, true);
             } else {
-                return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
+                return new RuntimeJavaHome(resolveJavaHomeFromToolChainService(runtimeJavaProperty), true, false);
             }
         }
         if (System.getenv("RUNTIME_JAVA_HOME") != null) {
-            return providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME")));
+            return new RuntimeJavaHome(providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME"))), true, false);
         }
         // fall back to tool chain if set.
         String env = System.getenv("JAVA_TOOLCHAIN_HOME");
-        return providers.provider(() -> {
-            if (env == null) {
-                return null;
-            }
-            return new File(env);
-        });
+        boolean explicitlySet = env != null;
+        Provider<File> javaHome = explicitlySet ?
+            providers.provider(() -> new File(env)) :
+            resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
+        return
+            new RuntimeJavaHome(
+                javaHome,
+                explicitlySet,
+                false);
     }
 
     private Provider<File> resolveEarlyAccessJavaHome(Integer runtimeJavaProperty) {
@@ -442,6 +444,27 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         public void execute(JavaToolchainSpec spec) {
             spec.getVendor().set(expectedVendorSpec);
             spec.getLanguageVersion().set(expectedJavaLanguageVersion);
+        }
+    }
+
+    private static class RuntimeJavaHome {
+
+        private final boolean earlyAccess;
+        private final Provider<File> javahome;
+        private final boolean expclicitlySet;
+
+        // RuntimeJavaHome(Provider<File> javahome) {
+        // this(javahome, false);
+        // }
+        //
+        RuntimeJavaHome(Provider<File> javahome, boolean explicitlySet, boolean earlyAccess) {
+            this.javahome = javahome;
+            this.expclicitlySet = explicitlySet;
+            this.earlyAccess = earlyAccess;
+        }
+
+        public Provider<File> getJavahome() {
+            return javahome;
         }
     }
 }

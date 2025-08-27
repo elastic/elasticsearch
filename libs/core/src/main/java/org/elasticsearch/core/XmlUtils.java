@@ -12,6 +12,8 @@ package org.elasticsearch.core;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXNotSupportedException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.XMLConstants;
@@ -22,6 +24,9 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
+import javax.xml.validation.Validator;
 
 public class XmlUtils {
 
@@ -49,6 +54,9 @@ public class XmlUtils {
         return documentBuilder;
     }
 
+    /**
+     * Returns a DocumentBuilderFactory pre-configured to be secure
+     */
     @SuppressForbidden(reason = "This is the only allowed way to construct a DocumentBuilder")
     public static DocumentBuilderFactory getHardenedBuilderFactory() throws ParserConfigurationException {
         final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
@@ -76,6 +84,9 @@ public class XmlUtils {
         return dbf;
     }
 
+    /**
+     * Constructs a Transformer configured to be secure
+     */
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")
     public static Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
         final TransformerFactory tfactory = TransformerFactory.newInstance();
@@ -86,6 +97,28 @@ public class XmlUtils {
         Transformer transformer = tfactory.newTransformer();
         transformer.setErrorListener(new ErrorListener());
         return transformer;
+    }
+
+    /**
+     * Returns a SchemaFactory configured to be secure
+     */
+    @SuppressForbidden(reason = "This is the only allowed way to construct a SchemaFactory")
+    public static SchemaFactory getHardenedSchemaFactory() throws SAXNotSupportedException, SAXNotRecognizedException {
+        SchemaFactory schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+        schemaFactory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        schemaFactory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        return schemaFactory;
+    }
+
+    /**
+     * Constructs a Validator configured to be secure
+     */
+    @SuppressForbidden(reason = "This is the only allowed way to construct a Validator")
+    public static Validator getHardenedValidator(Schema schema) throws SAXNotSupportedException, SAXNotRecognizedException {
+        Validator validator = schema.newValidator();
+        validator.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        validator.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        return validator;
     }
 
     private static class ErrorHandler implements org.xml.sax.ErrorHandler {

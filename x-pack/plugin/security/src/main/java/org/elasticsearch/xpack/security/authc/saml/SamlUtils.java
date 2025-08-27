@@ -207,13 +207,11 @@ public class SamlUtils {
     }
 
     static void validate(InputStream xml, String xsdName) throws Exception {
-        SchemaFactory schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+        SchemaFactory schemaFactory = XmlUtils.getHardenedSchemaFactory();
         try (InputStream xsdStream = loadSchema(xsdName); ResourceResolver resolver = new ResourceResolver()) {
             schemaFactory.setResourceResolver(resolver);
             Schema schema = schemaFactory.newSchema(new StreamSource(xsdStream));
-            Validator validator = schema.newValidator();
-            validator.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            validator.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            Validator validator = XmlUtils.getHardenedValidator(schema);
             validator.validate(new StreamSource(xml));
         }
     }

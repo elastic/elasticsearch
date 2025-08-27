@@ -60,17 +60,4 @@ public class ExponentialHistogramUtils {
         return sum;
     }
 
-    static boolean bucketIteratorsEqual(BucketIterator a, BucketIterator b) {
-        if (a.scale() != b.scale()) {
-            return false;
-        }
-        while (a.hasNext() && b.hasNext()) {
-            if (a.peekIndex() != b.peekIndex() || a.peekCount() != b.peekCount()) {
-                return false;
-            }
-            a.advance();
-            b.advance();
-        }
-        return a.hasNext() == b.hasNext();
-    }
 }

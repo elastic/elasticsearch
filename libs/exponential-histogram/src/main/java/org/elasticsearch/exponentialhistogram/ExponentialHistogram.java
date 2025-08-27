@@ -27,8 +27,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.OptionalLong;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.bucketIteratorsEqual;
-
 /**
  * Base class for implementations of exponential histograms adhering to the
  * <a href="https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram">OpenTelemetry definition</a>.
@@ -144,6 +142,20 @@ public abstract class ExponentialHistogram implements Accountable {
         if (bucketIteratorsEqual(positiveBuckets().iterator(), that.positiveBuckets().iterator()) == false) return false;
 
         return true;
+    }
+
+    private static boolean bucketIteratorsEqual(BucketIterator a, BucketIterator b) {
+        if (a.scale() != b.scale()) {
+            return false;
+        }
+        while (a.hasNext() && b.hasNext()) {
+            if (a.peekIndex() != b.peekIndex() || a.peekCount() != b.peekCount()) {
+                return false;
+            }
+            a.advance();
+            b.advance();
+        }
+        return a.hasNext() == b.hasNext();
     }
 
     @Override

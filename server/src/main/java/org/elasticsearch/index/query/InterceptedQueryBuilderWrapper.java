@@ -95,6 +95,7 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder, FilteredCCSQueryBu
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // TODO: Check transport version for BwC here
         queryBuilder.writeTo(out);
     }
 

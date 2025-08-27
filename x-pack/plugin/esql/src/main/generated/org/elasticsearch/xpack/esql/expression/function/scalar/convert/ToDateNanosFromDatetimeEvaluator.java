@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDateNanosFromDatetimeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDateNanosFromDatetimeEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator in;
 
   public ToDateNanosFromDatetimeEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
@@ -111,6 +114,13 @@ public final class ToDateNanosFromDatetimeEvaluator extends AbstractConvertFunct
   @Override
   public void close() {
     Releasables.closeExpectNoException(in);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

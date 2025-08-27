@@ -107,7 +107,6 @@ public class FirstLongByTimestampAggregator {
         private LongArray timestamps;
         private LongArray values;
         private int maxGroupId = -1;
-
         GroupingState(BigArrays bigArrays) {
             super(bigArrays);
             this.bigArrays = bigArrays;

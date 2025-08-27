@@ -12,7 +12,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 $endif$
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Type$Array;
@@ -87,7 +87,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
+        $if(BytesRef)$
+        return new GroupingState(driverContext.bigArrays(), driverContext.breaker());
+        $else$
         return new GroupingState(driverContext.bigArrays());
+        $endif$
     }
 
     public static void combine(GroupingState current, int groupId, $type$ value, long timestamp) {
@@ -132,11 +136,17 @@ public class $Occurrence$$Type$ByTimestampAggregator {
         private $Type$Array values;
         $endif$
         private int maxGroupId = -1;
+        $if(BytesRef)$
+        private final CircuitBreaker breaker;
+        $endif$
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays$if(BytesRef)$,CircuitBreaker breaker$endif$) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;
+            $if(BytesRef)$
+            this.breaker = breaker;
+            $endif$
             LongArray timestamps = null;
             try {
                 timestamps = bigArrays.newLongArray(1, false);
@@ -175,7 +185,7 @@ public class $Occurrence$$Type$ByTimestampAggregator {
             if (updated) {
                 values = bigArrays.grow(values, groupId + 1);
                 $if(BytesRef)$
-                try(BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(new NoopCircuitBreaker("noop-breaker"), "ref-builder", value.length)) {
+                try(BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "$Occurrence$", value.length)) {
                     builder.append(value);
                     values.set(groupId, builder);
                 }

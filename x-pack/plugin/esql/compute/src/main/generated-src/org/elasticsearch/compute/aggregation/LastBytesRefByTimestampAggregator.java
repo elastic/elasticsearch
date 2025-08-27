@@ -11,7 +11,7 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.LongArray;
@@ -77,7 +77,7 @@ public class LastBytesRefByTimestampAggregator {
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
-        return new GroupingState(driverContext.bigArrays());
+        return new GroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
     public static void combine(GroupingState current, int groupId, BytesRef value, long timestamp) {
@@ -112,11 +112,13 @@ public class LastBytesRefByTimestampAggregator {
         private LongArray timestamps;
         private ObjectArray<BreakingBytesRefBuilder> values;
         private int maxGroupId = -1;
+        private final CircuitBreaker breaker;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays,CircuitBreaker breaker) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;
+            this.breaker = breaker;
             LongArray timestamps = null;
             try {
                 timestamps = bigArrays.newLongArray(1, false);
@@ -150,7 +152,7 @@ public class LastBytesRefByTimestampAggregator {
             }
             if (updated) {
                 values = bigArrays.grow(values, groupId + 1);
-                try(BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(new NoopCircuitBreaker("noop-breaker"), "ref-builder", value.length)) {
+                try(BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "Last", value.length)) {
                     builder.append(value);
                     values.set(groupId, builder);
                 }

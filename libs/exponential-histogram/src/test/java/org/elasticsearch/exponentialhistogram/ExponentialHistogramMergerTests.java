@@ -106,6 +106,22 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(posBuckets.hasNext(), equalTo(false));
     }
 
+    public void testSumCorrectness() {
+        double[] firstValues = randomDoubles(100).map(val -> val * 2 - 1).toArray();
+        double[] secondValues = randomDoubles(50).map(val -> val * 2 - 1).toArray();
+        double correctSum = Arrays.stream(firstValues).sum() + Arrays.stream(secondValues).sum();
+        try (
+            ReleasableExponentialHistogram merged = ExponentialHistogram.merge(
+                2,
+                breaker(),
+                createAutoReleasedHistogram(10, firstValues),
+                createAutoReleasedHistogram(20, secondValues)
+            )
+        ) {
+            assertThat(merged.sum(), closeTo(correctSum, 0.000001));
+        }
+    }
+
     public void testUpscalingDoesNotExceedIndexLimits() {
         for (int i = 0; i < 4; i++) {
 

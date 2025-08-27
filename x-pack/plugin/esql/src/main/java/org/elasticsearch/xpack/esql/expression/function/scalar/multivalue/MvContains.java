@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
@@ -303,6 +304,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
     }
 
     private static final class MvContainsNullEvaluator implements ExpressionEvaluator.Factory {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsNullEvaluator.class);
         private final ExpressionEvaluator.Factory subsetFieldEvaluator;
 
         private MvContainsNullEvaluator(ExpressionEvaluator.Factory subsetFieldEvaluator) {
@@ -320,6 +322,13 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                         var position = page.getPositionCount();
                         return context.blockFactory().newConstantBooleanBlockWith(block.isNull(position), position);
                     }
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+                    baseRamBytesUsed += subsetField.baseRamBytesUsed();
+                    return baseRamBytesUsed;
                 }
 
                 @Override
@@ -351,6 +360,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
      *  TODO extend code generation to handle this case
      */
     public static class MvContainsBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsBooleanEvaluator.class);
         private final EvalOperator.ExpressionEvaluator field1;
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
@@ -393,6 +403,14 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             Releasables.closeExpectNoException(field1, field2);
         }
 
+        @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            baseRamBytesUsed += field1.baseRamBytesUsed();
+            baseRamBytesUsed += field2.baseRamBytesUsed();
+            return baseRamBytesUsed;
+        }
+
         public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
             private final Source source;
             private final EvalOperator.ExpressionEvaluator.Factory field1;
@@ -431,6 +449,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
      *  TODO extend code generation to handle this case
      */
     public static class MvContainsBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsBytesRefEvaluator.class);
         private final EvalOperator.ExpressionEvaluator field1;
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
@@ -473,6 +492,14 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             Releasables.closeExpectNoException(field1, field2);
         }
 
+        @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            baseRamBytesUsed += field1.baseRamBytesUsed();
+            baseRamBytesUsed += field2.baseRamBytesUsed();
+            return baseRamBytesUsed;
+        }
+
         public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
             private final Source source;
             private final EvalOperator.ExpressionEvaluator.Factory field1;
@@ -511,6 +538,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
      *  TODO extend code generation to handle this case
      */
     public static class MvContainsDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsDoubleEvaluator.class);
         private final EvalOperator.ExpressionEvaluator field1;
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
@@ -553,6 +581,14 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             Releasables.closeExpectNoException(field1, field2);
         }
 
+        @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            baseRamBytesUsed += field1.baseRamBytesUsed();
+            baseRamBytesUsed += field2.baseRamBytesUsed();
+            return baseRamBytesUsed;
+        }
+
         public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
             private final Source source;
             private final EvalOperator.ExpressionEvaluator.Factory field1;
@@ -591,6 +627,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
      *  TODO extend code generation to handle this case
      */
     public static class MvContainsIntEvaluator implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsIntEvaluator.class);
         private final EvalOperator.ExpressionEvaluator field1;
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
@@ -633,6 +670,14 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             Releasables.closeExpectNoException(field1, field2);
         }
 
+        @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            baseRamBytesUsed += field1.baseRamBytesUsed();
+            baseRamBytesUsed += field2.baseRamBytesUsed();
+            return baseRamBytesUsed;
+        }
+
         public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
             private final Source source;
             private final EvalOperator.ExpressionEvaluator.Factory field1;
@@ -671,6 +716,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
      *  TODO extend code generation to handle this case
      */
     public static class MvContainsLongEvaluator implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsLongEvaluator.class);
         private final EvalOperator.ExpressionEvaluator field1;
         private final EvalOperator.ExpressionEvaluator field2;
         private final DriverContext driverContext;
@@ -711,6 +757,14 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         @Override
         public void close() {
             Releasables.closeExpectNoException(field1, field2);
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            baseRamBytesUsed += field1.baseRamBytesUsed();
+            baseRamBytesUsed += field2.baseRamBytesUsed();
+            return baseRamBytesUsed;
         }
 
         public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

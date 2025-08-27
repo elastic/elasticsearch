@@ -109,7 +109,7 @@ public class BulkRequest extends LegacyActionRequest
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             includeSourceOnError = in.readBoolean();
-        }
+        } // else default value is true
         if (in.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
         }

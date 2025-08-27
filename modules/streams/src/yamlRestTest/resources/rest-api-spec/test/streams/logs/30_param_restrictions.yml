@@ -15,7 +15,7 @@ teardown:
 
   - do:
       bulk:
-        refresh: true
+        list_executed_pipelines: true
         body: |
           { "index": { "_index": "logs"} }
           { "foo": "bar" }
@@ -39,7 +39,7 @@ teardown:
 
   - do:
       index:
-        refresh: true
+        require_alias: true
         index: logs
         body: { "foo": "bar" }
       catch: '/When writing to a stream, only the following parameters are allowed: \[.+\] however the following were used: \[.+\]/'

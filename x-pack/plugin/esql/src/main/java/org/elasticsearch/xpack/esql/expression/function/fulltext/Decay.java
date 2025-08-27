@@ -98,7 +98,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "value",
             type = { "double", "integer", "long", "date", "date_nanos", "geo_point", "cartesian_point" },
-            description = "Value to calculate decayed value for."
+            description = "The input value to apply decay scoring to."
         ) Expression value,
         @Param(
             name = "origin",

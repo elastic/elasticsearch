@@ -37,7 +37,7 @@ import java.util.Objects;
 public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQueryBuilder> {
     public static final String NAME = "knn_score_doc";
 
-    private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join");
+    private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join_query");
 
     private final ScoreDoc[] scoreDocs;
     private final String fieldName;

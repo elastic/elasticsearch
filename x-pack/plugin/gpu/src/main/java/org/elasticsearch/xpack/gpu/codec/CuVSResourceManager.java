@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
+import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.GPUInfoProvider;
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 
 import java.nio.file.Path;
@@ -47,7 +50,7 @@ public interface CuVSResourceManager {
     // numVectors and dims are currently unused, but could be used along with GPU metadata,
     // memory, generation, etc, when acquiring for 10M x 1536 dims, or 100,000 x 128 dims,
     // to give out a resources or not.
-    ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException;
+    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType) throws InterruptedException;
 
     /** Marks the resources as finished with regard to compute. */
     void finishedComputation(ManagedCuVSResources resources);
@@ -67,6 +70,8 @@ public interface CuVSResourceManager {
      * A manager that maintains a pool of resources.
      */
     class PoolingCuVSResourceManager implements CuVSResourceManager {
+
+        static final Logger logger = LogManager.getLogger(CuVSResourceManager.class);
 
         /** A multiplier on input data to account for intermediate and output data size required while processing it */
         static final double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
@@ -120,7 +125,7 @@ public interface CuVSResourceManager {
         }
 
         @Override
-        public ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException {
+        public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType) throws InterruptedException {
             try {
                 lock.lock();
 
@@ -131,24 +136,40 @@ public interface CuVSResourceManager {
 
                     final boolean enoughMemory;
                     if (res != null) {
+                        long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType);
+                        logger.info(
+                            "Estimated memory for [{}] vectors, [{}] dims of type [{}] is [{} B]",
+                            numVectors,
+                            dims,
+                            dataType.name(),
+                            requiredMemoryInBytes
+                        );
+
+                        // Check immutable constraints
+                        long totalDeviceMemoryInBytes = gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes();
+                        if (requiredMemoryInBytes > totalDeviceMemoryInBytes) {
+                            String message = Strings.format(
+                                "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
+                                numVectors,
+                                dims,
+                                totalDeviceMemoryInBytes
+                            );
+                            logger.error(message);
+                            throw new IllegalArgumentException(message);
+                        }
+
                         // If no resource in the pool is locked, short circuit to avoid livelock
                         if (numLockedResources() == 0) {
+                            logger.info("No resources currently locked, proceeding");
                             break;
                         }
+
                         // Check resources availability
-                        long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims);
-                        if (requiredMemoryInBytes > gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes()) {
-                            throw new IllegalArgumentException(
-                                Strings.format(
-                                    "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%dMB]",
-                                    numVectors,
-                                    dims,
-                                    gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes() / (1024L * 1024L)
-                                )
-                            );
-                        }
-                        enoughMemory = requiredMemoryInBytes <= gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes();
+                        long freeDeviceMemoryInBytes = gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes();
+                        enoughMemory = requiredMemoryInBytes <= freeDeviceMemoryInBytes;
+                        logger.info("Free device memory [{} B], enoughMemory[{}]", freeDeviceMemoryInBytes);
                     } else {
+                        logger.info("No resources available in pool");
                         enoughMemory = false;
                     }
                     // TODO: add enoughComputation / enoughComputationCondition here
@@ -164,8 +185,13 @@ public interface CuVSResourceManager {
             }
         }
 
-        private long estimateRequiredMemory(int numVectors, int dims) {
-            return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * Float.BYTES);
+        private long estimateRequiredMemory(int numVectors, int dims, CuVSMatrix.DataType dataType) {
+            int elementTypeBytes = switch (dataType) {
+                case FLOAT -> Float.BYTES;
+                case INT, UINT -> Integer.BYTES;
+                case BYTE -> Byte.BYTES;
+            };
+            return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * elementTypeBytes);
         }
 
         // visible for testing
@@ -175,12 +201,14 @@ public interface CuVSResourceManager {
 
         @Override
         public void finishedComputation(ManagedCuVSResources resources) {
+            logger.info("Computation finished");
             // currently does nothing, but could allow acquire to return possibly blocked resources
             // enoughResourcesCondition.signalAll()
         }
 
         @Override
         public void release(ManagedCuVSResources resources) {
+            logger.info("Releasing resources to pool");
             try {
                 lock.lock();
                 assert resources.locked;

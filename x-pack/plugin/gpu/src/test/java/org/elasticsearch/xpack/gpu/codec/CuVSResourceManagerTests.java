@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
+import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.CuVSResourcesInfo;
 import com.nvidia.cuvs.GPUInfo;
@@ -36,14 +37,14 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public void testBasic() throws InterruptedException {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(0, 0);
-        var res2 = mgr.acquire(0, 0);
+        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
+        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
         assertThat(res1.toString(), containsString("id=0"));
         assertThat(res2.toString(), containsString("id=1"));
         mgr.release(res1);
         mgr.release(res2);
-        res1 = mgr.acquire(0, 0);
-        res2 = mgr.acquire(0, 0);
+        res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
+        res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
         assertThat(res1.toString(), containsString("id=0"));
         assertThat(res2.toString(), containsString("id=1"));
         mgr.release(res1);
@@ -53,13 +54,13 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public void testBlocking() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(0, 0);
-        var res2 = mgr.acquire(0, 0);
+        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
+        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
 
         AtomicReference<CuVSResources> holder = new AtomicReference<>();
         Thread t = new Thread(() -> {
             try {
-                var res3 = mgr.acquire(0, 0);
+                var res3 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
                 holder.set(res3);
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
@@ -76,12 +77,12 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public void testBlockingOnInsufficientMemory() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(16 * 1024, 1024);
+        var res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT);
 
         AtomicReference<CuVSResources> holder = new AtomicReference<>();
         Thread t = new Thread(() -> {
             try {
-                var res2 = mgr.acquire((16 * 1024) + 1, 1024);
+                var res2 = mgr.acquire((16 * 1024) + 1, 1024, CuVSMatrix.DataType.FLOAT);
                 holder.set(res2);
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
@@ -98,12 +99,12 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public void testNotBlockingOnSufficientMemory() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(16 * 1024, 1024);
+        var res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT);
 
         AtomicReference<CuVSResources> holder = new AtomicReference<>();
         Thread t = new Thread(() -> {
             try {
-                var res2 = mgr.acquire((16 * 1024) - 1, 1024);
+                var res2 = mgr.acquire((16 * 1024) - 1, 1024, CuVSMatrix.DataType.FLOAT);
                 holder.set(res2);
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
@@ -118,7 +119,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public void testManagedResIsNotClosable() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(1);
-        var res = mgr.acquire(0, 0);
+        var res = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
         assertThrows(UnsupportedOperationException.class, res::close);
         mgr.release(res);
         mgr.shutdown();
@@ -126,8 +127,8 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public void testDoubleRelease() throws InterruptedException {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(0, 0);
-        var res2 = mgr.acquire(0, 0);
+        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
+        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT);
         mgr.release(res1);
         mgr.release(res2);
         assertThrows(AssertionError.class, () -> mgr.release(randomFrom(res1, res2)));
@@ -158,8 +159,8 @@ public class CuVSResourceManagerTests extends ESTestCase {
         }
 
         @Override
-        public ManagedCuVSResources acquire(int numVectors, int dims) throws InterruptedException {
-            var res = super.acquire(numVectors, dims);
+        public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType) throws InterruptedException {
+            var res = super.acquire(numVectors, dims, dataType);
             long memory = (long) (numVectors * dims * Float.BYTES
                 * CuVSResourceManager.PoolingCuVSResourceManager.GPU_COMPUTATION_MEMORY_FACTOR);
             allocations.add(memory);

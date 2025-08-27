@@ -29,10 +29,14 @@ import java.util.function.Function;
  * Resizes an index with the specified settings, using the name that was generated in a previous {@link GenerateUniqueIndexNameStep} step.
  */
 public class ResizeIndexStep extends AsyncActionStep {
+
+    public static final String SHRINK = "shrink";
+    public static final String CLONE = "clone";
     private static final Logger logger = LogManager.getLogger(ResizeIndexStep.class);
 
     private final ResizeType resizeType;
     private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
+    /** A supplier that takes the index metadata of the <i>original</i> index and returns settings for the target index . */
     private final Function<IndexMetadata, Settings> targetIndexSettingsSupplier;
     @Nullable
     private final ByteSizeValue maxPrimaryShardSize;
@@ -51,6 +55,7 @@ public class ResizeIndexStep extends AsyncActionStep {
         this.targetIndexNameSupplier = targetIndexNameSupplier;
         this.targetIndexSettingsSupplier = targetIndexSettingsSupplier;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
+        assert resizeType == ResizeType.SHRINK || maxPrimaryShardSize == null : "maxPrimaryShardSize can only be set for shrink operations";
     }
 
     @Override
@@ -94,9 +99,13 @@ public class ResizeIndexStep extends AsyncActionStep {
             TimeValue.MAX_VALUE
         );
         resizeRequest.setResizeType(resizeType);
-        resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
+        if (resizeType == ResizeType.SHRINK) {
+            resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
+        }
 
+        // This request does not wait for (successful) completion of the resize operation - it fires-and-forgets.
+        // It's up to a subsequent step to check for the existence of the target index and wait for it to be green.
         getClient(currentState.projectId()).admin()
             .indices()
             .resizeIndex(resizeRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));

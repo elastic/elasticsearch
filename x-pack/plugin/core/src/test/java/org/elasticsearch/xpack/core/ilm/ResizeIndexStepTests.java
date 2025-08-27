@@ -39,7 +39,9 @@ public class ResizeIndexStepTests extends AbstractStepTestCase<ResizeIndexStep> 
         ResizeType resizeType = randomFrom(ResizeType.values());
         Settings.Builder settings = Settings.builder();
         ByteSizeValue maxPrimaryShardSize = null;
-        if (randomBoolean()) {
+        // Only shrink supports max_primary_shard_size, so if we pick shrink we sometimes set it, otherwise we always
+        // set number_of_shards.
+        if (resizeType != ResizeType.SHRINK || randomBoolean()) {
             settings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 20));
         } else {
             maxPrimaryShardSize = ByteSizeValue.ofBytes(between(1, 100));
@@ -65,7 +67,14 @@ public class ResizeIndexStepTests extends AbstractStepTestCase<ResizeIndexStep> 
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
-            case 2 -> resizeType = randomValueOtherThan(resizeType, () -> randomFrom(ResizeType.values()));
+            case 2 -> {
+                if (resizeType != ResizeType.SHRINK || randomBoolean()) {
+                    resizeType = randomValueOtherThan(resizeType, () -> randomFrom(ResizeType.values()));
+                    maxPrimaryShardSize = null;
+                } else {
+                    maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> ByteSizeValue.ofBytes(between(1, 100)));
+                }
+            }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 

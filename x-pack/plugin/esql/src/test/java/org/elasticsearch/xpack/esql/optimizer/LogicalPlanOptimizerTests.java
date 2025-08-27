@@ -1048,7 +1048,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ? new Limit(limit.source(), limit.limit(), join, false)
             : new Limit(limit.source(), limit.limit(), join.replaceChildren(limit.replaceChild(join.left()), join.right()), true);
 
-
         assertEquals(expectedPlan, optimizedPlan);
 
         var optimizedTwice = rule.apply(optimizedPlan, logicalOptimizerCtx);

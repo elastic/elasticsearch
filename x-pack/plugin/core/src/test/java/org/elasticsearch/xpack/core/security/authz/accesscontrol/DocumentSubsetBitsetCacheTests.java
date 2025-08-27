@@ -272,21 +272,12 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "todo")
     public void testIndexLookupIsClearedWhenBitSetIsEvicted() throws Exception {
         // Enough to hold slightly more than 1 bit-set in the cache
         final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + EXPECTED_BYTES_PER_BIT_SET / 2;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
-
-        final ExecutorService executor = mock(ExecutorService.class);
-        final AtomicReference<Runnable> runnableRef = new AtomicReference<>();
-        when(executor.submit(any(Runnable.class))).thenAnswer(inv -> {
-            final Runnable r = (Runnable) inv.getArguments()[0];
-            runnableRef.set(r);
-            return null;
-        });
 
         final DocumentSubsetBitsetCache cache = new DocumentSubsetBitsetCache(settings);
         assertThat(cache.entryCount(), equalTo(0));
@@ -300,20 +291,10 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
-
-            // BitSet1 has been evicted now, run the cleanup...
-            final Runnable runnable1 = runnableRef.get();
-            assertThat(runnable1, notNullValue());
-            runnable1.run();
             cache.verifyInternalConsistency();
 
             // Check that the original bitset is no longer in the cache (a new instance is returned)
             assertThat(cache.getBitSet(query1, leafContext), not(sameInstance(bitSet1)));
-
-            // BitSet2 has been evicted now, run the cleanup...
-            final Runnable runnable2 = runnableRef.get();
-            assertThat(runnable2, not(sameInstance(runnable1)));
-            runnable2.run();
             cache.verifyInternalConsistency();
         });
     }

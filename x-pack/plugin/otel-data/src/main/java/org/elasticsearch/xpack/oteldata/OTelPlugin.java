@@ -36,8 +36,6 @@ import java.util.function.Supplier;
 
 public class OTelPlugin extends Plugin implements ActionPlugin {
 
-    public static final boolean OTLP_METRICS_ENABLED = new FeatureFlag("otlp_metrics").isEnabled();
-
     // OTEL_DATA_REGISTRY_ENABLED controls enabling the index template registry.
     //
     // This setting will be ignored if the plugin is disabled.
@@ -50,6 +48,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(OTelPlugin.class);
 
+    private static final boolean OTLP_METRICS_ENABLED = new FeatureFlag("otlp_metrics").isEnabled();
     private final SetOnce<OTelIndexTemplateRegistry> registry = new SetOnce<>();
     private final boolean enabled;
 

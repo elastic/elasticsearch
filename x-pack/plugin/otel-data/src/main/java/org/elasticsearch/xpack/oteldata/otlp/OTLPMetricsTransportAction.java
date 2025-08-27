@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -64,7 +65,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         listener.onResponse(new MetricsResponse(RestStatus.NOT_IMPLEMENTED, new BytesArray(new byte[0])));
     }
 
-    public static class MetricsRequest extends ActionRequest {
+    public static class MetricsRequest extends ActionRequest implements CompositeIndicesRequest {
         private final BytesReference exportMetricsServiceRequest;
 
         public MetricsRequest(StreamInput in) throws IOException {

@@ -139,7 +139,7 @@ public sealed interface LinkedProjectConfig {
         }
     }
 
-    abstract class Builder<C extends LinkedProjectConfig, B extends Builder<C, B>> {
+    abstract class Builder<B extends Builder<B>> {
         protected final ProjectId originProjectId;
         protected final ProjectId linkedProjectId;
         protected final String linkedProjectAlias;
@@ -221,7 +221,7 @@ public sealed interface LinkedProjectConfig {
             return concreteBuilder;
         }
 
-        public abstract C build();
+        public abstract LinkedProjectConfig build();
 
         protected abstract B self();
 
@@ -240,7 +240,7 @@ public sealed interface LinkedProjectConfig {
         }
     }
 
-    class ProxyLinkedProjectConfigBuilder extends Builder<ProxyLinkedProjectConfig, ProxyLinkedProjectConfigBuilder> {
+    class ProxyLinkedProjectConfigBuilder extends Builder<ProxyLinkedProjectConfigBuilder> {
         private String serverName = "";
 
         public ProxyLinkedProjectConfigBuilder(String linkedProjectAlias) {
@@ -256,6 +256,7 @@ public sealed interface LinkedProjectConfig {
             return this;
         }
 
+        @Override
         public ProxyLinkedProjectConfig build() {
             return new ProxyLinkedProjectConfig(
                 originProjectId,
@@ -280,7 +281,7 @@ public sealed interface LinkedProjectConfig {
         }
     }
 
-    class SniffLinkedProjectConfigBuilder extends Builder<SniffLinkedProjectConfig, SniffLinkedProjectConfigBuilder> {
+    class SniffLinkedProjectConfigBuilder extends Builder<SniffLinkedProjectConfigBuilder> {
         private Predicate<DiscoveryNode> nodePredicate = RemoteClusterSettings.SniffConnectionStrategySettings.DEFAULT_NODE_PREDICATE;
         private List<String> seedNodes = RemoteClusterSettings.SniffConnectionStrategySettings.DEFAULT_SEED_NODES;
 
@@ -304,6 +305,7 @@ public sealed interface LinkedProjectConfig {
             return this;
         }
 
+        @Override
         public SniffLinkedProjectConfig build() {
             return new SniffLinkedProjectConfig(
                 originProjectId,

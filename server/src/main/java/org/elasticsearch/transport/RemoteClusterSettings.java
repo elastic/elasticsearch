@@ -355,7 +355,7 @@ public class RemoteClusterSettings {
     }
 
     // Will become public once LinkedProjectConfigs are built from a ProjectCustom and supplemented with these connection settings.
-    private static void readConnectionSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder<?, ?> builder) {
+    private static void readConnectionSettings(String clusterAlias, Settings settings, LinkedProjectConfig.Builder<?> builder) {
         builder.transportConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .connectionCompression(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .connectionCompressionScheme(REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(clusterAlias).get(settings))

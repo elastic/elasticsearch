@@ -15,26 +15,15 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GlobalRoutingTable;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -47,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -165,70 +153,6 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             writeLoadConstraintMonitor.onNewInfo(
                 createClusterInfo(testState.clusterState, 0, testState.latencyThresholdMillis, testState.highUtilizationThresholdPercent)
             );
-            mockLog.assertAllExpectationsMatched();
-            verifyNoInteractions(testState.rerouteService);
-        }
-    }
-
-    @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
-        reason = "ensure we're skipping reroute for the right reason"
-    )
-    public void testRerouteIsNotCalledWhenAllHotSpottingNodesHaveRelocationInProgress() {
-        final TestState testState = createRandomTestStateThatWillTriggerReroute();
-
-        // Add another project to the cluster state containing a relocating shard on each hot-spotted node
-        final ClusterState.Builder clusterStateWithReroutes = ClusterState.builder(testState.clusterState);
-        final ProjectId projectIdNotInState = randomAdditionalProjectId(testState.clusterState);
-        final ProjectMetadata.Builder projectMetadata = ProjectMetadata.builder(projectIdNotInState);
-        final RoutingTable.Builder routingTableForProjectNotInState = RoutingTable.builder();
-        for (NodeUsageStatsForThreadPools stats : testState.clusterInfo.getNodeUsageStatsForThreadPools().values()) {
-            final boolean nodeIsHotSpotting = stats.threadPoolUsageStatsMap()
-                .get(ThreadPool.Names.WRITE)
-                .maxThreadPoolQueueLatencyMillis() > testState.latencyThresholdMillis;
-            if (nodeIsHotSpotting) {
-                final Index index = new Index(randomIdentifier(), randomUUID());
-                final ShardId shardId = new ShardId(index, 0);
-                projectMetadata.put(
-                    IndexMetadata.builder(index.getName())
-                        .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                        .numberOfShards(1)
-                        .numberOfReplicas(0)
-                );
-                routingTableForProjectNotInState.add(
-                    IndexRoutingTable.builder(index)
-                        .addIndexShard(
-                            IndexShardRoutingTable.builder(shardId)
-                                .addShard(
-                                    TestShardRouting.newShardRouting(shardId, stats.nodeId(), true, ShardRoutingState.STARTED)
-                                        .relocate(randomIdentifier(), randomNonNegativeLong())
-                                )
-                        )
-                );
-            }
-        }
-        final GlobalRoutingTable.Builder routingTableBuilder = GlobalRoutingTable.builder(testState.clusterState.globalRoutingTable());
-        routingTableBuilder.put(projectIdNotInState, routingTableForProjectNotInState.build());
-        clusterStateWithReroutes.routingTable(routingTableBuilder.build());
-        clusterStateWithReroutes.putProjectMetadata(projectMetadata.build());
-        final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
-            testState.currentTimeSupplier,
-            clusterStateWithReroutes::build,
-            testState.rerouteService
-        );
-
-        try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "don't reroute due to hot-spotting nodes all relocating",
-                    WriteLoadConstraintMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "All nodes over threshold have relocation in progress"
-                )
-            );
-
-            writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
             mockLog.assertAllExpectationsMatched();
             verifyNoInteractions(testState.rerouteService);
         }

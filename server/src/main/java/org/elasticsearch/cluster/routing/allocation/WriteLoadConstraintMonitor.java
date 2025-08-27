@@ -17,8 +17,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -93,17 +91,6 @@ public class WriteLoadConstraintMonitor {
 
         if (nodeIdsExceedingLatencyThreshold.isEmpty()) {
             logger.debug("No hot-spotting nodes detected");
-            return;
-        }
-
-        // Remove any over-threshold nodes that already have shards relocating away
-        final RoutingNodes routingNodes = state.getRoutingNodes();
-        nodeIdsExceedingLatencyThreshold.removeIf(
-            nodeId -> routingNodes.node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING) > 0
-        );
-
-        if (nodeIdsExceedingLatencyThreshold.isEmpty()) {
-            logger.debug("All nodes over threshold have relocation in progress");
             return;
         }
 

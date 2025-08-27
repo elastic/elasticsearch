@@ -48,7 +48,7 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
     public ZeroBucket zeroBucket() {
         if (lazyZeroBucket == null) {
             long zeroCount = valueCount - negativeBuckets.valueCount() - positiveBuckets.valueCount();
-            lazyZeroBucket = new ZeroBucket(zeroThreshold, zeroCount);
+            lazyZeroBucket = ZeroBucket.create(zeroThreshold, zeroCount);
         }
         return lazyZeroBucket;
     }

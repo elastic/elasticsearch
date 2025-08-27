@@ -120,6 +120,58 @@ public interface ExponentialHistogram extends Accountable {
         return EmptyExponentialHistogram.INSTANCE;
     }
 
+    static boolean equals(ExponentialHistogram a, ExponentialHistogram b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.scale() != b.scale()) {
+            return false;
+        }
+        if (a.zeroBucket().count() != b.zeroBucket().count()) {
+            return false;
+        }
+        if (Double.compare(a.zeroBucket().zeroThreshold(), b.zeroBucket().zeroThreshold()) != 0) {
+            return false;
+        }
+        if (a.positiveBuckets().valueCount() != b.positiveBuckets().valueCount()) {
+            return false;
+        }
+        if (a.negativeBuckets().valueCount() != b.negativeBuckets().valueCount()) {
+            return false;
+        }
+        BucketIterator itA = a.positiveBuckets().iterator();
+        BucketIterator itB = b.positiveBuckets().iterator();
+        while (itA.hasNext() && itB.hasNext()) {
+            if (itA.peekIndex() != itB.peekIndex()) {
+                return false;
+            }
+            if (itA.peekCount() != itB.peekCount()) {
+                return false;
+            }
+            itA.advance();
+            itB.advance();
+        }
+        if (itA.hasNext() || itB.hasNext()) {
+            return false;
+        }
+        itA = a.negativeBuckets().iterator();
+        itB = b.negativeBuckets().iterator();
+        while (itA.hasNext() && itB.hasNext()) {
+            if (itA.peekIndex() != itB.peekIndex()) {
+                return false;
+            }
+            if (itA.peekCount() != itB.peekCount()) {
+                return false;
+            }
+            itA.advance();
+            itB.advance();
+        }
+        return itA.hasNext() == false && itB.hasNext() == false;
+    }
+
     /**
      * Creates a histogram representing the distribution of the given values with at most the given number of buckets.
      * If the given {@code maxBucketCount} is greater than or equal to the number of values, the resulting histogram will have a

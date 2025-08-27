@@ -126,10 +126,11 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public void setContentLength(HttpBody body) {
-            if (body.isEmpty() || body instanceof HttpBody.NoopStream) {
-                setContentLength(0);
-            } else if (body.isFull()) {
-                setContentLength(body.asFull().bytes().length());
+            if (body.isFull()) {
+                var len = body.asFull().bytes().length();
+                if (len > 0) {
+                    setContentLength(body.asFull().bytes().length());
+                }
             }
         }
 

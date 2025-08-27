@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.transport
 
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 
@@ -373,9 +375,11 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.1", "existing_92,8012001")
     }
 
-    def "branches=main should be translated to 9.2"() {
+    def "branches=main should be translated"() {
         given:
         referencedTransportVersion("new_tv")
+        Version esVersion = VersionProperties.getElasticsearchVersion();
+        String latestVersion = esVersion.getMajor() + "." + esVersion.getMinor()
 
         when:
         def result = runGenerateAndValidateTask("--branches=main").build()
@@ -383,6 +387,6 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         then:
         assertGenerateAndValidateSuccess(result)
         assertReferableDefinition("new_tv", "8124000")
-        assertUpperBound("9.2", "new_tv,8124000")
+        assertUpperBound(latestVersion, "new_tv,8124000")
     }
 }

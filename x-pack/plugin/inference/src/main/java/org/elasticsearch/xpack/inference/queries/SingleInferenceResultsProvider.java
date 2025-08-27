@@ -55,4 +55,3 @@ public class SingleInferenceResultsProvider implements InferenceResultsProvider 
         return Objects.hashCode(inferenceResults);
     }
 }
-

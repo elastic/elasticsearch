@@ -95,10 +95,13 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.InferenceResultsProvider;
+import org.elasticsearch.xpack.inference.queries.MapInferenceResultsProvider;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SingleInferenceResultsProvider;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -430,6 +433,20 @@ public class InferencePlugin extends Plugin
         entries.add(new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new));
         entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceResultsProvider.class,
+                MapInferenceResultsProvider.NAME,
+                MapInferenceResultsProvider::new
+            )
+        );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceResultsProvider.class,
+                SingleInferenceResultsProvider.NAME,
+                SingleInferenceResultsProvider::new
+            )
+        );
         return entries;
     }
 

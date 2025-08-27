@@ -692,9 +692,9 @@ public final class RemoteClusterService extends RemoteClusterAware
     /**
      * Returns the map of connections for the given {@link ProjectId}.
      */
+    @FixForMultiProject(description = "Assert ProjectId.DEFAULT should not be used in multi-project environment")
     private Map<String, RemoteClusterConnection> getConnectionsMapForProject(ProjectId projectId) {
         if (projectResolver.supportsMultipleProjects()) {
-            assert ProjectId.DEFAULT.equals(projectId) == false : "The default project ID should not be used in multi-project environment";
             return remoteClusters.computeIfAbsent(projectId, unused -> ConcurrentCollections.newConcurrentMap());
         }
         assert ProjectId.DEFAULT.equals(projectId) : "Only the default project ID should be used when multiple projects are not supported";

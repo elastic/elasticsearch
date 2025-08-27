@@ -13,20 +13,20 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 /**
- * Like {@link org.elasticsearch.compute.data.LongBlockBuilder} but optimized for collecting dense single valued values.
+ * Like {@link org.elasticsearch.compute.data.DoubleBlockBuilder} but optimized for collecting dense single valued values.
  * Additionally, this builder doesn't grow its array.
  */
-public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuilder, Releasable, Block.Builder {
+public final class SingletonDoubleBuilder implements BlockLoader.SingletonDoubleBuilder, Releasable, Block.Builder {
 
-    private final long[] values;
+    private final double[] values;
     private final BlockFactory blockFactory;
 
     private int count;
 
-    public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory) {
+    public SingletonDoubleBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
         blockFactory.adjustBreaker(valuesSize(expectedCount));
-        this.values = new long[expectedCount];
+        this.values = new double[expectedCount];
     }
 
     @Override
@@ -60,22 +60,22 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public long estimatedBytes() {
-        return (long) values.length * Long.BYTES;
+        return (long) values.length * Double.BYTES;
     }
 
     @Override
     public Block build() {
-        return blockFactory.newLongArrayVector(values, count).asBlock();
+        return blockFactory.newDoubleArrayVector(values, count).asBlock();
     }
 
     @Override
-    public BlockLoader.SingletonLongBuilder appendLong(long value) {
+    public BlockLoader.SingletonDoubleBuilder appendDouble(double value) {
         values[count++] = value;
         return this;
     }
 
     @Override
-    public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
+    public BlockLoader.SingletonDoubleBuilder appendDoubles(double[] values, int from, int length) {
         System.arraycopy(values, from, this.values, count, length);
         count += length;
         return this;
@@ -87,6 +87,6 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
     }
 
     static long valuesSize(int count) {
-        return (long) count * Long.BYTES;
+        return (long) count * Double.BYTES;
     }
 }

@@ -107,7 +107,6 @@ public class XmlUtils {
         }
     }
 
-
     private static class ErrorListener implements javax.xml.transform.ErrorListener {
 
         @Override

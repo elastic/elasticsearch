@@ -314,12 +314,12 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
 
+        final DocumentSubsetBitsetCache cache = new DocumentSubsetBitsetCache(settings);
+        assertThat(cache.entryCount(), equalTo(0));
+        assertThat(cache.ramBytesUsed(), equalTo(0L));
+
         final ExecutorService threads = Executors.newFixedThreadPool(concurrentThreads + 1);
         try {
-            final DocumentSubsetBitsetCache cache = new DocumentSubsetBitsetCache(settings);
-            assertThat(cache.entryCount(), equalTo(0));
-            assertThat(cache.ramBytesUsed(), equalTo(0L));
-
             runTestOnIndices(numberOfIndices, contexts -> {
                 final CountDownLatch start = new CountDownLatch(concurrentThreads);
                 final CountDownLatch end = new CountDownLatch(concurrentThreads);
@@ -360,7 +360,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
                 threads.shutdown();
                 assertTrue("Cleanup thread did not complete in expected time", threads.awaitTermination(3, TimeUnit.SECONDS));
-                cache.verifyInternalConsistency();
+                cache.verifyInternalConsistencyKeysToCache();
 
                 // Due to cache evictions, we must get more bitsets than fields
                 assertThat(uniqueBitSets.size(), greaterThan(FIELD_COUNT));
@@ -373,6 +373,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         } finally {
             threads.shutdown();
         }
+
+        cache.verifyInternalConsistencyKeysToCache();
     }
 
     @AwaitsFix(bugUrl = "todo")

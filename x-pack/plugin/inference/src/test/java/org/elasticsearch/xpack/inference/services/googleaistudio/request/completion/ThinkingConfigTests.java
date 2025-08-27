@@ -8,13 +8,15 @@
 package org.elasticsearch.xpack.inference.services.googleaistudio.request.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
 
@@ -28,7 +30,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ThinkingConfigTests extends AbstractWireSerializingTestCase<ThinkingConfig> {
+public class ThinkingConfigTests extends AbstractBWCWireSerializationTestCase<ThinkingConfig> {
 
     public void testNoArgConstructor_createsEmptyConfig() {
         ThinkingConfig thinkingConfig = new ThinkingConfig();
@@ -57,34 +59,34 @@ public class ThinkingConfigTests extends AbstractWireSerializingTestCase<Thinkin
             Map.of(THINKING_CONFIG_FIELD, new HashMap<>(Map.of(THINKING_BUDGET_FIELD, thinkingBudget)))
         );
 
-        ThinkingConfig result = ThinkingConfig.of(settings, new ThinkingConfig(), exception, "test", ConfigurationParseContext.REQUEST);
+        ThinkingConfig result = ThinkingConfig.of(settings, exception, "test", ConfigurationParseContext.REQUEST);
 
         assertThat(result, is(new ThinkingConfig(thinkingBudget)));
         assertThat(exception.validationErrors(), is(empty()));
     }
 
-    public void testOf_usesDefault_withThinkingConfigSpecified_andThinkingBudgetNotSpecified() {
+    public void testOf_returnsEmptyThinkingConfig_withThinkingConfigSpecified_andThinkingBudgetNotSpecified() {
         ValidationException exception = new ValidationException();
         Map<String, Object> settings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>()));
-        ThinkingConfig defaultValue = new ThinkingConfig(123);
 
-        ThinkingConfig result = ThinkingConfig.of(settings, defaultValue, exception, "test", ConfigurationParseContext.REQUEST);
+        ThinkingConfig result = ThinkingConfig.of(settings, exception, "test", ConfigurationParseContext.REQUEST);
 
-        assertThat(result, is(defaultValue));
+        assertThat(result.getThinkingBudget(), is(nullValue()));
+        assertThat(result.isEmpty(), is(true));
         assertThat(exception.validationErrors(), is(empty()));
     }
 
-    public void testOf_usesDefault_withThinkingConfigNotSpecified_andThinkingBudgetSpecified() {
+    public void testOf_returnsEmptyThinkingConfig_withThinkingConfigNotSpecified_andThinkingBudgetSpecified() {
         ValidationException exception = new ValidationException();
         int thinkingBudget = 256;
         Map<String, Object> settings = new HashMap<>(
             Map.of("not_thinking_config", new HashMap<>(Map.of(THINKING_BUDGET_FIELD, thinkingBudget)))
         );
-        ThinkingConfig defaultValue = new ThinkingConfig(123);
 
-        ThinkingConfig result = ThinkingConfig.of(settings, defaultValue, exception, "test", ConfigurationParseContext.REQUEST);
+        ThinkingConfig result = ThinkingConfig.of(settings, exception, "test", ConfigurationParseContext.REQUEST);
 
-        assertThat(result, is(defaultValue));
+        assertThat(result.getThinkingBudget(), is(nullValue()));
+        assertThat(result.isEmpty(), is(true));
         assertThat(exception.validationErrors(), is(empty()));
     }
 
@@ -92,11 +94,10 @@ public class ThinkingConfigTests extends AbstractWireSerializingTestCase<Thinkin
         ValidationException exception = new ValidationException();
         int anInt = 42;
         Map<String, Object> settings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>(Map.of("not_thinking_budget", anInt))));
-        ThinkingConfig defaultValue = new ThinkingConfig(123);
 
         Exception thrownException = expectThrows(
             ElasticsearchStatusException.class,
-            () -> ThinkingConfig.of(settings, defaultValue, exception, "test", ConfigurationParseContext.REQUEST)
+            () -> ThinkingConfig.of(settings, exception, "test", ConfigurationParseContext.REQUEST)
         );
 
         assertThat(
@@ -105,15 +106,15 @@ public class ThinkingConfigTests extends AbstractWireSerializingTestCase<Thinkin
         );
     }
 
-    public void testOf_returnsDefault_withUnknownField_andPersistentContext() {
+    public void testOf_returnsEmptyThinkingConfig_withUnknownField_andPersistentContext() {
         ValidationException exception = new ValidationException();
         int anInt = 42;
         Map<String, Object> settings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>(Map.of("not_thinking_budget", anInt))));
-        ThinkingConfig defaultValue = new ThinkingConfig(123);
 
-        ThinkingConfig result = ThinkingConfig.of(settings, defaultValue, exception, "test", ConfigurationParseContext.PERSISTENT);
+        ThinkingConfig result = ThinkingConfig.of(settings, exception, "test", ConfigurationParseContext.PERSISTENT);
 
-        assertThat(result, is(defaultValue));
+        assertThat(result.getThinkingBudget(), is(nullValue()));
+        assertThat(result.isEmpty(), is(true));
         assertThat(exception.validationErrors(), is(empty()));
     }
 
@@ -126,8 +127,14 @@ public class ThinkingConfigTests extends AbstractWireSerializingTestCase<Thinkin
         builder.endObject();
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"thinking_config":{"thinking_budget":256}}"""));
+        String expected = XContentHelper.stripWhitespace("""
+            {
+              "thinking_config": {
+                "thinking_budget": 256
+              }
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     @Override
@@ -143,5 +150,10 @@ public class ThinkingConfigTests extends AbstractWireSerializingTestCase<Thinkin
     @Override
     protected ThinkingConfig mutateInstance(ThinkingConfig instance) throws IOException {
         return randomValueOtherThan(instance, () -> new ThinkingConfig(randomInt()));
+    }
+
+    @Override
+    protected ThinkingConfig mutateInstanceForVersion(ThinkingConfig instance, TransportVersion version) {
+        return instance;
     }
 }

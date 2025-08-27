@@ -52,7 +52,16 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     private static final ThinkingConfig EMPTY_THINKING_CONFIG = new ThinkingConfig();
 
     public GoogleVertexAiChatCompletionServiceSettings(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readString(), new RateLimitSettings(in), new ThinkingConfig(in));
+        this.projectId = in.readString();
+        this.location = in.readString();
+        this.modelId = in.readString();
+        this.rateLimitSettings = new RateLimitSettings(in);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.GEMINI_THINKING_BUDGET_ADDED)) {
+            thinkingConfig = new ThinkingConfig(in);
+        } else {
+            thinkingConfig = EMPTY_THINKING_CONFIG;
+        }
     }
 
     @Override
@@ -83,13 +92,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         );
 
         // Extract optional thinkingConfig settings
-        ThinkingConfig thinkingConfig = ThinkingConfig.of(
-            map,
-            EMPTY_THINKING_CONFIG,
-            validationException,
-            GoogleVertexAiService.NAME,
-            context
-        );
+        ThinkingConfig thinkingConfig = ThinkingConfig.of(map, validationException, GoogleVertexAiService.NAME, context);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -158,7 +161,9 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         out.writeString(location);
         out.writeString(modelId);
         rateLimitSettings.writeTo(out);
-        thinkingConfig.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.GEMINI_THINKING_BUDGET_ADDED)) {
+            thinkingConfig.writeTo(out);
+        }
     }
 
     @Override

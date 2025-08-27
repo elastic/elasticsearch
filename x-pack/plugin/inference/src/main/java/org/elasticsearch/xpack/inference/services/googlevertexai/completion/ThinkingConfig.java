@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +28,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 /**
  * This class encapsulates the ThinkingConfig object contained within GenerationConfig. Only the thinkingBudget field is currently
  * supported, but the includeThoughts field may be added in the future
+ *
+ * @see <a href="https://ai.google.dev/gemini-api/docs/thinking"> Gemini Thinking documentation</a>
  */
 public class ThinkingConfig implements Writeable, ToXContentFragment {
     public static final String THINKING_CONFIG_FIELD = "thinking_config";
@@ -48,16 +49,11 @@ public class ThinkingConfig implements Writeable, ToXContentFragment {
     }
 
     public ThinkingConfig(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.GEMINI_THINKING_BUDGET_ADDED)) {
-            thinkingBudget = in.readOptionalVInt();
-        } else {
-            thinkingBudget = null;
-        }
+        thinkingBudget = in.readOptionalVInt();
     }
 
     public static ThinkingConfig of(
         Map<String, Object> map,
-        ThinkingConfig defaultValue,
         ValidationException validationException,
         String serviceName,
         ConfigurationParseContext context
@@ -74,7 +70,7 @@ public class ThinkingConfig implements Writeable, ToXContentFragment {
             throwIfNotEmptyMap(thinkingConfigSettings, serviceName);
         }
 
-        return thinkingBudget == null ? defaultValue : new ThinkingConfig(thinkingBudget);
+        return new ThinkingConfig(thinkingBudget);
     }
 
     public boolean isEmpty() {
@@ -87,9 +83,7 @@ public class ThinkingConfig implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.GEMINI_THINKING_BUDGET_ADDED)) {
-            out.writeOptionalVInt(thinkingBudget);
-        }
+        out.writeOptionalVInt(thinkingBudget);
     }
 
     @Override

@@ -31,8 +31,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
     private static final String USER_ROLE = "user";
     private static final String ASSISTANT_ROLE = "assistant";
-    private final ThinkingConfig thinkingConfig = new ThinkingConfig(256);
-    private final ThinkingConfig emptyThinkingConfig = new ThinkingConfig();
+    private static final ThinkingConfig thinkingConfig = new ThinkingConfig(256);
+    private static final ThinkingConfig emptyThinkingConfig = new ThinkingConfig();
 
     public void testBasicSerialization_SingleMessage() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(

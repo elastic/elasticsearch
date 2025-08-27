@@ -119,6 +119,7 @@ public class OTLPMetricsIndexingIT extends ESSingleNodeTestCase {
             var templates = client().execute(GetComposableIndexTemplateAction.INSTANCE, getReq).actionGet().indexTemplates();
             assertThat(templates, not(anEmptyMap()));
         });
+        assumeTrue("Requires otlp_metrics feature flag to be enabled", OTelPlugin.OTLP_METRICS_ENABLED);
     }
 
     private int getHttpPort() {

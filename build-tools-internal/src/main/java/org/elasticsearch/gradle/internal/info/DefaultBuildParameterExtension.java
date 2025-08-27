@@ -127,7 +127,6 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         return earlyAccessJavaRuntime;
     }
 
-
     @Override
     public List<JavaHome> getJavaVersions() {
         return javaVersions;

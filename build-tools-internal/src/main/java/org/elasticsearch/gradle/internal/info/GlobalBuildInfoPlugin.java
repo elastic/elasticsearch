@@ -118,14 +118,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         RuntimeJavaHome runtimeJavaHome = findRuntimeJavaHome();
 
-        Provider<JvmInstallationMetadata> runtimeJdkMetaData = runtimeJavaHome.getJavahome().map(
-            j -> metadataDetector.getMetadata(getJavaInstallation(j))
-        );
+        Provider<JvmInstallationMetadata> runtimeJdkMetaData = runtimeJavaHome.getJavahome()
+            .map(j -> metadataDetector.getMetadata(getJavaInstallation(j)));
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
             () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions() : val)
         );
-
 
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
@@ -362,14 +360,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         // fall back to tool chain if set.
         String env = System.getenv("JAVA_TOOLCHAIN_HOME");
         boolean explicitlySet = env != null;
-        Provider<File> javaHome = explicitlySet ?
-            providers.provider(() -> new File(env)) :
-            resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
-        return
-            new RuntimeJavaHome(
-                javaHome,
-                explicitlySet,
-                false);
+        Provider<File> javaHome = explicitlySet
+            ? providers.provider(() -> new File(env))
+            : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
+        return new RuntimeJavaHome(javaHome, explicitlySet, false);
     }
 
     private Provider<File> resolveEarlyAccessJavaHome(Integer runtimeJavaProperty) {

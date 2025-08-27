@@ -218,7 +218,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 case ErrorInferenceResults errorInferenceResults -> throw new InferenceException(
                     "Field [" + fieldName + "] with inference ID [" + inferenceId + "] query inference error",
                     errorInferenceResults.getException()
-                );
+                );  // Use InferenceException here so that the status code is set by the cause
                 case WarningInferenceResults warningInferenceResults -> throw new IllegalStateException(
                     "Field ["
                         + fieldName

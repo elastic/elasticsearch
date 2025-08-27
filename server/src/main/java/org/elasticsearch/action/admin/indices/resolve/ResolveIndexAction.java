@@ -64,6 +64,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -679,6 +680,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
+        private static Predicate<Index> indexModeFilter(ProjectState projectState, Set<IndexMode> indexModes) {
+            if (indexModes.isEmpty()) {
+                return index -> true;
+            }
+            return index -> {
+                IndexMetadata indexMetadata = projectState.metadata().index(index);
+                IndexMode mode = indexMetadata.getIndexMode() == null ? IndexMode.STANDARD : indexMetadata.getIndexMode();
+                return indexModes.contains(mode);
+            };
+        }
+
         private static void enrichIndexAbstraction(
             ProjectState projectState,
             ResolvedExpression resolvedExpression,
@@ -689,16 +701,15 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         ) {
             SortedMap<String, IndexAbstraction> indicesLookup = projectState.metadata().getIndicesLookup();
             IndexAbstraction ia = indicesLookup.get(resolvedExpression.resource());
+            var filterPredicate = indexModeFilter(projectState, indexModes);
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {
+                        if (filterPredicate.test(ia.getWriteIndex()) == false) {
+                            return;
+                        }
                         IndexMetadata writeIndex = projectState.metadata().index(ia.getWriteIndex());
                         IndexMode mode = writeIndex.getIndexMode() == null ? IndexMode.STANDARD : writeIndex.getIndexMode();
-                        if (indexModes.isEmpty() == false) {
-                            if (indexModes.contains(mode) == false) {
-                                return;
-                            }
-                        }
                         String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
                         List<Attribute> attributes = new ArrayList<>();
                         attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? Attribute.OPEN : Attribute.CLOSED);
@@ -728,7 +739,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             // If we didn't ask for standard indices, skip aliases too
                             return;
                         }
-                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, projectState.metadata()).map(Index::getName)
+                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, projectState.metadata()).filter(filterPredicate)
+                            .map(Index::getName)
                             .toArray(String[]::new);
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
@@ -745,7 +757,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 case DATA -> dataStream.getDataComponent().getIndices().stream();
                                 case FAILURES -> dataStream.getFailureIndices().stream();
                             };
-                        String[] backingIndices = dataStreamIndices.map(Index::getName).toArray(String[]::new);
+                        String[] backingIndices = dataStreamIndices.filter(filterPredicate).map(Index::getName).toArray(String[]::new);
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());

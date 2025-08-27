@@ -614,7 +614,7 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void javaXmlFileRequest() throws Exception {
-        // java.xml is part of the jdk, but not a system module. this checks it can't access the network
+        // java.xml is part of the jdk, but not a system module. this checks it can't access files
         var saxParser = SAXParserFactory.newInstance().newSAXParser();
         saxParser.parse(readFile().toFile(), new DefaultHandler());
     }

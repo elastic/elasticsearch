@@ -10,6 +10,10 @@
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
 /**
- * Internal entitlement to read code from the jdk, ie jrt urls
+ * Internal entitlement to read code from the jdk.
+ *
+ * Concretely this means the code can open jrt urls. Since the java
+ * runtime images (jrt) are read only, this implicitly only allows
+ * reading those urls.
  */
 public class ReadJdkCodeEntitlement implements Entitlement {}

@@ -19,7 +19,6 @@
  */
 package org.elasticsearch.index.codec.vectors.es818;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
@@ -29,6 +28,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ import java.io.IOException;
  * This is copied to change the implementation of {@link #fieldsReader} only.
  * The codec format itself is not changed, so we keep the original {@link #NAME}
  */
-public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
+public class DirectIOLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     static final String NAME = "Lucene99FlatVectorsFormat";
     static final String META_CODEC_NAME = "Lucene99FlatVectorsFormatMeta";
@@ -50,7 +51,6 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     private final FlatVectorsScorer vectorsScorer;
 
     /** Constructs a format */
@@ -60,12 +60,17 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
     }
 
     @Override
+    protected FlatVectorsScorer flatVectorsScorer() {
+        return vectorsScorer;
+    }
+
+    @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 
     static boolean shouldUseDirectIO(SegmentReadState state) {
-        assert ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO;
+        assert USE_DIRECT_IO;
         return FsDirectoryFactory.isHybridFs(state.directory)
             && FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier;
     }
@@ -82,10 +87,5 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
         } else {
             return new Lucene99FlatVectorsReader(state, vectorsScorer);
         }
-    }
-
-    @Override
-    public String toString() {
-        return "ES818FlatVectorsFormat(" + "vectorsScorer=" + vectorsScorer + ')';
     }
 }

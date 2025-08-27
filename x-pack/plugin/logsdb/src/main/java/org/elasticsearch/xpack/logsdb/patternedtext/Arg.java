@@ -57,6 +57,7 @@ public class Arg {
         public Info {
             assert offsetInfoTemplate >= 0;
         }
+
         void writeTo(ByteArrayDataOutput out, int previousOffset) throws IOException {
             out.writeVInt(type.toCode());
             int diff = offsetInfoTemplate - previousOffset;
@@ -81,7 +82,7 @@ public class Arg {
     }
 
     static String encodeInfo(List<Info> arguments) throws IOException {
-        int maxSize = VINT_MAX_BYTES  + arguments.size() * (VINT_MAX_BYTES + VINT_MAX_BYTES);
+        int maxSize = VINT_MAX_BYTES + arguments.size() * (VINT_MAX_BYTES + VINT_MAX_BYTES);
         byte[] buffer = new byte[maxSize];
         var dataInput = new ByteArrayDataOutput(buffer);
         dataInput.writeVInt(arguments.size());

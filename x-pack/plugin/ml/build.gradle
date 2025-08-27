@@ -51,6 +51,14 @@ esplugin.bundleSpec.from {
   configurations.nativeBundle.files.collect { zipTree(it) }
 }
 
+// this is required due to https://github.com/nebula-plugins/gradle-ospackage-plugin/issues/472
+// those lib files should not be executable in the first place
+esplugin.bundleSpec.filesMatching("platform/**/lib/*") { details ->
+  details.permissions {
+    unix(0644)
+  }
+}
+
 // We don't ship the individual nativeBundle licenses - instead
 // they get combined into the top level NOTICES file we ship
 esplugin.bundleSpec.exclude 'platform/licenses/**'
@@ -103,9 +111,9 @@ def mlCppVersion(){
       (project.version + "-SNAPSHOT") : project.version;
 }
 
-artifacts {
-  // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
+
+tasks.named('assemble').configure {
+  dependsOn tasks.named('jar')
 }
 
 tasks.register("extractNativeLicenses", Copy) {

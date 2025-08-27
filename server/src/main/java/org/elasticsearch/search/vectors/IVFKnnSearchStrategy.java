@@ -9,18 +9,30 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.util.SetOnce;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.LongAccumulator;
 
 public class IVFKnnSearchStrategy extends KnnSearchStrategy {
-    private final int nProbe;
+    private final float visitRatio;
+    private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
+    private final LongAccumulator accumulator;
 
-    IVFKnnSearchStrategy(int nProbe) {
-        this.nProbe = nProbe;
+    IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator) {
+        this.visitRatio = visitRatio;
+        this.accumulator = accumulator;
     }
 
-    public int getNProbe() {
-        return nProbe;
+    void setCollector(AbstractMaxScoreKnnCollector collector) {
+        this.collector.set(collector);
+        if (accumulator != null) {
+            collector.updateMinCompetitiveDocScore(accumulator.get());
+        }
+    }
+
+    public float getVisitRatio() {
+        return visitRatio;
     }
 
     @Override
@@ -28,16 +40,33 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IVFKnnSearchStrategy that = (IVFKnnSearchStrategy) o;
-        return nProbe == that.nProbe;
+        return visitRatio == that.visitRatio;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(nProbe);
+        return Objects.hashCode(visitRatio);
     }
 
+    /**
+     * This method is called when the next block of vectors is processed.
+     * It accumulates the minimum competitive document score from the collector
+     * and updates the accumulator with the most competitive score.
+     * If the current score in the accumulator is greater than the minimum competitive
+     * document score in the collector, it updates the collector's minimum competitive document score.
+     */
     @Override
     public void nextVectorsBlock() {
-        // do nothing
+        if (accumulator == null) {
+            return;
+        }
+        assert this.collector.get() != null : "Collector must be set before nextVectorsBlock is called";
+        AbstractMaxScoreKnnCollector knnCollector = this.collector.get();
+        long collectorScore = knnCollector.getMinCompetitiveDocScore();
+        accumulator.accumulate(collectorScore);
+        long currentScore = accumulator.get();
+        if (currentScore > collectorScore) {
+            knnCollector.updateMinCompetitiveDocScore(currentScore);
+        }
     }
 }

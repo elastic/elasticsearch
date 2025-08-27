@@ -111,6 +111,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbe
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
@@ -412,6 +413,57 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
             assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding or sparse_embedding"));
         }
+    }
+
+    @Override
+    protected IndexVersion boostNotAllowedIndexVersion() {
+        return IndexVersions.NEW_SPARSE_VECTOR;
+    }
+
+    public void testOldIndexSemanticTextDenseVectorRaisesError() throws IOException {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field(INFERENCE_ID_FIELD, "test_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "text_embedding");
+            b.field("dimensions", 384);
+            b.field("similarity", "cosine");
+            b.field("element_type", "float");
+            b.endObject();
+        });
+        assertOldIndexUnsupported(fieldMapping);
+    }
+
+    public void testOldIndexSemanticTextMinimalMappingRaisesError() throws IOException {
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        assertOldIndexUnsupported(fieldMapping);
+    }
+
+    public void testOldIndexSemanticTextSparseVersionRaisesError() throws IOException {
+        final XContentBuilder fieldMapping = fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "another_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "sparse_embedding");
+            b.endObject();
+        });
+        assertOldIndexUnsupported(fieldMapping);
+    }
+
+    private void assertOldIndexUnsupported(XContentBuilder fieldMapping) {
+
+        MapperParsingException exception = assertThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping,
+                true,
+                IndexVersions.V_8_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
+            )
+        );
+        assertTrue(exception.getMessage().contains(UNSUPPORTED_INDEX_MESSAGE));
+        assertTrue(exception.getRootCause() instanceof UnsupportedOperationException);
     }
 
     public void testMultiFieldsSupport() throws IOException {
@@ -1437,7 +1489,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "float");
             b.endObject();
-        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        }),
+            useLegacyFormat,
+            IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+        );
         assertSemanticTextField(mapperService, "field", true, null, defaultBbqHnswSemanticTextIndexOptions());
 
         // Previous 8.x index versions do not set BBQ index options

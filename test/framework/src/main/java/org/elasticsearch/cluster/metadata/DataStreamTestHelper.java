@@ -184,7 +184,11 @@ public final class DataStreamTestHelper {
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
             .setDataStreamOptions(dataStreamOptions)
-            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(failureStores)
+                    .setRolloverOnWrite((replicated == false) && (failureStores.isEmpty()))
+                    .build()
+            )
             .build();
     }
 
@@ -391,7 +395,7 @@ public final class DataStreamTestHelper {
                 )
                 .build(),
             DataStream.DataStreamIndices.failureIndicesBuilder(failureIndices)
-                .setRolloverOnWrite(failureStore && replicated == false && randomBoolean())
+                .setRolloverOnWrite(replicated == false && (failureIndices.isEmpty() || randomBoolean()))
                 .setAutoShardingEvent(
                     failureStore && randomBoolean()
                         ? new DataStreamAutoShardingEvent(

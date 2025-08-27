@@ -35,7 +35,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.lucene.util.BitSets;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,7 +46,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -105,8 +103,6 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     private static final BitSet NULL_MARKER = new FixedBitSet(0);
 
-    private final ExecutorService cleanupExecutor;
-
     private final long maxWeightBytes;
     private final Cache<BitsetCacheKey, BitSet> bitsetCache;
     private final Map<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByIndex;
@@ -115,25 +111,16 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
 
-    public DocumentSubsetBitsetCache(Settings settings, ThreadPool threadPool) {
-        this(settings, threadPool.executor(ThreadPool.Names.GENERIC));
-    }
-
-    // visible for testing
-    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
-        this(settings, cleanupExecutor, System::nanoTime);
+    public DocumentSubsetBitsetCache(Settings settings) {
+        this(settings, System::nanoTime);
     }
 
     /**
      * @param settings The global settings object for this node
-     * @param cleanupExecutor An executor on which the cache cleanup tasks can be run. Due to the way the cache is structured internally,
-     *                        it is sometimes necessary to run an asynchronous task to synchronize the internal state.
      * @param relativeNanoTimeProvider Provider of nanos for code that needs to measure relative time.
      */
     // visible for testing
-    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor, LongSupplier relativeNanoTimeProvider) {
-        this.cleanupExecutor = cleanupExecutor;
-
+    DocumentSubsetBitsetCache(Settings settings, LongSupplier relativeNanoTimeProvider) {
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         this.maxWeightBytes = CACHE_SIZE_SETTING.get(settings).getBytes();
         this.bitsetCache = CacheBuilder.<BitsetCacheKey, BitSet>builder()
@@ -168,21 +155,20 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             // If the cacheKey isn't in the lookup map, then there's nothing to synchronize
             return;
         }
-        cleanupExecutor.submit(() -> {
-            // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
-            if (bitsetCache.get(cacheKey) == null) {
-                // key is no longer in the cache, make sure it is no longer in the lookup map either.
-                keysByIndex.compute(indexKey, (ignored, keys) -> {
-                    if (keys != null) {
-                        keys.remove(cacheKey);
-                        if (keys.isEmpty()) {
-                            keys = null;
-                        }
+
+        // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
+        if (bitsetCache.get(cacheKey) == null) {
+            // key is no longer in the cache, make sure it is no longer in the lookup map either.
+            keysByIndex.compute(indexKey, (ignored, keys) -> {
+                if (keys != null) {
+                    keys.remove(cacheKey);
+                    if (keys.isEmpty()) {
+                        keys = null;
                     }
-                    return keys;
-                });
-            }
-        });
+                }
+                return keys;
+            });
+        }
     }
 
     @Override

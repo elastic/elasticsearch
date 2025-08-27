@@ -390,6 +390,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 int offset,
                 BlockDocValuesReader.ToDouble toDouble
             ) throws IOException {
+                assert toDouble == null;
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
                     var block = tryReadAHead(factory, docs, offset);
                     if (block != null) {

@@ -43,7 +43,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
-import org.mockito.Mockito;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -72,7 +71,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -377,61 +375,37 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         cache.verifyInternalConsistencyKeysToCache();
     }
 
-    @AwaitsFix(bugUrl = "todo")
-    public void testCleanupWorksWhenIndexIsClosing() throws Exception {
+    public void testCleanupWorksWhenIndexIsClosed() throws Exception {
         // Enough to hold slightly more than 1 bit-set in the cache
         final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + EXPECTED_BYTES_PER_BIT_SET / 2;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
-        final ExecutorService threads = Executors.newFixedThreadPool(1);
-        final ExecutorService cleanupExecutor = Mockito.mock(ExecutorService.class);
-        final CountDownLatch cleanupReadyLatch = new CountDownLatch(1);
-        final CountDownLatch cleanupCompleteLatch = new CountDownLatch(1);
-        final CountDownLatch indexCloseLatch = new CountDownLatch(1);
-        final AtomicReference<Throwable> cleanupException = new AtomicReference<>();
-        when(cleanupExecutor.submit(any(Runnable.class))).thenAnswer(inv -> {
-            final Runnable runnable = (Runnable) inv.getArguments()[0];
-            return threads.submit(() -> {
-                try {
-                    cleanupReadyLatch.countDown();
-                    assertTrue("index close did not completed in expected time", indexCloseLatch.await(1, TimeUnit.SECONDS));
-                    runnable.run();
-                } catch (Throwable e) {
-                    logger.warn("caught error in cleanup thread", e);
-                    cleanupException.compareAndSet(null, e);
-                } finally {
-                    cleanupCompleteLatch.countDown();
-                }
-                return null;
-            });
-        });
 
         final DocumentSubsetBitsetCache cache = new DocumentSubsetBitsetCache(settings);
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        try {
-            runTestOnIndex((searchExecutionContext, leafContext) -> {
-                final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
-                final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
-                assertThat(bitSet1, notNullValue());
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
+            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
+            final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
+            assertThat(bitSet1, notNullValue());
+            cache.verifyInternalConsistency();
 
-                // Second query should trigger a cache eviction
-                final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
-                final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
-                assertThat(bitSet2, notNullValue());
+            // Second query should trigger a cache eviction
+            final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
+            final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
+            assertThat(bitSet2, notNullValue());
+            cache.verifyInternalConsistency();
 
-                final IndexReader.CacheKey indexKey = leafContext.reader().getCoreCacheHelper().getKey();
-                assertTrue("cleanup did not trigger in expected time", cleanupReadyLatch.await(1, TimeUnit.SECONDS));
-                cache.onClose(indexKey);
-                indexCloseLatch.countDown();
-                assertTrue("cleanup did not complete in expected time", cleanupCompleteLatch.await(1, TimeUnit.SECONDS));
-                assertThat("caught error in cleanup thread: " + cleanupException.get(), cleanupException.get(), nullValue());
-            });
-        } finally {
-            threads.shutdown();
-        }
+            final IndexReader.CacheKey indexKey = leafContext.reader().getCoreCacheHelper().getKey();
+            cache.onClose(indexKey);
+            cache.verifyInternalConsistency();
+
+            // closing an index results in the associated entries being removed from the cache (at least when single threaded)
+            assertThat(cache.entryCount(), equalTo(0));
+            assertThat(cache.ramBytesUsed(), equalTo(0L));
+        });
     }
 
     public void testCacheIsPerIndex() throws Exception {

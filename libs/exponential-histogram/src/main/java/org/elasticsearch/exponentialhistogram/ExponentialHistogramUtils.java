@@ -80,13 +80,14 @@ public class ExponentialHistogramUtils {
         ExponentialHistogram.Buckets negativeBuckets,
         ExponentialHistogram.Buckets positiveBuckets
     ) {
-        OptionalLong negativeMaxIndex = negativeBuckets.maxBucketIndex();
         int scale = negativeBuckets.iterator().scale();
         assert scale == positiveBuckets.iterator().scale();
 
+        OptionalLong negativeMaxIndex = negativeBuckets.maxBucketIndex();
         if (negativeMaxIndex.isPresent()) {
             return OptionalDouble.of(-ExponentialScaleUtils.getUpperBucketBoundary(negativeMaxIndex.getAsLong(), scale));
         }
+
         if (zeroBucket.count() > 0) {
             if (zeroBucket.zeroThreshold() == 0.0) {
                 // avoid negative zero
@@ -94,6 +95,7 @@ public class ExponentialHistogramUtils {
             }
             return OptionalDouble.of(-zeroBucket.zeroThreshold());
         }
+
         BucketIterator positiveBucketsIt = positiveBuckets.iterator();
         if (positiveBucketsIt.hasNext()) {
             return OptionalDouble.of(ExponentialScaleUtils.getLowerBucketBoundary(positiveBucketsIt.peekIndex(), scale));

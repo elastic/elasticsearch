@@ -2524,3 +2524,19 @@ c:long | b:date_nanos             | yr:date_nanos
 22     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
 22     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
 ;
+
+multiIndexTBucketGroupingAndAggregation
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data_ts_nanos, sample_data
+| stats x = 1 day + tbucket(1 hour) by b1d = tbucket(1 hour)
+;
+ignoreOrder:true
+
+x:date_nanos             | b1d:date_nanos
+2023-10-24T13:00:00.000Z | 2023-10-23T13:00:00.000Z
+2023-10-24T12:00:00.000Z | 2023-10-23T12:00:00.000Z
+;

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.es818;
+package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
@@ -23,12 +23,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
-class MergeReaderWrapper extends FlatVectorsReader {
+public class MergeReaderWrapper extends FlatVectorsReader {
 
     private final FlatVectorsReader mainReader;
     private final FlatVectorsReader mergeReader;
 
-    protected MergeReaderWrapper(FlatVectorsReader mainReader, FlatVectorsReader mergeReader) {
+    public MergeReaderWrapper(FlatVectorsReader mainReader, FlatVectorsReader mergeReader) {
         super(mainReader.getFlatVectorScorer());
         this.mainReader = mainReader;
         this.mergeReader = mergeReader;

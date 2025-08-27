@@ -28,6 +28,7 @@ setup:
         body:
           my_histo:
             scale: 12
+            sum: 1234.56
             zero:
               threshold: 0.123456
               count: 42
@@ -45,6 +46,7 @@ setup:
   - match:
      _source.my_histo:
        scale: 12
+       sum: 1234.56
        zero:
          threshold: 0.123456
          count: 42
@@ -65,6 +67,7 @@ setup:
         body:
           my_histo:
             scale: -10
+            sum: 1234.56
             positive:
               indices: [1,2,3,4,5]
               counts: [6,7,8,9,10]
@@ -79,6 +82,7 @@ setup:
   - match:
       _source.my_histo:
         scale: -10
+        sum: 1234.56
         positive:
           indices: [1,2,3,4,5]
           counts: [6,7,8,9,10]
@@ -96,6 +100,7 @@ setup:
         body:
           my_histo:
             scale: 0
+            sum: 1234.56
             positive:
               indices: [-100, 10, 20]
               counts: [3, 2, 1]
@@ -107,6 +112,7 @@ setup:
   - match:
       _source.my_histo:
         scale: 0
+        sum: 1234.56
         positive:
           indices: [-100, 10, 20]
           counts: [3, 2, 1]
@@ -121,6 +127,7 @@ setup:
         body:
           my_histo:
             scale: 0
+            sum: 1234.56
             negative:
               indices: [-100, 10, 20]
               counts: [3, 2, 1]
@@ -132,6 +139,7 @@ setup:
   - match:
       _source.my_histo:
         scale: 0
+        sum: 1234.56
         negative:
           indices: [-100, 10, 20]
           counts: [3, 2, 1]
@@ -145,12 +153,14 @@ setup:
         body:
           my_histo:
             scale: -7
+            sum: 0.0
   - do:
       get:
         index: test_exponential_histogram
         id: "1"
   - match:
       _source.my_histo:
+        sum: 0.0
         scale: -7
 
 ---
@@ -172,6 +182,7 @@ setup:
   - match:
       _source.my_histo:
         scale: 0
+        sum: 0.0
         zero:
           threshold: 42.7
 
@@ -194,6 +205,7 @@ setup:
   - match:
       _source.my_histo:
         scale: 0
+        sum: 0.0
         zero:
           count: 101
 
@@ -208,6 +220,7 @@ setup:
         body:
           my_histo:
             scale: 38
+            sum: 1E300
             zero:
               count: 2305843009213693952 # 2^61 to not cause overflows for the total value count sum
               threshold: 1E-300
@@ -224,6 +237,7 @@ setup:
   - match:
       _source.my_histo:
         scale: 38
+        sum: 1E300
         zero:
           count: 2305843009213693952
           threshold: 1E-300
@@ -233,3 +247,87 @@ setup:
         negative:
           indices: [-4611686018427387903, 4611686018427387903]
           counts: [2305843009213693952, 1]
+
+---
+"Sum estimation":
+  - do:
+      index:
+        index: test_exponential_histogram
+        id: "1"
+        refresh: true
+        body:
+          my_histo:
+            scale: 1
+            positive:
+              indices: [8]
+              counts: [1]
+            negative:
+              indices: [0, 1]
+              counts: [1, 5]
+
+  - do:
+      get:
+        index: test_exponential_histogram
+        id: "1"
+  - match:
+      _source.my_histo:
+        scale: 1
+        sum: 9.289321881345247
+        positive:
+          indices: [8]
+          counts: [1]
+        negative:
+          indices: [0, 1]
+          counts: [1, 5]
+
+---
+"Positive infinity sum":
+  - do:
+      index:
+        index: test_exponential_histogram
+        id: "1"
+        refresh: true
+        body:
+          my_histo:
+            scale: 0
+            positive:
+              indices: [2000]
+              counts: [1]
+
+  - do:
+      get:
+        index: test_exponential_histogram
+        id: "1"
+  - match:
+      _source.my_histo:
+        scale: 0
+        sum: Infinity
+        positive:
+          indices: [2000]
+          counts: [1]
+
+---
+"negative infinity sum":
+  - do:
+      index:
+        index: test_exponential_histogram
+        id: "1"
+        refresh: true
+        body:
+          my_histo:
+            scale: 0
+            negative:
+              indices: [2000]
+              counts: [1]
+
+  - do:
+      get:
+        index: test_exponential_histogram
+        id: "1"
+  - match:
+      _source.my_histo:
+        scale: 0
+        sum: -Infinity
+        negative:
+          indices: [2000]
+          counts: [1]

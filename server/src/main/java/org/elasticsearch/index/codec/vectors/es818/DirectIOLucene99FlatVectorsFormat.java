@@ -19,7 +19,6 @@
  */
 package org.elasticsearch.index.codec.vectors.es818;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
@@ -31,6 +30,8 @@ import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
@@ -42,18 +43,13 @@ import java.util.Set;
  * This is copied to change the implementation of {@link #fieldsReader} only.
  * The codec format itself is not changed, so we keep the original {@link #NAME}
  */
-public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
+public class DirectIOLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     static final String NAME = "Lucene99FlatVectorsFormat";
-    static final String META_CODEC_NAME = "Lucene99FlatVectorsFormatMeta";
-    static final String VECTOR_DATA_CODEC_NAME = "Lucene99FlatVectorsFormatData";
-    static final String META_EXTENSION = "vemf";
-    static final String VECTOR_DATA_EXTENSION = "vec";
 
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     private final FlatVectorsScorer vectorsScorer;
 
     /** Constructs a format */
@@ -63,12 +59,17 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
     }
 
     @Override
+    protected FlatVectorsScorer flatVectorsScorer() {
+        return vectorsScorer;
+    }
+
+    @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 
     static boolean shouldUseDirectIO(SegmentReadState state) {
-        assert ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO;
+        assert USE_DIRECT_IO;
         return FsDirectoryFactory.isHybridFs(state.directory);
     }
 
@@ -92,11 +93,6 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
         } else {
             return new Lucene99FlatVectorsReader(state, vectorsScorer);
         }
-    }
-
-    @Override
-    public String toString() {
-        return "Lucene99FlatVectorsFormat(" + "vectorsScorer=" + vectorsScorer + ')';
     }
 
     static class DirectIOContext implements IOContext {

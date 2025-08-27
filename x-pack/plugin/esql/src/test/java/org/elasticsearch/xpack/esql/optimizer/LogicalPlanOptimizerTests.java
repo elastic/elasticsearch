@@ -8396,4 +8396,81 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
+    public void testTranslateDataGroupedByTBucket() {
+        assumeTrue("requires TBUCKET capability enabled", EsqlCapabilities.Cap.TBUCKET.isEnabled());
+        var query = """
+            FROM sample_data
+            | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
+            | SORT min
+            """;
+
+        var plan = planSample(query);
+        var topN = as(plan, TopN.class);
+
+        Aggregate aggregate = as(topN.child(), Aggregate.class);
+        assertThat(aggregate, not(instanceOf(TimeSeriesAggregate.class)));
+
+        assertThat(aggregate.groupings(), hasSize(1));
+        assertThat(aggregate.groupings().get(0), instanceOf(ReferenceAttribute.class));
+        assertThat(as(aggregate.groupings().getFirst(), ReferenceAttribute.class).name(), equalTo("bucket"));
+
+        assertThat(aggregate.aggregates(), hasSize(3));
+        List<? extends NamedExpression> aggregates = aggregate.aggregates();
+        assertThat(aggregates, hasSize(3));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("min", a.name());
+        Min min = as(a.child(), Min.class);
+        FieldAttribute fa = as(min.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        a = as(aggregates.get(1), Alias.class);
+        assertEquals("max", a.name());
+        Max max = as(a.child(), Max.class);
+        fa = as(max.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        ReferenceAttribute ra = as(aggregates.get(2), ReferenceAttribute.class);
+        assertEquals("bucket", ra.name());
+        assertThat(Expressions.attribute(aggregate.groupings().get(0)).id(), equalTo(aggregate.aggregates().get(2).id()));
+        Eval eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Alias bucketAlias = eval.fields().get(0);
+        assertThat(bucketAlias.child(), instanceOf(Bucket.class));
+        assertThat(Expressions.attribute(bucketAlias).id(), equalTo(aggregate.aggregates().get(2).id()));
+        Bucket bucket = as(Alias.unwrap(bucketAlias), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+        assertThat(bucket.children().get(0), instanceOf(FieldAttribute.class));
+        assertThat(((FieldAttribute) bucket.children().get(0)).name(), equalTo("@timestamp"));
+        assertThat(bucket.children().get(1), instanceOf(Literal.class));
+        assertThat(((Literal) bucket.children().get(1)).value(), equalTo(Duration.ofHours(1)));
+    }
+
+    public void testTranslateMetricsGroupedByTBucketInTSMode() {
+        assumeTrue("requires METRICS_COMMAND capability enabled", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires TBUCKET capability enabled", EsqlCapabilities.Cap.TBUCKET.isEnabled());
+
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY tbucket(1h)";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        assertThat(finalAgg.aggregates(), hasSize(2));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+        Eval eval = as(aggsByTsid.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
+
+        Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(finalAgg.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(eval.fields().get(0).id()));
+        Bucket bucket = as(Alias.unwrap(eval.fields().get(0)), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
 }

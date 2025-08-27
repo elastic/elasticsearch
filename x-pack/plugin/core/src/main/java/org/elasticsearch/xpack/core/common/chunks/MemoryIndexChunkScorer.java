@@ -14,16 +14,14 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.QueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,7 +69,8 @@ public class MemoryIndexChunkScorer {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                Query query = createQuery(inferenceText);
+                org.apache.lucene.util.QueryBuilder qb = new QueryBuilder(analyzer);
+                Query query = qb.createBooleanQuery(CONTENT_FIELD, inferenceText, BooleanClause.Occur.SHOULD);
                 int numResults = Math.min(maxResults, chunks.size());
                 TopDocs topDocs = searcher.search(query, numResults);
 
@@ -84,27 +83,6 @@ public class MemoryIndexChunkScorer {
 
                 return scoredChunks;
             }
-        }
-    }
-
-    /**
-     * Creates a Lucene query from the inference text.
-     */
-    private Query createQuery(String inferenceText) throws IOException {
-        String[] tokens = tokenizeText(inferenceText);
-
-        if (tokens.length == 0) {
-            throw new IllegalArgumentException("Inference text must contain at least one valid token");
-        } else if (tokens.length == 1) {
-            return new TermQuery(new Term(CONTENT_FIELD, tokens[0]));
-        } else {
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (String token : tokens) {
-                if (token != null && token.trim().isEmpty() == false) {
-                    builder.add(new TermQuery(new Term(CONTENT_FIELD, token)), BooleanClause.Occur.SHOULD);
-                }
-            }
-            return builder.build();
         }
     }
 

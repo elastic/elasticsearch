@@ -22,15 +22,15 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
@@ -85,7 +85,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
-public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
+public class ES818BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat {
 
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
     public static final String NAME = "ES818BinaryQuantizedVectorsFormat";
@@ -115,6 +115,11 @@ public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     }
 
     @Override
+    protected FlatVectorsScorer flatVectorsScorer() {
+        return scorer;
+    }
+
+    @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES818BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
     }
@@ -122,15 +127,5 @@ public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
-    }
-
-    @Override
-    public int getMaxDimensions(String fieldName) {
-        return MAX_DIMS_COUNT;
-    }
-
-    @Override
-    public String toString() {
-        return getName() + "(name=" + getName() + ", flatVectorScorer=" + scorer + ")";
     }
 }

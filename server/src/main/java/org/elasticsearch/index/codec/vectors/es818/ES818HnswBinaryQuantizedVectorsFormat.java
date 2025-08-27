@@ -19,17 +19,14 @@
  */
 package org.elasticsearch.index.codec.vectors.es818;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.util.hnsw.HnswGraph;
+import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -37,35 +34,16 @@ import java.util.concurrent.ExecutorService;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.MAXIMUM_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.MAXIMUM_MAX_CONN;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
-public class ES818HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
+public class ES818HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
 
     public static final String NAME = "ES818HnswBinaryQuantizedVectorsFormat";
 
-    /**
-     * Controls how many of the nearest neighbor candidates are connected to the new node. Defaults to
-     * {@link Lucene99HnswVectorsFormat#DEFAULT_MAX_CONN}. See {@link HnswGraph} for more details.
-     */
-    private final int maxConn;
-
-    /**
-     * The number of candidate neighbors to track while searching the graph for each newly inserted
-     * node. Defaults to {@link Lucene99HnswVectorsFormat#DEFAULT_BEAM_WIDTH}. See {@link HnswGraph}
-     * for details.
-     */
-    private final int beamWidth;
-
     /** The format for storing, reading, merging vectors on disk */
     private final FlatVectorsFormat flatVectorsFormat;
-
-    private final int numMergeWorkers;
-    private final TaskExecutor mergeExec;
 
     /** Constructs a format using default graph construction parameters */
     public ES818HnswBinaryQuantizedVectorsFormat() {
@@ -104,31 +82,13 @@ public class ES818HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
         FlatVectorsFormat flatVectorsFormat,
         ExecutorService mergeExec
     ) {
-        super(name);
-        if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
-            throw new IllegalArgumentException(
-                "maxConn must be positive and less than or equal to " + MAXIMUM_MAX_CONN + "; maxConn=" + maxConn
-            );
-        }
-        if (beamWidth <= 0 || beamWidth > MAXIMUM_BEAM_WIDTH) {
-            throw new IllegalArgumentException(
-                "beamWidth must be positive and less than or equal to " + MAXIMUM_BEAM_WIDTH + "; beamWidth=" + beamWidth
-            );
-        }
-        this.maxConn = maxConn;
-        this.beamWidth = beamWidth;
-        if (numMergeWorkers == 1 && mergeExec != null) {
-            throw new IllegalArgumentException("No executor service is needed as we'll use single thread to merge");
-        }
-        this.numMergeWorkers = numMergeWorkers;
-
+        super(name, maxConn, beamWidth, numMergeWorkers, mergeExec);
         this.flatVectorsFormat = flatVectorsFormat;
+    }
 
-        if (mergeExec != null) {
-            this.mergeExec = new TaskExecutor(mergeExec);
-        } else {
-            this.mergeExec = null;
-        }
+    @Override
+    protected FlatVectorsFormat flatVectorsFormat() {
+        return flatVectorsFormat;
     }
 
     @Override
@@ -139,24 +99,5 @@ public class ES818HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
-    }
-
-    @Override
-    public int getMaxDimensions(String fieldName) {
-        return MAX_DIMS_COUNT;
-    }
-
-    @Override
-    public String toString() {
-        return getName()
-            + "(name="
-            + getName()
-            + ", maxConn="
-            + maxConn
-            + ", beamWidth="
-            + beamWidth
-            + ", flatVectorFormat="
-            + flatVectorsFormat
-            + ")";
     }
 }

@@ -94,7 +94,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
         reason = "ensure we're skipping reroute for the right reason"
     )
-    public void testRerouteIsNotCalledDeciderIsNotEnabled() {
+    public void testRerouteIsNotCalledWhenDeciderIsNotEnabled() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             createClusterSettings(
@@ -130,7 +130,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
         reason = "ensure we're skipping reroute for the right reason"
     )
-    public void testRerouteIsNotCalledNoNodesAreHotSpotting() {
+    public void testRerouteIsNotCalledWhenNoNodesAreHotSpotting() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,

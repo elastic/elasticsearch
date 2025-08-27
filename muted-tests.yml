@@ -489,21 +489,12 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggsWithProfile
   issue: https://github.com/elastic/elasticsearch/issues/132880
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetchMany
-  issue: https://github.com/elastic/elasticsearch/issues/132948
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetch
-  issue: https://github.com/elastic/elasticsearch/issues/132956
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/132957
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/400_synthetic_source/_doc_count}
   issue: https://github.com/elastic/elasticsearch/issues/132965
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSourceWithTranslogSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/132964
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on unmapped float field}
   issue: https://github.com/elastic/elasticsearch/issues/132984
@@ -594,15 +585,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/133370
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSourceMany
-  issue: https://github.com/elastic/elasticsearch/issues/133394
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/kNN search with filter}
   issue: https://github.com/elastic/elasticsearch/issues/133420
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSourceInNestedObject
-  issue: https://github.com/elastic/elasticsearch/issues/133426
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on date field in empty index}
   issue: https://github.com/elastic/elasticsearch/issues/133439
@@ -627,54 +612,45 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/133496
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132601
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132600
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132602
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133497
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133498
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133499
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/133503
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/133504
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/133505
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/133507
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
   issue: https://github.com/elastic/elasticsearch/issues/133508
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133516
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133517
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133518
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/133520
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testTopNPushedToLucene
+  issue: https://github.com/elastic/elasticsearch/issues/133556
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testFilterNestedFields
+  issue: https://github.com/elastic/elasticsearch/issues/133557
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/10_source_filtering/no filtering}
+  issue: https://github.com/elastic/elasticsearch/issues/133561
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testIntBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133596
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
+  method: testSyntheticSourceMany
+  issue: https://github.com/elastic/elasticsearch/issues/133598
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testDoubleBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133606
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testBooleanBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133608
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testLongBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133618
+- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/133619
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testFloatBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133621
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/133624
 
 # Examples:
 #

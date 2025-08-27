@@ -284,19 +284,23 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
         runTestOnIndex((searchExecutionContext, leafContext) -> {
+            cache.verifyInternalConsistency();
+
             final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
             final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
             assertThat(bitSet1, notNullValue());
+            cache.verifyInternalConsistency();
 
             final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
             cache.verifyInternalConsistency();
 
-            // Check that the original bitset is no longer in the cache (a new instance is returned)
             assertThat(cache.getBitSet(query1, leafContext), not(sameInstance(bitSet1)));
             cache.verifyInternalConsistency();
         });
+
+        cache.verifyInternalConsistency();
     }
 
     public void testCacheUnderConcurrentAccess() throws Exception {

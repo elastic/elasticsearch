@@ -2,4 +2,5 @@ pr: 133681
 summary: Remove `DocumentSubsetBitsetCache` locking
 area: Authorization
 type: bug
-issues: []
+issues:
+ - 132842

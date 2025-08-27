@@ -19,9 +19,9 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 
-import static org.elasticsearch.gradle.internal.ProjectSubscribeBuildService.TRANSPORT_REFERENCES_TOPIC;
-
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
+
+    public static final String TRANSPORT_REFERENCES_TOPIC = "transportReferences";
 
     @Override
     public void apply(Project project) {

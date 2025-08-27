@@ -23,9 +23,14 @@ import javax.inject.Inject;
 
 public abstract class ProjectSubscribeBuildService implements BuildService<BuildServiceParameters.None> {
 
-    public static final String TRANSPORT_REFERENCES_TOPIC = "transportReferences";
     private final ProviderFactory providerFactory;
 
+    /**
+     * The filling of this map depends on the order of #registerProjectForTopic being called.
+     * This is usually done during configuration phase, but we do not enforce yet the time of this method call.
+     * The values are LinkedHashSet to preserve the order of registration mostly to provide a predicatable order
+     * when running consecutive builds.
+     * */
     private Map<String, Collection<String>> versionsByTopic = new HashMap<>();
 
     @Inject
@@ -33,6 +38,9 @@ public abstract class ProjectSubscribeBuildService implements BuildService<Build
         this.providerFactory = providerFactory;
     }
 
+    /**
+     * Returning a provider so the evaluation of the map value is deferred to when the provider is queried.
+     * */
     public Provider<Collection<String>> getProjectsByTopic(String topic) {
         return providerFactory.provider(() -> versionsByTopic.computeIfAbsent(topic, k -> new java.util.LinkedHashSet<>()));
     }

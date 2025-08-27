@@ -16,7 +16,7 @@ import org.gradle.api.Project;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import static org.elasticsearch.gradle.internal.ProjectSubscribeBuildService.TRANSPORT_REFERENCES_TOPIC;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin.TRANSPORT_REFERENCES_TOPIC;
 
 public class TransportVersionReferencesPlugin implements Plugin<Project> {
 

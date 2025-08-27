@@ -231,6 +231,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         while ((batchedResult = batchedResults.poll()) != null) {
             topDocsStats.add(batchedResult.v1());
             consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
+            // Add the estimate of the agg size
             addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize);
         }
         for (QuerySearchResult result : buffer) {
@@ -458,12 +459,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * Returns an estimation of the size that a reduce of the provided size
      * would take on memory.
      * This size is estimated as roughly 1.5 times the size of the serialized
-     * aggregations that need to be reduced. This estimation can be completely
-     * off for some aggregations but it is corrected with the real size after
-     * the reduce completes.
+     * aggregations that need to be reduced.
+     * This method expects an already accounted size, so only an extra 0.5x is returned.
+     * This estimation can be completely off for some aggregations
+     * but it is corrected with the real size after the reduce completes.
      */
     private static long estimateRamBytesUsedForReduce(long size) {
-        return Math.round(1.5d * size);
+        return Math.round(0.5d * size);
     }
 
     private void consume(QuerySearchResult result, Runnable next) {

@@ -657,6 +657,9 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testFloatBlock
   issue: https://github.com/elastic/elasticsearch/issues/133621
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/133624
 
 # Examples:
 #

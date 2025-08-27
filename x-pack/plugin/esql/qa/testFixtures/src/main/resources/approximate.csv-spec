@@ -58,6 +58,29 @@ true
 ;
 
 
+with stats where
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | STATS count=COUNT() WHERE num >= 500,
+            avg=AVG(num) WHERE num >= 500,
+            sum=SUM(num) WHERE num >= 500,
+            min=MIN(num) WHERE num >= 500,
+            max=MAX(num) WHERE num >= 500
+    | EVAL is_expected = count >= 300000 AND count <= 450000 AND
+                         avg >= 700 AND avg <= 850 AND
+                         sum >= 270000000 AND sum <= 310000000 AND
+                         min >= 500 AND
+                         max == 1000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
 with sample
 required_capability: approximate
 approximate: true

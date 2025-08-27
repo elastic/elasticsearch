@@ -26,6 +26,8 @@ import org.mockito.stubbing.Answer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
@@ -61,7 +63,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testSuccessfulExecution() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
         List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
         InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
@@ -141,6 +143,35 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
     }
 
+    public void testParallelBulkExecution() throws Exception {
+        int batches = between(50, 100);
+        CountDownLatch latch = new CountDownLatch(batches);
+
+        for (int i = 0; i < batches; i++) {
+            runWithRandomDelay(() -> {
+                List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
+                List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
+
+                InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
+                    runWithRandomDelay(() -> {
+                        ActionListener<InferenceAction.Response> l = invocation.getArgument(1);
+                        l.onResponse(responses.get(requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class))));
+                    });
+                    return null;
+                });
+
+                ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> {
+                    assertThat(r, equalTo(responses));
+                    latch.countDown();
+                }, ESTestCase::fail);
+
+                bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
+            });
+        }
+
+        latch.await(10, TimeUnit.SECONDS);
+    }
+
     private BulkInferenceExecutor bulkExecutor(InferenceRunner inferenceRunner) {
         return new BulkInferenceExecutor(inferenceRunner, threadPool, randomBulkExecutionConfig());
     }
@@ -195,11 +226,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         if (randomBoolean()) {
             runnable.run();
         } else {
-            threadPool.schedule(
-                runnable,
-                TimeValue.timeValueNanos(between(1, 1_000)),
-                threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
-            );
+            threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
         }
     }
 }

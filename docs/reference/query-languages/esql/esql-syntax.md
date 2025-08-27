@@ -159,7 +159,7 @@ FROM library
 }
 ```
 
-You can also use [query parameters](docs-content://explore-analyze/query-filter/languages/esql-rest.md#esql-rest-params) in function named parameters:
+You can also use [query parameters](/reference/query-languages/esql/esql-rest.md#esql-rest-params) in function named parameters:
 
 ```console
 POST /_query

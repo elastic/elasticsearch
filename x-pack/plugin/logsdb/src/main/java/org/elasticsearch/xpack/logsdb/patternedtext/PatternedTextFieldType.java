@@ -122,10 +122,10 @@ public class PatternedTextFieldType extends StringFieldType {
     }
 
     private Query maybeSourceConfirmQuery(Query query, SearchExecutionContext context) {
+        // Disable scoring similarly to match_only_text
         if (hasPositions) {
-            return query;
+            return new ConstantScoreQuery(query);
         } else {
-            // Disable scoring similarly to match_only_text
             return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(context), indexAnalyzer));
         }
     }

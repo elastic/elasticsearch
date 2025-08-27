@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -481,9 +482,8 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         testStreamError(XContentHelper.stripWhitespace("""
             {
                   "error": {
-                      "code": "stream_error",
                       "message": "Received an error response for request from inference entity id [id].\
-             Error message: [400: Invalid value: Model 'llama3.12:3b' not found]",
+             Error message: [{\\"error\\": {\\"message\\": \\"400: Invalid value: Model 'llama3.12:3b' not found\\"}}]",
                       "type": "llama_error"
                   }
               }
@@ -836,5 +836,10 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
 
     private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
         return buildServiceSettingsMap("id", "url", SimilarityMeasure.COSINE.toString(), null, null, null);
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService();
     }
 }

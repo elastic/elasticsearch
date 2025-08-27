@@ -31,8 +31,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
@@ -63,8 +63,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
+public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
 
     @ParametersFactory(argumentFormatting = "%s %s")
@@ -373,6 +374,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         for (Page page : results) {
             assertThat(page.getPositionCount(), lessThanOrEqualTo(factory.maxPageSize()));
         }
+        assertAllRefCountedSameInstance(results);
 
         for (Page page : results) {
             LongBlock sBlock = page.getBlock(initialBlockIndex(page));
@@ -481,6 +483,19 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         @Override
         public boolean hasReferences() {
             return true;
+        }
+    }
+
+    static void assertAllRefCountedSameInstance(List<Page> results) {
+        ShardRefCounted firstRefCounted = null;
+        for (Page page : results) {
+            DocBlock docs = page.getBlock(0);
+            ShardRefCounted refCounted = docs.asVector().shardRefCounted();
+            if (firstRefCounted == null) {
+                firstRefCounted = refCounted;
+            } else {
+                assertThat(refCounted, sameInstance(firstRefCounted));
+            }
         }
     }
 }

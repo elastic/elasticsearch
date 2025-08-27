@@ -1522,7 +1522,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSingletonDoubleBulkBlockReading() throws IOException {
-        assumeTrue("field type supports bulk singleton long reading", supportsBulkDoubleBlockReading());
+        assumeTrue("field type supports bulk singleton double reading", supportsBulkDoubleBlockReading());
         testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonDoubles) columnAtATimeReader);
     }
 

@@ -22,8 +22,11 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
@@ -165,6 +168,78 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         }
     }
 
+    public void testFewVectorManyTimes() throws IOException {
+        int numDifferentVectors = random().nextInt(1, 20);
+        float[][] vectors = new float[numDifferentVectors][];
+        int dimensions = random().nextInt(12, 500);
+        for (int i = 0; i < numDifferentVectors; i++) {
+            vectors[i] = randomVector(dimensions);
+        }
+        int numDocs = random().nextInt(100, 10_000);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                float[] vector = vectors[random().nextInt(numDifferentVectors)];
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            if (rarely()) {
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                List<LeafReaderContext> subReaders = reader.leaves();
+                for (LeafReaderContext r : subReaders) {
+                    LeafReader leafReader = r.reader();
+                    float[] vector = randomVector(dimensions);
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                }
+
+            }
+        }
+    }
+
+    public void testOneRepeatedVector() throws IOException {
+        int dimensions = random().nextInt(12, 500);
+        float[] repeatedVector = randomVector(dimensions);
+        int numDocs = random().nextInt(100, 10_000);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                float[] vector = random().nextInt(3) == 0 ? repeatedVector : randomVector(dimensions);
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            if (rarely()) {
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                List<LeafReaderContext> subReaders = reader.leaves();
+                for (LeafReaderContext r : subReaders) {
+                    LeafReader leafReader = r.reader();
+                    float[] vector = randomVector(dimensions);
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                }
+
+            }
+        }
+    }
+
     // this is a modified version of lucene's TestSearchWithThreads test case
     public void testWithThreads() throws Exception {
         final int numThreads = random().nextInt(2, 5);
@@ -188,7 +263,13 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                             for (; totSearch < numSearches && failed.get() == false; totSearch++) {
                                 float[] vector = randomVector(dimensions);
                                 LeafReader leafReader = getOnlyLeafReader(reader);
-                                leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                                leafReader.searchNearestVectors(
+                                    "f",
+                                    vector,
+                                    10,
+                                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                                    Integer.MAX_VALUE
+                                );
                             }
                             assertTrue(totSearch > 0);
                         } catch (Exception exc) {

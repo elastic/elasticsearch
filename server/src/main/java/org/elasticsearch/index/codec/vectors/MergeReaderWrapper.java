@@ -13,9 +13,9 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
 
@@ -60,12 +60,12 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
-    public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         mainReader.search(field, target, knnCollector, acceptDocs);
     }
 
     @Override
-    public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         mainReader.search(field, target, knnCollector, acceptDocs);
     }
 

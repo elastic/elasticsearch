@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
@@ -96,18 +97,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    private static Optional<ReadAdvice> overrideReadAdvice(String name, IOContext context) {
-        if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
-            return Optional.of(ReadAdvice.NORMAL);
-        }
-        return Optional.empty();
-    }
-
     /** Sets the preload, if any, on the given directory based on the extensions. Returns the same directory instance. */
     // visibility and extensibility for testing
     public MMapDirectory setMMapFunctions(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
         mMapDirectory.setPreload(getPreloadFunc(preLoadExtensions));
-        mMapDirectory.setReadAdviceOverride(FsDirectoryFactory::overrideReadAdvice);
+        mMapDirectory.setReadAdvice(getReadAdviceFunc());
         return mMapDirectory;
     }
 
@@ -121,6 +115,15 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
         }
         return MMapDirectory.NO_FILES;
+    }
+
+    private static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
+        return (name, context) -> {
+            if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
+                return Optional.of(ReadAdvice.NORMAL);
+            }
+            return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
+        };
     }
 
     /**

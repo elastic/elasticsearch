@@ -67,9 +67,7 @@ public final class TopDoubleGroupingAggregatorFunction implements GroupingAggreg
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -275,6 +273,12 @@ public final class TopDoubleGroupingAggregatorFunction implements GroupingAggreg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       TopDoubleAggregator.combineIntermediate(state, groupId, top, valuesPosition);
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

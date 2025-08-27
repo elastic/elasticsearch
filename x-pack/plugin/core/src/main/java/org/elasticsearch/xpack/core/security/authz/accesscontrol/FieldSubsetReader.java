@@ -28,8 +28,8 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -299,7 +299,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+    public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
         if (hasField(field)) {
             super.searchNearestVectors(field, target, collector, acceptDocs);
         }
@@ -311,7 +311,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+    public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
         if (hasField(field)) {
             super.searchNearestVectors(field, target, collector, acceptDocs);
         }
@@ -396,11 +396,36 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                     if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
                         // The field contains an object or an array, reconstruct it from the transformed map in case
                         // any subfield has been filtered out.
-                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue.withMap(transformedField)));
                     } else {
                         // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
                         visitor.binaryField(fieldInfo, value);
                     }
+                }
+            } else if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
+                List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(
+                    value
+                );
+                List<IgnoredSourceFieldMapper.MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());
+                boolean didFilter = false;
+                for (var mappedNameValue : mappedNameValues) {
+                    Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+                    if (transformedField.isEmpty()) {
+                        didFilter = true;
+                        continue;
+                    }
+                    var topValue = mappedNameValue.map().values().iterator().next();
+                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
+                        didFilter = true;
+                    }
+                    filteredNameValues.add(mappedNameValue.withMap(transformedField));
+                }
+                if (didFilter) {
+                    if (filteredNameValues.isEmpty() == false) {
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMultipleFieldValues(filteredNameValues));
+                    }
+                } else {
+                    visitor.binaryField(fieldInfo, value);
                 }
             } else {
                 visitor.binaryField(fieldInfo, value);

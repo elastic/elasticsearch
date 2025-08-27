@@ -25,6 +25,7 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
@@ -128,13 +129,14 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
-        public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
             collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
         }
 
-        private void collectAllMatchingDocs(KnnCollector knnCollector, Bits acceptDocs, RandomVectorScorer scorer) throws IOException {
+        private void collectAllMatchingDocs(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer)
+            throws IOException {
             OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
-            Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs);
+            Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
             for (int i = 0; i < scorer.maxOrd(); i++) {
                 if (acceptedOrds == null || acceptedOrds.get(i)) {
                     collector.collect(i, scorer.score(i));
@@ -145,7 +147,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
-        public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
             collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
         }
 

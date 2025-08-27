@@ -23,11 +23,11 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -141,7 +141,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             if (queryCancellation.isEnabled() == false) {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;
@@ -159,7 +159,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             if (queryCancellation.isEnabled() == false) {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;

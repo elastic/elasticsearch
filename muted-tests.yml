@@ -474,9 +474,6 @@ tests:
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/132892
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetchCoerced
-  issue: https://github.com/elastic/elasticsearch/issues/132893
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: https://github.com/elastic/elasticsearch/issues/132894

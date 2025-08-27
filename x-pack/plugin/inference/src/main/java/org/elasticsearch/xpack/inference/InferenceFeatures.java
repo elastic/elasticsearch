@@ -11,6 +11,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 
 import java.util.HashSet;
@@ -82,7 +83,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX,
                 SEMANTIC_TEXT_HIGHLIGHTING_FLAT,
                 SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
-                SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT
+                SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
+                SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS
             )
         );
         if (RERANK_SNIPPETS.isEnabled()) {

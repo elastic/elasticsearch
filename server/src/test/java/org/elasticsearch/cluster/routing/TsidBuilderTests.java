@@ -135,7 +135,7 @@ public class TsidBuilderTests extends ESTestCase {
 
     public void testTsidMaxSize() {
         TsidBuilder tsidBuilder = TsidBuilder.newBuilder();
-        int dimensions = randomIntBetween(32, 64);
+        int dimensions = randomIntBetween(4, 64);
         for (int i = 0; i < dimensions; i++) {
             tsidBuilder.addStringDimension("dimension_" + i, "value_" + i);
         }

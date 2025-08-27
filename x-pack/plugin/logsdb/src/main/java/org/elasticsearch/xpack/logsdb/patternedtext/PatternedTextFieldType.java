@@ -77,7 +77,12 @@ public class PatternedTextFieldType extends StringFieldType {
     PatternedTextFieldType(String name, boolean hasPositions, boolean syntheticSource) {
         this(
             name,
-            new TextSearchInfo(hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            new TextSearchInfo(
+                hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
+                null,
+                Lucene.STANDARD_ANALYZER,
+                Lucene.STANDARD_ANALYZER
+            ),
             Lucene.STANDARD_ANALYZER,
             syntheticSource,
             Collections.emptyMap()

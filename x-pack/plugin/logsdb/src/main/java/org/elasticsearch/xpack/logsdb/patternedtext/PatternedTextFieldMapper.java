@@ -95,10 +95,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] {
-                meta,
-                indexOptions
-            };
+            return new Parameter<?>[] { meta, indexOptions };
         }
 
         private PatternedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {

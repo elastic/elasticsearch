@@ -25,21 +25,21 @@ public class PatternTextDocValuesTests extends ESTestCase {
     private static PatternedTextDocValues makeDocValueSparseArgs() throws IOException {
         var template = new SimpleSortedSetDocValues(removePlaceholders("% dog", "cat", "% mouse %", "hat %"));
         var args = new SimpleSortedSetDocValues("1", null, "2 3", "4");
-        var info = new SimpleSortedSetDocValues(argInfo(0), argInfo(), argInfo(0, 7), argInfo(4));
+        var info = new SimpleSortedSetDocValues(info(0), info(), info(0, 7), info(4));
         return new PatternedTextDocValues(template, args, info);
     }
 
     private static PatternedTextDocValues makeDocValuesDenseArgs() throws IOException {
         var template = new SimpleSortedSetDocValues(removePlaceholders("% moose", "% goose %", "% mouse %", "% house"));
         var args = new SimpleSortedSetDocValues("1", "4 5", "2 3", "7");
-        var info = new SimpleSortedSetDocValues(argInfo(0), argInfo(0, 7), argInfo(0, 7), argInfo(0));
+        var info = new SimpleSortedSetDocValues(info(0), info(0, 7), info(0, 7), info(0));
         return new PatternedTextDocValues(template, args, info);
     }
 
     private static PatternedTextDocValues makeDocValueMissingValues() throws IOException {
         var template = new SimpleSortedSetDocValues(removePlaceholders("% cheddar", "cat", null, "% cheese"));
         var args = new SimpleSortedSetDocValues("1", null, null, "4");
-        var info = new SimpleSortedSetDocValues(argInfo(0), argInfo(), argInfo(), argInfo(0));
+        var info = new SimpleSortedSetDocValues(info(0), info(), info(), info(0));
         return new PatternedTextDocValues(template, args, info);
     }
 
@@ -176,7 +176,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
         }
     }
 
-    private static String argInfo(int... offsets) throws IOException {
+    private static String info(int... offsets) throws IOException {
         List<Arg.Info> argsInfo = new ArrayList<>();
         for (var offset : offsets) {
             argsInfo.add(new Arg.Info(Arg.Type.GENERIC, offset));
@@ -184,8 +184,8 @@ public class PatternTextDocValuesTests extends ESTestCase {
         return Arg.encodeInfo(argsInfo);
     }
 
+    // Placeholders are only included here to help in testing
     private static String[] removePlaceholders(String... values) {
-        var d = Arrays.stream(values).map(s -> s == null ? null : s.replace("%", "")).toList().toArray(String[]::new);
-        return d;
+        return Arrays.stream(values).map(s -> s == null ? null : s.replace("%", "")).toList().toArray(String[]::new);
     }
 }

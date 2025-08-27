@@ -53,17 +53,21 @@ public class Arg {
         }
     }
 
-    record Info(Type type, int offsetFromPrevArg) {
+    record Info(Type type, int offsetInfoTemplate) {
         public Info {
-            assert offsetFromPrevArg >= 0;
+            assert offsetInfoTemplate >= 0;
         }
-        void writeTo(ByteArrayDataOutput out) throws IOException {
+        void writeTo(ByteArrayDataOutput out, int previousOffset) throws IOException {
             out.writeVInt(type.toCode());
-            out.writeVInt(offsetFromPrevArg);
+            int diff = offsetInfoTemplate - previousOffset;
+            out.writeVInt(diff);
         }
 
-        static Info readFrom(DataInput in) throws IOException {
-            return new Info(Type.fromCode(in.readVInt()), in.readVInt());
+        static Info readFrom(DataInput in, int previousOffset) throws IOException {
+            var type = Type.fromCode(in.readVInt());
+            int diffFromPrevious = in.readVInt();
+            int offsetInfoTemplate = previousOffset + diffFromPrevious;
+            return new Info(type, offsetInfoTemplate);
         }
     }
 
@@ -81,8 +85,10 @@ public class Arg {
         byte[] buffer = new byte[maxSize];
         var dataInput = new ByteArrayDataOutput(buffer);
         dataInput.writeVInt(arguments.size());
+        int previousOffset = 0;
         for (var arg : arguments) {
-            arg.writeTo(dataInput);
+            arg.writeTo(dataInput, previousOffset);
+            previousOffset = arg.offsetInfoTemplate;
         }
 
         int size = dataInput.getPosition();
@@ -95,9 +101,12 @@ public class Arg {
         var input = new ByteArrayDataInput(encodedBytes);
 
         int numArgs = input.readVInt();
+        int previousOffset = 0;
         List<Info> arguments = new ArrayList<>(numArgs);
         for (int i = 0; i < numArgs; i++) {
-            arguments.add(Info.readFrom(input));
+            var argInfo = Info.readFrom(input, previousOffset);
+            arguments.add(argInfo);
+            previousOffset = argInfo.offsetInfoTemplate;
         }
         return arguments;
     }

@@ -42,13 +42,12 @@ public class PatternedTextValueProcessor {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashBytes);
     }
 
-    public static Parts split(String text) throws IOException {
+    static Parts split(String text) throws IOException {
         StringBuilder template = new StringBuilder(text.length());
         List<String> args = new ArrayList<>();
         List<Arg.Info> argsInfo = new ArrayList<>();
         String[] tokens = text.split(DELIMITER);
         int textIndex = 0;
-        int prevArgOffset = 0;
         for (String token : tokens) {
             if (token.isEmpty()) {
                 // add the previous delimiter
@@ -58,8 +57,7 @@ public class PatternedTextValueProcessor {
             } else {
                 if (Arg.isArg(token)) {
                     args.add(token);
-                    argsInfo.add(new Arg.Info(Arg.Type.GENERIC, template.length() - prevArgOffset));
-                    prevArgOffset = template.length();
+                    argsInfo.add(new Arg.Info(Arg.Type.GENERIC, template.length()));
                 } else {
                     template.append(token);
                 }
@@ -80,20 +78,18 @@ public class PatternedTextValueProcessor {
         return merge(parts.template, parts.args.toArray(String[]::new), parts.argsInfo);
     }
 
-    public static String merge(String template, String[] args, List<Arg.Info> argsInfo) {
+    static String merge(String template, String[] args, List<Arg.Info> argsInfo) {
         StringBuilder builder = new StringBuilder(originalSize(template, args));
         int numArgs = args.length;
 
-        int offsetInTemplate = 0;
         int nextToWrite = 0;
         for (int i = 0; i < numArgs; i++) {
             String arg = args[i];
             var argInfo = argsInfo.get(i);
 
-            offsetInTemplate += argInfo.offsetFromPrevArg();
-            builder.append(template, nextToWrite, offsetInTemplate);
+            builder.append(template, nextToWrite, argInfo.offsetInfoTemplate());
             builder.append(arg);
-            nextToWrite = offsetInTemplate;
+            nextToWrite = argInfo.offsetInfoTemplate();
         }
 
         if (nextToWrite < template.length()) {

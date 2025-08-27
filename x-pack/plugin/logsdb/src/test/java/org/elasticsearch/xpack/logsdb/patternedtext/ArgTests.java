@@ -20,11 +20,12 @@ public class ArgTests extends ESTestCase {
     public void testInfoRoundTrip() throws IOException {
         byte[] buf = new byte[15];
         var output = new ByteArrayDataOutput(buf);
+        int previousOffset = randomIntBetween(0, 100);
         Arg.Info info = randomInfo();
-        info.writeTo(output);
+        info.writeTo(output, previousOffset);
 
         var input = new ByteArrayDataInput(buf);
-        Arg.Info actual = Arg.Info.readFrom(input);
+        Arg.Info actual = Arg.Info.readFrom(input, previousOffset);
         assertEquals(info, actual);
     }
 

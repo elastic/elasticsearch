@@ -18,10 +18,10 @@ SHOW TABLES INCLUDE FROZEN;
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |archive        |TABLE     |FROZEN INDEX
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
-javaRestTest      |library        |TABLE     |INDEX
+javaRestTest   |archive        |TABLE     |FROZEN INDEX
+javaRestTest   |emp            |TABLE     |INDEX
+javaRestTest   |employees      |VIEW      |ALIAS
+javaRestTest   |library        |TABLE     |INDEX
 ```
 
 ```sql

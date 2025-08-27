@@ -30,9 +30,9 @@ SHOW TABLES;
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
-javaRestTest      |library        |TABLE     |INDEX
+javaRestTest   |emp            |TABLE     |INDEX
+javaRestTest   |employees      |VIEW      |ALIAS
+javaRestTest   |library        |TABLE     |INDEX
 ```
 
 Match multiple indices by using {{es}} [multi-target syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-multi-index) notation:
@@ -42,8 +42,8 @@ SHOW TABLES "*,-l*";
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest   |emp            |TABLE     |INDEX
+javaRestTest   |employees      |VIEW      |ALIAS
 ```
 
 One can also use the `LIKE` clause to restrict the list of names to the given pattern.
@@ -55,7 +55,7 @@ SHOW TABLES LIKE 'emp';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest   |emp            |TABLE     |INDEX
 ```
 
 Multiple chars:
@@ -65,8 +65,8 @@ SHOW TABLES LIKE 'emp%';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest   |emp            |TABLE     |INDEX
+javaRestTest   |employees      |VIEW      |ALIAS
 ```
 
 A single char:
@@ -76,7 +76,7 @@ SHOW TABLES LIKE 'em_';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest   |emp            |TABLE     |INDEX
 ```
 
 Or a mixture of single and multiple chars:
@@ -86,7 +86,7 @@ SHOW TABLES LIKE '%em_';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest   |emp            |TABLE     |INDEX
 ```
 
 List tables within remote clusters whose names are matched by a wildcard:

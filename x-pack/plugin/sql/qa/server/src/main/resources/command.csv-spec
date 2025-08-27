@@ -226,7 +226,7 @@ SHOW CATALOGS;
 
      name      |     type
 ---------------+---------------
-javaRestTest      |local
+javaRestTest   |local
 ;
 
 showTables

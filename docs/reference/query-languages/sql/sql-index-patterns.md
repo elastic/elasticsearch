@@ -19,8 +19,8 @@ SHOW TABLES "*,-l*";
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest   |emp            |TABLE     |INDEX
+javaRestTest   |employees      |VIEW      |ALIAS
 ```
 
 Notice the pattern is surrounded by double quotes `"`. It enumerated `*` meaning all indices however it excludes (due to `-`) all indices that start with `l`. This notation is very convenient and powerful as it allows both inclusion and exclusion, depending on the target naming convention.
@@ -66,8 +66,8 @@ SHOW TABLES LIKE 'emp%';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest   |emp            |TABLE     |INDEX
+javaRestTest   |employees      |VIEW      |ALIAS
 ```
 
 The pattern matches all tables that start with `emp`.

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.common.snippets;
+package org.elasticsearch.xpack.core.common.chunks;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -30,38 +30,39 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Utility class for scoring snippets using an in-memory Lucene index.
+ * Utility class for scoring pre-determined chunks using an in-memory Lucene index.
  */
-public class SnippetScorer {
+public class MemoryIndexChunkScorer {
 
     private static final String CONTENT_FIELD = "content";
 
     private final StandardAnalyzer analyzer;
 
-    public SnippetScorer() {
+    public MemoryIndexChunkScorer() {
+        // TODO: Allow analyzer to be customizable and/or read from the field mapping
         this.analyzer = new StandardAnalyzer();
     }
 
     /**
-     * Creates an in-memory index of snippets, or snippets, returns ordered, scored list.
+     * Creates an in-memory index of chunks, or chunks, returns ordered, scored list.
      *
-     * @param snippets the list of text snippets to score
+     * @param chunks the list of text chunks to score
      * @param inferenceText the query text to compare against
      * @param maxResults maximum number of results to return
-     * @return list of scored snippets ordered by relevance
-     * @throws IOException on failure scoring snippets
+     * @return list of scored chunks ordered by relevance
+     * @throws IOException on failure scoring chunks
      */
-    public List<ScoredSnippet> scoreSnippets(List<String> snippets, String inferenceText, int maxResults) throws IOException {
-        if (snippets == null || snippets.isEmpty() || inferenceText == null || inferenceText.trim().isEmpty()) {
+    public List<ScoredChunk> scoreChunks(List<String> chunks, String inferenceText, int maxResults) throws IOException {
+        if (chunks == null || chunks.isEmpty() || inferenceText == null || inferenceText.trim().isEmpty()) {
             return new ArrayList<>();
         }
 
         try (Directory directory = new ByteBuffersDirectory()) {
             IndexWriterConfig config = new IndexWriterConfig(analyzer);
             try (IndexWriter writer = new IndexWriter(directory, config)) {
-                for (String snippet : snippets) {
+                for (String chunk : chunks) {
                     Document doc = new Document();
-                    doc.add(new TextField(CONTENT_FIELD, snippet, Field.Store.YES));
+                    doc.add(new TextField(CONTENT_FIELD, chunk, Field.Store.YES));
                     writer.addDocument(doc);
                 }
                 writer.commit();
@@ -71,17 +72,17 @@ public class SnippetScorer {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 Query query = createQuery(inferenceText);
-                int numResults = Math.min(maxResults, snippets.size());
+                int numResults = Math.min(maxResults, chunks.size());
                 TopDocs topDocs = searcher.search(query, numResults);
 
-                List<ScoredSnippet> scoredSnippets = new ArrayList<>();
+                List<ScoredChunk> scoredChunks = new ArrayList<>();
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     Document doc = reader.storedFields().document(scoreDoc.doc);
                     String content = doc.get(CONTENT_FIELD);
-                    scoredSnippets.add(new ScoredSnippet(content, scoreDoc.score));
+                    scoredChunks.add(new ScoredChunk(content, scoreDoc.score));
                 }
 
-                return scoredSnippets;
+                return scoredChunks;
             }
         }
     }
@@ -123,7 +124,7 @@ public class SnippetScorer {
     }
 
     /**
-     * Represents a snippet with its relevance score.
+     * Represents a chunk with its relevance score.
      */
-    public record ScoredSnippet(String content, float score) {}
+    public record ScoredChunk(String content, float score) {}
 }

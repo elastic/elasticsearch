@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.common.snippets;
+package org.elasticsearch.xpack.core.common.chunks;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -15,10 +15,10 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-public class SnippetScorerTests extends ESTestCase {
+public class MemoryIndexChunkScorerTests extends ESTestCase {
 
-    public void testScoreSnippets() throws IOException {
-        SnippetScorer scorer = new SnippetScorer();
+    public void testScoreChunks() throws IOException {
+        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
         List<String> snippets = Arrays.asList(
             "Cats like to sleep all day and play with mice",
@@ -31,26 +31,26 @@ public class SnippetScorerTests extends ESTestCase {
         String inferenceText = "dogs play walk";
         int maxResults = 3;
 
-        List<SnippetScorer.ScoredSnippet> scoredSnippets = scorer.scoreSnippets(snippets, inferenceText, maxResults);
+        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(snippets, inferenceText, maxResults);
 
-        assertEquals(maxResults, scoredSnippets.size());
+        assertEquals(maxResults, scoredChunks.size());
 
         // The snippets about dogs should score highest, followed by the snippet about cats
-        SnippetScorer.ScoredSnippet snippet = scoredSnippets.getFirst();
+        MemoryIndexChunkScorer.ScoredChunk snippet = scoredChunks.getFirst();
         assertTrue(snippet.content().equalsIgnoreCase("Dogs love to play with toys and go for walks"));
         assertThat(snippet.score(), greaterThan(0f));
 
-        snippet = scoredSnippets.get(1);
+        snippet = scoredChunks.get(1);
         assertTrue(snippet.content().equalsIgnoreCase("Dogs are loyal companions and great pets"));
         assertThat(snippet.score(), greaterThan(0f));
 
-        snippet = scoredSnippets.get(2);
+        snippet = scoredChunks.get(2);
         assertTrue(snippet.content().equalsIgnoreCase("Cats like to sleep all day and play with mice"));
         assertThat(snippet.score(), greaterThan(0f));
 
         // Scores should be in descending order
-        for (int i = 1; i < scoredSnippets.size(); i++) {
-            assertTrue(scoredSnippets.get(i - 1).score() >= scoredSnippets.get(i).score());
+        for (int i = 1; i < scoredChunks.size(); i++) {
+            assertTrue(scoredChunks.get(i - 1).score() >= scoredChunks.get(i).score());
         }
     }
 }

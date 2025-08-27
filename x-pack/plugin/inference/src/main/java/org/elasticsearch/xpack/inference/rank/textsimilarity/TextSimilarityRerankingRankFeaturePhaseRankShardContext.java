@@ -16,7 +16,7 @@ import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
-import org.elasticsearch.xpack.core.common.snippets.SnippetScorer;
+import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.inference.chunking.Chunker;
 import org.elasticsearch.xpack.inference.chunking.ChunkerBuilder;
 
@@ -55,13 +55,13 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
 
                     List<String> bestChunks;
                     try {
-                        SnippetScorer scorer = new SnippetScorer();
-                        List<SnippetScorer.ScoredSnippet> scoredSnippets = scorer.scoreSnippets(
+                        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+                        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
                             chunks,
                             snippetRankInput.inferenceText(),
                             numSnippets
                         );
-                        bestChunks = scoredSnippets.stream().map(SnippetScorer.ScoredSnippet::content).limit(numSnippets).toList();
+                        bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(numSnippets).toList();
                     } catch (IOException e) {
                         throw new IllegalStateException("Could not generate snippets for input to reranker", e);
                     }

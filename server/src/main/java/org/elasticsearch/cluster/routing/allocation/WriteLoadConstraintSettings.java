@@ -98,21 +98,11 @@ public class WriteLoadConstraintSettings {
     );
 
     /**
-     * How often the data node calculates the write-loads for the individual shards
-     */
-    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_POLLING_INTERVAL_SETTING = Setting.timeSetting(
-        SETTING_PREFIX + "shard_write_load_polling_interval",
-        TimeValue.timeValueSeconds(60),
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /**
      * The minimum amount of time between successive calls to reroute to address write load hot-spots
      */
     public static final Setting<TimeValue> WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING = Setting.timeSetting(
         SETTING_PREFIX + "reroute_interval",
-        TimeValue.timeValueSeconds(60),
+        TimeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

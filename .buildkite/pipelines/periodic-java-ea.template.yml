@@ -35,6 +35,9 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
+            image:
+              - windows-2025
+              - ubuntu-2404
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -45,7 +48,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-{{matrix.image}}
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:

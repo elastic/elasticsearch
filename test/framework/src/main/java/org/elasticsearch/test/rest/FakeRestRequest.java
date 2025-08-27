@@ -117,9 +117,25 @@ public class FakeRestRequest extends RestRequest {
             return new FakeHttpRequest(method, uri, body, filteredHeaders, inboundException);
         }
 
+        public int contentLength() {
+            return Integer.parseInt(headers.getOrDefault("Content-Length", List.of("0")).getFirst());
+        }
+
+        public void setContentLength(int contentLength) {
+            headers.put("Content-Length", List.of(String.valueOf(contentLength)));
+        }
+
+        public void setContentLength(HttpBody body) {
+            if (body.isEmpty() || body instanceof HttpBody.NoopStream) {
+                setContentLength(0);
+            } else if (body.isFull()) {
+                setContentLength(body.asFull().bytes().length());
+            }
+        }
+
         @Override
         public boolean hasContent() {
-            return body.isEmpty() == false;
+            return contentLength() > 0;
         }
 
         @Override
@@ -215,7 +231,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public Builder withHeaders(Map<String, List<String>> headers) {
-            this.headers = headers;
+            this.headers = new HashMap<>(headers);
             return this;
         }
 
@@ -259,6 +275,7 @@ public class FakeRestRequest extends RestRequest {
 
         public FakeRestRequest build() {
             FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers, inboundException);
+            fakeHttpRequest.setContentLength(content);
             return new FakeRestRequest(parserConfig, fakeHttpRequest, params, new FakeHttpChannel(address));
         }
     }

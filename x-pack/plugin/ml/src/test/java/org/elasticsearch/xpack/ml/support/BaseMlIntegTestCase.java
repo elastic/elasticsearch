@@ -170,8 +170,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void ensureTemplatesArePresent() throws Exception {
-        awaitClusterState(logger, MachineLearning::criticalTemplatesInstalled);
+    public void ensureTemplatesArePresent() {
+        awaitClusterState(MachineLearning::criticalTemplatesInstalled);
     }
 
     protected Job.Builder createJob(String id) {

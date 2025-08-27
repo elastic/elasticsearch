@@ -82,7 +82,6 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     private static final String MAPPING_DOCS_ONLY = MAPPING_TEMPLATE.replace("%", "docs");
     private static final String MAPPING_POSITIONS = MAPPING_TEMPLATE.replace("%", "positions");
 
-
     @Before
     public void setup() {
         assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());

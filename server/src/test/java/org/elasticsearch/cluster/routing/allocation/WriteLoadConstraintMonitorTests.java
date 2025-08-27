@@ -368,7 +368,6 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             queueLatencyThresholdMillis,
             highUtilizationThresholdPercent
         );
-        final LongSupplier currentTimeSupplier = ESTestCase::randomNonNegativeLong;
         final ClusterState state = ClusterStateCreationUtils.state(
             numberOfNodes,
             new String[] { randomIdentifier() },
@@ -386,7 +385,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             highUtilizationThresholdPercent,
             numberOfNodes,
             clusterSettings,
-            currentTimeSupplier,
+            System::currentTimeMillis,
             state,
             rerouteService,
             clusterInfo

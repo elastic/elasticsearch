@@ -12,15 +12,10 @@ package org.elasticsearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -66,12 +61,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.Engine.Searcher;
-import org.elasticsearch.index.engine.Engine.SearcherSupplier;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
@@ -1874,62 +1864,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .filter(c -> c.scrollContext() == null)
             .filter(c -> c.indexShard().shardId().equals(shardId))
             .collect(Collectors.toList());
-    }
-
-    public void reopenPitContexts(ShardId shardId, String segmentsFileName, long keepAlive, String sessionId, long contextId) {
-        IndexService indexService = this.indicesService.indexServiceSafe(shardId.getIndex());
-        final IndexShard shard = indexService.getShard(shardId.id());
-        ReaderContext readerContext = null;
-        try {
-            Directory directory = shard.store().directory();
-            SegmentInfos segmentCommitInfos = SegmentInfos.readCommit(
-                directory,
-                segmentsFileName,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major
-            );
-            IndexCommit indexCommit = Lucene.getIndexCommit(segmentCommitInfos, directory);
-            DirectoryReader open = StandardDirectoryReader.open(indexCommit);
-
-            String searcherId = ReadOnlyEngine.generateSearcherId(segmentCommitInfos);
-            final ShardSearchContextId shardSearchContextId = new ShardSearchContextId(sessionId, contextId, searcherId);
-            SearcherSupplier searchSupplier = new Engine.SearcherSupplier(Function.identity()) {
-
-                @Override
-                protected void doClose() {
-                    // TODO: implement closing logic
-                }
-
-                @Override
-                protected Searcher acquireSearcherInternal(String source) {
-                    EngineConfig engineConfig = shard.getEngineOrNull().getEngineConfig();
-
-                    return new Searcher(
-                        "source",
-                        open,
-                        engineConfig.getSimilarity(),
-                        engineConfig.getQueryCache(),
-                        engineConfig.getQueryCachingPolicy(),
-                        () -> {}
-                    );
-                }
-            };
-            readerContext = new ReaderContext(shardSearchContextId, indexService, shard, searchSupplier, keepAlive, false);
-            final ReaderContext finalReaderContext = readerContext;
-            final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
-            searchOperationListener.onNewReaderContext(finalReaderContext);
-            if (finalReaderContext.scrollContext() != null) {
-                searchOperationListener.onNewScrollContext(finalReaderContext);
-                readerContext.addOnClose(() -> searchOperationListener.onFreeScrollContext(finalReaderContext));
-            }
-            readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
-            putReaderContext(finalReaderContext);
-            readerContext = null;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            // TODO what do we need to close here?
-            // Releasables.close(searchSupplier, readerContext);
-        }
     }
 
     /**

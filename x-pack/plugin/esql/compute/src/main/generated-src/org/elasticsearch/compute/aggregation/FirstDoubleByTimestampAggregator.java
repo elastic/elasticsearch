@@ -107,6 +107,7 @@ public class FirstDoubleByTimestampAggregator {
         private LongArray timestamps;
         private DoubleArray values;
         private int maxGroupId = -1;
+
         GroupingState(BigArrays bigArrays) {
             super(bigArrays);
             this.bigArrays = bigArrays;

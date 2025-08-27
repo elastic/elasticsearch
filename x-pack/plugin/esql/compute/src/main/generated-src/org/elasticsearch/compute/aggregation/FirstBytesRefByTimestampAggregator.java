@@ -111,8 +111,8 @@ public class FirstBytesRefByTimestampAggregator {
         private final BigArrays bigArrays;
         private LongArray timestamps;
         private ObjectArray<BreakingBytesRefBuilder> values;
-        private int maxGroupId = -1;
         private final CircuitBreaker breaker;
+        private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays,CircuitBreaker breaker) {
             super(bigArrays);

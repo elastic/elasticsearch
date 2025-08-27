@@ -135,10 +135,10 @@ public class $Occurrence$$Type$ByTimestampAggregator {
         $else$
         private $Type$Array values;
         $endif$
-        private int maxGroupId = -1;
         $if(BytesRef)$
         private final CircuitBreaker breaker;
         $endif$
+        private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays$if(BytesRef)$,CircuitBreaker breaker$endif$) {
             super(bigArrays);

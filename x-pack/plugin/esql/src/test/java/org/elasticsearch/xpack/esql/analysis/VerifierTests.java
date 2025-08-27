@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,13 +38,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadEnrichPolicyResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -76,6 +71,8 @@ public class VerifierTests extends ESTestCase {
     private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer fullTextAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-full_text_search.json", "test"));
+    private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
+    private final Analyzer oddSampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-odd-timestamp.json", "test"));
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
@@ -1144,7 +1141,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testNotAllowRateOutsideMetrics() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metric command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
             equalTo("1:24: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
@@ -1164,7 +1161,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testRateNotEnclosedInAggregate() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metric command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertThat(
             error("TS tests | STATS rate(network.bytes_in)", tsdb),
             equalTo("1:18: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
@@ -2006,6 +2003,11 @@ public class VerifierTests extends ESTestCase {
             "1:31: invalid output format [42], expecting one of [REGEX, TOKENS]",
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": 42 })")
         );
+        assertEquals(
+            "1:31: Invalid option [output_format] in [CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })],"
+                + " expected a [KEYWORD] value",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })")
+        );
     }
 
     public void testCategorizeOptionSimilarityThreshold() {
@@ -2025,6 +2027,11 @@ public class VerifierTests extends ESTestCase {
             "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })], "
                 + "cannot cast [blah] to [integer]",
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })")
+        );
+        assertEquals(
+            "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })],"
+                + " expected a [INTEGER] value",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })")
         );
     }
 
@@ -2182,6 +2189,11 @@ public class VerifierTests extends ESTestCase {
                     assertThat(error, containsString("cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]"));
                 }
             }
+
+            // MapExpression are not allowed as option values
+            String query = String.format(Locale.ROOT, queryTemplate, optionName, "{ \"abc\": 123 }");
+
+            assertThat(error(query, fullTextAnalyzer), containsString("Invalid option [" + optionName + "]"));
         }
 
         String errorQuery = String.format(Locale.ROOT, queryTemplate, "unknown_option", "\"any_value\"");
@@ -2272,43 +2284,6 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testRemoteLookupJoinWithPipelineBreaker() {
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-        var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test,remote:test"));
-        assertEquals(
-            "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",
-            error(
-                "FROM test,remote:test | STATS c = COUNT(*) by languages "
-                    + "| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-                analyzer
-            )
-        );
-
-        assertEquals(
-            "1:72: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@1:25",
-            error(
-                "FROM test,remote:test | SORT emp_no | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-                analyzer
-            )
-        );
-
-        assertEquals(
-            "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
-            error(
-                "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-                analyzer
-            )
-        );
-        assertEquals(
-            "1:96: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@1:58",
-            error(
-                "FROM test,remote:test | EVAL language_code = languages | ENRICH _coordinator:languages_coord "
-                    + "| LOOKUP JOIN languages_lookup ON language_code",
-                analyzer
-            )
-        );
-    }
-
     public void testRemoteLookupJoinIsSnapshot() {
         // TODO: remove when we allow remote joins in release builds
         assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
@@ -2323,148 +2298,6 @@ public class VerifierTests extends ESTestCase {
             () -> query("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
         );
         assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
-    }
-
-    public void testRemoteEnrichAfterLookupJoin() {
-        EnrichResolution enrichResolution = new EnrichResolution();
-        loadEnrichPolicyResolution(
-            enrichResolution,
-            Enrich.Mode.REMOTE,
-            MATCH_TYPE,
-            "languages",
-            "language_code",
-            "languages_idx",
-            "mapping-languages.json"
-        );
-        var analyzer = AnalyzerTestUtils.analyzer(
-            loadMapping("mapping-default.json", "test"),
-            defaultLookupResolution(),
-            enrichResolution,
-            TEST_VERIFIER
-        );
-
-        String lookupCommand = randomBoolean() ? "LOOKUP JOIN test_lookup ON languages" : "LOOKUP JOIN languages_lookup ON language_code";
-
-        query(Strings.format("""
-            FROM test
-            | EVAL language_code = languages
-            | ENRICH _remote:languages ON language_code
-            | %s
-            """, lookupCommand), analyzer);
-
-        String err = error(Strings.format("""
-            FROM test
-            | EVAL language_code = languages
-            | %s
-            | ENRICH _remote:languages ON language_code
-            """, lookupCommand), analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
-
-        err = error(Strings.format("""
-            FROM test
-            | EVAL language_code = languages
-            | %s
-            | ENRICH _remote:languages ON language_code
-            | %s
-            """, lookupCommand, lookupCommand), analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
-
-        err = error(Strings.format("""
-            FROM test
-            | EVAL language_code = languages
-            | %s
-            | EVAL x = 1
-            | MV_EXPAND language_code
-            | ENRICH _remote:languages ON language_code
-            """, lookupCommand), analyzer);
-        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
-    }
-
-    public void testRemoteEnrichAfterCoordinatorOnlyPlans() {
-        EnrichResolution enrichResolution = new EnrichResolution();
-        loadEnrichPolicyResolution(
-            enrichResolution,
-            Enrich.Mode.REMOTE,
-            MATCH_TYPE,
-            "languages",
-            "language_code",
-            "languages_idx",
-            "mapping-languages.json"
-        );
-        loadEnrichPolicyResolution(
-            enrichResolution,
-            Enrich.Mode.COORDINATOR,
-            MATCH_TYPE,
-            "languages",
-            "language_code",
-            "languages_idx",
-            "mapping-languages.json"
-        );
-        var analyzer = AnalyzerTestUtils.analyzer(
-            loadMapping("mapping-default.json", "test"),
-            defaultLookupResolution(),
-            enrichResolution,
-            TEST_VERIFIER
-        );
-
-        query("""
-            FROM test
-            | EVAL language_code = languages
-            | ENRICH _remote:languages ON language_code
-            | STATS count(*) BY language_name
-            """, analyzer);
-
-        String err = error("""
-            FROM test
-            | EVAL language_code = languages
-            | STATS count(*) BY language_code
-            | ENRICH _remote:languages ON language_code
-            """, analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after STATS"));
-
-        err = error("""
-            FROM test
-            | EVAL language_code = languages
-            | STATS count(*) BY language_code
-            | EVAL x = 1
-            | MV_EXPAND language_code
-            | ENRICH _remote:languages ON language_code
-            """, analyzer);
-        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after STATS"));
-
-        query("""
-            FROM test
-            | EVAL language_code = languages
-            | ENRICH _remote:languages ON language_code
-            | ENRICH _coordinator:languages ON language_code
-            """, analyzer);
-
-        err = error("""
-            FROM test
-            | EVAL language_code = languages
-            | ENRICH _coordinator:languages ON language_code
-            | ENRICH _remote:languages ON language_code
-            """, analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-
-        err = error("""
-            FROM test
-            | EVAL language_code = languages
-            | ENRICH _coordinator:languages ON language_code
-            | EVAL x = 1
-            | MV_EXPAND language_name
-            | DISSECT language_name "%{foo}"
-            | ENRICH _remote:languages ON language_code
-            """, analyzer);
-        assertThat(err, containsString("7:3: ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-
-        err = error("""
-            FROM test
-            | FORK (WHERE languages == 1) (WHERE languages == 2)
-            | EVAL language_code = languages
-            | ENRICH _remote:languages ON language_code
-            """, analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after FORK"));
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {
@@ -2484,28 +2317,80 @@ public class VerifierTests extends ESTestCase {
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)", "second");
+            checkVectorFunctionsNullArgs("v_cosine(null, vector)");
+            checkVectorFunctionsNullArgs("v_cosine(vector, null)");
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_dot_product(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_dot_product(vector, null)", "second");
+            checkVectorFunctionsNullArgs("v_dot_product(null, vector)");
+            checkVectorFunctionsNullArgs("v_dot_product(vector, null)");
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(vector, null)", "second");
+            checkVectorFunctionsNullArgs("v_l1_norm(null, vector)");
+            checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(vector, null)", "second");
+            checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
+            checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_magnitude(null)");
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_hamming(null, vector)");
+            checkVectorFunctionsNullArgs("v_hamming(vector, null)");
         }
     }
 
-    private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation, String argOrdinal) throws Exception {
+    public void testToIPInvalidOptions() {
+        String query = "ROW result = to_ip(\"127.0.0.1\", 123)";
+        assertThat(error(query), containsString("second argument of [to_ip(\"127.0.0.1\", 123)] must be a map expression, received [123]"));
+
+        query = "ROW result = to_ip(\"127.0.0.1\", { \"leading_zeros\": { \"foo\": \"bar\" } })";
+        assertThat(error(query), containsString("Invalid option [leading_zeros]"));
+
+        query = "ROW result = to_ip(\"127.0.0.1\", { \"leading_zeros\": \"abcdef\" })";
+        assertThat(error(query), containsString("Illegal leading_zeros [abcdef]"));
+    }
+
+    public void testInvalidTBucketCalls() {
+        assertThat(error("from test | stats max(emp_no) by tbucket(1 hour)"), equalTo("1:34: Unknown column [@timestamp]"));
         assertThat(
-            error("from test | eval similarity = " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
+            error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
+            equalTo("1:42: error building [tbucket]: expects exactly one argument")
         );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer, ParsingException.class),
+            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(1 hr)", sampleDataAnalyzer, ParsingException.class),
+            equalTo("1:50: Unexpected temporal unit: 'hr'")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(\"1\")", sampleDataAnalyzer),
+            equalTo("1:42: argument of [tbucket(\"1\")] must be [date_period or time_duration], found value [\"1\"] type [keyword]")
+        );
+
+        /*
+        To test unsupported @timestamp data type. In this case, we use a boolean as a type for the @timestamp field which is not supported
+        by TBUCKET.
+         */
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(\"1 hour\")", oddSampleDataAnalyzer),
+            equalTo(
+                "1:42: second argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
+            )
+        );
+        for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
+            assertThat(
+                error("from test | stats max(event_duration) by tbucket(\"" + interval + "\")", sampleDataAnalyzer),
+                containsString("1:50: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
+            );
+        }
+    }
+
+    private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
+        query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
 
     private void query(String query) {

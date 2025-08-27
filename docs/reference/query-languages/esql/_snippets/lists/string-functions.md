@@ -1,6 +1,7 @@
 * [`BIT_LENGTH`](../../functions-operators/string-functions.md#esql-bit_length)
 * [`BYTE_LENGTH`](../../functions-operators/string-functions.md#esql-byte_length)
 * [`CONCAT`](../../functions-operators/string-functions.md#esql-concat)
+* [`CONTAINS`](../../functions-operators/string-functions.md#esql-contains)
 * [`ENDS_WITH`](../../functions-operators/string-functions.md#esql-ends_with)
 * [`FROM_BASE64`](../../functions-operators/string-functions.md#esql-from_base64)
 * [`HASH`](../../functions-operators/string-functions.md#esql-hash)

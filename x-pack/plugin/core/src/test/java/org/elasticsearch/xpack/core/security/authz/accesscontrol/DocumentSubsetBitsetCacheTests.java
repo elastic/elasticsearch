@@ -53,18 +53,22 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -397,9 +401,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 cache.verifyInternalConsistency();
 
                 // Due to cache evictions, we must get more bitsets than fields
-                assertThat(uniqueBitSets.size(), Matchers.greaterThan(FIELD_COUNT));
+                assertThat(uniqueBitSets.size(), greaterThan(FIELD_COUNT));
                 // Due to cache evictions, we must have seen more bitsets than the cache currently holds
-                assertThat(uniqueBitSets.size(), Matchers.greaterThan(cache.entryCount()));
+                assertThat(uniqueBitSets.size(), greaterThan(cache.entryCount()));
                 // Even under concurrent pressure, the cache should hit the expected size
                 assertThat(cache.entryCount(), is(maxCacheCount));
                 assertThat(cache.ramBytesUsed(), is(maxCacheBytes));
@@ -518,6 +522,73 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertFalse(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new TermQuery(new Term("term"))));
     }
 
+    public void testHitsMissesAndEvictionsStats() throws Exception {
+        // cache that will evict all-but-one element, to test evictions
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + (EXPECTED_BYTES_PER_BIT_SET / 2);
+        final Settings settings = Settings.builder()
+            .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
+            .build();
+        final DocumentSubsetBitsetCache cache = newCache(settings);
+
+        final Supplier<Map<String, Object>> emptyStatsSupplier = () -> {
+            final Map<String, Object> stats = new LinkedHashMap<>();
+            stats.put("count", 0);
+            stats.put("memory", "0b");
+            stats.put("memory_in_bytes", 0L);
+            stats.put("hits", 0L);
+            stats.put("misses", 0L);
+            stats.put("evictions", 0L);
+            stats.put("hits_time_in_millis", 0L);
+            stats.put("misses_time_in_millis", 0L);
+            return stats;
+        };
+
+        final Map<String, Object> expectedStats = emptyStatsSupplier.get();
+        assertThat(cache.usageStats(), equalTo(expectedStats));
+
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
+            // first lookup - miss
+            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
+            final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
+            assertThat(bitSet1, notNullValue());
+            expectedStats.put("count", 1);
+            expectedStats.put("misses", 1L);
+            expectedStats.put("memory", EXPECTED_BYTES_PER_BIT_SET + "b");
+            expectedStats.put("memory_in_bytes", EXPECTED_BYTES_PER_BIT_SET);
+            expectedStats.put("misses_time_in_millis", 1L);
+            assertThat(cache.usageStats(), equalTo(expectedStats));
+
+            // second same lookup - hit
+            final BitSet bitSet1Again = cache.getBitSet(query1, leafContext);
+            assertThat(bitSet1Again, sameInstance(bitSet1));
+            expectedStats.put("hits", 1L);
+            expectedStats.put("hits_time_in_millis", 1L);
+            assertThat(cache.usageStats(), equalTo(expectedStats));
+
+            // second query - miss, should evict the first one
+            final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
+            final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
+            assertThat(bitSet2, notNullValue());
+            // surprisingly, the eviction callback can call `get` on the cache (asynchronously) which causes another miss (or hit)
+            // so this assertion is about the current state of the code, rather than the expected or desired state.
+            // see https://github.com/elastic/elasticsearch/issues/132842
+            expectedStats.put("misses", 3L);
+            expectedStats.put("evictions", 1L);
+            // underlying Cache class tracks hits/misses, but timing is in DLS cache, which is why we have `2L` here,
+            // because DLS cache is only hit once
+            expectedStats.put("misses_time_in_millis", 2L);
+            assertBusy(() -> { assertThat(cache.usageStats(), equalTo(expectedStats)); }, 200, TimeUnit.MILLISECONDS);
+        });
+
+        final Map<String, Object> finalStats = emptyStatsSupplier.get();
+        finalStats.put("hits", 1L);
+        finalStats.put("misses", 3L);
+        finalStats.put("evictions", 2L);
+        finalStats.put("hits_time_in_millis", 1L);
+        finalStats.put("misses_time_in_millis", 2L);
+        assertThat(cache.usageStats(), equalTo(finalStats));
+    }
+
     private void runTestOnIndex(CheckedBiConsumer<SearchExecutionContext, LeafReaderContext, Exception> body) throws Exception {
         runTestOnIndices(1, ctx -> {
             final TestIndexContext indexContext = ctx.get(0);
@@ -525,26 +596,13 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         });
     }
 
-    private static final class TestIndexContext implements Closeable {
-        private final Directory directory;
-        private final IndexWriter indexWriter;
-        private final DirectoryReader directoryReader;
-        private final SearchExecutionContext searchExecutionContext;
-        private final LeafReaderContext leafReaderContext;
-
-        private TestIndexContext(
-            Directory directory,
-            IndexWriter indexWriter,
-            DirectoryReader directoryReader,
-            SearchExecutionContext searchExecutionContext,
-            LeafReaderContext leafReaderContext
-        ) {
-            this.directory = directory;
-            this.indexWriter = indexWriter;
-            this.directoryReader = directoryReader;
-            this.searchExecutionContext = searchExecutionContext;
-            this.leafReaderContext = leafReaderContext;
-        }
+    private record TestIndexContext(
+        Directory directory,
+        IndexWriter indexWriter,
+        DirectoryReader directoryReader,
+        SearchExecutionContext searchExecutionContext,
+        LeafReaderContext leafReaderContext
+    ) implements Closeable {
 
         @Override
         public void close() throws IOException {
@@ -600,7 +658,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 null,
                 () -> true,
                 null,
-                emptyMap(),
+                Map.of(),
                 MapperMetrics.NOOP
             );
 
@@ -630,7 +688,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
         }
 
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, emptyList());
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of());
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -650,7 +708,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     private DocumentSubsetBitsetCache newCache(Settings settings) {
-        return new DocumentSubsetBitsetCache(settings, singleThreadExecutor);
+        final AtomicLong increasingMillisTime = new AtomicLong();
+        final LongSupplier relativeNanoTimeProvider = () -> TimeUnit.MILLISECONDS.toNanos(increasingMillisTime.getAndIncrement());
+        return new DocumentSubsetBitsetCache(settings, singleThreadExecutor, relativeNanoTimeProvider);
     }
-
 }

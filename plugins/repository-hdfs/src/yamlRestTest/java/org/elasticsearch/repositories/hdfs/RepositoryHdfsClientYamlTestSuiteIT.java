@@ -52,6 +52,6 @@ public class RepositoryHdfsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters(new String[] { "hdfs_repository" }, Map.of("hdfs_port", hdfsFixture.getPort()));
+        return createParameters(Map.of("hdfs_port", hdfsFixture.getPort()), "hdfs_repository");
     }
 }

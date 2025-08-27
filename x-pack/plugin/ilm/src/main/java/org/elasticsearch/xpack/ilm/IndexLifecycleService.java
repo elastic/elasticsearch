@@ -233,16 +233,16 @@ public class IndexLifecycleService
                         );
                     }
                 } catch (Exception e) {
-                    String format = format(
+                    String logMessage = format(
                         "async action execution failed during master election trigger for index [%s] with policy [%s] in step [%s]",
                         idxMeta.getIndex().getName(),
                         policyName,
                         stepKey
                     );
                     if (logger.isTraceEnabled()) {
-                        format += format(", lifecycle state: [%s]", lifecycleState.asMap());
+                        logMessage += format(", lifecycle state: [%s]", lifecycleState.asMap());
                     }
-                    logger.warn(format, e);
+                    logger.warn(logMessage, e);
 
                     // Don't rethrow the exception, we don't want a failure for one index to be
                     // called to cause actions not to be triggered for further indices

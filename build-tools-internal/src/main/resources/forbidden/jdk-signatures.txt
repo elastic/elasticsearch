@@ -120,3 +120,11 @@ javax.xml.parsers.SAXParserFactory#newInstance(java.lang.String, java.lang.Class
 javax.xml.parsers.SAXParserFactory#newDefaultNSInstance()
 javax.xml.parsers.SAXParserFactory#newNSInstance()
 javax.xml.parsers.SAXParserFactory#newNSInstance(java.lang.String, java.lang.ClassLoader)
+
+@defaultMessage SchemaValidator should not be used directly. Use XmlUtils#getHardenedSchemaValidator() instead
+javax.xml.validation.SchemaFactory#newDefaultInstance()
+javax.xml.validation.SchemaFactory#newInstance(java.lang.String)
+javax.xml.validation.SchemaFactory#newInstance(java.lang.String, java.lang.String, java.lang.ClassLoader)
+
+@defaultMessage Validator should not be used directly. Use XmlUtils#getHardenedValidator() instead
+javax.xml.validation.Schema#newValidator()

@@ -356,8 +356,6 @@ serverless: unavailable
 
 The `run_as` permission enables an authenticated user to submit requests on behalf of another user. The value can be a user name or a comma-separated list of user names. (You can also specify users as an array of strings or a YAML sequence.) For more information, see [Submitting requests on behalf of other users](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/submitting-requests-on-behalf-of-other-users.md).
 
-This privilege is not available in {{serverless-full}}.
-
 
 ## Application privileges [application-privileges]
 

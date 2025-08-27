@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
+import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -81,7 +82,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         );
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyFieldMapper.Builder {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
@@ -90,7 +91,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final IndexVersion indexCreatedVersion;
         private final TextParams.Analyzers analyzers;
         private final Parameter<Boolean> store;
 
@@ -101,8 +101,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, isSyntheticSourceEnabled, isWithinMultiField);
-            this.indexCreatedVersion = indexCreatedVersion;
+            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> builder(m).analyzers.getIndexAnalyzer(),
@@ -113,7 +112,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         private boolean storeDefault() {
-            if (TextFieldMapper.keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
+            if (TextFieldMapper.keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion())) {
                 return false;
             }
             return isSyntheticSourceEnabled() && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
@@ -544,7 +543,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.builder = builder;
         this.indexAnalyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexCreatedVersion = builder.indexCreatedVersion();
     }
 
     @Override
@@ -603,7 +602,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
             leafName(),
-            builder.indexCreatedVersion,
+            builder.indexCreatedVersion(),
             builder.analyzers.indexAnalyzers,
             fieldType().isSyntheticSourceEnabled(),
             fieldType().isWithinMultiField()

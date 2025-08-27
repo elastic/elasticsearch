@@ -54,7 +54,8 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -100,9 +101,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    public static class Builder extends FieldMapper.Builder {
-
-        private final IndexVersion indexCreatedVersion;
+    public static class Builder extends TextFamilyFieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -117,8 +116,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, isSyntheticSourceEnabled, isWithinMultiField);
-            this.indexCreatedVersion = indexCreatedVersion;
+            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
@@ -187,7 +185,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         )
     );
 
-    public static class MatchOnlyTextFieldType extends StringFieldType {
+    public static class MatchOnlyTextFieldType extends TextFamilyFieldType {
 
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
@@ -586,7 +584,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (textFieldType.isSyntheticSourceEnabled()) {
+            if (isSyntheticSourceEnabled()) {
                 final String fieldName = syntheticSourceFallbackFieldName();
                 if (storedFieldInBinaryFormat) {
                     return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(fieldName);
@@ -605,7 +603,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
             }
-            if (textFieldType.isSyntheticSourceEnabled()) {
+            if (isSyntheticSourceEnabled()) {
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     syntheticSourceFallbackFieldName(),
                     CoreValuesSourceType.KEYWORD,
@@ -652,7 +650,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         assert mappedFieldType.hasDocValues() == false;
 
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();

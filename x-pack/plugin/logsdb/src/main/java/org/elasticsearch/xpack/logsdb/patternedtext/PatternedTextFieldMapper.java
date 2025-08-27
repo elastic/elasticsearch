@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
@@ -55,9 +56,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyFieldMapper.Builder {
 
-        private final IndexVersion indexCreatedVersion;
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final TextParams.Analyzers analyzers;
@@ -81,8 +81,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, isSyntheticSourceEnabled, isWithinMultiField);
-            this.indexCreatedVersion = indexCreatedVersion;
+            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
             this.indexSettings = indexSettings;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
@@ -107,8 +106,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 tsi,
                 indexAnalyzer,
                 meta.getValue(),
-                isSyntheticSourceEnabled,
-                isWithinMultiField
+                isSyntheticSourceEnabled(),
+                isWithinMultiField()
             );
         }
 
@@ -119,9 +118,9 @@ public class PatternedTextFieldMapper extends FieldMapper {
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternedTextFieldType.templateIdFieldName(),
                 indexSettings.getMode(),
-                indexCreatedVersion,
+                indexCreatedVersion(),
                 true,
-                isWithinMultiField
+                isWithinMultiField()
             ).indexed(false).build(context);
 
             return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
@@ -151,7 +150,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         assert mappedFieldPatternedTextFieldType.hasDocValues() == false;
 
         this.fieldType = Defaults.FIELD_TYPE;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexSettings = builder.indexSettings;

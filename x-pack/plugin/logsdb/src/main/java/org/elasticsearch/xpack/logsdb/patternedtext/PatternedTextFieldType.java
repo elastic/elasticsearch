@@ -33,7 +33,7 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFiel
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -52,7 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PatternedTextFieldType extends StringFieldType {
+public class PatternedTextFieldType extends TextFamilyFieldType {
 
     private static final String TEMPLATE_SUFFIX = ".template";
     private static final String TEMPLATE_ID_SUFFIX = ".template_id";

@@ -237,9 +237,8 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyFieldMapper.Builder {
 
-        private final IndexVersion indexCreatedVersion;
         private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;
 
@@ -301,9 +300,8 @@ public final class TextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
 
-            this.indexCreatedVersion = indexCreatedVersion;
             this.indexMode = indexMode;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
@@ -312,29 +310,30 @@ public final class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion
             );
 
-            // don't enable norms by default if the index is LOGSDB or TSDB based
-            this.norms = Parameter.normsParam(
-                m -> ((TextFieldMapper) m).norms,
-                () -> indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES
-            );
+            this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
+                if (indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
+                    // don't enable norms by default if the index is LOGSDB or TSDB based
+                    return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
+                }
+                // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
+                return true;
+            });
 
-            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, this::storeDefault);
-        }
+            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
+                // ideally and for simplicity, store should be set to false by default
+                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion)) {
+                    return false;
+                }
 
-        private boolean storeDefault() {
-            // ideally and for simplicity, store should be set to false by default
-            if (keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(indexCreatedVersion)) {
-                return false;
-            }
-
-            // however, because historically we set store to true to support synthetic source, we must also keep that logic:
-            if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
-                return isSyntheticSourceEnabled()
-                    && isWithinMultiField() == false
-                    && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-            } else {
-                return isSyntheticSourceEnabled() && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-            }
+                // however, because historically we set store to true to support synthetic source, we must also keep that logic:
+                if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+                    return isSyntheticSourceEnabled
+                        && isWithinMultiField == false
+                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                } else {
+                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                }
+            });
         }
 
         public Builder index(boolean index) {
@@ -437,7 +436,7 @@ public final class TextFieldMapper extends FieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(IndexVersions.V_7_2_1) ? leafName() : context.buildFullName(leafName());
+            String fullName = indexCreatedVersion().before(IndexVersions.V_7_2_1) ? leafName() : context.buildFullName(leafName());
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);
@@ -489,11 +488,11 @@ public final class TextFieldMapper extends FieldMapper {
                 store,
                 indexOptions,
                 // legacy indices do not have access to norms
-                indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
+                indexCreatedVersion().isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
             BuilderParams builderParams = builderParams(this, context);
-            TextFieldType tft = buildFieldType(fieldType, builderParams.multiFields(), context, indexCreatedVersion);
+            TextFieldType tft = buildFieldType(fieldType, builderParams.multiFields(), context, indexCreatedVersion());
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
             for (Mapper mapper : builderParams.multiFields()) {
@@ -681,7 +680,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     }
 
-    public static class TextFieldType extends StringFieldType {
+    public static class TextFieldType extends TextFamilyFieldType {
 
         private boolean fielddata;
         private FielddataFrequencyFilter filter;
@@ -1348,7 +1347,7 @@ public final class TextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + fullPath() + "]");
         }
 
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
@@ -1437,7 +1436,7 @@ public final class TextFieldMapper extends FieldMapper {
      * Returns whether the current index version supports not storing keyword multi fields when they trip ignore_above. The consequence
      * of this check is that the store parameter will be simplified and defaulted to false.
      */
-    public static boolean keywordMultiFieldsNotStoredWhenIgnored_indexVersionCheck(final IndexVersion indexCreatedVersion) {
+    public static boolean keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(final IndexVersion indexCreatedVersion) {
         return indexCreatedVersion.onOrAfter(IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED);
     }
 

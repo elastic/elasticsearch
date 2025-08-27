@@ -30,20 +30,7 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        this(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, null, null);
-    }
-
-    protected SimpleMappedFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta,
-        Boolean isSyntheticSourceEnabled,
-        Boolean isWithinMultiField
-    ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, isSyntheticSourceEnabled, isWithinMultiField);
+        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override

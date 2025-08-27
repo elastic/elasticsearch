@@ -78,8 +78,6 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getPrimaryIncrement().convention(1000);
                 Version esVersion = VersionProperties.getElasticsearchVersion();
                 t.getMainReleaseBranch().convention(esVersion.getMajor() + "." + esVersion.getMinor());
-                t.getResourcesProjectDir()
-                    .set(project.getRootProject().getProjectDir().toPath().relativize(project.getProjectDir().toPath()).toString());
             });
 
         validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));

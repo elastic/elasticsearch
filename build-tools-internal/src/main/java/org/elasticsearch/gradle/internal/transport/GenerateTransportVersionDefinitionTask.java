@@ -24,6 +24,7 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
+import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -34,8 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import javax.inject.Inject;
 
 /**
  * This task generates transport version definition files. These files
@@ -59,23 +58,14 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @ServiceReference("transportVersionResources")
     abstract Property<TransportVersionResourcesService> getResources();
 
-    // assumption: this task is always run on main, so we can determine the name by diffing with main and looking for new files added in the
-    // definition directory. (not true: once we generate the file, this will no longer hold true if we then need to update it)
-
-    /**
-     * Used to set the name of the TransportVersionSet for which a data file will be generated.
-     */
     @Input
     @Optional
-    @Option(option = "name", description = "TBD") // TODO add description
-    public abstract Property<String> getTransportVersionName(); // The plugin should always set this, not optional
+    @Option(option = "name", description = "The name of the Transport Version reference")
+    public abstract Property<String> getTransportVersionName();
 
-    /**
-     * The release releaseBranch names the generated transport version should target.
-     */
-    @Optional // In CI we find these from the github PR labels
+    @Optional
     @Input
-    @Option(option = "branches", description = "The branches for which to generate IDs, e.g. --branches=\"main,9.1\"")
+    @Option(option = "branches", description = "The release branches for which to generate IDs, e.g. --branches=main,9.1")
     public abstract Property<String> getBranches();
 
     @Input
@@ -83,11 +73,12 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @Option(option = "increment", description = "The amount to increment the primary id for the main releaseBranch")
     public abstract Property<Integer> getPrimaryIncrement();
 
+    /**
+     * The version number currently associated with the `main` branch, (e.g. as returned by
+     * VersionProperties.getElasticsearchVersion()).
+     */
     @Input
     public abstract Property<String> getMainReleaseBranch();
-
-    @Input
-    public abstract Property<String> getResourcesProjectDir();
 
     private final ExecOperations execOperations;
 
@@ -106,7 +97,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             : findAddedTransportVersionName(resources, referencedNames, changedDefinitionNames);
 
         if (name.isEmpty()) {
-            // Todo this should reset all the changed latest files regardless of if there's a name or not
             resetAllLatestFiles(resources);
         } else {
             List<TransportVersionId> ids = updateLatestFiles(resources, name);
@@ -129,12 +119,10 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromMain(name);
 
         for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromMain()) {
-            System.out.println("Looking at release branch: " + upperBound.releaseBranch());
             if (name.equals(upperBound.name())) {
                 if (targetReleaseBranches.contains(upperBound.releaseBranch()) == false) {
-                    // we don't want to target this latest file but we already changed it
-                    // Regenerate to make this operation idempotent. Need to undo prior updates to the latest files if the list of minor
-                    // versions has changed.
+                    // Here, we aren't targeting this latest file, but need to undo prior updates if the list of minor
+                    // versions has changed. We must regenerate this latest file to make this operation idempotent.
                     resources.writeUpperBound(upperBound);
                 } else {
                     ids.add(upperBound.id());
@@ -143,9 +131,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                 if (targetReleaseBranches.contains(upperBound.releaseBranch())) {
                     TransportVersionId targetId = null;
                     if (existingDefinition != null) {
-                        System.out.println("Looking for upper bound base id: " + upperBound.id().base());
                         for (TransportVersionId id : existingDefinition.ids()) {
-                            System.out.println("Checking id: " + id);
                             if (id.base() == upperBound.id().base()) {
                                 targetId = id;
                                 break;
@@ -174,9 +160,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                 .map(branch -> branch.equals("main") ? getMainReleaseBranch().get() : branch)
                 .collect(Collectors.toSet());
         } else {
-            // look for env var indicating github PR link from CI
-            // use github api to find current labels, filter down to version labels
-            // map version labels to branches
+            // Look for env var indicating github PR link from CI.
+            // Use github api to find current labels, filter down to version labels.
+            // Map version labels to branches.
             String prUrl = System.getenv("BUILDKITE_PULL_REQUEST");
             if (prUrl == null) {
                 throw new RuntimeException("When running outside CI, --branches must be specified");

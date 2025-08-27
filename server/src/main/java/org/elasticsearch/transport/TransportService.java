@@ -234,7 +234,7 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
-    // NOTE: Only for use in tests
+    // Public access for tests.
     public TransportService(
         Settings settings,
         Transport transport,
@@ -255,7 +255,7 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
-    // NOTE: Only for use in tests
+    // Public access for tests.
     public TransportService(
         Settings settings,
         Transport transport,

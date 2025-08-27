@@ -21,7 +21,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkE
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkCodeEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
@@ -115,7 +115,7 @@ class HardcodedEntitlements {
                 )
             ),
             new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
-            new Scope("java.xml", List.of(new ReadJdkCodeEntitlement())),
+            new Scope("java.xml", List.of(new ReadJdkImageEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",

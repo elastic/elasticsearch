@@ -16,4 +16,4 @@ package org.elasticsearch.entitlement.runtime.policy.entitlements;
  * runtime images (jrt) are read only, this implicitly only allows
  * reading those urls.
  */
-public class ReadJdkCodeEntitlement implements Entitlement {}
+public class ReadJdkImageEntitlement implements Entitlement {}

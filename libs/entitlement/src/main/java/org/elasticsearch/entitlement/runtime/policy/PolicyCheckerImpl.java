@@ -21,7 +21,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkE
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkCodeEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
@@ -492,7 +492,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 checkUnsupportedURLProtocolConnection(callerClass, "jar with unsupported inner protocol");
             }
         } else if (isJrtUrl(url)) {
-            checkEntitlementPresent(callerClass, ReadJdkCodeEntitlement.class);
+            checkEntitlementPresent(callerClass, ReadJdkImageEntitlement.class);
         } else {
             checkUnsupportedURLProtocolConnection(callerClass, url.getProtocol());
         }

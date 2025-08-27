@@ -189,7 +189,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         // holding the read ("update") side of the lock. It is not possible to upgrade a read lock to a write lock ("eviction"), but we
         // need to acquire that lock here.
         cleanupExecutor.submit(() -> {
-            try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
+            try (ReleasableLock ignoredLock = cacheEvictionLock.acquire()) {
                 // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
                 if (bitsetCache.get(cacheKey) == null) {
                     // key is no longer in the cache, make sure it is no longer in the lookup map either.
@@ -248,17 +248,17 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         final IndexReader.CacheKey indexKey = coreCacheHelper.getKey();
         final BitsetCacheKey cacheKey = new BitsetCacheKey(indexKey, query);
 
-        try (ReleasableLock ignored = cacheModificationLock.acquire()) {
+        try (ReleasableLock ignoredLock = cacheModificationLock.acquire()) {
             final boolean[] cacheKeyWasPresent = new boolean[] { true };
             final BitSet bitSet = bitsetCache.computeIfAbsent(cacheKey, ignore1 -> {
                 cacheKeyWasPresent[0] = false;
                 // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
-                keysByIndex.compute(indexKey, (ignore2, set) -> {
-                    if (set == null) {
-                        set = ConcurrentCollections.newConcurrentSet();
+                keysByIndex.compute(indexKey, (ignore2, keys) -> {
+                    if (keys == null) {
+                        keys = ConcurrentCollections.newConcurrentSet();
                     }
-                    set.add(cacheKey);
-                    return set;
+                    keys.add(cacheKey);
+                    return keys;
                 });
                 final BitSet result = computeBitSet(query, context);
                 if (result == null) {
@@ -406,22 +406,22 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * another. This method is only called by tests.
      */
     void verifyInternalConsistency() {
-        bitsetCache.keys().forEach(bck -> {
-            final Set<BitsetCacheKey> set = keysByIndex.get(bck.indexKey);
-            if (set == null) {
+        bitsetCache.keys().forEach(cacheKey -> {
+            final Set<BitsetCacheKey> keys = keysByIndex.get(cacheKey.indexKey);
+            if (keys == null) {
                 throw new IllegalStateException(
-                    "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.indexKey + "] in the lookup map"
+                    "Key [" + cacheKey + "] is in the cache, but there is no entry for [" + cacheKey.indexKey + "] in the lookup map"
                 );
             }
-            if (set.contains(bck) == false) {
+            if (keys.contains(cacheKey) == false) {
                 throw new IllegalStateException(
-                    "Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.indexKey + "] does not contain that key"
+                    "Key [" + cacheKey + "] is in the cache, but the lookup entry for [" + cacheKey.indexKey + "] does not contain that key"
                 );
             }
         });
-        keysByIndex.values().stream().flatMap(Set::stream).forEach(bck -> {
-            if (bitsetCache.get(bck) == null) {
-                throw new IllegalStateException("Key [" + bck + "] is in the lookup map, but is not in the cache");
+        keysByIndex.values().stream().flatMap(Set::stream).forEach(cacheKey -> {
+            if (bitsetCache.get(cacheKey) == null) {
+                throw new IllegalStateException("Key [" + cacheKey + "] is in the lookup map, but is not in the cache");
             }
         });
     }

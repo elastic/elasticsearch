@@ -31,7 +31,7 @@ public abstract class ProjectSubscribeBuildService implements BuildService<Build
      * The values are LinkedHashSet to preserve the order of registration mostly to provide a predicatable order
      * when running consecutive builds.
      * */
-    private Map<String, Collection<String>> versionsByTopic = new HashMap<>();
+    private final Map<String, Collection<String>> versionsByTopic = new HashMap<>();
 
     @Inject
     public ProjectSubscribeBuildService(ProviderFactory providerFactory) {

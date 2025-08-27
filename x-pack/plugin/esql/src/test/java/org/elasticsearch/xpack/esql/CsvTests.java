@@ -86,7 +86,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.ConstantRefCountedIndexedByShardId;
+import org.elasticsearch.xpack.esql.planner.ConstantShardContextIndexedByShardId;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -757,7 +757,7 @@ public class CsvTests extends ESTestCase {
                 "data",
                 foldCtx,
                 csvDataNodePhysicalPlan,
-                ConstantRefCountedIndexedByShardId.INSTANCE
+                ConstantShardContextIndexedByShardId.INSTANCE
             );
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));

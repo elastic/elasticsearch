@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
@@ -195,14 +196,17 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
             IntVector segments = null;
             IntVector docs = null;
             DocVector result = null;
-            if (shardRefCounters == null) {
-                throw new IllegalStateException("shardRefCounters must be set before building");
-            }
             try {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shardRefCounters, shards, segments, docs, null);
+                result = new DocVector(
+                    shardRefCounters == null ? AlwaysReferencedIndexedByShardId.INSTANCE : shardRefCounters,
+                    shards,
+                    segments,
+                    docs,
+                    null
+                );
                 return result.asBlock();
             } finally {
                 if (result == null) {

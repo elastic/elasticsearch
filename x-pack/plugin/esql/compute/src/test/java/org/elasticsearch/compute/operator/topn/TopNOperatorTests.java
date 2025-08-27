@@ -23,6 +23,9 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -39,6 +42,7 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TupleAbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -140,6 +144,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     @Override
     protected TopNOperator.TopNOperatorFactory simple(SimpleOptions options) {
         return new TopNOperator.TopNOperatorFactory(
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             4,
             List.of(LONG),
             List.of(DEFAULT_UNSORTABLE),
@@ -221,6 +226,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext context = driverContext();
         try (
             TopNOperator op = new TopNOperator.TopNOperatorFactory(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
                 topCount,
                 List.of(LONG),
                 List.of(DEFAULT_UNSORTABLE),
@@ -559,12 +565,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         blockFactory,
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         topCount,
                         elementTypes,
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
-                        randomPageSize(),
-                        driverContext.phase()
+                        randomPageSize()
                     )
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
@@ -649,12 +655,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         blockFactory,
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         topCount,
                         elementTypes,
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
-                        randomPageSize(),
-                        driverContext.phase()
+                        randomPageSize()
                     )
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
@@ -677,6 +683,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         var page = topNTwoColumns(
             driverContext,
             new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000)),
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             limit,
             encoder,
             sortOrders
@@ -693,6 +700,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     private <T, S> List<Page> topNTwoColumns(
         DriverContext driverContext,
         TupleAbstractBlockSourceOperator<T, S> sourceOperator,
+        IndexedByShardId<? extends RefCounted> shardRefCounters,
         int limit,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders
@@ -706,12 +714,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        shardRefCounters,
                         limit,
                         sourceOperator.elementTypes(),
                         encoder,
                         sortOrders,
-                        randomPageSize(),
-                        driverContext.phase()
+                        randomPageSize()
                     )
                 ),
                 new PageConsumerOperator(pages::add)
@@ -749,6 +757,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testTopNManyDescriptionAndToString() {
         int fixedLength = between(1, 100);
         TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             10,
             List.of(BYTES_REF, BYTES_REF),
             List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
@@ -991,12 +1000,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         topCount,
                         List.of(blockType),
                         List.of(encoder),
                         List.of(sortOrders),
-                        randomPageSize(),
-                        driverContext.phase()
+                        randomPageSize()
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actualValues, p))
@@ -1122,12 +1131,12 @@ public class TopNOperatorTests extends OperatorTestCase {
             new TopNOperator(
                 driverContext.blockFactory(),
                 nonBreakingBigArrays().breakerService().getBreaker("request"),
+                AlwaysReferencedIndexedByShardId.INSTANCE,
                 topCount,
                 elementTypes,
                 encoders,
                 uniqueOrders.stream().toList(),
-                rows,
-                driverContext.phase()
+                rows
             ),
             List.of(new Page(blocks.toArray(Block[]::new))).iterator(),
             driverContext
@@ -1166,12 +1175,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                         new TopNOperator(
                             driverContext.blockFactory(),
                             nonBreakingBigArrays().breakerService().getBreaker("request"),
+                            AlwaysReferencedIndexedByShardId.INSTANCE,
                             ips.size(),
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                            randomPageSize(),
-                            driverContext.phase()
+                            randomPageSize()
                         )
                     ),
                     new PageConsumerOperator(p -> readInto(actual, p))
@@ -1293,12 +1302,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                         new TopNOperator(
                             driverContext.blockFactory(),
                             nonBreakingBigArrays().breakerService().getBreaker("request"),
+                            AlwaysReferencedIndexedByShardId.INSTANCE,
                             ips.size(),
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
-                            randomPageSize(),
-                            driverContext.phase()
+                            randomPageSize()
                         )
                     ),
                     new PageConsumerOperator(p -> readInto(actual, p))
@@ -1381,6 +1390,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         2,
                         List.of(BYTES_REF, INT),
                         List.of(TopNEncoder.UTF8, DEFAULT_UNSORTABLE),
@@ -1388,8 +1398,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                             new TopNOperator.SortOrder(0, true, randomBoolean()),
                             new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean())
                         ),
-                        randomPageSize(),
-                        driverContext.phase()
+                        randomPageSize()
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -1421,12 +1430,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         topCount,
                         List.of(LONG),
                         List.of(DEFAULT_UNSORTABLE),
                         List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
-                        maxPageSize,
-                        driverContext.phase()
+                        maxPageSize
                     )
                 ),
                 new PageConsumerOperator(p -> {
@@ -1457,12 +1466,12 @@ public class TopNOperatorTests extends OperatorTestCase {
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
                 breaker,
+                AlwaysReferencedIndexedByShardId.INSTANCE,
                 2,
                 List.of(INT),
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
-                randomPageSize(),
-                driverContext().phase()
+                randomPageSize()
             )
         ) {
             op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
@@ -1481,12 +1490,12 @@ public class TopNOperatorTests extends OperatorTestCase {
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
                 breaker,
+                AlwaysReferencedIndexedByShardId.INSTANCE,
                 10,
                 types,
                 encoders,
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
-                randomPageSize(),
-                driverContext().phase()
+                randomPageSize()
             )
         ) {
             int[] blockValues = IntStream.range(0, rows).toArray();
@@ -1518,19 +1527,19 @@ public class TopNOperatorTests extends OperatorTestCase {
             tuple(new BlockUtils.Doc(2, 30, 300), null),
             tuple(new BlockUtils.Doc(3, 40, 400), -3L)
         );
-        List<RefCounted> refCountedList = Stream.<RefCounted>generate(() -> new SimpleRefCounted()).limit(4).toList();
-        var shardRefCounted = ShardRefCounted.fromList(refCountedList);
 
+        List<RefCounted> refCountedList = Stream.<RefCounted>generate(() -> new SimpleRefCounted()).limit(4).toList();
+        var shardRefCounters = new IndexedByShardIdFromList<>(refCountedList);
         var pages = topNTwoColumns(driverContext(), new TupleDocLongBlockSourceOperator(driverContext().blockFactory(), values) {
             @Override
             protected Block.Builder firstElementBlockBuilder(int length) {
-                return DocBlock.newBlockBuilder(blockFactory, length).setShardRefCounted(shardRefCounted);
+                return DocBlock.newBlockBuilder(blockFactory, length).shardRefCounters(shardRefCounters);
             }
         },
+            shardRefCounters,
             limit,
             List.of(TopNEncoder.DEFAULT_UNSORTABLE, TopNEncoder.DEFAULT_SORTABLE),
             List.of(new TopNOperator.SortOrder(1, true, false))
-
         );
         refCountedList.forEach(RefCounted::decRef);
 
@@ -1544,6 +1553,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             pageToTuples((b, i) -> (BlockUtils.Doc) BlockUtils.toJavaObject(b, i), (b, i) -> ((LongBlock) b).getLong(i), pages),
             equalTo(expectedValues)
         );
+        Releasables.close(pages);
 
         for (var rc : refCountedList) {
             assertFalse(rc.hasReferences());

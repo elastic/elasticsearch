@@ -308,7 +308,7 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
                     Integer.MAX_VALUE,
                     randomIntBetween(1, 1024),
                     1,
-                    List.of(ctx),
+                    new IndexedByShardIdFromSingleton<>(ctx),
                     unused -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of()))
                 );
                 var driverContext = driverContext();
@@ -441,7 +441,7 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
             new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())
         );
-        return TimeSeriesSourceOperatorFactory.create(limit, maxPageSize, 1, List.of(ctx), queryFunction);
+        return TimeSeriesSourceOperatorFactory.create(limit, maxPageSize, 1, new IndexedByShardIdFromSingleton<>(ctx), queryFunction);
     }
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {
@@ -494,6 +494,6 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
                 )
             )
             .toList();
-        return new TimeSeriesExtractFieldOperator.Factory(fieldInfos, List.of(ctx));
+        return new TimeSeriesExtractFieldOperator.Factory(fieldInfos, new IndexedByShardIdFromSingleton<>(ctx));
     }
 }

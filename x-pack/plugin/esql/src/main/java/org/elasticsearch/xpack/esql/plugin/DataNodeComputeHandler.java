@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.IndexedByShardIdFromArray;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -27,7 +26,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
@@ -238,7 +236,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
         private final Map<ShardId, Exception> shardLevelFailures;
-        private final IndexedByShardIdFromArray<ComputeSearchContext> searchContexts;
+        private final ComputeSearchContextByShardId searchContexts;
 
         DataNodeRequestExecutor(
             EsqlFlags flags,
@@ -249,7 +247,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             boolean failFastOnShardFailure,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
-            IndexedByShardIdFromArray<ComputeSearchContext> searchContexts
+            ComputeSearchContextByShardId searchContexts
         ) {
             this.flags = flags;
             this.request = request;
@@ -435,7 +433,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         PhysicalPlan reducePlan,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
-        IndexedByShardIdFromArray<ComputeSearchContext> searchContexts,
+        ComputeSearchContextByShardId searchContexts,
         ActionListener<DataNodeComputeResponse> listener
     ) {
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
@@ -541,15 +539,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
-        ComputeSearchContext[] computeSearchContexts = new ComputeSearchContext[request.shardIds().size()];
+        var computeSearchContexts = new ComputeSearchContextByShardId(request.shardIds().size());
         runComputeOnDataNode(
             (CancellableTask) task,
             sessionId,
             reductionPlan,
             request,
             failFastOnShardFailures,
-            new IndexedByShardIdFromArray<>(computeSearchContexts),
-            ActionListener.releaseAfter(listener, Releasables.wrap(computeSearchContexts))
+            computeSearchContexts,
+            ActionListener.releaseAfter(listener, computeSearchContexts)
         );
     }
 

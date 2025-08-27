@@ -65,7 +65,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         private final Limiter limiter;
 
         public Factory(
-            IndexedByShardId<? extends ShardContext> refCounteds,
+            IndexedByShardId<? extends ShardContext> shardContexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             DataPartitioning.AutoStrategy autoStrategy,
@@ -75,7 +75,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             boolean needsScore
         ) {
             super(
-                refCounteds,
+                shardContexts,
                 queryFunction,
                 dataPartitioning,
                 autoStrategy.pickStrategy(limit),
@@ -84,7 +84,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 needsScore,
                 shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
             );
-            this.refCounteds = refCounteds;
+            this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);

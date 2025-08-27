@@ -210,7 +210,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                             unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
                         )
                     ),
-                    List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                    new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                         throw new UnsupportedOperationException();
                     }, 0.2)),
                     0
@@ -276,7 +276,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
     private static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, boolean scoring) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
-            List.of(searchContext),
+            new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,

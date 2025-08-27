@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.RefCounted;
@@ -1395,9 +1396,8 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocBlock() {
         int positionCount = randomIntBetween(0, 100);
         DocBlock block = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
-            DocVector.NO_GLOBAL_SHARD,
             intVector(positionCount),
             intVector(positionCount),
             true
@@ -1438,9 +1438,8 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocVector() {
         int positionCount = randomIntBetween(0, 100);
         DocVector vector = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
-            DocVector.NO_GLOBAL_SHARD,
             intVector(positionCount),
             intVector(positionCount),
             true

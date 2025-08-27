@@ -41,6 +41,8 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
@@ -352,7 +354,7 @@ public class ValuesSourceReaderBenchmark {
             blockFactory,
             ByteSizeValue.ofMb(1).getBytes(),
             fields(name),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+            new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             0
@@ -522,9 +524,8 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    ShardRefCounted.ALWAYS_REFERENCED,
+                                    AlwaysReferencedIndexedByShardId.INSTANCE,
                                     blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
-                                    DocVector.NO_GLOBAL_SHARD,
                                     blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
                                     true
@@ -560,9 +561,8 @@ public class ValuesSourceReaderBenchmark {
                             pages.add(
                                 new Page(
                                     new DocVector(
-                                        ShardRefCounted.ALWAYS_REFERENCED,
+                                        AlwaysReferencedIndexedByShardId.INSTANCE,
                                         blockFactory.newConstantIntVector(0, size),
-                                        DocVector.NO_GLOBAL_SHARD,
                                         leafs.build(),
                                         docs.build(),
                                         null
@@ -579,9 +579,8 @@ public class ValuesSourceReaderBenchmark {
                     pages.add(
                         new Page(
                             new DocVector(
-                                ShardRefCounted.ALWAYS_REFERENCED,
+                                AlwaysReferencedIndexedByShardId.INSTANCE,
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
-                                DocVector.NO_GLOBAL_SHARD,
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
                                 null
@@ -607,9 +606,8 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    ShardRefCounted.ALWAYS_REFERENCED,
+                                    AlwaysReferencedIndexedByShardId.INSTANCE,
                                     blockFactory.newConstantIntVector(0, 1),
-                                    DocVector.NO_GLOBAL_SHARD,
                                     blockFactory.newConstantIntVector(next.ord, 1),
                                     blockFactory.newConstantIntVector(next.itr.nextInt(), 1),
                                     true

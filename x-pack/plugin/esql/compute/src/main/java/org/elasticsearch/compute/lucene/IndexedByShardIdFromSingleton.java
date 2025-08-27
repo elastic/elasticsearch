@@ -5,9 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.common;
-
-import org.elasticsearch.compute.lucene.IndexedByShardId;
+package org.elasticsearch.compute.lucene;
 
 import java.util.Collection;
 import java.util.List;

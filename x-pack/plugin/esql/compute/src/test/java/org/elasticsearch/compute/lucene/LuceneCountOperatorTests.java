@@ -91,7 +91,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             query = LongPoint.newRangeQuery("s", 0, numDocs);
         }
         return new LuceneCountOperator.Factory(
-            List.of(ctx),
+            new IndexedByShardIdFromSingleton<>(ctx),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             dataPartitioning,
             between(1, 8),

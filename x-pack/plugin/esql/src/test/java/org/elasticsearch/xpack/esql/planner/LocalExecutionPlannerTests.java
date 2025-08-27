@@ -23,7 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.IndexedByShardIdFromArray;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -362,7 +362,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
         return new EsPhysicalOperationProviders(
             FoldContext.small(),
-            new IndexedByShardIdFromArray<>(shardContexts.toArray(new EsPhysicalOperationProviders.ShardContext[0])),
+            new IndexedByShardIdFromList<>(shardContexts),
             null,
             new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
         );

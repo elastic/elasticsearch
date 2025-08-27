@@ -98,7 +98,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
         return new LuceneTopNSourceOperator.Factory(
-            List.of(ctx),
+            new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
             taskConcurrency,

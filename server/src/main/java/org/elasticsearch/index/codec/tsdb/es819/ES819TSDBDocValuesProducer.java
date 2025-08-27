@@ -1747,6 +1747,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
     static final class SingletonLongToSingletonOrdinalDelegate implements BlockLoader.SingletonLongBuilder {
         private final BlockLoader.SingletonOrdinalsBuilder builder;
+        private final int[] buffer = new int[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
         SingletonLongToSingletonOrdinalDelegate(BlockLoader.SingletonOrdinalsBuilder builder) {
             this.builder = builder;
@@ -1759,20 +1760,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
+            assert length <= buffer.length;
             // Unfortunately, no array copy here...
             // Since we need to loop here, let's also keep track of min/max.
             int minOrd = Integer.MAX_VALUE;
             int maxOrd = Integer.MIN_VALUE;
             int counter = 0;
-            int[] convertedOrds = new int[length];
             int end = from + length;
             for (int j = from; j < end; j++) {
                 int ord = Math.toIntExact(values[j]);
-                convertedOrds[counter++] = ord;
+                buffer[counter++] = ord;
                 minOrd = Math.min(minOrd, ord);
                 maxOrd = Math.max(maxOrd, ord);
             }
-            builder.appendOrds(convertedOrds, 0, length, minOrd, maxOrd);
+            assert counter == length;
+            builder.appendOrds(buffer, 0, length, minOrd, maxOrd);
             return this;
         }
 

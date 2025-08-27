@@ -675,6 +675,18 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/133520
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testTopNPushedToLucene
+  issue: https://github.com/elastic/elasticsearch/issues/133556
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testFilterNestedFields
+  issue: https://github.com/elastic/elasticsearch/issues/133557
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133560
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/10_source_filtering/no filtering}
+  issue: https://github.com/elastic/elasticsearch/issues/133561
 
 # Examples:
 #

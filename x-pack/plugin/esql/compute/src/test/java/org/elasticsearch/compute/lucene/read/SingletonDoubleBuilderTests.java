@@ -124,7 +124,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
                         assertThat(build.getPositionCount(), equalTo(count - offset));
                         for (int i = 0; i < build.getPositionCount(); i++) {
                             double key = build.getDouble(i);
-                            assertThat(key, equalTo( (offset + i) / (double) count));
+                            assertThat(key, equalTo((offset + i) / (double) count));
                         }
                     }
                 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -37,8 +39,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,6 +57,7 @@ import java.util.stream.Collectors;
  */
 public class LookupFromIndexService extends AbstractLookupService<LookupFromIndexService.Request, LookupFromIndexService.TransportRequest> {
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
+    private static final Logger logger = LogManager.getLogger(LookupFromIndexService.class);
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -114,13 +119,32 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
             queryLists.add(q);
         }
-        if (queryLists.size() == 1
-            && (request.rightPreJoinPlan == null
-                || request.rightPreJoinPlan instanceof EsQueryExec esQueryExec && esQueryExec.query() == null)) {
+
+        PhysicalPlan physicalPlan = request.rightPreJoinPlan;
+        physicalPlan = localLookupNodePlanning(physicalPlan);
+        if (queryLists.size() == 1 && (physicalPlan instanceof FilterExec == false)) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists, context, request.rightPreJoinPlan, clusterService);
+        return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService);
 
+    }
+
+    /**
+     * This function will perform any planning needed on the local node
+     * For now, we will just do mapping of the logical plan to physical plan
+     * In the future we can also do local physical and logical optimizations
+     */
+    private PhysicalPlan localLookupNodePlanning(PhysicalPlan physicalPlan) {
+        if (physicalPlan instanceof FragmentExec fragmentExec) {
+            try {
+                LocalMapper localMapper = new LocalMapper();
+                return localMapper.map(fragmentExec.fragment());
+            } catch (Exception e) {
+                logger.error(() -> "Failed to perform local mapping on the lookup node for plan: [" + physicalPlan + "]", e);
+                return null;
+            }
+        }
+        return null;
     }
 
     @Override

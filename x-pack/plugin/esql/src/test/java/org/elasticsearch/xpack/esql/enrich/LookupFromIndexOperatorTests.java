@@ -71,8 +71,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -192,7 +193,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         );
     }
 
-    private FilterExec buildLessThanFilter(int value) {
+    private FragmentExec buildLessThanFilter(int value) {
         FieldAttribute filterAttribute = new FieldAttribute(
             Source.EMPTY,
             "lint",
@@ -203,19 +204,9 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             filterAttribute,
             new Literal(Source.EMPTY, value, DataType.INTEGER)
         );
-        EsQueryExec queryExec = new EsQueryExec(
-            Source.EMPTY,
-            "test",
-            IndexMode.LOOKUP,
-            Map.of(),
-            List.of(),
-            null,
-            List.of(),
-            null,
-            List.of()
-        );
-        FilterExec filterExec = new FilterExec(Source.EMPTY, queryExec, lessThan);
-        return filterExec;
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of());
+        Filter filter = new Filter(Source.EMPTY, esRelation, lessThan);
+        return new FragmentExec(filter);
     }
 
     @Override
@@ -242,12 +233,22 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         for (int i = 0; i < numberOfJoinColumns; i++) {
             sb.append("input_type=LONG match_field=match").append(i).append(" inputChannel=").append(i).append(" ");
         }
-        sb.append("right_pre_join_plan=FilterExec\\[lint\\{f}#\\d+ < ")
+        // Accept either the legacy physical plan rendering (FilterExec/EsQueryExec) or the new FragmentExec rendering
+        sb.append("right_pre_join_plan=(?:");
+        // Legacy pattern
+        sb.append("FilterExec\\[lint\\{f}#\\d+ < ")
             .append(LESS_THAN_VALUE)
             .append(
-                "\\[INTEGER]]\\n\\\\_EsQueryExec\\[test], indexMode\\[lookup],\\s*(?:query\\[\\]|\\[\\])?,?\\s*limit\\[\\],"
-                    + "?\\s*sort\\[(?:\\[\\])?\\]\\s*estimatedRowSize\\[null\\]\\s*queryBuilderAndTags \\[\\[\\]\\]\\]"
+                "\\[INTEGER]]\\n\\\\_EsQueryExec\\[test], indexMode\\[lookup],\\s*(?:query\\[\\]|\\[\\])?,?\\s*limit\\[\\],?\\s*sort\\[(?:\\[\\])?\\]\\s*estimatedRowSize\\[null\\]\\s*queryBuilderAndTags \\[(?:\\[\\]\\])\\]"
             );
+        sb.append("|");
+        // New FragmentExec pattern
+        sb.append("FragmentExec\\[filter=null, estimatedRowSize=\\d+, reducer=\\[\\], fragment=\\[<>\\n")
+            .append("Filter\\[lint\\{f}#\\d+ < ")
+            .append(LESS_THAN_VALUE)
+            .append("\\[INTEGER]]\\n")
+            .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]\\]");
+        sb.append(")");
         return matchesPattern(sb.toString());
     }
 

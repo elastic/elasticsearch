@@ -51,8 +51,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         PhysicalPlan rightPreJoinPlan,
         ClusterService clusterService
     ) {
-        if (queryLists.size() < 2
-            && (rightPreJoinPlan == null || rightPreJoinPlan instanceof EsQueryExec esQueryExec && esQueryExec.query() == null)) {
+        if (queryLists.size() < 2 && (rightPreJoinPlan instanceof FilterExec == false)) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists or a pre-join filter");
         }
         this.queryLists = queryLists;
@@ -73,6 +72,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
 
     private void buildPrePostJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
         if (rightPreJoinPlan instanceof EsQueryExec esQueryExec) {
+            // this does not happen right now, as we only do local mapping on the lookup node
+            // so we have EsSourceExec, not esQueryExec
             if (esQueryExec.query() != null) {
                 addToPreJoinFilters(esQueryExec.query());
             }
@@ -97,7 +98,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             // either in another FilterExec or in an EsQueryExec
             buildPrePostJoinFilter(filterExec.child(), clusterService);
         } else if (rightPreJoinPlan instanceof UnaryExec unaryExec) {
-            // there can be other nodes in the plan such as FieldExtractExec
+            // there can be other nodes in the plan such as FieldExtractExec in the future
             buildPrePostJoinFilter(unaryExec.child(), clusterService);
         }
         // else we do nothing, as the filters are optional and we don't want to fail the query if there are any errors

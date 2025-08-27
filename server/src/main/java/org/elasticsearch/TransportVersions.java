@@ -351,8 +351,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
     public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
-    public static final TransportVersion ESQL_TOPN_TIMINGS = def(9_128_0_00);
-
     public static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = def(9_145_0_00);
 
     /*

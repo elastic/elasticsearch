@@ -31,7 +31,7 @@ import java.util.OptionalLong;
  * Consumers must ensure that if the histogram is mutated, all previously acquired {@link BucketIterator}
  * instances are no longer used.
  */
-final class FixedCapacityExponentialHistogram implements ReleasableExponentialHistogram {
+final class FixedCapacityExponentialHistogram extends ReleasableExponentialHistogram {
 
     static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedCapacityExponentialHistogram.class) + ZeroBucket.SHALLOW_SIZE
         + 2 * Buckets.SHALLOW_SIZE;

@@ -27,7 +27,7 @@ import java.util.OptionalLong;
  * While this implementation is optimized for a minimal memory footprint, it is still a fully compliant {@link ExponentialHistogram}
  * and can therefore be directly consumed for merging / quantile estimation without requiring any prior copying or decoding.
  */
-public class CompressedExponentialHistogram implements ExponentialHistogram {
+public class CompressedExponentialHistogram extends ExponentialHistogram {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CompressedExponentialHistogram.class);
 

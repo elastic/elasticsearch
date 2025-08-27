@@ -185,7 +185,6 @@ public class ExponentialScaleUtils {
         return Long.numberOfLeadingZeros(index) - (64 - MAX_INDEX_BITS);
     }
 
-
     /**
      * Returns a scale at to which the given index can be scaled down without changing the exponentially scaled number it represents.
      * @param index the index of the number

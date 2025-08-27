@@ -59,4 +59,28 @@ public class ExponentialHistogramUtils {
         }
         return sum;
     }
+
+    static boolean bucketIteratorsEqual(BucketIterator a, BucketIterator b) {
+        if (a.scale() != b.scale()) {
+            return false;
+        }
+        while (a.hasNext() && b.hasNext()) {
+            if (a.peekIndex() != b.peekIndex() || a.peekCount() != b.peekCount()) {
+                return false;
+            }
+            a.advance();
+            b.advance();
+        }
+        return a.hasNext() == b.hasNext();
+    }
+
+    static int bucketIteratorHash(BucketIterator it) {
+        int hash = 0;
+        while (it.hasNext()) {
+            hash = 31 * hash + Long.hashCode(it.peekIndex());
+            hash = 31 * hash + Long.hashCode(it.peekCount());
+            it.advance();
+        }
+        return hash;
+    }
 }

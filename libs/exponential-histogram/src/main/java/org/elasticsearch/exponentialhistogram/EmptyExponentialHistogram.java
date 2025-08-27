@@ -23,7 +23,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import java.util.OptionalLong;
 
-class EmptyExponentialHistogram implements ReleasableExponentialHistogram {
+class EmptyExponentialHistogram extends ReleasableExponentialHistogram {
 
     static final EmptyExponentialHistogram INSTANCE = new EmptyExponentialHistogram();
 

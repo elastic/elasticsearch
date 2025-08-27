@@ -26,12 +26,12 @@ import org.elasticsearch.core.Releasable;
 /**
  * A histogram which participates in the {@link ExponentialHistogramCircuitBreaker} and therefore requires proper releasing.
  */
-public interface ReleasableExponentialHistogram extends ExponentialHistogram, Releasable {
+public abstract class ReleasableExponentialHistogram extends ExponentialHistogram implements Releasable {
 
     /**
      * @return an empty singleton, which does not allocate any memory and therefore {@link #close()} is a no-op.
      */
-    static ReleasableExponentialHistogram empty() {
+    public static ReleasableExponentialHistogram empty() {
         return EmptyExponentialHistogram.INSTANCE;
     }
 }

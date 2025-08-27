@@ -113,7 +113,16 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
         });
     }
 
-    private void testLoader(Document doc, Set<String> fieldsToLoad, Consumer<Map<String, List<Object>>> storedFieldsConsumer)
+    public void testLoadFromParent() throws IOException {
+        BytesRef fooValue = new BytesRef("lorem ipsum");
+        Document doc = new Document();
+        doc.add(new StoredField("_ignored_source.parent", fooValue));
+        testLoader(doc, Set.of("parent.foo"), storedFields -> {
+            assertThat(storedFields, hasEntry(equalTo("_ignored_source.parent"), containsInAnyOrder(fooValue)));
+        });
+    }
+
+    private void testLoader(Document doc, Set<String> fieldsToLoad, Consumer<Map<String, List<Object>>> storedFieldsTest)
         throws IOException {
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
             BlockLoader.FieldsSpec spec = new BlockLoader.FieldsSpec(
@@ -126,7 +135,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                 IgnoredSourceFieldLoader loader = new IgnoredSourceFieldLoader(spec, false);
                 var leafLoader = loader.getLoader(reader.leaves().getFirst(), new int[] { 0 });
                 leafLoader.advanceTo(0);
-                storedFieldsConsumer.accept(leafLoader.storedFields());
+                storedFieldsTest.accept(leafLoader.storedFields());
             }
         }
     }

@@ -59,9 +59,6 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 public class IndicesAndAliasesResolver {
 
     private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
-    private static final org.apache.logging.log4j.Logger log = org.apache.logging.log4j.LogManager.getLogger(
-        IndicesAndAliasesResolver.class
-    );
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
@@ -374,21 +371,18 @@ public class IndicesAndAliasesResolver {
                     && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
                     assert crossProjectReplaceableRequest.allowsRemoteIndices();
                     // TODO ideally, we'd consolidate this with `resolveIndexAbstractionsCrossProject`
-                    CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
+                    var replaced = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
                         remoteClusterResolver,
                         targetProjects,
                         crossProjectReplaceableRequest
                     );
-                    logger.info(
-                        "Cross-project search applied, indices are now [{}]",
-                        Arrays.toString(crossProjectReplaceableRequest.indices())
-                    );
-                    if (crossProjectReplaceableRequest.shouldApplyCrossProjectHandling()) {
+                    // still isn't quite right, we need to account for crossProjectReplaceableRequest.shouldApplyCrossProjectHandling()
+                    if (replaced != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectReplaceableRequest.indices()));
                         // we can re-use resolveIndexAbstractionsMapping() for local indices here
                         Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsCrossProject(
-                                crossProjectReplaceableRequest.getReplacedExpressions(),
+                                replaced,
                                 indicesOptions,
                                 projectMetadata,
                                 authorizedIndices::all,

@@ -29,19 +29,19 @@ public class CrossProjectResolverUtils {
 
     private static final Logger logger = LogManager.getLogger(CrossProjectUtils.class);
 
-    public static void maybeRewriteCrossProjectResolvableRequest(
+    public static Map<String, IndicesRequest.ReplacedExpression> maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
         AuthorizedProjectsSupplier.AuthorizedProjects targetProjects,
         IndicesRequest.CrossProjectReplaceable request
     ) {
         if (targetProjects == AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
             logger.info("Cross-project search is disabled or not applicable, skipping request [{}]...", request);
-            return;
+            return null;
         }
 
         if (targetProjects.isOriginOnly()) {
             logger.info("Cross-project search is only for the origin project [{}], skipping rewrite...", targetProjects.origin());
-            return;
+            return null;
         }
 
         if (targetProjects.projects().isEmpty()) {
@@ -70,7 +70,7 @@ public class CrossProjectResolverUtils {
             }
         }
 
-        request.setReplacedExpressions(replacedExpressions);
+        return replacedExpressions;
     }
 
     private static List<String> rewriteUnqualified(String indexExpression, List<String> projects) {

@@ -108,13 +108,18 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
      * Collected docs. {@code null} until we're {@link #emit(boolean)}.
      */
     private ScoreDoc[] scoreDocs;
+
+    /**
+     * {@link ShardRefCounted} for collected docs.
+     */
+    private ShardRefCounted shardRefCounted;
+
     /**
      * The offset in {@link #scoreDocs} of the next page.
      */
     private int offset = 0;
 
     private PerShardCollector perShardCollector;
-    private final List<? extends ShardContext> contexts;
     private final List<SortBuilder<?>> sorts;
     private final int limit;
     private final boolean needsScore;
@@ -129,7 +134,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         boolean needsScore
     ) {
         super(contexts, blockFactory, maxPageSize, sliceQueue);
-        this.contexts = contexts;
         this.sorts = sorts;
         this.limit = limit;
         this.needsScore = needsScore;
@@ -144,6 +148,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     public void finish() {
         doneCollecting = true;
         scoreDocs = null;
+        shardRefCounted = null;
         assert isFinished();
     }
 
@@ -204,6 +209,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             offset = 0;
             if (perShardCollector != null) {
                 scoreDocs = perShardCollector.collector.topDocs().scoreDocs;
+                int shardId = perShardCollector.shardContext.index();
+                shardRefCounted = new ShardRefCounted.Single(shardId, shardContextCounters.get(shardId));
             } else {
                 scoreDocs = new ScoreDoc[0];
             }
@@ -241,7 +248,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             shard = blockFactory.newConstantIntBlockWith(shardId, size);
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
-            ShardRefCounted shardRefCounted = ShardRefCounted.single(shardId, contexts.get(shardId));
             docBlock = new DocVector(shardRefCounted, shard.asVector(), segments, docs, null).asBlock();
             shard = null;
             segments = null;

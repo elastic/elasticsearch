@@ -1,6 +1,6 @@
 {
     "properties": {
-        "num": {
+        "value": {
             "type": "integer"
         }
     }

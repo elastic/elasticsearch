@@ -218,12 +218,12 @@ public class CuVSResourceManagerTests extends ESTestCase {
         }
 
         @Override
-        public List<GPUInfo> availableGPUs() throws Throwable {
+        public List<GPUInfo> availableGPUs() {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public List<GPUInfo> compatibleGPUs() throws Throwable {
+        public List<GPUInfo> compatibleGPUs() {
             throw new UnsupportedOperationException();
         }
 

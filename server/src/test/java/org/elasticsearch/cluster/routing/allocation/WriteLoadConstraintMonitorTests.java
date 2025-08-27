@@ -150,7 +150,12 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             );
 
             writeLoadConstraintMonitor.onNewInfo(
-                createClusterInfo(testState.clusterState, 0, testState.latencyThresholdMillis, testState.highUtilizationThresholdPercent)
+                createClusterInfoWithHotSpots(
+                    testState.clusterState,
+                    0,
+                    testState.latencyThresholdMillis,
+                    testState.highUtilizationThresholdPercent
+                )
             );
             mockLog.assertAllExpectationsMatched();
             verifyNoInteractions(testState.mockRerouteService);
@@ -211,7 +216,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     public void testRerouteIsNotCalledWhenNoNodeIsUnderLatencyThreshold() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
 
-        final ClusterInfo clusterInfoWithAllNodesOverLatencyThreshold = createClusterInfo(
+        final ClusterInfo clusterInfoWithAllNodesOverLatencyThreshold = createClusterInfoWithHotSpots(
             testState.clusterState,
             testState.numberOfNodes,
             testState.latencyThresholdMillis,
@@ -364,7 +369,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             randomIntBetween(1, numberOfNodes)
         );
         final RerouteService rerouteService = mock(RerouteService.class);
-        final ClusterInfo clusterInfo = createClusterInfo(
+        final ClusterInfo clusterInfo = createClusterInfoWithHotSpots(
             state,
             randomIntBetween(1, numberOfNodes - 2),
             queueLatencyThresholdMillis,
@@ -403,7 +408,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     /**
-     * Create a {@link ClusterInfo}
+     * Create a {@link ClusterInfo} with the specified number of hot spotting nodes,
+     * all other nodes will have no queue latency and have utilization below the specified
+     * high-utilization threshold.
      *
      * @param state The cluster state
      * @param numberOfNodesHotSpotting The number of nodes that should be hot-spotting
@@ -411,7 +418,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
      * @param highUtilizationThresholdPercent The high utilization threshold as a percentage
      * @return a ClusterInfo with the given parameters
      */
-    private static ClusterInfo createClusterInfo(
+    private static ClusterInfo createClusterInfoWithHotSpots(
         ClusterState state,
         int numberOfNodesHotSpotting,
         long queueLatencyThresholdMillis,

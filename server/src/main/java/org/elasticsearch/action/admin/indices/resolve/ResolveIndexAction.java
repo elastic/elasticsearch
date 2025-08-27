@@ -65,6 +65,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -135,12 +136,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names);
+            return Arrays.equals(names, request.names) && indexModes.equals(request.indexModes);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(names);
+            return Objects.hash(Arrays.hashCode(names), indexModes);
         }
 
         @Override
@@ -668,14 +669,39 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     }
                     indices.add(index.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getName())));
                 }
-                if (indexModes.isEmpty() == false && indexModes.contains(IndexMode.STANDARD) == false) {
-                    continue;
-                }
+                Set<String> indexNames = indices.stream().map(ResolvedIndexAbstraction::getName).collect(Collectors.toSet());
                 for (ResolvedAlias alias : response.aliases) {
-                    aliases.add(alias.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName())));
+                    if (indexModes.isEmpty() == false) {
+                        // We need to filter out aliases that point to no indices after index mode filtering
+                        String[] filteredIndices = Arrays.stream(alias.getIndices())
+                            .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
+                            .toArray(String[]::new);
+                        if (filteredIndices.length == 0) {
+                            continue;
+                        }
+                        alias = new ResolvedAlias(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName()), filteredIndices);
+                    } else {
+                        alias = alias.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName()));
+                    }
+                    aliases.add(alias);
                 }
                 for (ResolvedDataStream dataStream : response.dataStreams) {
-                    dataStreams.add(dataStream.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, dataStream.getName())));
+                    if (indexModes.isEmpty() == false) {
+                        String[] filteredBackingIndices = Arrays.stream(dataStream.getBackingIndices())
+                            .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
+                            .toArray(String[]::new);
+                        if (filteredBackingIndices.length == 0) {
+                            continue;
+                        }
+                        dataStream = new ResolvedDataStream(
+                            RemoteClusterAware.buildRemoteIndexName(clusterAlias, dataStream.getName()),
+                            filteredBackingIndices,
+                            dataStream.getTimestampField()
+                        );
+                    } else {
+                        dataStream = dataStream.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, dataStream.getName()));
+                    }
+                    dataStreams.add(dataStream);
                 }
             }
         }

@@ -24,4 +24,6 @@ public abstract class EsqlQueryRequest extends LegacyActionRequest {
     public abstract String query();
 
     public abstract QueryBuilder filter();
+
+    public abstract boolean approximate();
 }

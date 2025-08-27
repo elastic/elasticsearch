@@ -360,12 +360,12 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     private TestState createRandomTestStateThatWillTriggerReroute() {
-        final long latencyThresholdMillis = randomLongBetween(1000, 5000);
+        final long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
         final int highUtilizationThresholdPercent = randomIntBetween(70, 100);
         final int numberOfNodes = randomIntBetween(3, 10);
         final ClusterSettings clusterSettings = createClusterSettings(
             WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED,
-            latencyThresholdMillis,
+            queueLatencyThresholdMillis,
             highUtilizationThresholdPercent
         );
         final LongSupplier currentTimeSupplier = ESTestCase::randomNonNegativeLong;
@@ -378,11 +378,11 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final ClusterInfo clusterInfo = createClusterInfo(
             state,
             randomIntBetween(1, numberOfNodes - 2),
-            latencyThresholdMillis,
+            queueLatencyThresholdMillis,
             highUtilizationThresholdPercent
         );
         return new TestState(
-            latencyThresholdMillis,
+            queueLatencyThresholdMillis,
             highUtilizationThresholdPercent,
             numberOfNodes,
             clusterSettings,
@@ -395,7 +395,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
     private static ClusterSettings createClusterSettings(
         WriteLoadConstraintSettings.WriteLoadDeciderStatus status,
-        long latencyThresholdMillis,
+        long queueLatencyThresholdMillis,
         int highUtilizationThresholdPercent
     ) {
         return ClusterSettings.createBuiltInClusterSettings(
@@ -403,7 +403,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), status.name())
                 .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
-                    TimeValue.timeValueMillis(latencyThresholdMillis)
+                    TimeValue.timeValueMillis(queueLatencyThresholdMillis)
                 )
                 .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
@@ -418,14 +418,14 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
      *
      * @param state The cluster state
      * @param numberOfNodesHotSpotting The number of nodes that should be hot-spotting
-     * @param latencyThresholdMillis The latency threshold in milliseconds
+     * @param queueLatencyThresholdMillis The latency threshold in milliseconds
      * @param highUtilizationThresholdPercent The high utilization threshold as a percentage
      * @return a ClusterInfo with the given parameters
      */
     private static ClusterInfo createClusterInfo(
         ClusterState state,
         int numberOfNodesHotSpotting,
-        long latencyThresholdMillis,
+        long queueLatencyThresholdMillis,
         int highUtilizationThresholdPercent
     ) {
         final float maxRatioForUnderUtilised = (highUtilizationThresholdPercent - 1) / 100.0f;
@@ -441,7 +441,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                             new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                                 randomNonNegativeInt(),
                                 randomFloatBetween(0f, 1f, true),
-                                randomLongBetween(latencyThresholdMillis + 1, latencyThresholdMillis * 2)
+                                randomLongBetween(queueLatencyThresholdMillis + 1, queueLatencyThresholdMillis * 2)
                             )
                         )
                     );
@@ -454,7 +454,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                             new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                                 randomNonNegativeInt(),
                                 randomFloatBetween(0f, maxRatioForUnderUtilised, true),
-                                randomLongBetween(0, latencyThresholdMillis)
+                                randomLongBetween(0, queueLatencyThresholdMillis)
                             )
                         )
                     );

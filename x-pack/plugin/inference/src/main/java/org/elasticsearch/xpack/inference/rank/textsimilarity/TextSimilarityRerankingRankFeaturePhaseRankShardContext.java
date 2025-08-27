@@ -19,17 +19,13 @@ import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardCo
 import org.elasticsearch.xpack.core.common.snippets.SnippetScorer;
 import org.elasticsearch.xpack.inference.chunking.Chunker;
 import org.elasticsearch.xpack.inference.chunking.ChunkerBuilder;
-import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.SnippetConfig.DEFAULT_NUM_SNIPPETS;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder.DEFAULT_TOKEN_SIZE_LIMIT;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
-
-    private final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new SentenceBoundaryChunkingSettings(DEFAULT_TOKEN_SIZE_LIMIT, 0);
 
     private final SnippetConfig snippetRankInput;
     private final ChunkingSettings chunkingSettings;
@@ -38,9 +34,8 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable SnippetConfig snippetRankInput) {
         super(field);
         this.snippetRankInput = snippetRankInput;
-        // TODO allow customization through snippetRankInput
-        chunkingSettings = DEFAULT_CHUNKING_SETTINGS;
-        chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
+        chunkingSettings = snippetRankInput != null ? snippetRankInput.chunkingSettings() : null;
+        chunker = chunkingSettings != null ? ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy()) : null;
     }
 
     @Override
@@ -68,7 +63,6 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         );
                         bestChunks = scoredSnippets.stream().map(SnippetScorer.ScoredSnippet::content).limit(numSnippets).toList();
                     } catch (IOException e) {
-                        // TODO - Should this throw, or truncate/send a warning header?
                         throw new IllegalStateException("Could not generate snippets for input to reranker", e);
                     }
                     rankFeatureDocs[i].featureData(bestChunks);

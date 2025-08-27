@@ -48,7 +48,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         "some query",
         0.0f,
         false,
-        new SnippetConfig(2, "some query", 10)
+        new SnippetConfig(2, "some query", 20)
     );
 
     public void testComputeScores() {

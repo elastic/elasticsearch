@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -22,10 +23,12 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
@@ -52,6 +55,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ParseField FAILURES_ALLOWED_FIELD = new ParseField("allow_rerank_failures");
     public static final ParseField SNIPPETS_FIELD = new ParseField("snippets");
     public static final ParseField NUM_SNIPPETS_FIELD = new ParseField("num_snippets");
+    public static final ParseField CHUNK_SIZE_FIELD = new ParseField("chunk_size");
+    public static final ParseField CHUNKING_SETTINGS_FIELD = new ParseField("chunking_settings");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -79,7 +84,11 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         true,
         args -> {
             Integer numSnippets = (Integer) args[0];
-            return new SnippetConfig(numSnippets);
+            Integer chunkSize = (Integer) args[1];
+            @SuppressWarnings("unchecked")
+            Map<String, Object> chunkingSettingsMap = (Map<String, Object>) args[2];
+            ChunkingSettings chunkingSettings = chunkingSettingsMap != null ? ChunkingSettingsBuilder.fromMap(chunkingSettingsMap) : null;
+            return new SnippetConfig(numSnippets, chunkingSettings, chunkSize);
         }
     );
 
@@ -97,6 +106,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         PARSER.declareObject(optionalConstructorArg(), SNIPPETS_PARSER, SNIPPETS_FIELD);
         if (RERANK_SNIPPETS.isEnabled()) {
             SNIPPETS_PARSER.declareInt(optionalConstructorArg(), NUM_SNIPPETS_FIELD);
+            SNIPPETS_PARSER.declareInt(optionalConstructorArg(), CHUNK_SIZE_FIELD);
+            SNIPPETS_PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, CHUNKING_SETTINGS_FIELD);
         }
 
         RetrieverBuilder.declareBaseParserFields(PARSER);
@@ -215,9 +226,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
                 rankWindowSize,
                 minScore,
                 failuresAllowed,
-                snippets != null
-                    ? new SnippetConfig(snippets.numSnippets, inferenceText, TextSimilarityRankBuilder.tokenSizeLimit(inferenceId))
-                    : null
+                snippets != null ? new SnippetConfig(snippets.numSnippets, inferenceText, snippets.chunkingSettings()) : null
             )
         );
         return sourceBuilder;
@@ -250,6 +259,9 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             builder.startObject(SNIPPETS_FIELD.getPreferredName());
             if (snippets.numSnippets() != null) {
                 builder.field(NUM_SNIPPETS_FIELD.getPreferredName(), snippets.numSnippets());
+            }
+            if (snippets.chunkingSettings() != null) {
+                builder.field(CHUNKING_SETTINGS_FIELD.getPreferredName(), snippets.chunkingSettings().asMap());
             }
             builder.endObject();
         }

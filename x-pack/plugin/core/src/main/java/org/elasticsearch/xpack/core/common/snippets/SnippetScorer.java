@@ -59,9 +59,9 @@ public class SnippetScorer {
         try (Directory directory = new ByteBuffersDirectory()) {
             IndexWriterConfig config = new IndexWriterConfig(analyzer);
             try (IndexWriter writer = new IndexWriter(directory, config)) {
-                for (int i = 0; i < snippets.size(); i++) {
+                for (String snippet : snippets) {
                     Document doc = new Document();
-                    doc.add(new TextField(CONTENT_FIELD, snippets.get(i), Field.Store.YES));
+                    doc.add(new TextField(CONTENT_FIELD, snippet, Field.Store.YES));
                     writer.addDocument(doc);
                 }
                 writer.commit();
@@ -88,7 +88,6 @@ public class SnippetScorer {
 
     /**
      * Creates a Lucene query from the inference text.
-     * This method creates a boolean query with terms from the inference text.
      */
     private Query createQuery(String inferenceText) throws IOException {
         String[] tokens = tokenizeText(inferenceText);
@@ -108,9 +107,6 @@ public class SnippetScorer {
         }
     }
 
-    /**
-     * Tokenizes the input text using the analyzer
-     */
     private String[] tokenizeText(String text) throws IOException {
         List<String> tokens = new ArrayList<>();
         try (org.apache.lucene.analysis.TokenStream tokenStream = analyzer.tokenStream(CONTENT_FIELD, text)) {
@@ -127,7 +123,7 @@ public class SnippetScorer {
     }
 
     /**
-     * Represents a snippet with its relevance score and original position.
+     * Represents a snippet with its relevance score.
      */
     public record ScoredSnippet(String content, float score) {}
 }

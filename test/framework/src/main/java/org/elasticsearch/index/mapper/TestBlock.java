@@ -202,12 +202,19 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
                 final long[] values = new long[expectedCount];
+
                 return new BlockLoader.SingletonLongBuilder() {
 
                     private int count;
+                    private BlockDocValuesReader.ToDouble toDouble = null;
 
                     @Override
                     public BlockLoader.Block build() {
+                        if (toDouble != null) {
+                            return new TestBlock(
+                                Arrays.stream(values).mapToDouble(toDouble::convert).boxed().collect(Collectors.toUnmodifiableList())
+                            );
+                        }
                         return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
                     }
 
@@ -220,6 +227,51 @@ public class TestBlock implements BlockLoader.Block {
 
                     @Override
                     public BlockLoader.SingletonLongBuilder appendLong(long value) {
+                        values[count++] = value;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.Builder appendNull() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder beginPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder endPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
+            public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount) {
+                final double[] values = new double[expectedCount];
+
+                return new BlockLoader.SingletonDoubleBuilder() {
+                    private int count;
+
+                    @Override
+                    public BlockLoader.Block build() {
+                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonDoubleBuilder appendDoubles(double[] newValues, int from, int length) {
+                        System.arraycopy(newValues, from, values, count, length);
+                        count += length;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonDoubleBuilder appendDouble(double value) {
                         values[count++] = value;
                         return this;
                     }

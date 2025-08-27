@@ -151,24 +151,11 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     private void onCacheEviction(RemovalNotification<BitsetCacheKey, BitSet> notification) {
         final BitsetCacheKey cacheKey = notification.getKey();
         final IndexReader.CacheKey indexKey = cacheKey.indexKey;
-        if (keysByIndex.getOrDefault(indexKey, Set.of()).contains(cacheKey) == false) {
-            // If the cacheKey isn't in the lookup map, then there's nothing to synchronize
-            return;
-        }
-
-        // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
-        if (bitsetCache.get(cacheKey) == null) {
-            // key is no longer in the cache, make sure it is no longer in the lookup map either.
-            keysByIndex.compute(indexKey, (ignored, keys) -> {
-                if (keys != null) {
-                    keys.remove(cacheKey);
-                    if (keys.isEmpty()) {
-                        keys = null;
-                    }
-                }
-                return keys;
-            });
-        }
+        // key is no longer in the cache, make sure it is no longer in the lookup map either.
+        keysByIndex.computeIfPresent(indexKey, (ignored, keys) -> {
+            keys.remove(cacheKey);
+            return keys.isEmpty() ? null : keys;
+        });
     }
 
     @Override

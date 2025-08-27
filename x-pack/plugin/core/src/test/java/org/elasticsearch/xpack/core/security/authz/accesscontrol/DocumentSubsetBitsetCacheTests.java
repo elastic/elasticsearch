@@ -547,20 +547,17 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
-            // surprisingly, the eviction callback can call `get` on the cache (asynchronously) which causes another miss (or hit)
-            // so this assertion is about the current state of the code, rather than the expected or desired state.
-            // see https://github.com/elastic/elasticsearch/issues/132842
-            expectedStats.put("misses", 3L);
+            expectedStats.put("misses", 2L);
             expectedStats.put("evictions", 1L);
             // underlying Cache class tracks hits/misses, but timing is in DLS cache, which is why we have `2L` here,
             // because DLS cache is only hit once
             expectedStats.put("misses_time_in_millis", 2L);
-            assertBusy(() -> { assertThat(cache.usageStats(), equalTo(expectedStats)); }, 200, TimeUnit.MILLISECONDS);
+            assertThat(cache.usageStats(), equalTo(expectedStats));
         });
 
         final Map<String, Object> finalStats = emptyStatsSupplier.get();
         finalStats.put("hits", 1L);
-        finalStats.put("misses", 3L);
+        finalStats.put("misses", 2L);
         finalStats.put("evictions", 2L);
         finalStats.put("hits_time_in_millis", 1L);
         finalStats.put("misses_time_in_millis", 2L);

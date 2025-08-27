@@ -2,9 +2,6 @@
 
 **Parameters**
 
-`superset`
-:   Multivalue expression.
-
-`subset`
-:   Multivalue expression.
+`buckets`
+:   Desired bucket size.
 

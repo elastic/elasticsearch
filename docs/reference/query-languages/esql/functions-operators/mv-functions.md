@@ -21,9 +21,6 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/mv_concat.md
 :::
 
-:::{include} ../_snippets/functions/layout/mv_contains.md
-:::
-
 :::{include} ../_snippets/functions/layout/mv_count.md
 :::
 

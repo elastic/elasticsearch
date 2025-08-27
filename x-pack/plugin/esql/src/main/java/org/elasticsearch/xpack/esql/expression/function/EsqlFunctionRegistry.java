@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -123,7 +124,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
@@ -315,7 +315,8 @@ public class EsqlFunctionRegistry {
             // grouping functions
             new FunctionDefinition[] {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
-                def(Categorize.class, Categorize::new, "categorize") },
+                def(Categorize.class, Categorize::new, "categorize"),
+                def(TBucket.class, uni(TBucket::new), "tbucket") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -453,7 +454,6 @@ public class EsqlFunctionRegistry {
                 def(MvAppend.class, MvAppend::new, "mv_append"),
                 def(MvAvg.class, MvAvg::new, "mv_avg"),
                 def(MvConcat.class, MvConcat::new, "mv_concat"),
-                def(MvContains.class, MvContains::new, "mv_contains"),
                 def(MvCount.class, MvCount::new, "mv_count"),
                 def(MvDedupe.class, MvDedupe::new, "mv_dedupe"),
                 def(MvFirst.class, MvFirst::new, "mv_first"),

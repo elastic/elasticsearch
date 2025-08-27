@@ -231,12 +231,6 @@ public class Ai21Service extends SenderService {
     }
 
     @Override
-    public boolean hideFromConfigurationApi() {
-        // The AI21 service is very configurable so we're going to hide it from being exposed in the service API.
-        return true;
-    }
-
-    @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }

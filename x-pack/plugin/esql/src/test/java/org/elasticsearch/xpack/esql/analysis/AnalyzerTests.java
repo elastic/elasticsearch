@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -2743,6 +2745,27 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attr.unresolvedMessage(), is(expected));
     }
 
+    public void testResolveInsist_multiIndexSameMapping_fieldIsMapped() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
+                ),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
+        assertThat(attribute.name(), is("message"));
+        assertThat(attribute.dataType(), is(DataType.LONG));
+    }
+
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
@@ -2798,7 +2821,11 @@ public class AnalyzerTests extends ESTestCase {
         String indexName,
         Map<String, IndexFieldCapabilities> fields
     ) {
-        return new FieldCapabilitiesIndexResponse(indexName, indexName, fields, false, IndexMode.STANDARD);
+        String indexMappingHash = new String(
+            MessageDigests.sha256().digest(fields.toString().getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
+        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD);
     }
 
     private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {

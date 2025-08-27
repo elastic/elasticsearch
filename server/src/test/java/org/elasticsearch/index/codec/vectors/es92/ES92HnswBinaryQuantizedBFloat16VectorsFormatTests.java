@@ -37,6 +37,7 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -68,6 +69,7 @@ import java.util.OptionalLong;
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -120,7 +122,13 @@ public class ES92HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseKnnVe
                     }
                     float[] randomVector = randomVector(vector.length);
                     float trueScore = similarityFunction.compare(vector, randomVector);
-                    TopDocs td = r.searchNearestVectors("f", randomVector, 1, null, Integer.MAX_VALUE);
+                    TopDocs td = r.searchNearestVectors(
+                        "f",
+                        randomVector,
+                        1,
+                        AcceptDocs.fromLiveDocs(r.getLiveDocs(), r.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
                     assertEquals(1, td.totalHits.value());
                     assertTrue(td.scoreDocs[0].score >= 0);
                     // When it's the only vector in a segment, the score should be very close to the true score
@@ -149,6 +157,43 @@ public class ES92HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseKnnVe
         // differences should be considered carefully.
         var expectedValues = Arrays.stream(VectorSimilarityFunction.values()).toList();
         assertEquals(Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS, expectedValues);
+    }
+
+    @Override
+    public void testRandomBytes() throws Exception {
+        // floats only
+        var ex = expectThrows(IllegalStateException.class, super::testRandomBytes);
+        assertThat(ex.getMessage(), equalTo("Incorrect encoding for field field: BYTE"));
+    }
+
+    @Override
+    public void testSortedIndexBytes() {
+        // floats only
+    }
+
+    @Override
+    public void testMergingWithDifferentByteKnnFields() {
+        // floats only
+    }
+
+    @Override
+    public void testEmptyByteVectorData() {
+        // floats only
+    }
+
+    @Override
+    public void testByteVectorScorerIteration() {
+        // floats only
+    }
+
+    @Override
+    public void testMismatchedFields() {
+        // floats only
+    }
+
+    @Override
+    public void testRandomExceptions() {
+        // this sometimes uses bytes - ignore
     }
 
     // bfloat16 makes the results of these tests slightly out of bounds

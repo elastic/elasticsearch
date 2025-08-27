@@ -78,6 +78,7 @@ import java.util.OptionalLong;
 
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -191,6 +192,43 @@ public class ES92BinaryQuantizedBFloat16VectorsFormatTests extends BaseKnnVector
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
         assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
+    }
+
+    @Override
+    public void testRandomBytes() throws Exception {
+        // floats only
+        var ex = expectThrows(IllegalStateException.class, super::testRandomBytes);
+        assertThat(ex.getMessage(), equalTo("Incorrect encoding for field field: BYTE"));
+    }
+
+    @Override
+    public void testSortedIndexBytes() {
+        // floats only
+    }
+
+    @Override
+    public void testMergingWithDifferentByteKnnFields() {
+        // floats only
+    }
+
+    @Override
+    public void testEmptyByteVectorData() {
+        // floats only
+    }
+
+    @Override
+    public void testByteVectorScorerIteration() {
+        // floats only
+    }
+
+    @Override
+    public void testMismatchedFields() {
+        // floats only
+    }
+
+    @Override
+    public void testRandomExceptions() {
+        // this sometimes uses bytes - ignore
     }
 
     @Override

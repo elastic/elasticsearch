@@ -32,12 +32,26 @@ public class XmlUtils {
      *
      * @throws ParserConfigurationException if one of the features can't be set on the DocumentBuilderFactory
      */
-    @SuppressForbidden(reason = "This is the only allowed way to construct a DocumentBuilder")
     public static DocumentBuilder getHardenedBuilder(String[] schemaFiles) throws ParserConfigurationException {
-        final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        final DocumentBuilderFactory dbf = getHardenedBuilderFactory();
         dbf.setNamespaceAware(true);
         // Ensure that Schema Validation is enabled for the factory
         dbf.setValidating(true);
+        // This is required, otherwise schema validation causes signature invalidation
+        dbf.setFeature("http://apache.org/xml/features/validation/schema/normalized-value", false);
+        // Make sure that URL schema namespaces are not resolved/downloaded from URLs we do not control
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "file,jar");
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "file,jar");
+        // We ship our own xsd files for schema validation since we do not trust anyone else.
+        dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaSource", schemaFiles);
+        DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
+        documentBuilder.setErrorHandler(new ErrorHandler());
+        return documentBuilder;
+    }
+
+    @SuppressForbidden(reason = "This is the only allowed way to construct a DocumentBuilder")
+    public static DocumentBuilderFactory getHardenedBuilderFactory() throws ParserConfigurationException {
+        final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
         // Disallow internal and external entity expansion
         dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
@@ -46,11 +60,8 @@ public class XmlUtils {
         dbf.setFeature("http://xml.org/sax/features/validation", true);
         dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-dtd-grammar", false);
         dbf.setIgnoringComments(true);
-        // This is required, otherwise schema validation causes signature invalidation
-        dbf.setFeature("http://apache.org/xml/features/validation/schema/normalized-value", false);
-        // Make sure that URL schema namespaces are not resolved/downloaded from URLs we do not control
-        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "file,jar");
-        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "file,jar");
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
         dbf.setFeature("http://apache.org/xml/features/honour-all-schemaLocations", true);
         // Ensure we do not resolve XIncludes. Defaults to false, but set it explicitly to be future-proof
         dbf.setXIncludeAware(false);
@@ -61,11 +72,8 @@ public class XmlUtils {
         dbf.setAttribute("http://apache.org/xml/features/validation/schema", true);
         dbf.setAttribute("http://apache.org/xml/features/validation/schema-full-checking", true);
         dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaLanguage", XMLConstants.W3C_XML_SCHEMA_NS_URI);
-        // We ship our own xsd files for schema validation since we do not trust anyone else.
-        dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaSource", schemaFiles);
-        DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
-        documentBuilder.setErrorHandler(new ErrorHandler());
-        return documentBuilder;
+
+        return dbf;
     }
 
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")

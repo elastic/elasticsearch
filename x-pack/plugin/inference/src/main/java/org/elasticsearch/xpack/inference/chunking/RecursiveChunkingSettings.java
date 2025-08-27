@@ -53,6 +53,31 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
         separators = in.readCollectionAsList(StreamInput::readString);
     }
 
+    @Override
+    public void validate() {
+        ValidationException validationException = new ValidationException();
+
+        if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT || maxChunkSize > MAX_CHUNK_SIZE_UPPER_LIMIT) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.MAX_CHUNK_SIZE
+                    + "["
+                    + maxChunkSize
+                    + "] must be between "
+                    + MAX_CHUNK_SIZE_LOWER_LIMIT
+                    + " and "
+                    + MAX_CHUNK_SIZE_UPPER_LIMIT
+            );
+
+            if (separators != null && separators.isEmpty()) {
+                validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
+            }
+
+            if (validationException.validationErrors().isEmpty() == false) {
+                throw validationException;
+            }
+        }
+    }
+
     public static RecursiveChunkingSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 

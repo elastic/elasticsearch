@@ -31,7 +31,9 @@ STATS [column1 =] expression1 [WHERE boolean_expression1][,
     If its name coincides with one of the computed columns, that column will be ignored.
 
 `boolean_expressionX`
-:   The condition that must be met for a row to be included in the evaluation of `expressionX`.
+:   The condition that must be met for a row to be included in the evaluation of
+    `expressionX`. Does not have any effect on the values used in
+    `grouping_expressionX` or the other `expressionX`.
 
 ::::{note}
 Individual `null` values are skipped when computing aggregations.

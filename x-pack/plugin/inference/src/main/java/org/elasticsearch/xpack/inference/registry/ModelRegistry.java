@@ -279,6 +279,7 @@ public class ModelRegistry implements ClusterStateListener {
             .setQuery(queryBuilder)
             .setSize(2)
             .setAllowPartialSearchResults(false)
+            // .setRequestCache(true)
             .request();
 
         client.search(modelSearch, searchListener);

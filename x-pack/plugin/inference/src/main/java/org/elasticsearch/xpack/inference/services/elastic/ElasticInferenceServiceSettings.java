@@ -77,7 +77,7 @@ public class ElasticInferenceServiceSettings {
      */
     public static final Setting<TimeValue> CONNECTION_TTL_SETTING = Setting.timeSetting(
         "xpack.inference.elastic.http.connection_ttl",
-        TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope
     );
 

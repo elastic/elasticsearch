@@ -117,7 +117,7 @@ spec:
     kind: Pipeline
     metadata:
       description: ":elasticsearch: Tests and checks that are run daily against the latest Java EA builds"
-      name: elasticsearch / periodic
+      name: elasticsearch / periodic / java-ea
     spec:
       repository: elastic/elasticsearch
       pipeline_file: .buildkite/pipelines/periodic-java-ea.yml

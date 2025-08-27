@@ -399,3 +399,13 @@ cost_per_mb:double | cluster:keyword | time_bucket:datetime
 2.071474095190272  | prod            | 2024-05-10T00:15:00.000Z
 1.59556462585034   | staging         | 2024-05-10T00:10:00.000Z
 ;
+
+Group by all for over time agg with no wrapper, no time bucket
+
+TS k8s 
+| STATS count = count_over_time(network.cost) 
+;
+
+count:long | cluster:keyword | pod:keyword
+1          | ID              | FK
+;

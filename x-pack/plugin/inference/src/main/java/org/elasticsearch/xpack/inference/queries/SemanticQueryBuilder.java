@@ -83,6 +83,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     public SemanticQueryBuilder(String fieldName, String query, Boolean lenient) {
+        this(fieldName, query, lenient, null);
+    }
+
+    protected SemanticQueryBuilder(String fieldName, String query, Boolean lenient, InferenceResultsProvider inferenceResultsProvider) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
@@ -91,7 +95,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         this.fieldName = fieldName;
         this.query = query;
-        this.inferenceResultsProvider = null;
+        this.inferenceResultsProvider = inferenceResultsProvider;
         this.lenient = lenient;
     }
 

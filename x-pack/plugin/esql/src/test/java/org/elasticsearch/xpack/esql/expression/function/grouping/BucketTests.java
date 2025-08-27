@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -324,5 +325,16 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
             to = args.get(3);
         }
         return new Bucket(source, args.get(0), args.get(1), from, to);
+    }
+
+    public static EsqlFunctionRegistry.ArgSignature patchKibanaSignature(EsqlFunctionRegistry.ArgSignature arg) {
+        return new EsqlFunctionRegistry.ArgSignature(
+            arg.name(),
+            arg.type(),
+            arg.description(),
+            false,
+            arg.variadic(),
+            arg.targetDataType()
+        );
     }
 }

@@ -580,6 +580,10 @@ public class EsqlFunctionRegistry {
             return optional;
         }
 
+        public boolean variadic() {
+            return variadic;
+        }
+
         public DataType targetDataType() {
             return targetDataType;
         }

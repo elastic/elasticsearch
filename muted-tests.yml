@@ -651,6 +651,9 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testLongBlock
   issue: https://github.com/elastic/elasticsearch/issues/133618
+- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/133619
 
 # Examples:
 #

@@ -1662,6 +1662,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 assert in.getTransportVersion().equals(TransportVersion.current()); // only used in memory on the local node
             }
 
+            // TODO - Check whether there is capacity for us to write (and to write it all or to write none)
             void writeTo(StreamOutput out) throws IOException {
                 assert out.getTransportVersion().equals(TransportVersion.current()); // only used in memory on the local node
                 out.writeString(indexId);
@@ -1756,6 +1757,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             try {
+                // TODO - Check whether there is capacity for us to write. throw warn log. what does close do - do we close now?
                 shardGenerationsBuilder.put(indexId, shardId, newGeneration);
                 new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
                 resultCount += 1;

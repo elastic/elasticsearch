@@ -146,7 +146,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -2212,31 +2211,5 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         };
     }
 
-    public static class ReaderContextId {
-        private final String sessionId;
-        private final long id;
-
-        public ReaderContextId(String sessionId, long id) {
-            this.sessionId = Objects.requireNonNull(sessionId);
-            this.id = id;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ReaderContextId that = (ReaderContextId) o;
-            return id == that.id && sessionId.equals(that.sessionId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(sessionId, id);
-        }
-
-        @Override
-        public String toString() {
-            return "[" + sessionId + "/" + id + "]";
-        }
-    }
+    public record ReaderContextId(String sessionId, long id) {}
 }

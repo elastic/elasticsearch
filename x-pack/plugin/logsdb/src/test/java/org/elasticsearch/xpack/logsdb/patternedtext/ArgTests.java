@@ -17,32 +17,32 @@ import java.util.List;
 
 public class ArgTests extends ESTestCase {
 
-    public void testSchemaRoundTrip() throws IOException {
+    public void testInfoRoundTrip() throws IOException {
         byte[] buf = new byte[15];
         var output = new ByteArrayDataOutput(buf);
-        Arg.Schema schema = randomSchema();
-        schema.writeTo(output);
+        Arg.Info info = randomInfo();
+        info.writeTo(output);
 
         var input = new ByteArrayDataInput(buf);
-        Arg.Schema actual = Arg.Schema.readFrom(input);
-        assertEquals(schema, actual);
+        Arg.Info actual = Arg.Info.readFrom(input);
+        assertEquals(info, actual);
     }
 
-    public void testSchemaListRoundTrip() throws IOException {
+    public void testInfoListRoundTrip() throws IOException {
         int numArgs = randomIntBetween(0, 100);
-        var schemaList = new ArrayList<Arg.Schema>();
+        var infoList = new ArrayList<Arg.Info>();
         for (int i = 0; i < numArgs; i++) {
-            schemaList.add(randomSchema());
+            infoList.add(randomInfo());
         }
 
-        String encoded = Arg.encodeSchema(schemaList);
-        List<Arg.Schema> actual = Arg.decodeSchema(encoded);
+        String encoded = Arg.encodeInfo(infoList);
+        List<Arg.Info> actual = Arg.decodeInfo(encoded);
 
-        assertEquals(schemaList.size(), actual.size());
-        assertArrayEquals(schemaList.toArray(), actual.toArray());
+        assertEquals(infoList.size(), actual.size());
+        assertArrayEquals(infoList.toArray(), actual.toArray());
     }
 
-    Arg.Schema randomSchema() {
-        return new Arg.Schema(randomFrom(Arg.Type.values()), randomIntBetween(0, 10_000));
+    Arg.Info randomInfo() {
+        return new Arg.Info(randomFrom(Arg.Type.values()), randomIntBetween(0, 10_000));
     }
 }

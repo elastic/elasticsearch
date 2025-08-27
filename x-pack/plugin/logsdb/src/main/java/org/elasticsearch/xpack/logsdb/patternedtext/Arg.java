@@ -47,8 +47,8 @@ public class Arg {
         }
     }
 
-    record Schema(Type type, int offsetFromPrevArg) {
-        public Schema {
+    record Info(Type type, int offsetFromPrevArg) {
+        public Info {
             assert offsetFromPrevArg >= 0;
         }
         void writeTo(ByteArrayDataOutput out) throws IOException {
@@ -56,8 +56,8 @@ public class Arg {
             out.writeVInt(offsetFromPrevArg);
         }
 
-        static Schema readFrom(DataInput in) throws IOException {
-            return new Schema(Type.fromCode(in.readVInt()), in.readVInt());
+        static Info readFrom(DataInput in) throws IOException {
+            return new Info(Type.fromCode(in.readVInt()), in.readVInt());
         }
     }
 
@@ -65,7 +65,7 @@ public class Arg {
     private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
     private static int VINT_MAX_BYTES = 5;
 
-    public static String encodeSchema(List<Schema> arguments) throws IOException {
+    public static String encodeInfo(List<Info> arguments) throws IOException {
         int maxSize = VINT_MAX_BYTES  + arguments.size() * (VINT_MAX_BYTES + VINT_MAX_BYTES);
         byte[] buffer = new byte[maxSize];
         var dataInput = new ByteArrayDataOutput(buffer);
@@ -79,14 +79,14 @@ public class Arg {
         return ENCODER.encodeToString(data);
     }
 
-    public static List<Schema> decodeSchema(String encoded) throws IOException {
+    public static List<Info> decodeInfo(String encoded) throws IOException {
         byte[] encodedBytes = DECODER.decode(encoded);
         var input = new ByteArrayDataInput(encodedBytes);
 
         int numArgs = input.readVInt();
-        List<Schema> arguments = new ArrayList<>(numArgs);
+        List<Info> arguments = new ArrayList<>(numArgs);
         for (int i = 0; i < numArgs; i++) {
-            arguments.add(Schema.readFrom(input));
+            arguments.add(Info.readFrom(input));
         }
         return arguments;
     }

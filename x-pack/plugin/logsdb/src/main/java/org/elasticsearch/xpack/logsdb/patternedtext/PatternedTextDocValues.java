@@ -19,15 +19,15 @@ import java.util.List;
 public class PatternedTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;
     private final SortedSetDocValues argsDocValues;
-    private final SortedSetDocValues argsSchemaDocValues;
+    private final SortedSetDocValues argsInfoDocValues;
 
-    PatternedTextDocValues(SortedSetDocValues templateDocValues, SortedSetDocValues argsDocValues, SortedSetDocValues argsSchemaDocValues) {
+    PatternedTextDocValues(SortedSetDocValues templateDocValues, SortedSetDocValues argsDocValues, SortedSetDocValues argsInfoDocValues) {
         this.templateDocValues = templateDocValues;
         this.argsDocValues = argsDocValues;
-        this.argsSchemaDocValues = argsSchemaDocValues;
+        this.argsInfoDocValues = argsInfoDocValues;
     }
 
-    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsSchemaFieldName)
+    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsInfoFieldName)
         throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
         if (templateDocValues.getValueCount() == 0) {
@@ -35,21 +35,21 @@ public class PatternedTextDocValues extends BinaryDocValues {
         }
 
         SortedSetDocValues argsDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
-        SortedSetDocValues argsSchemaDocValues = DocValues.getSortedSet(leafReader, argsSchemaFieldName);
-        return new PatternedTextDocValues(templateDocValues, argsDocValues, argsSchemaDocValues);
+        SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, argsInfoFieldName);
+        return new PatternedTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
     }
 
     private String getNextStringValue() throws IOException {
         assert templateDocValues.docValueCount() == 1;
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
-        List<Arg.Schema> argsSchema = Arg.decodeSchema(argsSchemaDocValues.lookupOrd(argsSchemaDocValues.nextOrd()).utf8ToString());
+        List<Arg.Info> argsInfo = Arg.decodeInfo(argsInfoDocValues.lookupOrd(argsInfoDocValues.nextOrd()).utf8ToString());
 
-        if (argsSchema.isEmpty() == false) {
+        if (argsInfo.isEmpty() == false) {
             assert argsDocValues.docValueCount() == 1;
-            assert argsSchemaDocValues.docValueCount() == 1;
+            assert argsInfoDocValues.docValueCount() == 1;
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
             var args = Arg.decodeRemainingArgs(mergedArgs.utf8ToString());
-            return PatternedTextValueProcessor.merge(template, args, argsSchema);
+            return PatternedTextValueProcessor.merge(template, args, argsInfo);
         } else {
             return template;
         }
@@ -63,7 +63,7 @@ public class PatternedTextDocValues extends BinaryDocValues {
     @Override
     public boolean advanceExact(int i) throws IOException {
         argsDocValues.advanceExact(i);
-        argsSchemaDocValues.advanceExact(i);
+        argsInfoDocValues.advanceExact(i);
         // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
         return templateDocValues.advanceExact(i);
     }
@@ -77,9 +77,9 @@ public class PatternedTextDocValues extends BinaryDocValues {
     public int nextDoc() throws IOException {
         int templateNext = templateDocValues.nextDoc();
         var argsAdvance = argsDocValues.advance(templateNext);
-        var argsSchemaAdvance = argsSchemaDocValues.advance(templateNext);
+        var argsInfoAdvance = argsInfoDocValues.advance(templateNext);
         assert argsAdvance >= templateNext;
-        assert argsSchemaAdvance == templateNext;
+        assert argsInfoAdvance == templateNext;
         return templateNext;
     }
 
@@ -87,14 +87,14 @@ public class PatternedTextDocValues extends BinaryDocValues {
     public int advance(int i) throws IOException {
         int templateAdvance = templateDocValues.advance(i);
         var argsAdvance = argsDocValues.advance(templateAdvance);
-        var argsSchemaAdvance = argsSchemaDocValues.advance(templateAdvance);
+        var argsInfoAdvance = argsInfoDocValues.advance(templateAdvance);
         assert argsAdvance >= templateAdvance;
-        assert argsSchemaAdvance == templateAdvance;
+        assert argsInfoAdvance == templateAdvance;
         return templateAdvance;
     }
 
     @Override
     public long cost() {
-        return templateDocValues.cost() + argsDocValues.cost() + argsSchemaDocValues.cost();
+        return templateDocValues.cost() + argsDocValues.cost() + argsInfoDocValues.cost();
     }
 }

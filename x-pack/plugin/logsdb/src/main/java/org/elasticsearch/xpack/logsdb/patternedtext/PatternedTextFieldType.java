@@ -57,7 +57,7 @@ public class PatternedTextFieldType extends StringFieldType {
     private static final String TEMPLATE_SUFFIX = ".template";
     private static final String TEMPLATE_ID_SUFFIX = ".template_id";
     private static final String ARGS_SUFFIX = ".args";
-    private static final String ARGS_SCHEMA_SUFFIX = ".args_schema";
+    private static final String ARGS_Info_SUFFIX = ".args_Info";
 
     public static final String CONTENT_TYPE = "patterned_text";
 
@@ -273,8 +273,8 @@ public class PatternedTextFieldType extends StringFieldType {
         return name() + ARGS_SUFFIX;
     }
 
-    String argsSchemaFieldName() {
-        return name() + ARGS_SCHEMA_SUFFIX;
+    String argsInfoFieldName() {
+        return name() + ARGS_Info_SUFFIX;
     }
 
 }

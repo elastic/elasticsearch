@@ -25,22 +25,22 @@ public class PatternTextDocValuesTests extends ESTestCase {
     private static PatternedTextDocValues makeDocValueSparseArgs() throws IOException {
         var template = new SimpleSortedSetDocValues(removePlaceholders("% dog", "cat", "% mouse %", "hat %"));
         var args = new SimpleSortedSetDocValues("1", null, "2 3", "4");
-        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(), argSchema(0, 7), argSchema(4));
-        return new PatternedTextDocValues(template, args, schema);
+        var info = new SimpleSortedSetDocValues(argInfo(0), argInfo(), argInfo(0, 7), argInfo(4));
+        return new PatternedTextDocValues(template, args, info);
     }
 
     private static PatternedTextDocValues makeDocValuesDenseArgs() throws IOException {
         var template = new SimpleSortedSetDocValues(removePlaceholders("% moose", "% goose %", "% mouse %", "% house"));
         var args = new SimpleSortedSetDocValues("1", "4 5", "2 3", "7");
-        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(0, 7), argSchema(0, 7), argSchema(0));
-        return new PatternedTextDocValues(template, args, schema);
+        var info = new SimpleSortedSetDocValues(argInfo(0), argInfo(0, 7), argInfo(0, 7), argInfo(0));
+        return new PatternedTextDocValues(template, args, info);
     }
 
     private static PatternedTextDocValues makeDocValueMissingValues() throws IOException {
         var template = new SimpleSortedSetDocValues(removePlaceholders("% cheddar", "cat", null, "% cheese"));
         var args = new SimpleSortedSetDocValues("1", null, null, "4");
-        var schema = new SimpleSortedSetDocValues(argSchema(0), argSchema(), argSchema(), argSchema(0));
-        return new PatternedTextDocValues(template, args, schema);
+        var info = new SimpleSortedSetDocValues(argInfo(0), argInfo(), argInfo(), argInfo(0));
+        return new PatternedTextDocValues(template, args, info);
     }
 
     public void testNextDoc() throws IOException {
@@ -176,12 +176,12 @@ public class PatternTextDocValuesTests extends ESTestCase {
         }
     }
 
-    private static String argSchema(int... offsets) throws IOException {
-        List<Arg.Schema> argSchemas = new ArrayList<>();
+    private static String argInfo(int... offsets) throws IOException {
+        List<Arg.Info> argsInfo = new ArrayList<>();
         for (var offset : offsets) {
-            argSchemas.add(new Arg.Schema(Arg.Type.GENERAL, offset));
+            argsInfo.add(new Arg.Info(Arg.Type.GENERAL, offset));
         }
-        return Arg.encodeSchema(argSchemas);
+        return Arg.encodeInfo(argsInfo);
     }
 
     private static String[] removePlaceholders(String... values) {

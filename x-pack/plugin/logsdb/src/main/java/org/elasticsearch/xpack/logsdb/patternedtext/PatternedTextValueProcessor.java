@@ -19,9 +19,9 @@ import java.util.List;
 public class PatternedTextValueProcessor {
     private static final String DELIMITER = "[\\s\\[\\]]";
 
-    public record Parts(String template, String templateId, List<String> args, List<Arg.Schema> schemas) {
-        Parts(String template, List<String> args, List<Arg.Schema> schemas) {
-            this(template, PatternedTextValueProcessor.templateId(template), args, schemas);
+    public record Parts(String template, String templateId, List<String> args, List<Arg.Info> argsInfo) {
+        Parts(String template, List<String> args, List<Arg.Info> argsInfo) {
+            this(template, PatternedTextValueProcessor.templateId(template), args, argsInfo);
         }
     }
 
@@ -45,7 +45,7 @@ public class PatternedTextValueProcessor {
     public static Parts split(String text) throws IOException {
         StringBuilder template = new StringBuilder(text.length());
         List<String> args = new ArrayList<>();
-        List<Arg.Schema> schemas = new ArrayList<>();
+        List<Arg.Info> argsInfo = new ArrayList<>();
         String[] tokens = text.split(DELIMITER);
         int textIndex = 0;
         int prevArgOffset = 0;
@@ -58,7 +58,7 @@ public class PatternedTextValueProcessor {
             } else {
                 if (Arg.isArg(token)) {
                     args.add(token);
-                    schemas.add(new Arg.Schema(Arg.Type.GENERAL, template.length() - prevArgOffset));
+                    argsInfo.add(new Arg.Info(Arg.Type.GENERAL, template.length() - prevArgOffset));
                     prevArgOffset = template.length();
                 } else {
                     template.append(token);
@@ -72,15 +72,15 @@ public class PatternedTextValueProcessor {
         while (textIndex < text.length()) {
             template.append(text.charAt(textIndex++));
         }
-        return new Parts(template.toString(), args, schemas);
+        return new Parts(template.toString(), args, argsInfo);
     }
 
     // For testing
     public static String merge(Parts parts) {
-        return merge(parts.template, parts.args.toArray(String[]::new), parts.schemas);
+        return merge(parts.template, parts.args.toArray(String[]::new), parts.argsInfo);
     }
 
-    public static String merge(String template, String[] args, List<Arg.Schema> schemas) {
+    public static String merge(String template, String[] args, List<Arg.Info> argsInfo) {
         StringBuilder builder = new StringBuilder(originalSize(template, args));
         int numArgs = args.length;
 
@@ -88,9 +88,9 @@ public class PatternedTextValueProcessor {
         int nextToWrite = 0;
         for (int i = 0; i < numArgs; i++) {
             String arg = args[i];
-            var argSchema = schemas.get(i);
+            var argInfo = argsInfo.get(i);
 
-            offsetInTemplate += argSchema.offsetFromPrevArg();
+            offsetInTemplate += argInfo.offsetFromPrevArg();
             builder.append(template, nextToWrite, offsetInTemplate);
             builder.append(arg);
             nextToWrite = offsetInTemplate;

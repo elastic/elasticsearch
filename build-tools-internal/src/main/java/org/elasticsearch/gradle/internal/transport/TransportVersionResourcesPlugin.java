@@ -42,12 +42,11 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             c.setCanBeConsumed(false);
             c.setCanBeResolved(true);
             c.attributes(TransportVersionReference::addArtifactAttribute);
-            c.defaultDependencies(t -> {
-                psService.get()
-                    .getProjectsByTopic(TRANSPORT_REFERENCES_TOPIC)
-                    .get()
-                    .forEach(path -> t.add(depsHandler.project(Map.of("path", path))));
-            });
+            c.getDependencies()
+                .addAllLater(
+                    psService.flatMap(t -> t.getProjectsByTopic(TRANSPORT_REFERENCES_TOPIC))
+                        .map(projectPaths -> projectPaths.stream().map(path -> depsHandler.project(Map.of("path", path))).toList())
+                );
         });
 
         var validateTask = project.getTasks()

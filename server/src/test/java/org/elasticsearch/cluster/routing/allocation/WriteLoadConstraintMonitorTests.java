@@ -323,7 +323,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             greaterThanOrEqualTo(2L)
         );
 
-        // Now update cluster info to add to an additional hot-spotted node
+        // Now update cluster info to add another hot-spotted node
         final AtomicBoolean thresholdIncreased = new AtomicBoolean(false);
         var nodeUsageStatsWithExtraHotSpot = Maps.transformValues(testState.clusterInfo.getNodeUsageStatsForThreadPools(), stats -> {
             if (thresholdIncreased.get() == false && nodeExceedsQueueLatencyThreshold(stats, testState.latencyThresholdMillis) == false) {

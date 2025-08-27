@@ -46,9 +46,50 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         super(state, rawVectorsReader);
     }
 
+    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
+        return new CentroidIterator() {
+            CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
+                ? centroidIterator.nextPostingListOffsetAndLength()
+                : null;
+
+            {
+                // prefetch the first one
+                if (nextOffsetAndLength != null) {
+                    prefetch(nextOffsetAndLength);
+                }
+            }
+
+            void prefetch(CentroidOffsetAndLength offsetAndLength) throws IOException {
+                postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
+            }
+
+            @Override
+            public boolean hasNext() {
+                return nextOffsetAndLength != null;
+            }
+
+            @Override
+            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
+                CentroidOffsetAndLength offsetAndLength = nextOffsetAndLength;
+                if (centroidIterator.hasNext()) {
+                    nextOffsetAndLength = centroidIterator.nextPostingListOffsetAndLength();
+                    prefetch(nextOffsetAndLength);
+                } else {
+                    nextOffsetAndLength = null;  // indicate we reached the end
+                }
+                return offsetAndLength;
+            }
+        };
+    }
+
     @Override
-    CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
-        throws IOException {
+    CentroidIterator getCentroidIterator(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] targetQuery,
+        IndexInput postingListSlice
+    ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -70,8 +111,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
         centroids.seek(0L);
         int numParents = centroids.readVInt();
+        CentroidIterator centroidIterator;
         if (numParents > 0) {
-            return getCentroidIteratorWithParents(
+            centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,
                 numParents,
@@ -81,8 +123,18 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                 queryParams,
                 globalCentroidDp
             );
+        } else {
+            centroidIterator = getCentroidIteratorNoParent(
+                fieldInfo,
+                centroids,
+                numCentroids,
+                scorer,
+                quantized,
+                queryParams,
+                globalCentroidDp
+            );
         }
-        return getCentroidIteratorNoParent(fieldInfo, centroids, numCentroids, scorer, quantized, queryParams, globalCentroidDp);
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(
@@ -114,10 +166,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public long nextPostingListOffset() throws IOException {
+            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
-                centroids.seek(offset + (long) Long.BYTES * centroidOrdinal);
-                return centroids.readLong();
+                centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
+                long postingListOffset = centroids.readLong();
+                long postingListLength = centroids.readLong();
+                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
             }
         };
     }
@@ -184,11 +238,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public long nextPostingListOffset() throws IOException {
+            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
                 updateQueue(); // add one children if available so the queue remains fully populated
-                centroids.seek(childrenFileOffsets + (long) Long.BYTES * centroidOrdinal);
-                return centroids.readLong();
+                centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
+                long postingListOffset = centroids.readLong();
+                long postingListLength = centroids.readLong();
+                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
             }
 
             private void updateQueue() throws IOException {
@@ -385,13 +441,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             for (int j = 0; j < BULK_SIZE; j++) {
                 int doc = docIdsScratch[j + offset];
                 if (doc != -1) {
-                    indexInput.seek(slicePos + (offset * quantizedByteLength) + (j * quantizedVectorByteSize));
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
                     scores[j] = qcDist;
+                } else {
+                    indexInput.skipBytes(quantizedVectorByteSize);
                 }
             }
             // read in all corrections
-            indexInput.seek(slicePos + (offset * quantizedByteLength) + (BULK_SIZE * quantizedVectorByteSize));
             indexInput.readFloats(correctionsLower, 0, BULK_SIZE);
             indexInput.readFloats(correctionsUpper, 0, BULK_SIZE);
             for (int j = 0; j < BULK_SIZE; j++) {
@@ -447,6 +503,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
 
         @Override
         public int visit(KnnCollector knnCollector) throws IOException {
+            indexInput.seek(slicePos);
             // block processing
             int scoredDocs = 0;
             int limit = vectors - BULK_SIZE + 1;
@@ -454,10 +511,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             for (; i < limit; i += BULK_SIZE) {
                 final int docsToBulkScore = acceptDocs == null ? BULK_SIZE : docToBulkScore(docIdsScratch, i, acceptDocs);
                 if (docsToBulkScore == 0) {
+                    indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
                 }
                 quantizeQueryIfNecessary();
-                indexInput.seek(slicePos + i * quantizedByteLength);
                 final float maxScore;
                 if (docsToBulkScore < BULK_SIZE / 2) {
                     maxScore = scoreIndividually(i);
@@ -483,7 +540,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                 int doc = docIdsScratch[i];
                 if (acceptDocs == null || acceptDocs.get(doc)) {
                     quantizeQueryIfNecessary();
-                    indexInput.seek(slicePos + i * quantizedByteLength);
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
                     indexInput.readFloats(correctiveValues, 0, 3);
                     final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
@@ -502,6 +558,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                     );
                     scoredDocs++;
                     knnCollector.collect(doc, score);
+                } else {
+                    indexInput.skipBytes(quantizedByteLength);
                 }
             }
             if (scoredDocs > 0) {

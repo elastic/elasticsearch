@@ -257,9 +257,8 @@ public class TSDBDocValuesMergeBenchmark {
         );
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
         config.setMergePolicy(new LogByteSizeMergePolicy());
-        var docValuesFormat = new ES819TSDBDocValuesFormat(4096, optimizedMergeEnabled);
+        var docValuesFormat = new ES819TSDBDocValuesFormat(4096, 512, optimizedMergeEnabled);
         config.setCodec(new Elasticsearch92Lucene103Codec() {
-
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return docValuesFormat;

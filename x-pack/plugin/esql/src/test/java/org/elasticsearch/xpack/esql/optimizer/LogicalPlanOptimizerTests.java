@@ -12,8 +12,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
@@ -176,7 +174,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
@@ -199,7 +196,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -534,349 +530,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var agg = as(limit.child(), Aggregate.class);
         assertThat(agg.aggregates(), hasSize(2));
         assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "sum(salary) WheRe last_name ==   \"Doe\""));
-    }
-
-    /**
-     * <pre>{@code
-     * Limit[1000[INTEGER]]
-     * \_LocalRelation[[sum(salary) where false{r}#26],[ConstantNullBlock[positions=1]]]
-     * }</pre>
-     */
-    public void testReplaceStatsFilteredAggWithEvalSingleAgg() {
-        var plan = plan("""
-            from test
-            | stats sum(salary) where false
-            """);
-
-        var project = as(plan, Limit.class);
-        var source = as(project.child(), LocalRelation.class);
-        assertThat(Expressions.names(source.output()), contains("sum(salary) where false"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        assertThat(blocks[0].getPositionCount(), is(1));
-        assertTrue(blocks[0].areAllValuesNull());
-    }
-
-    /**
-     * <pre>{@code
-     * Project[[sum(salary) + 1 where false{r}#68]]
-     * \_Eval[[$$SUM$sum(salary)_+_1$0{r$}#79 + 1[INTEGER] AS sum(salary) + 1 where false]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_LocalRelation[[$$SUM$sum(salary)_+_1$0{r$}#79],[ConstantNullBlock[positions=1]]]
-     * }</pre>
-     */
-    public void testReplaceStatsFilteredAggWithEvalSingleAggWithExpression() {
-        var plan = plan("""
-            from test
-            | stats sum(salary) + 1 where false
-            """);
-
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("sum(salary) + 1 where false"));
-
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("sum(salary) + 1 where false"));
-        var add = as(alias.child(), Add.class);
-        var literal = as(add.right(), Literal.class);
-        assertThat(literal.value(), is(1));
-
-        var limit = as(eval.child(), Limit.class);
-        var source = as(limit.child(), LocalRelation.class);
-
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        assertThat(blocks[0].getPositionCount(), is(1));
-        assertTrue(blocks[0].areAllValuesNull());
-    }
-
-    /**
-     * <pre>{@code
-     * Project[[sum(salary) + 1 where false{r}#4, sum(salary) + 2{r}#6, emp_no{f}#7]]
-     * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_2$1{r$}#18 + 2[INTEGER] AS sum(salary) + 2]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Aggregate[STANDARD,[emp_no{f}#7],[SUM(salary{f}#12,true[BOOLEAN]) AS $$SUM$sum(salary)_+_2$1, emp_no{f}#7]]
-     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     * }</pre>
-     */
-    public void testReplaceStatsFilteredAggWithEvalMixedFilterAndNoFilter() {
-        var plan = plan("""
-            from test
-            | stats sum(salary) + 1 where false,
-                    sum(salary) + 2
-              by emp_no
-            """);
-
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("sum(salary) + 1 where false", "sum(salary) + 2", "emp_no"));
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(2));
-
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(FoldContext.small()), nullValue());
-        assertThat(alias.child().dataType(), is(LONG));
-
-        alias = as(eval.fields().getLast(), Alias.class);
-        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 2"));
-
-        var limit = as(eval.child(), Limit.class);
-        var aggregate = as(limit.child(), Aggregate.class);
-        var source = as(aggregate.child(), EsRelation.class);
-    }
-
-    /**
-     * <pre>{@code
-     * Project[[sum(salary) + 1 where false{r}#3, sum(salary) + 3{r}#5, sum(salary) + 2 where null{r}#7,
-     * sum(salary) + 4 where not true{r}#9]]
-     * \_Eval[[null[LONG] AS sum(salary) + 1 where false#3, $$SUM$sum(salary)_+_3$1{r$}#22 + 3[INTEGER] AS sum(salary) + 3#5
-     * , null[LONG] AS sum(salary) + 2 where null#7, null[LONG] AS sum(salary) + 4 where not true#9]]
-     *   \_Limit[1000[INTEGER],false]
-     *     \_Aggregate[[],[SUM(salary{f}#15,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$sum(salary)_+_3$1#22]]
-     *       \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     * }</pre>
-     *
-     */
-    public void testReplaceStatsFilteredAggWithEvalFilterFalseAndNull() {
-        var plan = plan("""
-            from test
-            | stats sum(salary) + 1 where false,
-                    sum(salary) + 3,
-                    sum(salary) + 2 where null,
-                    sum(salary) + 4 where not true
-            """);
-
-        var project = as(plan, Project.class);
-        assertThat(
-            Expressions.names(project.projections()),
-            contains("sum(salary) + 1 where false", "sum(salary) + 3", "sum(salary) + 2 where null", "sum(salary) + 4 where not true")
-        );
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(4));
-
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(FoldContext.small()), nullValue());
-        assertThat(alias.child().dataType(), is(LONG));
-
-        alias = as(eval.fields().get(0), Alias.class);
-        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 1"));
-
-        alias = as(eval.fields().get(1), Alias.class);
-        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 3"));
-
-        alias = as(eval.fields().get(2), Alias.class);
-        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 2"));
-
-        alias = as(eval.fields().get(3), Alias.class);
-        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 4"));
-
-        alias = as(eval.fields().getLast(), Alias.class);
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(FoldContext.small()), nullValue());
-        assertThat(alias.child().dataType(), is(LONG));
-
-        var limit = as(eval.child(), Limit.class);
-        var aggregate = as(limit.child(), Aggregate.class);
-        var source = as(aggregate.child(), EsRelation.class);
-    }
-
-    /*
-     * Limit[1000[INTEGER]]
-     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
-     */
-    public void testReplaceStatsFilteredAggWithEvalNotTrue() {
-        var plan = plan("""
-            from test
-            | stats count(salary) where not true
-            """);
-
-        var limit = as(plan, Limit.class);
-        var source = as(limit.child(), LocalRelation.class);
-        assertThat(Expressions.names(source.output()), contains("count(salary) where not true"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
-        assertThat(block.getPositionCount(), is(1));
-        assertThat(block.asVector().getLong(0), is(0L));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false]
-     * \_Aggregate[[],[COUNT(salary{f}#10,true[BOOLEAN]) AS m1#4]]
-     * \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     */
-    public void testReplaceStatsFilteredAggWithEvalNotFalse() {
-        var plan = plan("""
-            from test
-            | stats m1 = count(salary) where not false
-            """);
-        var limit = as(plan, Limit.class);
-        var aggregate = as(limit.child(), Aggregate.class);
-        assertEquals(1, aggregate.aggregates().size());
-        assertEquals(1, aggregate.aggregates().get(0).children().size());
-        assertTrue(aggregate.aggregates().get(0).children().get(0) instanceof Count);
-        assertEquals("true", (((Count) aggregate.aggregates().get(0).children().get(0)).filter().toString()));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("m1"));
-        var source = as(aggregate.child(), EsRelation.class);
-    }
-
-    /**
-     * <pre>{@code
-     * Limit[1000[INTEGER]]
-     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
-     * }</pre>
-     */
-    public void testReplaceStatsFilteredAggWithEvalCount() {
-        var plan = plan("""
-            from test
-            | stats count(salary) where false
-            """);
-
-        var limit = as(plan, Limit.class);
-        var source = as(limit.child(), LocalRelation.class);
-        assertThat(Expressions.names(source.output()), contains("count(salary) where false"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
-        assertThat(block.getPositionCount(), is(1));
-        assertThat(block.asVector().getLong(0), is(0L));
-    }
-
-    /**
-     * <pre>{@code
-     * Project[[count_distinct(salary + 2) + 3 where false{r}#3]]
-     * \_Eval[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15 + 3[INTEGER] AS count_distinct(salary + 2) + 3 where false]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_LocalRelation[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
-     * }</pre>
-     */
-    public void testReplaceStatsFilteredAggWithEvalCountDistinctInExpression() {
-        var plan = plan("""
-            from test
-            | stats count_distinct(salary + 2) + 3 where false
-            """);
-
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("count_distinct(salary + 2) + 3 where false"));
-
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("count_distinct(salary + 2) + 3 where false"));
-        var add = as(alias.child(), Add.class);
-        var literal = as(add.right(), Literal.class);
-        assertThat(literal.value(), is(3));
-
-        var limit = as(eval.child(), Limit.class);
-        var source = as(limit.child(), LocalRelation.class);
-
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
-        assertThat(block.getPositionCount(), is(1));
-        assertThat(block.asVector().getLong(0), is(0L));
-    }
-
-    /**
-     * <pre>{@code
-     * Project[[max{r}#91, max_a{r}#94, min{r}#97, min_a{r}#100, emp_no{f}#101]]
-     * \_Eval[[null[INTEGER] AS max_a, null[INTEGER] AS min_a]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Aggregate[STANDARD,[emp_no{f}#101],[MAX(salary{f}#106,true[BOOLEAN]) AS max, MIN(salary{f}#106,true[BOOLEAN]) AS min, emp_
-     * no{f}#101]]
-     *       \_EsRelation[test][_meta_field{f}#107, emp_no{f}#101, first_name{f}#10..]
-     * }</pre>
-     */
-    public void testReplaceStatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
-        var plan = plan("""
-            from test
-            | stats max = max(salary), max_a = max(salary) where null,
-                    min = min(salary), min_a = min(salary) where to_string(null) == "abc"
-              by emp_no
-            """);
-
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("max", "max_a", "min", "min_a", "emp_no"));
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(2));
-
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(Expressions.name(alias), containsString("max_a"));
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(FoldContext.small()), nullValue());
-        assertThat(alias.child().dataType(), is(INTEGER));
-
-        alias = as(eval.fields().getLast(), Alias.class);
-        assertThat(Expressions.name(alias), containsString("min_a"));
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(FoldContext.small()), nullValue());
-        assertThat(alias.child().dataType(), is(INTEGER));
-
-        var limit = as(eval.child(), Limit.class);
-
-        var aggregate = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.aggregates()), contains("max", "min", "emp_no"));
-
-        var source = as(aggregate.child(), EsRelation.class);
-    }
-
-    /**
-     * <pre>{@code
-     * Limit[1000[INTEGER]]
-     * \_LocalRelation[[count{r}#7],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
-     * }</pre>
-     */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634") // i.e. PropagateEvalFoldables applicability to Aggs
-    public void testReplaceStatsFilteredAggWithEvalFilterUsingEvaledValue() {
-        var plan = plan("""
-            from test
-            | eval my_length = length(concat(first_name, null))
-            | stats count = count(my_length) where my_length > 0
-            """);
-
-        var limit = as(plan, Limit.class);
-        var source = as(limit.child(), LocalRelation.class);
-        assertThat(Expressions.names(source.output()), contains("count"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
-        assertThat(block.getPositionCount(), is(1));
-        assertThat(block.asVector().getLong(0), is(0L));
-    }
-
-    /**
-     *
-     * <pre>{@code
-     * Project[[c{r}#67, emp_no{f}#68]]
-     * \_Eval[[0[LONG] AS c]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Aggregate[STANDARD,[emp_no{f}#68],[emp_no{f}#68]]
-     *       \_EsRelation[test][_meta_field{f}#74, emp_no{f}#68, first_name{f}#69, ..]
-     * }</pre>
-     */
-    public void testReplaceStatsFilteredAggWithEvalSingleAggWithGroup() {
-        var plan = plan("""
-            from test
-            | stats c = count(emp_no) where false
-              by emp_no
-            """);
-
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("c", "emp_no"));
-
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(Expressions.name(alias), containsString("c"));
-
-        var limit = as(eval.child(), Limit.class);
-
-        var aggregate = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.aggregates()), contains("emp_no"));
-
-        var source = as(aggregate.child(), EsRelation.class);
     }
 
     public void testExtractStatsCommonFilter() {
@@ -7289,7 +6942,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsWithoutGrouping() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -7310,7 +6963,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMixedAggsWithoutGrouping() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -7335,7 +6988,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMixedAggsWithMathWithoutGrouping() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
@@ -7373,7 +7026,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByOneDimension() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         TopN topN = as(plan, TopN.class);
@@ -7398,7 +7051,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByTwoDimension() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS avg(rate(network.total_bytes_in)) BY cluster, pod";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
@@ -7438,7 +7091,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByTimeBucket() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -7467,7 +7120,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsGroupedByTimeBucketAndDimensions() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = """
             TS k8s
             | STATS avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
@@ -7509,7 +7162,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateSumOfTwoRates() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = """
             TS k8s
             | STATS max(rate(network.total_bytes_in) + rate(network.total_bytes_out)) BY pod, bucket(@timestamp, 5 minute), cluster
@@ -7530,7 +7183,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMixedAggsGroupedByTimeBucketAndDimensions() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = """
             TS k8s
             | STATS avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
@@ -7582,7 +7235,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testAdjustMetricsRateBeforeFinalAgg() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = """
             TS k8s
             | STATS avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
@@ -7640,7 +7293,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMaxOverTime() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(max_over_time(network.bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -7669,7 +7322,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateAvgOverTime() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var query = "TS k8s | STATS sum(avg_over_time(network.bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
@@ -7702,7 +7355,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testMetricsWithoutRate() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         List<String> queries = List.of("""
             TS k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
             | LIMIT 10

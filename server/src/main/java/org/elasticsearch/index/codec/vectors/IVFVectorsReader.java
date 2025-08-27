@@ -22,12 +22,12 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
@@ -86,8 +86,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
-        throws IOException;
+    abstract CentroidIterator getCentroidIterator(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] target,
+        IndexInput postingListSlice
+    ) throws IOException;
 
     private static IndexInput openDataInput(
         SegmentReadState state,
@@ -207,7 +212,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     @Override
-    public final void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
             rawVectorsReader.search(field, target, knnCollector, acceptDocs);
@@ -218,11 +223,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        float percentFiltered = 1f;
-        if (acceptDocs instanceof BitSet bitSet) {
-            percentFiltered = Math.max(0f, Math.min(1f, (float) bitSet.approximateCardinality() / bitSet.length()));
-        }
         int numVectors = rawVectorsReader.getFloatVectorValues(field).size();
+        float percentFiltered = Math.max(0f, Math.min(1f, (float) acceptDocs.cost() / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -242,38 +244,51 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
-        CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, entry.centroidSlice(ivfCentroids), target);
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, entry.postingListSlice(ivfClusters), target, acceptDocs);
-
+        IndexInput postListSlice = entry.postingListSlice(ivfClusters);
+        CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
+            fieldInfo,
+            entry.numCentroids,
+            entry.centroidSlice(ivfCentroids),
+            target,
+            postListSlice
+        );
+        Bits acceptDocsBits = acceptDocs.bits();
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        while (centroidIterator.hasNext()
-            && (maxVectorVisited > actualDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
+        while (centroidPrefetchingIterator.hasNext()
+            && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             // todo do we actually need to know the score???
-            long offset = centroidIterator.nextPostingListOffset();
+            CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
-            expectedDocs += scorer.resetPostingsScorer(offset);
+            expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
             actualDocs += scorer.visit(knnCollector);
+            if (knnCollector.getSearchStrategy() != null) {
+                knnCollector.getSearchStrategy().nextVectorsBlock();
+            }
         }
-        if (acceptDocs != null) {
+        if (acceptDocsBits != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-            while (centroidIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                long offset = centroidIterator.nextPostingListOffset();
-                scorer.resetPostingsScorer(offset);
+            while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+                CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
+                scorer.resetPostingsScorer(offsetAndLength.offset());
                 actualDocs += scorer.visit(knnCollector);
+                if (knnCollector.getSearchStrategy() != null) {
+                    knnCollector.getSearchStrategy().nextVectorsBlock();
+                }
             }
         }
     }
 
     @Override
-    public final void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         final ByteVectorValues values = rawVectorsReader.getByteVectorValues(field);
         for (int i = 0; i < values.size(); i++) {
@@ -329,10 +344,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
+    record CentroidOffsetAndLength(long offset, long length) {}
+
     interface CentroidIterator {
         boolean hasNext();
 
-        long nextPostingListOffset() throws IOException;
+        CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException;
     }
 
     interface PostingVisitor {

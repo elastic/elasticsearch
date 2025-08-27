@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
@@ -191,7 +192,13 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                 for (LeafReaderContext r : subReaders) {
                     LeafReader leafReader = r.reader();
                     float[] vector = randomVector(dimensions);
-                    TopDocs topDocs = leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
                     assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
                 }
 
@@ -219,7 +226,13 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                 for (LeafReaderContext r : subReaders) {
                     LeafReader leafReader = r.reader();
                     float[] vector = randomVector(dimensions);
-                    TopDocs topDocs = leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
                     assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
                 }
 
@@ -250,7 +263,13 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                             for (; totSearch < numSearches && failed.get() == false; totSearch++) {
                                 float[] vector = randomVector(dimensions);
                                 LeafReader leafReader = getOnlyLeafReader(reader);
-                                leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                                leafReader.searchNearestVectors(
+                                    "f",
+                                    vector,
+                                    10,
+                                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                                    Integer.MAX_VALUE
+                                );
                             }
                             assertTrue(totSearch > 0);
                         } catch (Exception exc) {

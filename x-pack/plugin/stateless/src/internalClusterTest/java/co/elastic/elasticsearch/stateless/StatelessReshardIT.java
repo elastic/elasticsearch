@@ -65,6 +65,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLog;
@@ -77,15 +78,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -317,6 +322,495 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
 
         search.decRef();
+    }
+
+    public void testSearchDuringReshard() throws Exception {
+        var masterNode = startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        startSearchNode();
+        String searchCoordinator = startSearchNode();
+        ensureStableCluster(4);
+
+        final int multiple = randomIntBetween(2, 3);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        final int initialIndexedDocuments = randomIntBetween(10, 100);
+        indexDocs(indexName, initialIndexedDocuments);
+
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+
+        int totalNumberOfDocumentsInIndex = initialIndexedDocuments;
+
+        // search works before resharding
+        refresh(indexName);
+
+        var initialSearch = prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+        assertHitCount(initialSearch, totalNumberOfDocumentsInIndex);
+
+        ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName, multiple);
+        ActionFuture<ReshardIndexResponse> reshardOperation = client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest);
+
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + test itself
+        CyclicBarrier resetStateTransitionBlock = new CyclicBarrier(multiple);
+
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+                    // line up all targets and block them from state transition
+                    stateTransitionBlock.await();
+                }
+                connection.sendRequest(requestId, action, request, options);
+
+                if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+                    // wait and exit only after `targetsAttemptToChangeState` was properly reset
+                    resetStateTransitionBlock.await();
+                }
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Index index = resolveIndex(indexName);
+
+        assertBusy(() -> {
+            var metadata = internalCluster().clusterService(searchCoordinator).state().getMetadata().indexMetadata(index);
+            if (metadata.getReshardingMetadata() == null) {
+                throw new AssertionError("Waiting for search coordinator to see resharding metadata");
+            }
+        });
+
+        // transition to HANDOFF is blocked, all targets are CLONE, search uses source shard only, refresh uses source shard only
+        var cloneRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        assertEquals(1, cloneRefresh.getTotalShards());
+        assertEquals(1, cloneRefresh.getSuccessfulShards());
+
+        var cloneSearch = client(searchCoordinator).prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+        assertHitCount(cloneSearch, totalNumberOfDocumentsInIndex);
+
+        // TODO write more data here.
+        // Writes to source shard at this point will not be copied to the target
+        // because they happen after commit copy logic is already disabled.
+        // Eventually we'll take indexing permits here and forward such writes to the target.
+        // But for now we can't write here because eventually we remove some documents written here
+        // as unowned but they are also not copied to the target.
+        // That of course leads to incorrect search results.
+
+        // unblock HANDOFF transition
+        stateTransitionBlock.await();
+        stateTransitionBlock.reset();
+        resetStateTransitionBlock.await();
+
+        assertBusy(() -> {
+            var metadata = internalCluster().clusterService(searchCoordinator).state().getMetadata().indexMetadata(index);
+            if (metadata.getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF) == false) {
+                throw new AssertionError("Waiting for search coordinator to see target shards transition to HANDOFF");
+            }
+        });
+
+        // transition to SPLIT is blocked, all targets are HANDOFF, search uses source shard, refresh uses target shards
+        var handoffRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        assertEquals(multiple, handoffRefresh.getTotalShards());
+        assertEquals(multiple, handoffRefresh.getSuccessfulShards());
+
+        var handoffSearch = client(searchCoordinator).prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+        assertHitCount(handoffSearch, totalNumberOfDocumentsInIndex);
+
+        // indexing new data and searching for it works
+        final int handoffIndexedDocuments = randomIntBetween(10, 20);
+        indexDocs(indexName, handoffIndexedDocuments);
+        totalNumberOfDocumentsInIndex += handoffIndexedDocuments;
+
+        client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        var handoffNewDocsSearch = client(searchCoordinator).prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+
+        // TODO this is a gap - we can write to target shards and refresh them but we won't see our writes.
+        // Refresh block will solve this.
+        int handoffNewDocsSearchExpected = totalNumberOfDocumentsInIndex - handoffIndexedDocuments;
+        assertResponse(handoffNewDocsSearch, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertTrue("Lost documents during reshard", r.getHits().getTotalHits().value() >= handoffNewDocsSearchExpected);
+        });
+
+        // unblock SPLIT transition
+        stateTransitionBlock.await();
+        stateTransitionBlock.reset();
+        resetStateTransitionBlock.await();
+
+        assertBusy(() -> {
+            var metadata = internalCluster().clusterService(searchCoordinator).state().getMetadata().indexMetadata(index);
+            if (metadata.getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT) == false) {
+                throw new AssertionError("Waiting for search coordinator to see target shards transition to SPLIT");
+            }
+        });
+
+        // transition to DONE is blocked, all targets are SPLIT, search uses target shards, refresh uses target shards
+        var splitRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
+        assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
+
+        var splitSearch = client(searchCoordinator).prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+
+        // TODO this is a gap - search filters do not exist yet and we'll see documents from the source shard twice.
+        int splitSearchExpected = totalNumberOfDocumentsInIndex;
+        assertResponse(splitSearch, r -> {
+            assertEquals(multiple, r.getTotalShards());
+            assertTrue("Lost documents during reshard", r.getHits().getTotalHits().value() >= splitSearchExpected);
+        });
+
+        // indexing new data and searching for it works
+        final int splitIndexedDocuments = randomIntBetween(10, 20);
+        indexDocs(indexName, splitIndexedDocuments);
+        totalNumberOfDocumentsInIndex += splitIndexedDocuments;
+
+        client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        var splitNewDocsSearch = client(searchCoordinator).prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+
+        // TODO this is a gap - search filters do not exist yet and we'll see documents from the source shard twice.
+        int splitNewDocsSearchExpected = totalNumberOfDocumentsInIndex;
+        assertResponse(splitNewDocsSearch, r -> {
+            assertEquals(multiple, r.getTotalShards());
+            assertTrue("Lost documents during reshard", r.getHits().getTotalHits().value() >= splitNewDocsSearchExpected);
+        });
+
+        // unblock DONE transition
+        stateTransitionBlock.await();
+        stateTransitionBlock.reset();
+        resetStateTransitionBlock.await();
+
+        assertBusy(() -> {
+            var metadata = internalCluster().clusterService(searchCoordinator).state().getMetadata().indexMetadata(index);
+            if (metadata.getReshardingMetadata() == null) {
+                // all shards are DONE so resharding metadata is removed by master
+                return;
+            }
+
+            boolean targetsDone = metadata.getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.DONE);
+            boolean sourceDone = metadata.getReshardingMetadata()
+                .getSplit()
+                .sourceStates()
+                .allMatch(s -> s == IndexReshardingState.Split.SourceShardState.DONE);
+            if (targetsDone == false || sourceDone == false) {
+                throw new AssertionError("Waiting for search coordinator to see all shards transition to DONE");
+            }
+        });
+
+        // all target shards and source shards are DONE
+        var doneRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        assertEquals(multiple, doneRefresh.getTotalShards());
+        assertEquals(multiple, doneRefresh.getSuccessfulShards());
+
+        var doneSearch = client(searchCoordinator).prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+
+        // all unowned documents should be deleted now so we should get the exact count
+        int doneSearchExpected = totalNumberOfDocumentsInIndex;
+        assertResponse(doneSearch, r -> {
+            assertEquals(multiple, r.getTotalShards());
+            assertEquals(doneSearchExpected, r.getHits().getTotalHits().value());
+        });
+
+        // indexing new data and searching for it works
+        final int doneIndexedDocuments = randomIntBetween(10, 20);
+        indexDocs(indexName, doneIndexedDocuments);
+        totalNumberOfDocumentsInIndex += doneIndexedDocuments;
+
+        client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        var doneNewDocsSearch = client(searchCoordinator).prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+
+        int doneNewDocsSearchExpected = totalNumberOfDocumentsInIndex;
+        assertResponse(doneNewDocsSearch, r -> {
+            assertEquals(multiple, r.getTotalShards());
+            assertEquals(doneNewDocsSearchExpected, r.getHits().getTotalHits().value());
+        });
+
+        reshardOperation.actionGet(SAFE_AWAIT_TIMEOUT);
+    }
+
+    public void testSearchWithCustomRoutingDuringReshard() throws Exception {
+        String masterNode = startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final int multiple = 3;
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        var index = resolveIndex(indexName);
+        var indexMetadata = internalCluster().clusterService(masterNode).state().getMetadata().indexMetadata(index);
+
+        // We re-create the metadata directly in test in order to have access to after-reshard routing.
+        var wouldBeMetadata = IndexMetadata.builder(indexMetadata)
+            .reshardAddShards(multiple)
+            .reshardingMetadata(
+                IndexReshardingMetadata.newSplitByMultiple(1, multiple)
+                    .transitionSplitTargetToNewState(new ShardId(index, 1), IndexReshardingState.Split.TargetShardState.HANDOFF)
+                    .transitionSplitTargetToNewState(new ShardId(index, 2), IndexReshardingState.Split.TargetShardState.HANDOFF)
+            )
+            .build();
+        var wouldBeAfterSplitRouting = IndexRouting.fromIndexMetadata(wouldBeMetadata);
+
+        int ingestedDocumentsPerShard = randomIntBetween(10, 20);
+
+        Function<Integer, String> findRoutingValue = shard -> {
+            while (true) {
+                String routingValue = randomAlphaOfLength(5);
+                int routedShard = wouldBeAfterSplitRouting.indexShard("dummy", routingValue, null, null);
+                if (routedShard == shard) {
+                    return routingValue;
+                }
+            }
+        };
+
+        var routingValuePerShard = new HashMap<Integer, String>() {
+            {
+                put(0, findRoutingValue.apply(0));
+                put(1, findRoutingValue.apply(1));
+                put(2, findRoutingValue.apply(2));
+            }
+        };
+
+        int id = 0;
+        for (var shardAndRouting : routingValuePerShard.entrySet()) {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < ingestedDocumentsPerShard; i++) {
+                var indexRequest = client().prepareIndex(indexName).setId(String.valueOf(id++)).setRouting(shardAndRouting.getValue());
+
+                var source = Map.of("field", randomUnicodeOfCodepointLengthBetween(1, 25));
+                bulkRequest.add(indexRequest.setSource(source));
+            }
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+        }
+
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+
+        refresh(indexName);
+
+        // Search with routing specified.
+        var preSplitSearch = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(ingestedDocumentsPerShard * multiple * 2)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setRouting(routingValuePerShard.get(1));
+
+        // Everything routes to the only shard so no matter what the routing is, we'll get all documents
+        assertResponse(preSplitSearch, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard * multiple, r.getHits().getTotalHits().value());
+        });
+
+        // Start split and block transition to HANDOFF.
+        ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName, multiple);
+        ActionFuture<ReshardIndexResponse> reshardOperation = client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest);
+
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + test itself
+        CyclicBarrier resetStateTransitionBlock = new CyclicBarrier(multiple);
+
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+                    // line up all targets and block them from state transition
+                    stateTransitionBlock.await();
+                }
+                connection.sendRequest(requestId, action, request, options);
+
+                if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+                    // wait and exit only after `targetsAttemptToChangeState` was properly reset
+                    resetStateTransitionBlock.await();
+                }
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertBusy(() -> {
+            var metadata = internalCluster().clusterService(searchNode).state().getMetadata().indexMetadata(index);
+            if (metadata.getReshardingMetadata() == null) {
+                throw new AssertionError("Waiting for search coordinator to see resharding metadata");
+            }
+        });
+
+        // Transition to HANDOFF is blocked, all targets are CLONE, search uses source shard only.
+        var cloneSearch = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(ingestedDocumentsPerShard * multiple * 2)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setRouting(routingValuePerShard.get(1));
+
+        // Even though the routing value would now route to shard 1, search is still routed to the source shard,
+        // and we get all documents.
+        assertResponse(cloneSearch, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard * multiple, r.getHits().getTotalHits().value());
+        });
+
+        // unblock HANDOFF transition
+        stateTransitionBlock.await();
+        stateTransitionBlock.reset();
+        resetStateTransitionBlock.await();
+
+        assertBusy(() -> {
+            var metadata = internalCluster().clusterService(searchNode).state().getMetadata().indexMetadata(index);
+            if (metadata.getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF) == false) {
+                throw new AssertionError("Waiting for search coordinator to see target shards transition to HANDOFF");
+            }
+        });
+
+        // transition to SPLIT is blocked, all targets are HANDOFF, search uses source shard, refresh uses target shards
+        var handoffSearch = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(ingestedDocumentsPerShard * multiple * 2)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setRouting(routingValuePerShard.get(2));
+
+        // Even though the routing value would now route to shard 2, search is still routed to the source shard,
+        // and we get all documents.
+        assertResponse(handoffSearch, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard * multiple, r.getHits().getTotalHits().value());
+        });
+
+        // unblock SPLIT transition
+        stateTransitionBlock.await();
+        stateTransitionBlock.reset();
+        resetStateTransitionBlock.await();
+
+        assertBusy(() -> {
+            var metadata = internalCluster().clusterService(searchNode).state().getMetadata().indexMetadata(index);
+            if (metadata.getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT) == false) {
+                throw new AssertionError("Waiting for search coordinator to see target shards transition to SPLIT");
+            }
+        });
+
+        // TODO
+        // Since search filters do not exist, we'll still see all documents here in all shards until they are deleted.
+        // So we advance to DONE and check.
+
+        // unblock DONE transition
+        stateTransitionBlock.await();
+        stateTransitionBlock.reset();
+        resetStateTransitionBlock.await();
+
+        assertBusy(() -> {
+            var metadata = internalCluster().clusterService(searchNode).state().getMetadata().indexMetadata(index);
+            if (metadata.getReshardingMetadata() == null) {
+                // all shards are DONE so resharding metadata is removed by master
+                return;
+            }
+
+            boolean targetsDone = metadata.getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.DONE);
+            boolean sourceDone = metadata.getReshardingMetadata()
+                .getSplit()
+                .sourceStates()
+                .allMatch(s -> s == IndexReshardingState.Split.SourceShardState.DONE);
+            if (targetsDone == false || sourceDone == false) {
+                throw new AssertionError("Waiting for search coordinator to see all shards transition to DONE");
+            }
+        });
+
+        var doneSearchShard0 = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(ingestedDocumentsPerShard * multiple * 2)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setRouting(routingValuePerShard.get(0));
+
+        // Routing is correctly applied, one shard is searched and only documents from this shard are returned.
+        assertResponse(doneSearchShard0, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard, r.getHits().getTotalHits().value());
+        });
+
+        var doneSearchShard1 = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(ingestedDocumentsPerShard * multiple * 2)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setRouting(routingValuePerShard.get(1));
+
+        // Routing is correctly applied, one shard is searched and only documents from this shard are returned.
+        assertResponse(doneSearchShard1, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard, r.getHits().getTotalHits().value());
+        });
+
+        var doneSearchShard2 = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(ingestedDocumentsPerShard * multiple * 2)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setRouting(routingValuePerShard.get(2));
+
+        // Routing is correctly applied, one shard is searched and only documents from this shard are returned.
+        assertResponse(doneSearchShard2, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard, r.getHits().getTotalHits().value());
+        });
+
+        reshardOperation.actionGet(SAFE_AWAIT_TIMEOUT);
     }
 
     public void testReshardEmptyIndex() {

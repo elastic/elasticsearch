@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 public class SingleInferenceResultsProvider implements InferenceResultsProvider {
@@ -20,6 +22,7 @@ public class SingleInferenceResultsProvider implements InferenceResultsProvider 
     private final InferenceResults inferenceResults;
 
     public SingleInferenceResultsProvider(InferenceResults inferenceResults) {
+        Objects.requireNonNull(inferenceResults);
         this.inferenceResults = inferenceResults;
     }
 
@@ -40,6 +43,11 @@ public class SingleInferenceResultsProvider implements InferenceResultsProvider 
     @Override
     public InferenceResults getInferenceResults(String inferenceId) {
         return inferenceResults;
+    }
+
+    @Override
+    public Collection<InferenceResults> getAllInferenceResults() {
+        return List.of(inferenceResults);
     }
 
     @Override

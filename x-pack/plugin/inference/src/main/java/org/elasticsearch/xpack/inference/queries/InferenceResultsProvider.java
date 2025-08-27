@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.inference.queries;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.inference.InferenceResults;
 
+import java.util.Collection;
+
 public interface InferenceResultsProvider extends NamedWriteable {
     InferenceResults getInferenceResults(String inferenceId);
+
+    Collection<InferenceResults> getAllInferenceResults();
 }

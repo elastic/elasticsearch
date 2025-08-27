@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,8 +46,13 @@ public class MapInferenceResultsProvider implements InferenceResultsProvider {
         return inferenceResultsMap.get(inferenceId);
     }
 
-    public void addInferenceResults(String inferenceId, InferenceResults embeddings) {
-        this.inferenceResultsMap.put(inferenceId, embeddings);
+    @Override
+    public Collection<InferenceResults> getAllInferenceResults() {
+        return Collections.unmodifiableCollection(inferenceResultsMap.values());
+    }
+
+    public void addInferenceResults(String inferenceId, InferenceResults inferenceResults) {
+        this.inferenceResultsMap.put(inferenceId, inferenceResults);
     }
 
     @Override

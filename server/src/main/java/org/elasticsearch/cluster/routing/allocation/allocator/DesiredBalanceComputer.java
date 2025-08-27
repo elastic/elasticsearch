@@ -118,10 +118,8 @@ public class DesiredBalanceComputer {
             logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
         }
 
-        // A new ClusterInfo has arrived or the desired balance is reset, clear the tracking for started shards
-        if (lastClusterInfo != desiredBalanceInput.routingAllocation().clusterInfo()
-            // TODO: empty checking might be hacky, find a way to make a reset desired balance more explicit?
-            || (previousDesiredBalance.assignments().isEmpty() && previousDesiredBalance.weightsPerNode().isEmpty())) {
+        // A new ClusterInfo has arrived, clear the tracking for started shards
+        if (lastClusterInfo != desiredBalanceInput.routingAllocation().clusterInfo()) {
             lastClusterInfo = desiredBalanceInput.routingAllocation().clusterInfo();
             shardsStartedByAllocate = new HashMap<>();
         }
@@ -287,7 +285,7 @@ public class DesiredBalanceComputer {
         }
 
         // These are the shards that were initialized by previous `delegateAllocator.allocate` calls and no longer initializing, e.g.
-        // they have started on the new node.
+        // they may have started on the new node.
         final Set<ShardForSimulation> startedShards = Sets.difference(shardsStartedByAllocate.keySet(), alreadySimulatedStartedShards);
         logger.debug(
             "simulating [{}] already started shards (from [{}] excluding [{}])",
@@ -296,10 +294,27 @@ public class DesiredBalanceComputer {
             alreadySimulatedStartedShards
         );
         for (var shardForSimulation : startedShards) {
-            final ShardRouting startedShard = shardsStartedByAllocate.get(shardForSimulation);
-            // TODO: It is possible that the shard failed to start or was deleted before start. These should still have the same
-            // simulation effect for the source node, but not the target node. For now we ignore these corner cases.
-            clusterInfoSimulator.simulateShardStarted(startedShard);
+            // Check whether the shard has actually started on the target node
+            final var startedShard = routingNodes.assignedShards(shardForSimulation.shardId())
+                .stream()
+                .filter(
+                    shard -> shard.started()
+                        && shard.primary() == shardForSimulation.primary()
+                        && shard.currentNodeId().equals(shardForSimulation.currentNodeId())
+                )
+                .findFirst()
+                .orElse(null);
+
+            if (startedShard != null) {
+                clusterInfoSimulator.simulateShardStarted(shardsStartedByAllocate.get(shardForSimulation));
+            } else {
+                // If no such started shard is found, the shard is either
+                // (1) Initialized in a previous desired balance which got reset before the change is reconciled.
+                // (2) The shard failed to start or was deleted before start.
+                // Remove it from the tracking since it is no longer needed for (1) and failed shard in (2) will go through
+                // a new allocation.
+                shardsStartedByAllocate.remove(shardForSimulation);
+            }
         }
 
         List<MoveAllocationCommand> commands;

@@ -73,14 +73,4 @@ public class ExponentialHistogramUtils {
         }
         return a.hasNext() == b.hasNext();
     }
-
-    static int bucketIteratorHash(BucketIterator it) {
-        int hash = 0;
-        while (it.hasNext()) {
-            hash = 31 * hash + Long.hashCode(it.peekIndex());
-            hash = 31 * hash + Long.hashCode(it.peekCount());
-            it.advance();
-        }
-        return hash;
-    }
 }

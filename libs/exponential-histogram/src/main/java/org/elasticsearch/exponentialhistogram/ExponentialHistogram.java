@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.OptionalLong;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.bucketIteratorHash;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.bucketIteratorsEqual;
 
 /**
@@ -152,8 +151,8 @@ public abstract class ExponentialHistogram implements Accountable {
         int hash = scale();
         hash = 31 * hash + Double.hashCode(sum());
         hash = 31 * hash + zeroBucket().hashCode();
-        hash = 31 * hash + bucketIteratorHash(negativeBuckets().iterator());
-        hash = 31 * hash + bucketIteratorHash(positiveBuckets().iterator());
+        // we intentionally don't include the hash of the buckets here, because that is likely expensive to compute
+        // we assume that the sum is a good enough differentiator for most use cases
         return hash;
     }
 

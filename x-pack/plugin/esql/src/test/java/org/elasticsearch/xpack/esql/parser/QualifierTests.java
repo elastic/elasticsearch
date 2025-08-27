@@ -657,6 +657,11 @@ public class QualifierTests extends AbstractStatementParserTests {
             sourceQuery + "STATS avg(x) by [qualified].[field] = categorize(y)",
             "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
+
+        expectError(
+            sourceQuery + "EVAL [qualified].[field] = 1, [ ].[qualified.field] = 2",
+            "Qualified names are not supported in field definitions, found [[qualified].[field]]"
+        );
     }
 
     public void testIllegalQualifiers() {
@@ -764,10 +769,6 @@ public class QualifierTests extends AbstractStatementParserTests {
         String sourceQuery = "ROW field = 1 | ";
 
         assertStatementsEqual(sourceQuery + "EVAL [].[field] = 1", sourceQuery + "EVAL field = 1");
-        assertStatementsEqual(
-            sourceQuery + "EVAL [qualified].[field] = 1, [ ].[qualified.field] = 2",
-            sourceQuery + "EVAL [qualified].[field] = 1, qualified.field = 2"
-        );
 
         assertStatementsEqual(sourceQuery + "WHERE [].[field]", sourceQuery + "WHERE field");
         assertStatementsEqual(sourceQuery + "WHERE [].[field] > 1", sourceQuery + "WHERE field > 1");
@@ -811,23 +812,28 @@ public class QualifierTests extends AbstractStatementParserTests {
     public void testEmptyQualifierInQualifiedNamePattern() {
         assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
 
-        String sourceQuery = "ROW field = 1 | " + (randomBoolean() ? "KEEP" : "DROP") + " ";
+        String sourceQuery = "ROW field = 1 | ";
+        String keepDrop = (randomBoolean() ? "KEEP" : "DROP");
 
-        assertStatementsEqual(sourceQuery + "[ ].[field]", sourceQuery + "field");
-        assertStatementsEqual(sourceQuery + "[].[ `field` ]", sourceQuery + "field");
-        assertStatementsEqual(sourceQuery + "[].[ `fi``eld` ]", sourceQuery + "`fi``eld`");
-        assertStatementsEqual(sourceQuery + "[ ].[pat*ern]", sourceQuery + "pat*ern");
-        assertStatementsEqual(sourceQuery + "[].[pat*ern]", sourceQuery + "pat*ern");
-        assertStatementsEqual(sourceQuery + "[ ].[ field* ]", sourceQuery + "field*");
-        assertStatementsEqual(sourceQuery + "[ ].[fie*ld]", sourceQuery + "fie*ld");
-        assertStatementsEqual(sourceQuery + "[ ].[*]", sourceQuery + "*");
-        assertStatementsEqual(sourceQuery + "[ ].[ * ]", sourceQuery + "*");
-        assertStatementsEqual(sourceQuery + "[ ].[pat.*`ern*` ]", sourceQuery + "pat.*`ern*`");
-        assertStatementsEqual(sourceQuery + "[ ].[fie`l``d`]", sourceQuery + "fiel````d");
+        assertStatementsEqual(sourceQuery + keepDrop + " [ ].[field]", sourceQuery + keepDrop + " field");
+        assertStatementsEqual(sourceQuery + keepDrop + " [].[ `field` ]", sourceQuery + keepDrop + " field");
+        assertStatementsEqual(sourceQuery + keepDrop + " [].[ `fi``eld` ]", sourceQuery + keepDrop + " `fi``eld`");
+        assertStatementsEqual(sourceQuery + keepDrop + " [ ].[pat*ern]", sourceQuery + keepDrop + " pat*ern");
+        assertStatementsEqual(sourceQuery + keepDrop + " [].[pat*ern]", sourceQuery + keepDrop + " pat*ern");
+        assertStatementsEqual(sourceQuery + keepDrop + " [ ].[ field* ]", sourceQuery + keepDrop + " field*");
+        assertStatementsEqual(sourceQuery + keepDrop + " [ ].[fie*ld]", sourceQuery + keepDrop + " fie*ld");
+        // DROP * is disallowed, but KEEP * is allowed
+        assertStatementsEqual(sourceQuery + "KEEP [ ].[*]", sourceQuery + "KEEP *");
+        assertStatementsEqual(sourceQuery + "KEEP [ ].[ * ]", sourceQuery + "KEEP *");
+        assertStatementsEqual(sourceQuery + keepDrop + " [ ].[pat.*`ern*` ]", sourceQuery + keepDrop + " pat.*`ern*`");
+        assertStatementsEqual(sourceQuery + keepDrop + " [ ].[fie`l``d`]", sourceQuery + keepDrop + " fiel````d");
 
-        assertStatementsEqual(sourceQuery + "[ ].[field], field2", sourceQuery + "field, field2");
-        assertStatementsEqual(sourceQuery + "[ ].[pattern1*], pattern2*", sourceQuery + "pattern1*, pattern2*");
-        assertStatementsEqual(sourceQuery + "pat*ern1, [ ].[pattern2*], other_pat*ern", sourceQuery + "pat*ern1, pattern2*, other_pat*ern");
+        assertStatementsEqual(sourceQuery + keepDrop + " [ ].[field], field2", sourceQuery + keepDrop + " field, field2");
+        assertStatementsEqual(sourceQuery + keepDrop + " [ ].[pattern1*], pattern2*", sourceQuery + keepDrop + " pattern1*, pattern2*");
+        assertStatementsEqual(
+            sourceQuery + keepDrop + " pat*ern1, [ ].[pattern2*], other_pat*ern",
+            sourceQuery + keepDrop + " pat*ern1, pattern2*, other_pat*ern"
+        );
     }
 
     /**

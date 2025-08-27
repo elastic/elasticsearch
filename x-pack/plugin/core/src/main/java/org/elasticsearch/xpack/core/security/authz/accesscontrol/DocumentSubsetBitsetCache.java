@@ -426,14 +426,15 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 );
             }
         });
-        keysByIndex.values().stream().flatMap(Set::stream).forEach(cacheKey -> {
-            if (bitsetCache.get(cacheKey) == null) {
-                throw new IllegalStateException("Key [" + cacheKey + "] is in the lookup map, but is not in the cache");
-            }
-        });
         keysByIndex.forEach((indexKey, keys) -> {
             if (keys == null || keys.isEmpty()) {
                 throw new IllegalStateException("The lookup entry for [" + indexKey + "] is null or empty");
+            } else {
+                keys.forEach(cacheKey -> {
+                    if (bitsetCache.get(cacheKey) == null) {
+                        throw new IllegalStateException("Key [" + cacheKey + "] is in the lookup map, but is not in the cache");
+                    }
+                });
             }
         });
     }

@@ -96,31 +96,6 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 `similarity`
 :   (Optional, float) The minimum similarity required for a document to be considered a match. The similarity value calculated relates to the raw [`similarity`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) used. Not the document score. The matched documents are then scored according to [`similarity`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) and the provided `boost` is applied.
 
-
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
-:   (Optional, object) Apply oversampling and rescoring to quantized vectors.
-
-::::{note}
-Rescoring only makes sense for quantized vectors; when [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) is not used, the original vectors are used for scoring. Rescore option will be ignored for non-quantized `dense_vector` fields.
-::::
-
-
-`oversample`
-:   (Required, float)
-
-    Applies the specified oversample factor to `k` on the approximate kNN search. The approximate kNN search will:
-
-    * Retrieve `num_candidates` candidates per shard.
-    * From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
-    * The top `k` rescored candidates will be returned.
-    Must be one of the following values: 
-      * \>= 1f to indicate the oversample factor
-      * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
-
-
-See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
-
-
 `boost`
 :   (Optional, float) Floating point number used to multiply the scores of matched documents. This value cannot be negative. Defaults to `1.0`.
 
@@ -129,6 +104,27 @@ See [oversampling and rescoring quantized vectors](docs-content://solutions/sear
 :   (Optional, string) Name field to identify the query
 
 
+`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+:   (Optional, object) Apply oversampling and rescoring to quantized vectors.
+
+    **Parameters for `rescore_vector`**:
+    
+    `oversample`
+    :   (Required, float)
+
+        Applies the specified oversample factor to `k` on the approximate kNN search. The approximate kNN search will:
+
+     * Retrieve `num_candidates` candidates per shard.
+     * From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
+     * The top `k` rescored candidates will be returned. Must be one of the following values: 
+       * \>= 1f to indicate the oversample factor
+       * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
+
+    See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+
+    ::::{note}
+    Rescoring only makes sense for [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) vectors. The `rescore_vector` option will be ignored for non-quantized `dense_vector` fields, because the original vectors are used for scoring.
+    ::::
 
 ## Pre-filters and post-filters in knn query [knn-query-filtering]
 

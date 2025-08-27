@@ -109,6 +109,10 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             apply plugin: 'java-library'
             apply plugin: 'elasticsearch.transport-version-references'
             apply plugin: 'elasticsearch.transport-version-resources'
+
+            tasks.named('generateTransportVersionDefinition') {
+                mainReleaseBranch = '9.2'
+            }
         """
         referableTransportVersion("existing_91", "8012000")
         referableTransportVersion("existing_92", "8123000,8012001")

@@ -52,6 +52,10 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertValidateSuccess(result)
     }
 
+    def setup() {
+
+    }
+
     def "setup is valid"() {
         when:
         def result = runGenerateAndValidateTask().build()
@@ -377,16 +381,26 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "branches=main should be translated"() {
         given:
+        execute("git checkout main")
+        Version esVersion = VersionProperties.getElasticsearchVersion()
+        String releaseBranch = esVersion.getMajor() + "." + esVersion.getMinor()
+        unreferableTransportVersion("initial_main", "9000000")
+        transportVersionUpperBound(releaseBranch, "initial_main", "9000000")
+        file('myserver/build.gradle') << """
+            tasks.named('generateTransportVersionDefinition') {
+                getMainReleaseBranch().unset()
+            }
+        """
+        execute('git commit -a -m "setup_main"')
+        execute('git checkout -b new_branch')
         referencedTransportVersion("new_tv")
-        Version esVersion = VersionProperties.getElasticsearchVersion();
-        String latestVersion = esVersion.getMajor() + "." + esVersion.getMinor()
 
         when:
         def result = runGenerateAndValidateTask("--branches=main").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("new_tv", "8124000")
-        assertUpperBound(latestVersion, "new_tv,8124000")
+        assertReferableDefinition("new_tv", "9001000")
+        assertUpperBound(releaseBranch, "new_tv,9001000")
     }
 }

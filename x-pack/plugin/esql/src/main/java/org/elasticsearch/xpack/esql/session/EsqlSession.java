@@ -183,13 +183,12 @@ public class EsqlSession {
                     ThreadPool.Names.SEARCH_COORDINATION,
                     ThreadPool.Names.SYSTEM_READ
                 );
-                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
-                    .<LogicalPlan>andThen((l, p) -> {
-                        if (request.approximate()) {
-                            new Approximate(p);  // to verify whether the pre-optimized plan is suitable for approximation
-                        }
-                        l.onResponse(p);
-                    })
+                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l)).<LogicalPlan>andThen((l, p) -> {
+                    if (request.approximate()) {
+                        new Approximate(p);  // to verify whether the pre-optimized plan is suitable for approximation
+                    }
+                    l.onResponse(p);
+                })
                     .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
                     .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
                     .addListener(listener);

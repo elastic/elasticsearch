@@ -420,5 +420,5 @@ For more about data processing with {{esql}}, refer to [Data processing with DIS
 - Explore the zero-setup, live [{{esql}} demo environment](http://esql.demo.elastic.co/).
 - 
 - Follow along with our hands-on tutorials:
-  - [Search and filter with {{esql}}](docs-content://solutions/search/esql-search-tutorial.md): A hands-on tutorial that shows you how to use {{esql}} to search and filter data.
+  - [Search and filter with {{esql}}](/reference/query-languages/esql/esql-search-tutorial.md): A hands-on tutorial that shows you how to use {{esql}} to search and filter data.
   - [Threat hunting with {{esql}}](docs-content://solutions/security/esql-for-security/esql-threat-hunting-tutorial.md): A hands-on tutorial that shows you how to use {{esql}} for advanced threat hunting techniques and security analysis.

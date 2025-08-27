@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvAppendBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvAppendBooleanEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field1;
@@ -45,6 +48,14 @@ public final class MvAppendBooleanEvaluator implements EvalOperator.ExpressionEv
         return eval(page.getPositionCount(), field1Block, field2Block);
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field1.baseRamBytesUsed();
+    baseRamBytesUsed += field2.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock field1Block, BooleanBlock field2Block) {

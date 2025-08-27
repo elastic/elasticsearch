@@ -125,7 +125,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "type",
             type = { "keyword" },
-            description = "Function to use: linear, exponential or gaussian decay.",
+            description = "Decay function to use: linear, exponential or gaussian.",
             optional = true
         ) Expression type
     ) {

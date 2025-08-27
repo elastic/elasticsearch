@@ -39,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.nio.file.NoSuchFileException;
+import java.util.concurrent.Executor;
 
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
 
@@ -50,17 +51,20 @@ public class IndexShardCacheWarmer {
     private final SharedBlobCacheWarmingService warmingService;
     private final ThreadPool threadPool;
     private final boolean useReplicatedRanges;
+    private final Executor bccHeaderReadExecutor;
 
     public IndexShardCacheWarmer(
         ObjectStoreService objectStoreService,
         SharedBlobCacheWarmingService warmingService,
         ThreadPool threadPool,
-        boolean useReplicatedRanges
+        boolean useReplicatedRanges,
+        Executor bccHeaderReadExecutor
     ) {
         this.objectStoreService = objectStoreService;
         this.warmingService = warmingService;
         this.threadPool = threadPool;
         this.useReplicatedRanges = useReplicatedRanges;
+        this.bccHeaderReadExecutor = bccHeaderReadExecutor;
     }
 
     /**
@@ -112,6 +116,7 @@ public class IndexShardCacheWarmer {
                     indexShard.getOperationPrimaryTerm(),
                     threadPool,
                     useReplicatedRanges,
+                    bccHeaderReadExecutor,
                     ActionListener.releaseAfter(ActionListener.wrap(state -> {
                         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 

@@ -69,6 +69,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
@@ -89,6 +90,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final SplitTargetService splitTargetService;
     private final SplitSourceService splitSourceService;
     private final ProjectResolver projectResolver;
+    private final Executor bccHeaderReadExecutor;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -100,7 +102,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         HollowShardsService hollowShardsService,
         SplitTargetService splitTargetService,
         SplitSourceService splitSourceService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        Executor bccHeaderReadExecutor
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -112,6 +115,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.splitTargetService = splitTargetService;
         this.splitSourceService = splitSourceService;
         this.projectResolver = projectResolver;
+        this.bccHeaderReadExecutor = bccHeaderReadExecutor;
     }
 
     @Override
@@ -225,6 +229,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 indexShard.getOperationPrimaryTerm(),
                 threadPool,
                 statelessCommitService.useReplicatedRanges(),
+                bccHeaderReadExecutor,
                 l
             );
         }).<Void>andThen((l, state) -> recoverBatchedCompoundCommitOnIndexShard(indexShard, state, l)).addListener(listener);

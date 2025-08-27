@@ -76,6 +76,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElection
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.TransportConsistentClusterStateReadAction;
+import co.elastic.elasticsearch.stateless.commits.BCCHeaderReadExecutor;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import co.elastic.elasticsearch.stateless.commits.HollowIndexEngineDeletionPolicy;
@@ -366,6 +367,7 @@ public class Stateless extends Plugin
     private final SetOnce<MemoryMetricsService> memoryMetricsService = new SetOnce<>();
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<SearchCommitPrefetcher.PrefetchExecutor> prefetchExecutor = new SetOnce<>();
+    private final SetOnce<BCCHeaderReadExecutor> bccHeaderReadExecutor = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -606,12 +608,14 @@ public class Stateless extends Plugin
         );
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
+        setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
 
         var indexShardCacheWarmer = new IndexShardCacheWarmer(
             objectStoreService,
             cacheWarmingService,
             threadPool,
-            commitService.useReplicatedRanges()
+            commitService.useReplicatedRanges(),
+            bccHeaderReadExecutor.get()
         );
         components.add(indexShardCacheWarmer);
 
@@ -1364,7 +1368,8 @@ public class Stateless extends Plugin
                 hollowShardsService.get(),
                 splitTargetService.get(),
                 splitSourceService.get(),
-                projectResolver.get()
+                projectResolver.get(),
+                bccHeaderReadExecutor.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

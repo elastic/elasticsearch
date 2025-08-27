@@ -2943,6 +2943,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             primaryTerm,
             node.threadPool,
             randomBoolean(),
+            node.threadPool.generic(),
             future
         );
         return safeGet(future);

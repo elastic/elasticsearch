@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompositeBlockTests extends ComputeTestCase {
@@ -82,6 +83,28 @@ public class CompositeBlockTests extends ComputeTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testDeepCopy() {
+        final BlockFactory blockFactory1 = blockFactory();
+        final BlockFactory blockFactory2 = blockFactory();
+        int numBlocks = randomIntBetween(1, 1000);
+        int positionCount = randomIntBetween(1, 1000);
+        try (
+            CompositeBlock origComposite = randomCompositeBlock(
+                blockFactory1,
+                () -> randomFrom(supportedSubElementTypes),
+                true,
+                numBlocks,
+                positionCount,
+                0,
+                between(1, 2),
+                0,
+                between(1, 2)
+            )
+        ) {
+            assertDeepCopy(origComposite);
         }
     }
 

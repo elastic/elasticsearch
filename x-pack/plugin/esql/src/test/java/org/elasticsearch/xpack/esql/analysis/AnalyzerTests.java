@@ -37,6 +37,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -120,6 +123,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
@@ -130,6 +134,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -2341,11 +2346,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingKnn() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
-        var plan = analyze("""
-            from test | where knn(vector, [0.342, 0.164, 0.234], 10)
-            """, "mapping-dense_vector.json");
+        checkDenseVectorCastingKnn("float_vector");
+    }
+
+    private static void checkDenseVectorCastingKnn(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | where knn(%s, [0.342, 0.164, 0.234], 10)
+            """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2358,23 +2367,39 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [0.342, 0.164, 0.234])", List.of(0.342f, 0.164f, 0.234f));
-            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_cosine(float_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
-                "v_dot_product(vector, [0.342, 0.164, 0.234])",
+                "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
                 List.of(0.342f, 0.164f, 0.234f)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(vector, [0.342, 0.164, 0.234])", List.of(0.342f, 0.164f, 0.234f));
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_l1_norm(float_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(vector, [0.342, 0.164, 0.234])", List.of(0.342f, 0.164f, 0.234f));
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_l2_norm(float_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_hamming(byte_vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
     }
 
@@ -2389,7 +2414,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertEquals("vector", left.name());
+        assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
         var right = as(similarity.right(), Literal.class);
         assertThat(right.dataType(), is(DENSE_VECTOR));
         assertThat(right.value(), equalTo(expectedElems));
@@ -2408,6 +2433,9 @@ public class AnalyzerTests extends ESTestCase {
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkNoDenseVectorFailsSimilarityFunction("v_l2_norm([0, 1, 2], 0.342)");
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_hamming([0, 1, 2], 0.342)");
+        }
     }
 
     private void checkNoDenseVectorFailsSimilarityFunction(String similarityFunction) {
@@ -2419,8 +2447,36 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testMagnitudePlanWithDenseVectorImplicitCasting() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | eval scalar = v_magnitude([1, 2, 3])
+            """), "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("scalar", alias.name());
+        var scalar = as(alias.child(), Magnitude.class);
+        var child = as(scalar.field(), Literal.class);
+        assertThat(child.dataType(), is(DENSE_VECTOR));
+        assertThat(child.value(), equalTo(List.of(1.0f, 2.0f, 3.0f)));
+    }
+
+    public void testNoDenseVectorFailsForMagnitude() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
+        var query = String.format(Locale.ROOT, "row a = 1 |  eval scalar = v_magnitude(0.342)");
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
+        assertThat(
+            error.getMessage(),
+            containsString("first argument of [v_magnitude(0.342)] must be [dense_vector], found value [0.342] type [double]")
+        );
+    }
+
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
@@ -4184,7 +4240,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V10.isEnabled());
         verifyUnsupported("""
             from test
             | inlinestats MIN(salary) BY x = languages, x = x + 1
@@ -4194,6 +4250,66 @@ public class AnalyzerTests extends ESTestCase {
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {
         assertEquals(expectedName, actualName);
         assertEquals(expectedType, actualType);
+    }
+
+    public void testImplicitCastingForAggregateMetricDouble() {
+        assumeTrue(
+            "aggregate metric double implicit casting must be available",
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.isEnabled()
+        );
+        Map<String, EsField> mapping = Map.of(
+            "@timestamp",
+            new EsField("@timestamp", DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "cluster",
+            new EsField("cluster", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+            "metric_field",
+            new InvalidMappedField("metric_field", Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "double", Set.of("k8s")))
+        );
+
+        var esIndex = new EsIndex(
+            "k8s*",
+            mapping,
+            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Set.of()
+        );
+        var indexResolution = IndexResolution.valid(esIndex);
+        var analyzer = new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                defaultEnrichResolution(),
+                defaultInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from k8s* | stats std_dev(metric_field)
+            """, analyzer));
+        assertThat(
+            e.getMessage(),
+            containsString("Cannot use field [metric_field] due to ambiguities being mapped as [2] incompatible types")
+        );
+
+        var plan = analyze("""
+            from k8s* | stats max = max(metric_field),
+            avg = avg(metric_field),
+            sum = sum(metric_field),
+            min = min(metric_field),
+            count = count(metric_field)
+            """, analyzer);
+        assertProjection(plan, "max", "avg", "sum", "min", "count");
+
+        assumeTrue("Metrics command must be available for TS", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        var plan2 = analyze("""
+            TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
+            s2 = sum(avg_over_time(metric_field)),
+            min = min(max_over_time(metric_field)),
+            count = count(count_over_time(metric_field)),
+            avg = avg(min_over_time(metric_field))
+            by cluster, time_bucket = bucket(@timestamp,1minute)
+            """, analyzer);
+        assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

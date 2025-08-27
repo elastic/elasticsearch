@@ -253,9 +253,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
-        final List<byte[]> bytes = Stream.of("." + '\0' + "10")
-            .map(x -> x.getBytes(StandardCharsets.UTF_8))
-            .toList();
+        final List<byte[]> bytes = Stream.of("." + '\0' + "10").map(x -> x.getBytes(StandardCharsets.UTF_8)).toList();
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
         for (int i = 0; i < bytes.size(); i++) {
@@ -279,9 +277,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
-        final List<byte[]> bytes = Stream.of("cat.." + '\0' + "10")
-            .map(x -> x.getBytes(StandardCharsets.UTF_8))
-            .toList();
+        final List<byte[]> bytes = Stream.of("cat.." + '\0' + "10").map(x -> x.getBytes(StandardCharsets.UTF_8)).toList();
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
         for (int i = 0; i < bytes.size(); i++) {

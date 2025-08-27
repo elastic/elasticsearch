@@ -151,7 +151,12 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     private void onCacheEviction(RemovalNotification<BitsetCacheKey, BitSet> notification) {
         final BitsetCacheKey cacheKey = notification.getKey();
         final IndexReader.CacheKey indexKey = cacheKey.indexKey;
-        // key is no longer in the cache, make sure it is no longer in the lookup map either.
+        // the key is *probably* no longer in the cache, so make sure it is no longer in the lookup map.
+        // note: rather than locking (which destroys our throughput), we're erring on the side of tidying the keysByIndex
+        // structure even if some other racing thread has already added a new bitset into the cache for this same key.
+        // the keysByIndex structure is used in onClose (our notification from lucene that a segment has become inaccessible),
+        // so we might end up failing to *eagerly* invalidate a bitset -- the consequence of that would be temporarily higher
+        // memory use (the bitset will not be accessed, and it will still be invalidated eventually for size or ttl reasons).
         keysByIndex.computeIfPresent(indexKey, (ignored, keys) -> {
             keys.remove(cacheKey);
             return keys.isEmpty() ? null : keys;

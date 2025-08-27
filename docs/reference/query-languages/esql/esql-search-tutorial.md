@@ -31,7 +31,7 @@ FROM cooking_blog
 | LIMIT 1000
 ```
 
-If you want to run these queries in the [Dev Tools Console](docs-content://explore-analyze/query-filter/languages/esql-rest.md#esql-kibana-console), you need to use the following syntax:
+If you want to run these queries in the [Dev Tools Console](/reference/query-languages/esql/esql-rest.md#esql-kibana-console), you need to use the following syntax:
 
 ```console
 POST /_query?format=txt

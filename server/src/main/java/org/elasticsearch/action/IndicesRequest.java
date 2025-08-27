@@ -19,7 +19,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -65,12 +64,9 @@ public interface IndicesRequest {
             }
         }
 
+        @Nullable
         default Map<String, ReplacedExpression> getReplacedExpressions() {
-            if (false == storeReplacedExpressions()) {
-                assert false : "getReplacedExpressions should not be called when storeReplacedExpressions is false";
-                throw new IllegalStateException("getReplacedExpressions should not be called when storeReplacedExpressions is false");
-            }
-            return new LinkedHashMap<>();
+            return null;
         }
 
         default boolean storeReplacedExpressions() {
@@ -137,8 +133,6 @@ public interface IndicesRequest {
     final class ReplacedExpression implements Writeable {
         private final String original;
         private final List<String> replacedBy;
-        // TODO clean this up -- these shouldn't be separate boolean flags
-        private final boolean missing;
         private final boolean unauthorized;
         @Nullable
         private ElasticsearchException error;
@@ -146,7 +140,6 @@ public interface IndicesRequest {
         public ReplacedExpression(StreamInput in) throws IOException {
             this.original = in.readString();
             this.replacedBy = in.readCollectionAsList(StreamInput::readString);
-            this.missing = false;
             this.unauthorized = false;
             this.error = ElasticsearchException.readException(in);
         }
@@ -154,28 +147,17 @@ public interface IndicesRequest {
         public ReplacedExpression(
             String original,
             List<String> replacedBy,
-            boolean missing,
             boolean unauthorized,
             @Nullable ElasticsearchException exception
         ) {
-            assert false == (missing && unauthorized) : "both missing and unauthorized cannot be true";
             this.original = original;
             this.replacedBy = replacedBy;
-            this.missing = missing;
             this.unauthorized = unauthorized;
             this.error = exception;
         }
 
-        public static Map<String, ReplacedExpression> fromMap(Map<String, List<String>> map) {
-            Map<String, ReplacedExpression> result = new LinkedHashMap<>(map.size());
-            for (Map.Entry<String, List<String>> entry : map.entrySet()) {
-                result.put(entry.getKey(), new ReplacedExpression(entry.getKey(), entry.getValue()));
-            }
-            return result;
-        }
-
         public ReplacedExpression(String original, List<String> replacedBy) {
-            this(original, replacedBy, false, false, null);
+            this(original, replacedBy, false, null);
         }
 
         public void setError(ElasticsearchException error) {
@@ -195,10 +177,6 @@ public interface IndicesRequest {
             return replacedBy;
         }
 
-        public boolean missing() {
-            return missing;
-        }
-
         public boolean unauthorized() {
             return unauthorized;
         }
@@ -214,14 +192,13 @@ public interface IndicesRequest {
             var that = (ReplacedExpression) obj;
             return Objects.equals(this.original, that.original)
                 && Objects.equals(this.replacedBy, that.replacedBy)
-                && Objects.equals(this.missing, that.missing)
                 && Objects.equals(this.unauthorized, that.unauthorized)
                 && Objects.equals(this.error, that.error);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(original, replacedBy, missing, unauthorized, error);
+            return Objects.hash(original, replacedBy, unauthorized, error);
         }
 
         @Override
@@ -232,9 +209,6 @@ public interface IndicesRequest {
                 + ", "
                 + "replacedBy="
                 + replacedBy
-                + ", "
-                + "missing="
-                + missing
                 + ", "
                 + "unauthorized="
                 + unauthorized

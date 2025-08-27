@@ -11,6 +11,8 @@ package org.elasticsearch.action.admin.indices.resolve;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -609,6 +612,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
+                    logger.info("Sending remote request to cluster [{}] for indices [{}]", clusterAlias, originalIndices);
                     var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         clusterAlias,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -655,27 +659,47 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
             Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = resolvable.getReplacedExpressions();
             assert replacedExpressions != null;
-            for (IndicesRequest.ReplacedExpression rewrittenExpression : replacedExpressions.values()) {
+            for (IndicesRequest.ReplacedExpression replacedExpression : replacedExpressions.values()) {
                 // TODO need to handle qualified expressions here, too
-                var original = rewrittenExpression.original();
-                boolean exists = hasCanonicalExpressionForOrigin(rewrittenExpression.replacedBy());
+                String original = replacedExpression.original();
+                List<ElasticsearchException> exceptions = new ArrayList<>();
+                boolean exists = hasCanonicalExpressionForOrigin(replacedExpression.replacedBy());
                 if (exists) {
                     logger.info("Local cluster has canonical expression for [{}], skipping remote existence check", original);
                     continue;
                 }
+                if (replacedExpression.error() != null) {
+                    exceptions.add(replacedExpression.error());
+                }
 
-                for (var remoteResponse : remoteResponses.values()) {
+                for (Response remoteResponse : remoteResponses.values()) {
+                    logger.info("Remote response resolved: [{}]", remoteResponse.getResolved());
                     Map<String, IndicesRequest.ReplacedExpression> resolved = remoteResponse.getResolved();
                     assert resolved != null;
                     if (resolved.containsKey(original) && resolved.get(original).replacedBy().isEmpty() == false) {
                         logger.info("Remote cluster has resolved entries for [{}], skipping further remote existence check", original);
                         exists = true;
                         break;
+                    } else if (resolved.containsKey(original) && resolved.get(original).error() != null) {
+                        exceptions.add(resolved.get(original).error());
                     }
                 }
 
                 if (false == exists && false == resolvable.indicesOptions().ignoreUnavailable()) {
-                    throw new IndexNotFoundException(original);
+                    if (false == exceptions.isEmpty()) {
+                        // we only ever get exceptions if they are security related
+                        // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
+                        // as 403 or 404
+                        ElasticsearchSecurityException e = new ElasticsearchSecurityException(
+                            "authorization errors while resolving [" + original + "]",
+                            RestStatus.FORBIDDEN
+                        );
+                        exceptions.forEach(e::addSuppressed);
+                        throw e;
+                    } else {
+                        // TODO composite exception based on missing resources
+                        throw new IndexNotFoundException(original);
+                    }
                 }
             }
         }

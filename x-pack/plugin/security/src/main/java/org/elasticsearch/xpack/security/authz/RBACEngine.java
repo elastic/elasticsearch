@@ -46,7 +46,6 @@ import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -418,6 +417,7 @@ public class RBACEngine implements AuthorizationEngine {
             indicesAsyncSupplier.getAsync().addListener(listener.delegateFailureAndWrap((delegateListener, resolvedIndices) -> {
                 assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+                maybeAddExceptions(request);
                 // all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                 // '-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
@@ -438,22 +438,6 @@ public class RBACEngine implements AuthorizationEngine {
 
                     IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, metadata);
 
-                    if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.getReplacedExpressions() != null) {
-                        for (var replacedExpression : replaceable.getReplacedExpressions().values()) {
-                            if (replacedExpression.missing()) {
-                                replacedExpression.setError(new IndexNotFoundException(replacedExpression.original()));
-                            } else if (replacedExpression.unauthorized()) {
-                                // TODO actual security exception with details here
-                                replacedExpression.setError(
-                                    new ElasticsearchSecurityException(
-                                        "unauthorized to access [" + replacedExpression.original() + "]",
-                                        RestStatus.FORBIDDEN
-                                    )
-                                );
-                            }
-                        }
-                    }
-
                     if (requestInfo.getAuthentication().isCrossClusterAccess()
                         && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
                         && shardsRequest.shards() != null) {
@@ -470,6 +454,22 @@ public class RBACEngine implements AuthorizationEngine {
             return listener;
         } else {
             return SubscribableListener.newSucceeded(IndexAuthorizationResult.DENIED);
+        }
+    }
+
+    private static void maybeAddExceptions(TransportRequest request) {
+        if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.getReplacedExpressions() != null) {
+            for (var replacedExpression : replaceable.getReplacedExpressions().values()) {
+                if (replacedExpression.unauthorized()) {
+                    // TODO actual security exception with details here
+                    replacedExpression.setError(
+                        new ElasticsearchSecurityException(
+                            "unauthorized to access [" + replacedExpression.original() + "]",
+                            RestStatus.FORBIDDEN
+                        )
+                    );
+                }
+            }
         }
     }
 

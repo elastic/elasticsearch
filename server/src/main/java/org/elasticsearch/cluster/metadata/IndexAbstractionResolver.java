@@ -158,11 +158,12 @@ public class IndexAbstractionResolver {
             throw new IllegalArgumentException("`allowNoIndices` must be true for this resolver");
         }
 
-        final LinkedHashMap<String, List<String>> resolutionMap = new LinkedHashMap<>();
+        final Map<String, IndicesRequest.ReplacedExpression> resolutionMap = new LinkedHashMap<>();
 
         boolean wildcardSeen = false;
 
         for (String originalToken : indices) {
+            boolean unauthorized = false;
             String indexAbstraction;
             boolean minus = false;
 
@@ -218,6 +219,7 @@ public class IndexAbstractionResolver {
                             indexAbstraction,
                             selectorString
                         )) {
+                        unauthorized = false == authorized;
                         resolvedSet.clear();
                     }
                 }
@@ -226,15 +228,20 @@ public class IndexAbstractionResolver {
             if (false == resolvedSet.isEmpty()) {
                 if (minus) {
                     for (var entry : resolutionMap.entrySet()) {
-                        entry.getValue().removeAll(resolvedSet);
+                        entry.getValue().replacedBy().removeAll(resolvedSet);
                     }
                 } else {
-                    resolutionMap.put(originalToken, new ArrayList<>(resolvedSet));
+                    resolutionMap.put(originalToken, new IndicesRequest.ReplacedExpression(originalToken, new ArrayList<>(resolvedSet)));
                 }
+            } else {
+                resolutionMap.put(
+                    originalToken,
+                    new IndicesRequest.ReplacedExpression(originalToken, new ArrayList<>(resolvedSet), unauthorized, null)
+                );
             }
         }
 
-        return IndicesRequest.ReplacedExpression.fromMap(resolutionMap);
+        return resolutionMap;
     }
 
     private boolean existsAndVisible(

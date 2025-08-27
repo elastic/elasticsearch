@@ -32,6 +32,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
@@ -55,6 +57,11 @@ import java.util.function.BiPredicate;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 public class IndicesAndAliasesResolver {
+
+    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
+    private static final org.apache.logging.log4j.Logger log = org.apache.logging.log4j.LogManager.getLogger(
+        IndicesAndAliasesResolver.class
+    );
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
@@ -372,7 +379,12 @@ public class IndicesAndAliasesResolver {
                         targetProjects,
                         crossProjectReplaceableRequest
                     );
+                    logger.info(
+                        "Cross-project search applied, indices are now [{}]",
+                        Arrays.toString(crossProjectReplaceableRequest.indices())
+                    );
                     if (crossProjectReplaceableRequest.shouldApplyCrossProjectHandling()) {
+                        logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectReplaceableRequest.indices()));
                         // we can re-use resolveIndexAbstractionsMapping() for local indices here
                         Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsCrossProject(
@@ -388,6 +400,22 @@ public class IndicesAndAliasesResolver {
                         // replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                         return remoteClusterResolver.splitLocalAndRemoteIndexNames(crossProjectReplaceableRequest.indices());
                     }
+                }
+
+                logger.info(
+                    "Resolving indices for request [{}] and [{}]",
+                    Arrays.toString(replaceable.indices()),
+                    replaceable.getReplacedExpressions()
+                );
+
+                // TODO why on earth would this happen?
+                if (IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
+                    logger.info("Request has a none expression, short-circuit");
+                    // TODO make sure to clear replaced expressions here...
+                    replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
+                    resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
+                    // TODO is it fine to bail like this?
+                    return resolvedIndicesBuilder.build();
                 }
 
                 final ResolvedIndices split;
@@ -406,22 +434,26 @@ public class IndicesAndAliasesResolver {
                 );
                 resolvedIndicesBuilder.addLocal(resolved);
                 resolvedIndicesBuilder.addRemote(split.getRemote());
-
+                // TODO don't resolve twice -- move this conditional up instead or generalize resolveIndexAbstractionsMapping
+                // to cover both cases
                 if (replaceable.storeReplacedExpressions()) {
-                    replaceable.setReplacedExpressions(
-                        indexAbstractionResolver.resolveIndexAbstractionsMapping(
+                    logger.info("Setting replaced expressions for request [{}] and [{}]", indicesRequest, split.getLocal());
+                    Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
+                        .resolveIndexAbstractionsMapping(
                             split.getLocal(),
                             indicesOptions,
                             projectMetadata,
                             authorizedIndices::all,
                             authorizedIndices::check,
                             indicesRequest.includeDataStreams()
-                        )
-                    );
+                        );
+                    logger.info("Replaced with [{}]", replacedExpressions);
+                    replaceable.setReplacedExpressions(replacedExpressions);
                 }
             }
 
             if (resolvedIndicesBuilder.isEmpty()) {
+                // probably need to tweak this also...
                 if (indicesOptions.allowNoIndices()) {
                     // this is how we tell es core to return an empty response, we can let the request through being sure
                     // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through

@@ -51,7 +51,8 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
             mock(ObjectStoreService.class),
             sharedBlobCacheWarmingService,
             taskQueue.getThreadPool(),
-            randomBoolean()
+            randomBoolean(),
+            taskQueue.getThreadPool().generic()
         );
 
         // Prepare shard routing `role` to correspond to indexing shard setup in Serverless
@@ -97,7 +98,13 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
         // simulate any blob store/bob container runtime error
         when(objectStoreService.getProjectBlobStore(indexShard.shardId())).thenThrow(new RuntimeException("simulated"));
 
-        var indexShardCacheWarmer = new IndexShardCacheWarmer(objectStoreService, null, taskQueue.getThreadPool(), randomBoolean());
+        var indexShardCacheWarmer = new IndexShardCacheWarmer(
+            objectStoreService,
+            null,
+            taskQueue.getThreadPool(),
+            randomBoolean(),
+            taskQueue.getThreadPool().generic()
+        );
 
         // Prepare shard routing `role` to correspond to indexing shard setup in Serverless
         var copyShardRoutingWithIndexOnlyRole = new TestShardRouting.Builder(

@@ -100,7 +100,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -911,6 +911,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long primaryTerm,
         ThreadPool threadPool,
         boolean useReplicatedRanges,
+        Executor bccHeaderReadExecutor,
         ActionListener<IndexingShardState> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
@@ -992,7 +993,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     latestBcc,
                     referencedBlobs,
                     useReplicatedRanges,
-                    threadPool.generic(),
+                    bccHeaderReadExecutor,
                     l.map(blobFileRanges -> new IndexingShardState(latestBcc, otherBlobs, Map.copyOf(blobFileRanges)))
                 );
             })
@@ -1106,7 +1107,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         BatchedCompoundCommit latestBcc,
         Map<PrimaryTermAndGeneration, ReferencedBlobMaxBlobLengthAndFiles> referencedBlobs,
         boolean useReplicatedRanges,
-        ExecutorService executor,
+        Executor bccHeaderReadExecutor,
         ActionListener<Map<String, BlobFileRanges>> listener
     ) {
         // Map of commit files names and their corresponding BlobFileRanges
@@ -1115,7 +1116,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         try (var listeners = new RefCountingListener(listener.map(unused -> blobFileRanges))) {
             // Read/warm header(s) of every referenced blob
             for (var referencedBlob : referencedBlobs.entrySet()) {
-                executor.execute(ActionRunnable.run(listeners.acquire(), () -> {
+                bccHeaderReadExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
                     var blobTermAndGen = referencedBlob.getKey();
                     var blobLengthAndFiles = referencedBlob.getValue();
 

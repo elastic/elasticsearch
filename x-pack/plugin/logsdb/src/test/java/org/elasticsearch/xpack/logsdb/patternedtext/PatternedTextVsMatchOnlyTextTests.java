@@ -263,8 +263,8 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
             long millis = randomMillisUpToYear9999();
             zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), randomZone());
 
-        // The random millis are below year 10000 in UTC, but if the date is within 1 day of year 10000, the year can be 10000 in the
-        // selected timezone. Since the date formatter cannot handle years greater than 9999, select another date.
+            // The random millis are below year 10000 in UTC, but if the date is within 1 day of year 10000, the year can be 10000 in the
+            // selected timezone. Since the date formatter cannot handle years greater than 9999, select another date.
         } while (zonedDateTime.getYear() == 10000);
 
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random()));

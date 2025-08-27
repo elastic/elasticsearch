@@ -1,0 +1,5 @@
+pr: 133680
+summary: Fix enrich cache containing outdated value after policy execution
+area: Ingest Node
+type: bug
+issues: []

@@ -19,6 +19,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -209,7 +210,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectTargetResolver;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1128,7 +1128,7 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
-        CrossProjectTargetResolver crossProjectTargetResolver = createCrossProjectTargetResolver(extensionComponents);
+        AuthorizedProjectsSupplier authorizedProjectsSupplier = createCrossProjectTargetResolver(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1146,7 +1146,7 @@ public class Security extends Plugin
             restrictedIndices,
             authorizationDenialMessages.get(),
             projectResolver,
-            crossProjectTargetResolver
+            authorizedProjectsSupplier
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1290,10 +1290,10 @@ public class Security extends Plugin
         }
     }
 
-    private CrossProjectTargetResolver createCrossProjectTargetResolver(SecurityExtension.SecurityComponents extensionComponents) {
-        final Map<String, CrossProjectTargetResolver> customByExtension = new HashMap<>();
+    private AuthorizedProjectsSupplier createCrossProjectTargetResolver(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, AuthorizedProjectsSupplier> customByExtension = new HashMap<>();
         for (final SecurityExtension extension : securityExtensions) {
-            final CrossProjectTargetResolver custom = extension.getCrossProjectTargetResolver(extensionComponents);
+            final AuthorizedProjectsSupplier custom = extension.getCrossProjectTargetResolver(extensionComponents);
             if (custom != null) {
                 if (false == isInternalExtension(extension)) {
                     throw new IllegalStateException(
@@ -1310,16 +1310,16 @@ public class Security extends Plugin
         if (customByExtension.isEmpty()) {
             logger.debug(
                 "No custom implementation for [{}]. Falling-back to default implementation.",
-                CrossProjectTargetResolver.class.getCanonicalName()
+                AuthorizedProjectsSupplier.class.getCanonicalName()
             );
-            return new CrossProjectTargetResolver.Default();
+            return new AuthorizedProjectsSupplier.Default();
         } else if (customByExtension.size() > 1) {
             throw new IllegalStateException(
                 "Multiple extensions tried to install a custom CrossProjectTargetResolver: " + customByExtension.keySet()
             );
         } else {
             final var byExtensionEntry = customByExtension.entrySet().iterator().next();
-            final CrossProjectTargetResolver custom = byExtensionEntry.getValue();
+            final AuthorizedProjectsSupplier custom = byExtensionEntry.getValue();
             final String extensionName = byExtensionEntry.getKey();
             logger.debug(
                 "CrossProjectTargetResolver implementation [{}] provided by extension [{}]",

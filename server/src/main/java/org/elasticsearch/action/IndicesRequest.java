@@ -9,14 +9,20 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -52,9 +58,27 @@ public interface IndicesRequest {
          */
         IndicesRequest indices(String... indices);
 
+        default void setReplacedExpressions(@Nullable Map<String, ReplacedExpression> replacedExpressions) {
+            if (false == storeReplacedExpressions()) {
+                assert false : "setReplacedExpressions should not be called when storeReplacedExpressions is false";
+                throw new IllegalStateException("setReplacedExpressions should not be called when storeReplacedExpressions is false");
+            }
+        }
+
+        default Map<String, ReplacedExpression> getReplacedExpressions() {
+            if (false == storeReplacedExpressions()) {
+                assert false : "getReplacedExpressions should not be called when storeReplacedExpressions is false";
+                throw new IllegalStateException("getReplacedExpressions should not be called when storeReplacedExpressions is false");
+            }
+            return new LinkedHashMap<>();
+        }
+
+        default boolean storeReplacedExpressions() {
+            return false;
+        }
+
         /**
          * Determines whether the request can contain indices on a remote cluster.
-         *
          * NOTE in theory this method can belong to the {@link IndicesRequest} interface because whether a request
          * allowing remote indices has no inherent relationship to whether it is {@link Replaceable} or not.
          * However, we don't have an existing request that is non-replaceable but allows remote indices.
@@ -68,29 +92,17 @@ public interface IndicesRequest {
         }
     }
 
-    interface Resolvable extends Replaceable {
-        default boolean enabled() {
-            return false;
-        }
-
-        Map<String, List<String>> resolved();
-
-        void resolved(Map<String, List<String>> resolved);
-    }
-
-    interface CrossProjectResolvable extends Replaceable {
+    interface CrossProjectReplaceable extends Replaceable {
         @Override
         default boolean allowsRemoteIndices() {
             return true;
         }
 
-        void setRewrittenExpressions(List<IndicesRequest.RewrittenExpression> rewrittenExpressions);
+        boolean shouldApplyCrossProjectHandling();
 
-        @Nullable
-        List<IndicesRequest.RewrittenExpression> getRewrittenExpressions();
-
-        default boolean crossProjectModeEnabled() {
-            return getRewrittenExpressions() != null;
+        @Override
+        default boolean storeReplacedExpressions() {
+            return true;
         }
     }
 
@@ -122,34 +134,122 @@ public interface IndicesRequest {
         Collection<ShardId> shards();
     }
 
-    /**
-     * Used to track a mapping from original expression (potentially flat) to canonical CCS expressions.
-     */
-    record RewrittenExpression(
-        String original,
-        List<CanonicalExpression> canonicalExpressions,
-        List<Exception> originResolutionExceptions
-    ) {
-        public RewrittenExpression(String original, List<CanonicalExpression> canonicalExpressions) {
-            this(original, canonicalExpressions, List.of());
+    final class ReplacedExpression implements Writeable {
+        private final String original;
+        private final List<String> replacedBy;
+        // TODO clean this up -- these shouldn't be separate boolean flags
+        private final boolean missing;
+        private final boolean unauthorized;
+        @Nullable
+        private ElasticsearchException error;
+
+        public ReplacedExpression(StreamInput in) throws IOException {
+            this.original = in.readString();
+            this.replacedBy = in.readCollectionAsList(StreamInput::readString);
+            this.missing = false;
+            this.unauthorized = false;
+            this.error = ElasticsearchException.readException(in);
         }
 
-        public boolean originalExpressionQualified() {
-            return RemoteClusterAware.isRemoteIndexName(original);
+        public ReplacedExpression(
+            String original,
+            List<String> replacedBy,
+            boolean missing,
+            boolean unauthorized,
+            @Nullable ElasticsearchException exception
+        ) {
+            assert false == (missing && unauthorized) : "both missing and unauthorized cannot be true";
+            this.original = original;
+            this.replacedBy = replacedBy;
+            this.missing = missing;
+            this.unauthorized = unauthorized;
+            this.error = exception;
         }
 
-        public boolean hasCanonicalExpressionForOrigin() {
-            return canonicalExpressions().stream().anyMatch(IndicesRequest.CrossProjectResolvable.CanonicalExpression::isUnqualified);
+        public static Map<String, ReplacedExpression> fromMap(Map<String, List<String>> map) {
+            Map<String, ReplacedExpression> result = new LinkedHashMap<>(map.size());
+            for (Map.Entry<String, List<String>> entry : map.entrySet()) {
+                result.put(entry.getKey(), new ReplacedExpression(entry.getKey(), entry.getValue()));
+            }
+            return result;
+        }
+
+        public ReplacedExpression(String original, List<String> replacedBy) {
+            this(original, replacedBy, false, false, null);
+        }
+
+        public void setError(ElasticsearchException error) {
+            this.error = error;
+        }
+
+        // TODO does not belong here
+        public static boolean hasCanonicalExpressionForOrigin(List<String> replacedBy) {
+            return replacedBy.stream().anyMatch(e -> false == CrossProjectUtils.isQualifiedIndexExpression(e));
+        }
+
+        public String original() {
+            return original;
+        }
+
+        public List<String> replacedBy() {
+            return replacedBy;
+        }
+
+        public boolean missing() {
+            return missing;
+        }
+
+        public boolean unauthorized() {
+            return unauthorized;
+        }
+
+        public ElasticsearchException error() {
+            return error;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (ReplacedExpression) obj;
+            return Objects.equals(this.original, that.original)
+                && Objects.equals(this.replacedBy, that.replacedBy)
+                && Objects.equals(this.missing, that.missing)
+                && Objects.equals(this.unauthorized, that.unauthorized)
+                && Objects.equals(this.error, that.error);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(original, replacedBy, missing, unauthorized, error);
+        }
+
+        @Override
+        public String toString() {
+            return "ReplacedExpression["
+                + "original="
+                + original
+                + ", "
+                + "replacedBy="
+                + replacedBy
+                + ", "
+                + "missing="
+                + missing
+                + ", "
+                + "unauthorized="
+                + unauthorized
+                + ", "
+                + "errors="
+                + error
+                + ']';
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(original);
+            out.writeStringCollection(replacedBy);
+            ElasticsearchException.writeException(error, out);
         }
     }
 
-    record CanonicalExpression(String expression) {
-        public boolean isQualified() {
-            return RemoteClusterAware.isRemoteIndexName(expression);
-        }
-
-        public boolean isUnqualified() {
-            return false == isQualified();
-        }
-    }
 }

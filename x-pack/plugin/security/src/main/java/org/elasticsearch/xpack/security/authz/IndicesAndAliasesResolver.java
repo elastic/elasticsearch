@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -32,14 +32,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectTargetResolver;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
@@ -55,13 +52,9 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
-import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 public class IndicesAndAliasesResolver {
-
-    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
@@ -116,7 +109,7 @@ public class IndicesAndAliasesResolver {
         TransportRequest request,
         ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices,
-        CrossProjectTargetResolver.ResolvedProjects resolvedProjects
+        AuthorizedProjectsSupplier.AuthorizedProjects targetProjects
     ) {
         if (request instanceof IndicesAliasesRequest indicesAliasesRequest) {
             ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
@@ -133,92 +126,7 @@ public class IndicesAndAliasesResolver {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
 
-        if (request instanceof IndicesRequest.CrossProjectResolvable crossProjectResolvableRequest) {
-            maybeRewriteCrossProjectResolvableRequest(resolvedProjects, crossProjectResolvableRequest);
-        }
-
-        return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
-    }
-
-    void maybeRewriteCrossProjectResolvableRequest(
-        CrossProjectTargetResolver.ResolvedProjects resolvedProjects,
-        IndicesRequest.CrossProjectResolvable request
-    ) {
-        if (resolvedProjects == CrossProjectTargetResolver.ResolvedProjects.VOID) {
-            logger.info("Cross-project search is disabled or not applicable, skipping request [{}]...", request);
-            return;
-        }
-
-        if (resolvedProjects.isOriginOnly()) {
-            logger.info("Cross-project search is only for the origin project [{}], skipping rewrite...", resolvedProjects.origin());
-            return;
-        }
-
-        if (resolvedProjects.projects().isEmpty()) {
-            throw new ResourceNotFoundException("no target projects for cross-project search request");
-        }
-
-        List<String> projects = resolvedProjects.projects();
-        String[] indices = request.indices();
-        logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
-
-        List<IndicesRequest.RewrittenExpression> rewrittenExpressions = new ArrayList<>(indices.length);
-        for (String indexExpression : indices) {
-            boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
-            if (isQualified) {
-                // TODO handle empty case here -- empty means "search all" in ES which is _not_ what we want
-                List<IndicesRequest.CanonicalExpression> canonicalExpressions = rewriteQualified(indexExpression, projects);
-                // could fail early here in ignore_unavailable and allow_no_indices strict mode if things are empty
-                rewrittenExpressions.add(
-                    new IndicesRequest.CrossProjectResolvable.RewrittenExpression(indexExpression, canonicalExpressions)
-                );
-                logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
-            } else {
-                // un-qualified expression, i.e. flat-world
-                List<IndicesRequest.CanonicalExpression> canonicalExpressions = rewriteUnqualified(
-                    indexExpression,
-                    resolvedProjects.projects()
-                );
-                rewrittenExpressions.add(new IndicesRequest.RewrittenExpression(indexExpression, canonicalExpressions));
-                logger.info("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
-            }
-        }
-
-        request.setRewrittenExpressions(rewrittenExpressions);
-    }
-
-    private List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> rewriteUnqualified(
-        String indexExpression,
-        List<String> projects
-    ) {
-        List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> canonicalExpressions = new ArrayList<>();
-        canonicalExpressions.add(new IndicesRequest.CrossProjectResolvable.CanonicalExpression(indexExpression));
-        for (String targetProject : projects) {
-            canonicalExpressions.add(
-                new IndicesRequest.CrossProjectResolvable.CanonicalExpression(
-                    RemoteClusterAware.buildRemoteIndexName(targetProject, indexExpression)
-                )
-            );
-        }
-        return canonicalExpressions;
-    }
-
-    private List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> rewriteQualified(
-        String indicesExpressions,
-        List<String> projects
-    ) {
-        final Map<String, List<String>> map = remoteClusterResolver.groupClusterIndices(
-            Set.copyOf(projects),
-            new String[] { indicesExpressions }
-        );
-        final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
-        final List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> remote = map.entrySet()
-            .stream()
-            .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
-            .map(IndicesRequest.CrossProjectResolvable.CanonicalExpression::new)
-            .toList();
-        assert local == null || local.isEmpty() : "local indices should not be present in the map, but were: " + local;
-        return remote;
+        return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices, targetProjects);
     }
 
     /**
@@ -245,7 +153,7 @@ public class IndicesAndAliasesResolver {
             return true;
         }
         // CrossProjectResolvable requests always require wildcard expansion
-        if (indicesRequest instanceof IndicesRequest.CrossProjectResolvable) {
+        if (indicesRequest instanceof IndicesRequest.CrossProjectReplaceable) {
             return true;
         }
         // Replaceable requests always require wildcard expansion
@@ -257,7 +165,7 @@ public class IndicesAndAliasesResolver {
 
     ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
-        assert false == indicesRequest instanceof IndicesRequest.CrossProjectResolvable;
+        assert false == indicesRequest instanceof IndicesRequest.CrossProjectReplaceable;
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
             throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");
@@ -329,7 +237,7 @@ public class IndicesAndAliasesResolver {
     /**
      * Returns the resolved indices from the {@link SearchContextId} within the provided {@link SearchRequest}.
      */
-    ResolvedIndices resolvePITIndices(SearchRequest request, CrossProjectTargetResolver.ResolvedProjects resolvedProjects) {
+    ResolvedIndices resolvePITIndices(SearchRequest request, AuthorizedProjectsSupplier.AuthorizedProjects targetProjects) {
         assert request.pointInTimeBuilder() != null;
         var indices = SearchContextId.decodeIndices(request.pointInTimeBuilder().getEncodedId());
         final ResolvedIndices split;
@@ -376,6 +284,22 @@ public class IndicesAndAliasesResolver {
         ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices
     ) {
+        return resolveIndicesAndAliases(
+            action,
+            indicesRequest,
+            projectMetadata,
+            authorizedIndices,
+            AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT
+        );
+    }
+
+    ResolvedIndices resolveIndicesAndAliases(
+        String action,
+        IndicesRequest indicesRequest,
+        ProjectMetadata projectMetadata,
+        AuthorizationEngine.AuthorizedIndices authorizedIndices,
+        AuthorizedProjectsSupplier.AuthorizedProjects targetProjects
+    ) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
@@ -412,6 +336,7 @@ public class IndicesAndAliasesResolver {
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()));
             }
             if (isAllIndices) {
+                // TODO handle CPS
                 // First, if a selector is present, check to make sure that selectors are even allowed here
                 if (indicesOptions.allowSelectors() == false && allIndicesPatternSelector != null) {
                     String originalIndexExpression = indicesRequest.indices()[0];
@@ -438,22 +363,31 @@ public class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
-                if (indicesRequest instanceof IndicesRequest.CrossProjectResolvable crossProjectResolvableRequest
-                    && crossProjectResolvableRequest.crossProjectModeEnabled()) {
-                    assert crossProjectResolvableRequest.allowsRemoteIndices();
-                    assert crossProjectResolvableRequest.getRewrittenExpressions() != null;
-                    List<IndicesRequest.RewrittenExpression> rewrittenExpressions = indexAbstractionResolver
-                        .resolveIndexAbstractionsForOrigin(
-                            crossProjectResolvableRequest.getRewrittenExpressions(),
-                            indicesOptions,
-                            projectMetadata,
-                            authorizedIndices::all,
-                            authorizedIndices::check,
-                            indicesRequest.includeDataStreams()
-                        );
-                    crossProjectResolvableRequest.setRewrittenExpressions(rewrittenExpressions);
-                    // TODO handle empty case by calling replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
-                    return remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+                if (indicesRequest instanceof IndicesRequest.CrossProjectReplaceable crossProjectReplaceableRequest
+                    && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
+                    assert crossProjectReplaceableRequest.allowsRemoteIndices();
+                    // TODO ideally, we'd consolidate this with `resolveIndexAbstractionsCrossProject`
+                    CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
+                        remoteClusterResolver,
+                        targetProjects,
+                        crossProjectReplaceableRequest
+                    );
+                    if (crossProjectReplaceableRequest.shouldApplyCrossProjectHandling()) {
+                        // we can re-use resolveIndexAbstractionsMapping() for local indices here
+                        Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
+                            .resolveIndexAbstractionsCrossProject(
+                                crossProjectReplaceableRequest.getReplacedExpressions(),
+                                indicesOptions,
+                                projectMetadata,
+                                authorizedIndices::all,
+                                authorizedIndices::check,
+                                indicesRequest.includeDataStreams()
+                            );
+                        crossProjectReplaceableRequest.setReplacedExpressions(replacedExpressions);
+                        // TODO handle empty case by calling
+                        // replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
+                        return remoteClusterResolver.splitLocalAndRemoteIndexNames(crossProjectReplaceableRequest.indices());
+                    }
                 }
 
                 final ResolvedIndices split;
@@ -473,8 +407,8 @@ public class IndicesAndAliasesResolver {
                 resolvedIndicesBuilder.addLocal(resolved);
                 resolvedIndicesBuilder.addRemote(split.getRemote());
 
-                if (replaceable instanceof IndicesRequest.Resolvable resolvable && resolvable.enabled()) {
-                    resolvable.resolved(
+                if (replaceable.storeReplacedExpressions()) {
+                    replaceable.setReplacedExpressions(
                         indexAbstractionResolver.resolveIndexAbstractionsMapping(
                             split.getLocal(),
                             indicesOptions,
@@ -511,7 +445,7 @@ public class IndicesAndAliasesResolver {
         }
 
         if (indicesRequest instanceof AliasesRequest aliasesRequest) {
-            assert false == indicesRequest instanceof IndicesRequest.CrossProjectResolvable
+            assert false == indicesRequest instanceof IndicesRequest.CrossProjectReplaceable
                 : "CrossProjectResolvableRequest should not be an AliasesRequest, but was: " + indicesRequest.getClass().getName();
             ;
             // special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.

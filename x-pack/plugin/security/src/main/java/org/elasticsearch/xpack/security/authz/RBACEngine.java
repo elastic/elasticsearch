@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -45,7 +46,9 @@ import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -434,6 +437,23 @@ public class RBACEngine implements AuthorizationEngine {
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
 
                     IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, metadata);
+
+                    if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.getReplacedExpressions() != null) {
+                        for (var replacedExpression : replaceable.getReplacedExpressions().values()) {
+                            if (replacedExpression.missing()) {
+                                replacedExpression.setError(new IndexNotFoundException(replacedExpression.original()));
+                            } else if (replacedExpression.unauthorized()) {
+                                // TODO actual security exception with details here
+                                replacedExpression.setError(
+                                    new ElasticsearchSecurityException(
+                                        "unauthorized to access [" + replacedExpression.original() + "]",
+                                        RestStatus.FORBIDDEN
+                                    )
+                                );
+                            }
+                        }
+                    }
+
                     if (requestInfo.getAuthentication().isCrossClusterAccess()
                         && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
                         && shardsRequest.shards() != null) {

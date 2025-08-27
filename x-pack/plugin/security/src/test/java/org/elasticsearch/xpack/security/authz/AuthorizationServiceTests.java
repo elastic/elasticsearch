@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.LatchedActionListener;
@@ -155,7 +156,6 @@ import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureH
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectTargetResolver;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -338,7 +338,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
             projectResolver,
-            new CrossProjectTargetResolver.Default()
+            new AuthorizedProjectsSupplier.Default()
         );
     }
 
@@ -1772,7 +1772,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
             projectResolver,
-            new CrossProjectTargetResolver.Default()
+            new AuthorizedProjectsSupplier.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1823,7 +1823,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
             projectResolver,
-            new CrossProjectTargetResolver.Default()
+            new AuthorizedProjectsSupplier.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3362,7 +3362,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
             projectResolver,
-            new CrossProjectTargetResolver.Default()
+            new AuthorizedProjectsSupplier.Default()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3519,7 +3519,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
             projectResolver,
-            new CrossProjectTargetResolver.Default()
+            new AuthorizedProjectsSupplier.Default()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

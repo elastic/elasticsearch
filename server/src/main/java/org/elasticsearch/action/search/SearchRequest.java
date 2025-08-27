@@ -53,7 +53,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends LegacyActionRequest implements IndicesRequest.CrossProjectResolvable, Rewriteable<SearchRequest> {
+public class SearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -71,7 +71,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private String[] indices = Strings.EMPTY_ARRAY;
 
     @Nullable
-    private List<RewrittenExpression> rewrittenExpressions;
+    private List<ReplacedExpression> rewrittenExpressions;
 
     @Nullable
     private String routing;
@@ -850,20 +850,5 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             + ", source="
             + source
             + '}';
-    }
-
-    @Override
-    public void setRewrittenExpressions(List<RewrittenExpression> rewrittenExpressions) {
-        this.rewrittenExpressions = rewrittenExpressions;
-        indices(
-            rewrittenExpressions.stream()
-                .flatMap(indexExpression -> indexExpression.canonicalExpressions().stream().map(CanonicalExpression::expression))
-                .toArray(String[]::new)
-        );
-    }
-
-    @Override
-    public List<RewrittenExpression> getRewrittenExpressions() {
-        return rewrittenExpressions;
     }
 }

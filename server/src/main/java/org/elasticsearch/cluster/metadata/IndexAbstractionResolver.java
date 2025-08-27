@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.CrossProjectUtils;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -32,6 +33,8 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.IndicesRequest.ReplacedExpression.hasCanonicalExpressionForOrigin;
+
 public class IndexAbstractionResolver {
 
     private static final Logger logger = LogManager.getLogger(IndexAbstractionResolver.class);
@@ -42,8 +45,8 @@ public class IndexAbstractionResolver {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
-    public List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> resolveIndexAbstractionsForOrigin(
-        List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> rewrittenExpressions,
+    public Map<String, IndicesRequest.ReplacedExpression> resolveIndexAbstractionsCrossProject(
+        Map<String, IndicesRequest.ReplacedExpression> rewrittenExpressions,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
         Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
@@ -52,19 +55,19 @@ public class IndexAbstractionResolver {
     ) {
         // TODO handle exclusions
         // TODO consolidate with `resolveIndexAbstractions` somehow, maybe?
-        List<IndicesRequest.CrossProjectResolvable.RewrittenExpression> finalRewrittenExpressions = new ArrayList<>();
-        for (IndicesRequest.CrossProjectResolvable.RewrittenExpression rewrittenExpression : rewrittenExpressions) {
+        Map<String, IndicesRequest.ReplacedExpression> finalReplacedExpressions = new LinkedHashMap<>();
+        for (IndicesRequest.ReplacedExpression replacedExpression : rewrittenExpressions.values()) {
             // no expressions targeting origin, nothing to rewrite
-            if (false == rewrittenExpression.hasCanonicalExpressionForOrigin()) {
+            if (false == hasCanonicalExpressionForOrigin(replacedExpression.replacedBy())) {
                 logger.info(
                     "Skipping rewriting of qualified expression [{}] because there are no origin expressions",
-                    rewrittenExpression.original()
+                    replacedExpression.original()
                 );
-                finalRewrittenExpressions.add(rewrittenExpression);
+                finalReplacedExpressions.put(replacedExpression.original(), replacedExpression);
                 continue;
             }
 
-            String indexAbstraction = rewrittenExpression.original();
+            String indexAbstraction = replacedExpression.original();
 
             // Always check to see if there's a selector on the index expression
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
@@ -94,7 +97,7 @@ public class IndexAbstractionResolver {
                         resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                     }
                 }
-                finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, resolvedIndices));
+                finalReplacedExpressions.put(replacedExpression.original(), replaceOriginIndices(replacedExpression, resolvedIndices));
             } else {
                 Set<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
@@ -103,43 +106,43 @@ public class IndexAbstractionResolver {
                 boolean authorized = isAuthorized.test(indexAbstraction, selector);
                 if (authorized) {
                     var visible = existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
-                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, visible ? resolvedIndices : Set.of()));
+                    finalReplacedExpressions.put(
+                        replacedExpression.original(),
+                        replaceOriginIndices(replacedExpression, visible ? resolvedIndices : Set.of())
+                    );
                 } else {
-                    finalRewrittenExpressions.add(replaceOriginIndices(rewrittenExpression, Set.of()));
+                    finalReplacedExpressions.put(replacedExpression.original(), replaceOriginIndices(replacedExpression, Set.of()));
                 }
 
             }
         }
-        logger.info("Rewrote expressions from [{}] to [{}]", rewrittenExpressions, finalRewrittenExpressions);
-        assert finalRewrittenExpressions.size() == rewrittenExpressions.size()
+        logger.info("Rewrote expressions from [{}] to [{}]", rewrittenExpressions, finalReplacedExpressions);
+        assert finalReplacedExpressions.size() == rewrittenExpressions.size()
             : "finalRewrittenExpressions size ["
-                + finalRewrittenExpressions.size()
+                + finalReplacedExpressions.size()
                 + "] does not match original size ["
                 + rewrittenExpressions.size()
                 + "]";
-        return finalRewrittenExpressions;
+        return finalReplacedExpressions;
     }
 
-    private static IndicesRequest.CrossProjectResolvable.RewrittenExpression replaceOriginIndices(
-        IndicesRequest.CrossProjectResolvable.RewrittenExpression rewrittenExpression,
+    private static IndicesRequest.ReplacedExpression replaceOriginIndices(
+        IndicesRequest.ReplacedExpression rewrittenExpression,
         Set<String> resolvedIndices
     ) {
         logger.info("Replacing origin indices for expression [{}] with [{}]", rewrittenExpression, resolvedIndices);
-        List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> resolvedOriginalExpressions = resolvedIndices.stream()
-            .map(IndicesRequest.CrossProjectResolvable.CanonicalExpression::new)
-            .toList();
-        List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> qualifiedExpressions = rewrittenExpression.canonicalExpressions()
+        List<String> qualifiedExpressions = rewrittenExpression.replacedBy()
             .stream()
-            .filter(IndicesRequest.CrossProjectResolvable.CanonicalExpression::isQualified)
+            .filter(CrossProjectUtils::isQualifiedIndexExpression)
             .toList();
-        List<IndicesRequest.CrossProjectResolvable.CanonicalExpression> combined = new ArrayList<>(resolvedOriginalExpressions);
+        List<String> combined = new ArrayList<>(resolvedIndices);
         combined.addAll(qualifiedExpressions);
-        var e = new IndicesRequest.CrossProjectResolvable.RewrittenExpression(rewrittenExpression.original(), combined);
+        var e = new IndicesRequest.ReplacedExpression(rewrittenExpression.original(), combined);
         logger.info("Replaced origin indices for expression [{}] with [{}]", rewrittenExpression, e);
         return e;
     }
 
-    public Map<String, List<String>> resolveIndexAbstractionsMapping(
+    public Map<String, IndicesRequest.ReplacedExpression> resolveIndexAbstractionsMapping(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
@@ -231,7 +234,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        return resolutionMap;
+        return IndicesRequest.ReplacedExpression.fromMap(resolutionMap);
     }
 
     private boolean existsAndVisible(

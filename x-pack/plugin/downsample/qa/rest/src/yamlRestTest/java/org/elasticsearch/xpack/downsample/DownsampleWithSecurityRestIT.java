@@ -48,6 +48,6 @@ public class DownsampleWithSecurityRestIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "downsample-with-security" });
+        return ESClientYamlSuiteTestCase.createParameters("downsample-with-security");
     }
 }

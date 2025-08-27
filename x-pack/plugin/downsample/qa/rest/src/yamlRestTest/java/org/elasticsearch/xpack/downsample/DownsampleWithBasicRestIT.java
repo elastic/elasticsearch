@@ -40,7 +40,7 @@ public class DownsampleWithBasicRestIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "downsample" });
+        return ESClientYamlSuiteTestCase.createParameters("downsample");
     }
 
 }

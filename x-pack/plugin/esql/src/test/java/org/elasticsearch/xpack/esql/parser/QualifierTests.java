@@ -87,6 +87,13 @@ public class QualifierTests extends AbstractStatementParserTests {
         );
 
         assertQualifiedAttributeInExpressions(
+            sourceQuery + "WHERE [qualified].[field] > 1",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "WHERE `qualified.field` > 1"
+        );
+        assertQualifiedAttributeInExpressions(
             sourceQuery + "WHERE [qualified].[`field`]> 0",
             "qualified",
             "field",
@@ -350,6 +357,13 @@ public class QualifierTests extends AbstractStatementParserTests {
             sourceQuery + "EVAL x = qualified.field"
         );
         assertQualifiedAttributeInExpressions(
+            sourceQuery + "EVAL x = 2 * [qualified].[field]",
+            "qualified",
+            "field",
+            1,
+            sourceQuery + "EVAL x = 2 * (qualified.field)"
+        );
+        assertQualifiedAttributeInExpressions(
             sourceQuery + "EVAL x = [qualified].[field], y = [ qualified ] . [ field ] ",
             "qualified",
             "field",
@@ -581,6 +595,10 @@ public class QualifierTests extends AbstractStatementParserTests {
         );
         expectError(sourceQuery + keepDrop + " [qualified].[*]", "Qualified names are not supported in patterns, found [[qualified].[*]]");
         expectError(sourceQuery + keepDrop + " [qual*fied].[*]", "Qualified names are not supported in patterns, found [[qual*fied].[*]]");
+        expectError(
+            sourceQuery + keepDrop + " [quali*ied].[pat*ern]",
+            "Qualified names are not supported in patterns, found [[quali*ied].[pat*ern]]"
+        );
 
         expectError(
             sourceQuery + "EVAL [qualified].[field] = \"foo\"",
@@ -738,6 +756,81 @@ public class QualifierTests extends AbstractStatementParserTests {
     }
 
     /**
+     * Test that unqualified attributes can also be denoted as {@code [].[fieldName]}
+     */
+    public void testEmptyQualifierInQualifiedName() {
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+
+        String sourceQuery = "ROW field = 1 | ";
+
+        assertStatementsEqual(sourceQuery + "EVAL [].[field] = 1", sourceQuery + "EVAL field = 1");
+        assertStatementsEqual(
+            sourceQuery + "EVAL [qualified].[field] = 1, [ ].[qualified.field] = 2",
+            sourceQuery + "EVAL [qualified].[field] = 1, qualified.field = 2"
+        );
+
+        assertStatementsEqual(sourceQuery + "WHERE [].[field]", sourceQuery + "WHERE field");
+        assertStatementsEqual(sourceQuery + "WHERE [].[field] > 1", sourceQuery + "WHERE field > 1");
+        assertStatementsEqual(sourceQuery + "WHERE [ ]. [ `field`]> 0", sourceQuery + "WHERE field > 0");
+        assertStatementsEqual(sourceQuery + "WHERE [ ].[field]== [].[`field`]", sourceQuery + "WHERE field == field");
+        assertStatementsEqual(sourceQuery + "WHERE [].[field]/[].[field] == 1", sourceQuery + "WHERE field/field == 1");
+        assertStatementsEqual(sourceQuery + "WHERE [ ].[field] - [].[`field`] ==[].[field]", sourceQuery + "WHERE field - field == field");
+        assertStatementsEqual(sourceQuery + "WHERE -[ ].[field]", sourceQuery + "WHERE - field");
+        assertStatementsEqual(sourceQuery + "WHERE [ ].[field]: \"foo\"", sourceQuery + "WHERE field: \"foo\"");
+        assertStatementsEqual(sourceQuery + "WHERE NOT [ ].[field]", sourceQuery + "WHERE NOT field");
+        assertStatementsEqual(sourceQuery + "WHERE NOT ([].[ `field` ])", sourceQuery + "WHERE NOT field");
+        assertStatementsEqual(sourceQuery + "WHERE NOT [ ].[field] AND [].[`field`]", sourceQuery + "WHERE NOT field AND field");
+        assertStatementsEqual(
+            sourceQuery + "WHERE [ ].[field] OR [].[field] OR [].[`field`] AND [ ].[field]",
+            sourceQuery + "WHERE field OR field OR field AND field"
+        );
+        assertStatementsEqual(sourceQuery + "WHERE [ ].[`field`] IS NULL", sourceQuery + "WHERE field IS NULL");
+        assertStatementsEqual(sourceQuery + "WHERE [].[field] IS NOT NULL", sourceQuery + "WHERE field IS NOT NULL");
+        assertStatementsEqual(
+            sourceQuery + "WHERE function([ ].[`field`]) <= other_function([].[field])",
+            sourceQuery + "WHERE function(field) <= other_function(field)"
+        );
+        assertStatementsEqual(sourceQuery + "WHERE [].[field]::boolean", sourceQuery + "WHERE field::boolean");
+        assertStatementsEqual(sourceQuery + "WHERE [ ].[`field`]::boolean", sourceQuery + "WHERE field::boolean");
+        assertStatementsEqual(sourceQuery + "WHERE ([ ].[field])::boolean", sourceQuery + "WHERE field::boolean");
+        assertStatementsEqual(sourceQuery + "WHERE [ ].[field] IN ([].[field])", sourceQuery + "WHERE field IN (field)");
+        assertStatementsEqual(
+            sourceQuery + "WHERE [ ].[field] IN ([ ].[`field`], [].[field], [ ].[ `field` ])",
+            sourceQuery + "WHERE field IN (field, field, field)"
+        );
+        assertStatementsEqual(
+            sourceQuery + "WHERE [ ].[field] LIKE (\"foo\", \"bar?\")",
+            sourceQuery + "WHERE field LIKE (\"foo\", \"bar?\")"
+        );
+        assertStatementsEqual(sourceQuery + "WHERE [].[`field`] RLIKE \"foo\"", sourceQuery + "WHERE field RLIKE \"foo\"");
+    }
+
+    /**
+     * Test that unqualified name patterns can also be denoted as {@code [].[patter*]}
+     */
+    public void testEmptyQualifierInQualifiedNamePattern() {
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+
+        String sourceQuery = "ROW field = 1 | " + (randomBoolean() ? "KEEP" : "DROP") + " ";
+
+        assertStatementsEqual(sourceQuery + "[ ].[field]", sourceQuery + "field");
+        assertStatementsEqual(sourceQuery + "[].[ `field` ]", sourceQuery + "field");
+        assertStatementsEqual(sourceQuery + "[].[ `fi``eld` ]", sourceQuery + "`fi``eld`");
+        assertStatementsEqual(sourceQuery + "[ ].[pat*ern]", sourceQuery + "pat*ern");
+        assertStatementsEqual(sourceQuery + "[].[pat*ern]", sourceQuery + "pat*ern");
+        assertStatementsEqual(sourceQuery + "[ ].[ field* ]", sourceQuery + "field*");
+        assertStatementsEqual(sourceQuery + "[ ].[fie*ld]", sourceQuery + "fie*ld");
+        assertStatementsEqual(sourceQuery + "[ ].[*]", sourceQuery + "*");
+        assertStatementsEqual(sourceQuery + "[ ].[ * ]", sourceQuery + "*");
+        assertStatementsEqual(sourceQuery + "[ ].[pat.*`ern*` ]", sourceQuery + "pat.*`ern*`");
+        assertStatementsEqual(sourceQuery + "[ ].[fie`l``d`]", sourceQuery + "fiel````d");
+
+        assertStatementsEqual(sourceQuery + "[ ].[field], field2", sourceQuery + "field, field2");
+        assertStatementsEqual(sourceQuery + "[ ].[pattern1*], pattern2*", sourceQuery + "pattern1*, pattern2*");
+        assertStatementsEqual(sourceQuery + "pat*ern1, [ ].[pattern2*], other_pat*ern", sourceQuery + "pat*ern1, pattern2*, other_pat*ern");
+    }
+
+    /**
      * Assert that there is as many {@link UnresolvedAttribute}s with the given fully qualified name as expected. Then, turn all the
      * matching fully qualified {@link UnresolvedAttribute}s into unqualified attributes by removing the qualifier and prefixing the plain
      * name with it to check if we end up with the same plan as from the reference query.
@@ -806,5 +899,11 @@ public class QualifierTests extends AbstractStatementParserTests {
         });
 
         return numOccurrences.get();
+    }
+
+    private void assertStatementsEqual(String query1, String query2) {
+        LogicalPlan plan1 = statement(query1);
+        LogicalPlan plan2 = statement(query2);
+        assertEquals(plan1, plan2);
     }
 }

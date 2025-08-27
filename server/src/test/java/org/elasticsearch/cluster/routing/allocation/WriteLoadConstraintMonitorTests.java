@@ -52,11 +52,11 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             testState.clusterSettings,
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.rerouteService
+            testState.mockRerouteService
         );
 
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
-        verify(testState.rerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+        verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
     }
 
     @TestLogging(
@@ -71,7 +71,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             () -> ClusterState.builder(testState.clusterState)
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
                 .build(),
-            testState.rerouteService
+            testState.mockRerouteService
         );
 
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -86,7 +86,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
             writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
             mockLog.assertAllExpectationsMatched();
-            verifyNoInteractions(testState.rerouteService);
+            verifyNoInteractions(testState.mockRerouteService);
         }
     }
 
@@ -107,7 +107,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             ),
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.rerouteService
+            testState.mockRerouteService
         );
 
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -122,7 +122,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
             writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
             mockLog.assertAllExpectationsMatched();
-            verifyNoInteractions(testState.rerouteService);
+            verifyNoInteractions(testState.mockRerouteService);
         }
     }
 
@@ -136,7 +136,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             testState.clusterSettings,
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.rerouteService
+            testState.mockRerouteService
         );
 
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -153,7 +153,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 createClusterInfo(testState.clusterState, 0, testState.latencyThresholdMillis, testState.highUtilizationThresholdPercent)
             );
             mockLog.assertAllExpectationsMatched();
-            verifyNoInteractions(testState.rerouteService);
+            verifyNoInteractions(testState.mockRerouteService);
         }
     }
 
@@ -184,7 +184,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             testState.clusterSettings,
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.rerouteService
+            testState.mockRerouteService
         );
 
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -200,7 +200,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 ClusterInfo.builder().nodeUsageStatsForThreadPools(nodeUsageStatsWithHighUtilization).build()
             );
             mockLog.assertAllExpectationsMatched();
-            verifyNoInteractions(testState.rerouteService);
+            verifyNoInteractions(testState.mockRerouteService);
         }
     }
 
@@ -222,7 +222,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             testState.clusterSettings,
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.rerouteService
+            testState.mockRerouteService
         );
 
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -236,7 +236,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             );
             writeLoadConstraintMonitor.onNewInfo(clusterInfoWithAllNodesOverLatencyThreshold);
             mockLog.assertAllExpectationsMatched();
-            verifyNoInteractions(testState.rerouteService);
+            verifyNoInteractions(testState.mockRerouteService);
         }
     }
 
@@ -256,13 +256,13 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             testState.clusterSettings,
             currentTimeMillis::get,
             () -> testState.clusterState,
-            testState.rerouteService
+            testState.mockRerouteService
         );
 
         // We should trigger a re-route @ nowMillis
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
-        verify(testState.rerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
-        reset(testState.rerouteService);
+        verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+        reset(testState.mockRerouteService);
 
         while (currentTimeMillis.get() < nowMillis + minimumInterval.millis()) {
             try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -276,7 +276,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 );
                 writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
                 mockLog.assertAllExpectationsMatched();
-                verifyNoInteractions(testState.rerouteService);
+                verifyNoInteractions(testState.mockRerouteService);
             }
 
             currentTimeMillis.addAndGet(randomLongBetween(500, 1_000));
@@ -284,7 +284,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         // We're now passed the minimum interval
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
-        verify(testState.rerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+        verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
     }
 
     @TestLogging(
@@ -300,13 +300,13 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             testState.clusterSettings,
             currentTimeSupplier,
             () -> testState.clusterState,
-            testState.rerouteService
+            testState.mockRerouteService
         );
 
         // We should trigger a re-route @ currentTime
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
-        verify(testState.rerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
-        reset(testState.rerouteService);
+        verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+        reset(testState.mockRerouteService);
 
         assertThat(
             "Test setup should leave at least two nodes not hot-spotted",
@@ -340,7 +340,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         // We should reroute again despite the clock being the same
         writeLoadConstraintMonitor.onNewInfo(ClusterInfo.builder().nodeUsageStatsForThreadPools(nodeUsageStatsWithExtraHotSpot).build());
-        verify(testState.rerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+        verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
     }
 
     private boolean nodeExceedsQueueLatencyThreshold(NodeUsageStatsForThreadPools nodeUsageStats, long latencyThresholdMillis) {
@@ -459,7 +459,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         ClusterSettings clusterSettings,
         LongSupplier currentTimeSupplier,
         ClusterState clusterState,
-        RerouteService rerouteService,
+        RerouteService mockRerouteService,
         ClusterInfo clusterInfo
     ) {}
 }

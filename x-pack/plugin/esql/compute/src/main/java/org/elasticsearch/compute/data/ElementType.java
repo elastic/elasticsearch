@@ -63,7 +63,7 @@ public enum ElementType {
         10,
         "AggregateMetricDouble",
         BlockFactory::newAggregateMetricDoubleBlockBuilder,
-        AggregateMetricDoubleBlock::readFrom
+        AggregateMetricDoubleArrayBlock::readFrom
     );
 
     private interface BuilderSupplier {

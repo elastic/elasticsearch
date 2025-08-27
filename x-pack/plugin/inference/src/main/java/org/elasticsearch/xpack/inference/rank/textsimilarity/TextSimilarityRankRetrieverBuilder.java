@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
@@ -41,12 +42,16 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         "text_similarity_reranker_alias_handling_fix"
     );
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_MINSCORE_FIX = new NodeFeature("text_similarity_reranker_minscore_fix");
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_SNIPPETS = new NodeFeature("text_similarity_reranker_snippets");
+    public static final FeatureFlag RERANK_SNIPPETS = new FeatureFlag("text_similarity_reranker_snippets");
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField FAILURES_ALLOWED_FIELD = new ParseField("allow_rerank_failures");
+    public static final ParseField SNIPPETS_FIELD = new ParseField("snippets");
+    public static final ParseField NUM_SNIPPETS_FIELD = new ParseField("num_snippets");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -56,6 +61,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
             boolean failuresAllowed = args[5] != null && (Boolean) args[5];
+            SnippetConfig snippets = (SnippetConfig) args[6];
 
             return new TextSimilarityRankRetrieverBuilder(
                 retrieverBuilder,
@@ -63,9 +69,19 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
                 inferenceText,
                 field,
                 rankWindowSize,
-                failuresAllowed
+                failuresAllowed,
+                snippets
             );
         });
+
+    private static final ConstructingObjectParser<SnippetConfig, RetrieverParserContext> SNIPPETS_PARSER = new ConstructingObjectParser<>(
+        SNIPPETS_FIELD.getPreferredName(),
+        true,
+        args -> {
+            Integer numSnippets = (Integer) args[0];
+            return new SnippetConfig(numSnippets);
+        }
+    );
 
     static {
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
@@ -78,6 +94,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), FAILURES_ALLOWED_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), SNIPPETS_PARSER, SNIPPETS_FIELD);
+        if (RERANK_SNIPPETS.isEnabled()) {
+            SNIPPETS_PARSER.declareInt(optionalConstructorArg(), NUM_SNIPPETS_FIELD);
+        }
 
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
@@ -97,6 +117,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     private final String inferenceText;
     private final String field;
     private final boolean failuresAllowed;
+    private final SnippetConfig snippets;
 
     public TextSimilarityRankRetrieverBuilder(
         RetrieverBuilder retrieverBuilder,
@@ -104,13 +125,15 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         String inferenceText,
         String field,
         int rankWindowSize,
-        boolean failuresAllowed
+        boolean failuresAllowed,
+        SnippetConfig snippets
     ) {
         super(List.of(RetrieverSource.from(retrieverBuilder)), rankWindowSize);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
         this.failuresAllowed = failuresAllowed;
+        this.snippets = snippets;
     }
 
     public TextSimilarityRankRetrieverBuilder(
@@ -122,11 +145,15 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         Float minScore,
         boolean failuresAllowed,
         String retrieverName,
-        List<QueryBuilder> preFilterQueryBuilders
+        List<QueryBuilder> preFilterQueryBuilders,
+        SnippetConfig snippets
     ) {
         super(retrieverSource, rankWindowSize);
         if (retrieverSource.size() != 1) {
             throw new IllegalArgumentException("[" + getName() + "] retriever should have exactly one inner retriever");
+        }
+        if (snippets != null && snippets.numSnippets() != null && snippets.numSnippets() < 1) {
+            throw new IllegalArgumentException("num_snippets must be greater than 0, was: " + snippets.numSnippets());
         }
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -135,6 +162,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         this.failuresAllowed = failuresAllowed;
         this.retrieverName = retrieverName;
         this.preFilterQueryBuilders = preFilterQueryBuilders;
+        this.snippets = snippets;
     }
 
     @Override
@@ -151,7 +179,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             minScore,
             failuresAllowed,
             retrieverName,
-            newPreFilterQueryBuilders
+            newPreFilterQueryBuilders,
+            snippets
         );
     }
 
@@ -179,7 +208,17 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.rankBuilder(
-            new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed)
+            new TextSimilarityRankBuilder(
+                field,
+                inferenceId,
+                inferenceText,
+                rankWindowSize,
+                minScore,
+                failuresAllowed,
+                snippets != null
+                    ? new SnippetConfig(snippets.numSnippets, inferenceText, TextSimilarityRankBuilder.tokenSizeLimit(inferenceId))
+                    : null
+            )
         );
         return sourceBuilder;
     }
@@ -207,6 +246,13 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         if (failuresAllowed) {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), failuresAllowed);
         }
+        if (snippets != null) {
+            builder.startObject(SNIPPETS_FIELD.getPreferredName());
+            if (snippets.numSnippets() != null) {
+                builder.field(NUM_SNIPPETS_FIELD.getPreferredName(), snippets.numSnippets());
+            }
+            builder.endObject();
+        }
     }
 
     @Override
@@ -218,11 +264,12 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             && Objects.equals(field, that.field)
             && rankWindowSize == that.rankWindowSize
             && Objects.equals(minScore, that.minScore)
-            && failuresAllowed == that.failuresAllowed;
+            && failuresAllowed == that.failuresAllowed
+            && Objects.equals(snippets, that.snippets);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, rankWindowSize, minScore, failuresAllowed);
+        return Objects.hash(inferenceId, inferenceText, field, rankWindowSize, minScore, failuresAllowed, snippets);
     }
 }

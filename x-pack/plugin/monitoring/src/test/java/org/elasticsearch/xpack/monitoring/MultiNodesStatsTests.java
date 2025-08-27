@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -98,7 +99,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         });
     }
 
-    private void waitForMonitoringIndices() throws Exception {
+    private void waitForMonitoringIndices() {
         final var indexNameExpressionResolver = internalCluster().getCurrentMasterNodeInstance(IndexNameExpressionResolver.class);
         final var indicesOptions = IndicesOptions.builder()
             .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(true))
@@ -109,7 +110,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
                 return false;
             }
             for (Index index : indices) {
-                final var indexRoutingTable = cs.routingTable().index(index);
+                final var indexRoutingTable = cs.routingTable(ProjectId.DEFAULT).index(index);
                 if (indexRoutingTable.allPrimaryShardsActive() == false) {
                     return false;
                 }

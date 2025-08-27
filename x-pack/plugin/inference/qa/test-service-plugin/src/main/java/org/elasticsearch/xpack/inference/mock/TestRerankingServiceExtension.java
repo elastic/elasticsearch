@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettings;
@@ -48,6 +49,8 @@ import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceServic
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
 
+    public static final int RERANK_WINDOW_SIZE = 333;
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
@@ -62,7 +65,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public static class TestInferenceService extends AbstractTestInferenceService {
+    public static class TestInferenceService extends AbstractTestInferenceService implements RerankingInferenceService {
         public static final String NAME = "test_reranking_service";
 
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.RERANK);
@@ -161,34 +164,48 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         private RankedDocsResults makeResults(List<String> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
-            int totalResults = input.size();
+            if (taskSettings.useTextLength) {
+                return makeResultFromTextInput(input, taskSettings);
+            }
+
             try {
+                int totalResults = input.size();
                 List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
                 for (int i = 0; i < totalResults; i++) {
                     results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i)), input.get(i)));
                 }
                 return new RankedDocsResults(results.stream().sorted(Comparator.reverseOrder()).toList());
             } catch (NumberFormatException ex) {
-                List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
-
-                float minScore = taskSettings.minScore();
-                float resultDiff = taskSettings.resultDiff();
-                for (int i = 0; i < input.size(); i++) {
-                    float relevanceScore = minScore + resultDiff * (totalResults - i);
-                    String inputText = input.get(totalResults - 1 - i);
-                    if (taskSettings.useTextLength()) {
-                        relevanceScore = 1f / inputText.length();
-                    }
-                    results.add(new RankedDocsResults.RankedDoc(totalResults - 1 - i, relevanceScore, inputText));
-                }
-                // Ensure result are sorted by descending score
-                results.sort((a, b) -> -Float.compare(a.relevanceScore(), b.relevanceScore()));
-                return new RankedDocsResults(results);
+                return makeResultFromTextInput(input, taskSettings);
             }
+        }
+
+        private RankedDocsResults makeResultFromTextInput(List<String> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
+            int totalResults = input.size();
+
+            List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
+            float minScore = taskSettings.minScore();
+            float resultDiff = taskSettings.resultDiff();
+            for (int i = 0; i < input.size(); i++) {
+                float relevanceScore = minScore + resultDiff * (totalResults - i);
+                String inputText = input.get(totalResults - 1 - i);
+                if (taskSettings.useTextLength()) {
+                    relevanceScore = 1f / inputText.length();
+                }
+                results.add(new RankedDocsResults.RankedDoc(totalResults - 1 - i, relevanceScore, inputText));
+            }
+            // Ensure result are sorted by descending score
+            results.sort((a, b) -> -Float.compare(a.relevanceScore(), b.relevanceScore()));
+            return new RankedDocsResults(results);
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
+        @Override
+        public int rerankerWindowSize(String modelId) {
+            return RERANK_WINDOW_SIZE;
         }
 
         public static class Configuration {

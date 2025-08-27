@@ -9,6 +9,7 @@ package org.elasticsearch.compute.gen;
 
 import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -47,6 +48,7 @@ import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.PAGE;
+import static org.elasticsearch.compute.gen.Types.RAM_USAGE_ESIMATOR;
 import static org.elasticsearch.compute.gen.Types.RELEASABLE;
 import static org.elasticsearch.compute.gen.Types.RELEASABLES;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
@@ -96,6 +98,7 @@ public class EvaluatorImplementer {
         builder.addJavadoc("This class is generated. Edit {@code " + getClass().getSimpleName() + "} instead.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
+        builder.addField(baseRamBytesUsed(implementation));
         builder.addType(factory());
 
         builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
@@ -106,6 +109,7 @@ public class EvaluatorImplementer {
 
         builder.addMethod(ctor());
         builder.addMethod(eval());
+        builder.addMethod(processFunction.baseRamBytesUsed());
 
         if (processOutputsMultivalued) {
             if (processFunction.args.stream().anyMatch(x -> x instanceof FixedProcessFunctionArg == false)) {
@@ -120,6 +124,19 @@ public class EvaluatorImplementer {
         builder.addMethod(processFunction.toStringMethod(implementation));
         builder.addMethod(processFunction.close());
         builder.addMethod(warnings());
+        return builder.build();
+    }
+
+    static FieldSpec baseRamBytesUsed(ClassName implementation) {
+        FieldSpec.Builder builder = FieldSpec.builder(
+            TypeName.LONG,
+            "BASE_RAM_BYTES_USED",
+            Modifier.PRIVATE,
+            Modifier.STATIC,
+            Modifier.FINAL
+        );
+        builder.initializer("$T.shallowSizeOfInstance($T.class)", RAM_USAGE_ESIMATOR, implementation);
+
         return builder.build();
     }
 
@@ -411,6 +428,11 @@ public class EvaluatorImplementer {
          * The string to close this argument or {@code null}.
          */
         String closeInvocation();
+
+        /**
+         * Invokes {@code baseRamBytesUsed} on sub-expressions an
+         */
+        void sumBaseRamBytesUsed(MethodSpec.Builder builder);
     }
 
     record StandardProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
@@ -534,6 +556,11 @@ public class EvaluatorImplementer {
         @Override
         public String closeInvocation() {
             return name;
+        }
+
+        @Override
+        public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
+            builder.addStatement("baseRamBytesUsed += $L.baseRamBytesUsed()", name);
         }
     }
 
@@ -667,6 +694,13 @@ public class EvaluatorImplementer {
         public String closeInvocation() {
             return "() -> Releasables.close(" + name + ")";
         }
+
+        @Override
+        public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
+            builder.beginControlFlow("for ($T e : $L)", EXPRESSION_EVALUATOR, name);
+            builder.addStatement("baseRamBytesUsed += e.baseRamBytesUsed()");
+            builder.endControlFlow();
+        }
     }
 
     record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, Scope scope, boolean releasable)
@@ -769,6 +803,9 @@ public class EvaluatorImplementer {
         public String closeInvocation() {
             return releasable ? name : null;
         }
+
+        @Override
+        public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {}
     }
 
     private record BuilderProcessFunctionArg(ClassName type, String name) implements ProcessFunctionArg {
@@ -853,6 +890,9 @@ public class EvaluatorImplementer {
         public String closeInvocation() {
             return null;
         }
+
+        @Override
+        public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {}
     }
 
     private record BlockProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
@@ -939,6 +979,11 @@ public class EvaluatorImplementer {
         @Override
         public String closeInvocation() {
             return name;
+        }
+
+        @Override
+        public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
+            builder.addStatement("baseRamBytesUsed += $L.baseRamBytesUsed()", name);
         }
     }
 
@@ -1083,6 +1128,18 @@ public class EvaluatorImplementer {
             if (invocations.isEmpty() == false) {
                 builder.addStatement("$T.closeExpectNoException(" + String.join(", ", invocations) + ")", Types.RELEASABLES);
             }
+            return builder.build();
+        }
+
+        MethodSpec baseRamBytesUsed() {
+            MethodSpec.Builder builder = MethodSpec.methodBuilder("baseRamBytesUsed").addAnnotation(Override.class);
+            builder.addModifiers(Modifier.PUBLIC).returns(TypeName.LONG);
+
+            builder.addStatement("long baseRamBytesUsed = BASE_RAM_BYTES_USED");
+            for (ProcessFunctionArg arg : args) {
+                arg.sumBaseRamBytesUsed(builder);
+            }
+            builder.addStatement("return baseRamBytesUsed");
             return builder.build();
         }
     }

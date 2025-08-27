@@ -556,7 +556,7 @@ public class Driver implements Releasable, Describable {
                 prev.cpuNanos() + extraCpuNanos,
                 prev.iterations() + extraIterations,
                 status,
-                statusOfCompletedOperators,
+                List.copyOf(statusOfCompletedOperators),
                 activeOperators.stream().map(op -> new OperatorStatus(op.toString(), op.status())).toList(),
                 sleeps
             );

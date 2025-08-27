@@ -13,7 +13,7 @@ Your data may contain unstructured strings that you want to structure. This make
 :alt: unstructured data
 :::
 
-{{es}} can structure your data at index time or query time. At index time, you can use the [Dissect](/reference/enrich-processor/dissect-processor.md) and [Grok](/reference/enrich-processor/grok-processor.md) ingest processors, or the {{ls}} [Dissect](logstash-docs-md://lsr//plugins-filters-dissect.md) and [Grok](logstash-docs-md://lsr//plugins-filters-grok.md) filters. At query time, you can use the {{esql}} [`DISSECT`](/reference/query-languages/esql/commands/processing-commands.md#esql-dissect) and [`GROK`](/reference/query-languages/esql/commands/processing-commands.md#esql-grok) commands.
+{{es}} can structure your data at index time or query time. At index time, you can use the [Dissect](/reference/enrich-processor/dissect-processor.md) and [Grok](/reference/enrich-processor/grok-processor.md) ingest processors, or the {{ls}} [Dissect](logstash-docs-md://lsr//plugins-filters-dissect.md) and [Grok](logstash-docs-md://lsr//plugins-filters-grok.md) filters. At query time, you can use the {{esql}} [`DISSECT`](/reference/query-languages/esql/commands/dissect.md) and [`GROK`](/reference/query-languages/esql/commands/grok.md) commands.
 
 ## `DISSECT` or `GROK`? Or both? [esql-grok-or-dissect]
 
@@ -24,7 +24,7 @@ You can use both `DISSECT` and `GROK` for hybrid use cases. For example when a s
 
 ## Process data with `DISSECT` [esql-process-data-with-dissect]
 
-The [`DISSECT`](/reference/query-languages/esql/commands/processing-commands.md#esql-dissect) processing command matches a string against a delimiter-based pattern, and extracts the specified keys as columns.
+The [`DISSECT`](/reference/query-languages/esql/commands/dissect.md) processing command matches a string against a delimiter-based pattern, and extracts the specified keys as columns.
 
 For example, the following pattern:
 
@@ -206,7 +206,7 @@ The `DISSECT` command does not support reference keys.
 
 ## Process data with `GROK` [esql-process-data-with-grok]
 
-The [`GROK`](/reference/query-languages/esql/commands/processing-commands.md#esql-grok) processing command matches a string against a pattern based on regular expressions, and extracts the specified keys as columns.
+The [`GROK`](/reference/query-languages/esql/commands/grok.md) processing command matches a string against a pattern based on regular expressions, and extracts the specified keys as columns.
 
 For example, the following pattern:
 

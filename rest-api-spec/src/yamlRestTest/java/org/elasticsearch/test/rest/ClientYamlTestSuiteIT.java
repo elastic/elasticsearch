@@ -40,6 +40,7 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .feature(FeatureFlag.USE_LUCENE101_POSTINGS_FORMAT)
         .feature(FeatureFlag.IVF_FORMAT)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.RERANK_SNIPPETS)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

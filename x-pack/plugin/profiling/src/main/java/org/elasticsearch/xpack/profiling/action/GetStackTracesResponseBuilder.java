@@ -82,6 +82,14 @@ class GetStackTracesResponseBuilder {
         return samplingRate;
     }
 
+    public void setSamplingFrequency(long samplingFrequency) {
+        this.samplingFrequency = samplingFrequency;
+    }
+
+    public long getSamplingFrequency() {
+        return samplingFrequency;
+    }
+
     public void setRequestedDuration(Double requestedDuration) {
         this.requestedDuration = requestedDuration;
     }
@@ -154,14 +162,15 @@ class GetStackTracesResponseBuilder {
                 }
             }
         }
-        return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, totalSamples);
-    }
-
-    public void setSamplingFrequency(long samplingFrequency) {
-        this.samplingFrequency = samplingFrequency;
-    }
-
-    public long getSamplingFrequency() {
-        return samplingFrequency;
+        return new GetStackTracesResponse(
+            stackTraces,
+            stackFrames,
+            executables,
+            stackTraceEvents,
+            totalFrames,
+            samplingRate,
+            totalSamples,
+            samplingFrequency
+        );
     }
 }

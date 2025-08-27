@@ -14,7 +14,7 @@ mapped_pages:
 
 
 ::::{tip}
-The rule query is not supported for use alongside reranking. If you want to use query rules in conjunction with reranking, use the [rule retriever](/reference/elasticsearch/rest-apis/retrievers.md#rule-retriever) instead.
+The rule query is not supported for use alongside reranking. If you want to use query rules in conjunction with reranking, use the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) instead.
 
 ::::
 

@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.TimeValue;
@@ -29,13 +30,30 @@ public class WriteLoadConstraintSettings {
          */
         DISABLED,
         /**
-         * Only the low-threshold is enabled (write-load will not trigger rebalance)
+         * Only the low write low threshold, to try to avoid allocating to a node exceeding
+         * {@link #WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING}. Write-load hot-spot will not trigger rebalancing.
          */
-        LOW_ONLY,
+        LOW_THRESHOLD_ONLY,
         /**
-         * The decider is enabled
+         * All write load decider development work is turned on.
          */
-        ENABLED
+        ENABLED;
+
+        public boolean fullyEnabled() {
+            return this == ENABLED;
+        }
+
+        public boolean notFullyEnabled() {
+            return this != ENABLED;
+        }
+
+        public boolean atLeastLowThresholdEnabled() {
+            return this != DISABLED;
+        }
+
+        public boolean disabled() {
+            return this == DISABLED;
+        }
     }
 
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(
@@ -98,4 +116,42 @@ public class WriteLoadConstraintSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    WriteLoadDeciderStatus writeLoadDeciderStatus;
+    TimeValue writeLoadDeciderRerouteIntervalSetting;
+    double writeThreadPoolHighUtilizationThresholdSetting;
+
+    public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING, this::setWriteLoadDeciderRerouteIntervalSetting);
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
+            this::setWriteThreadPoolHighUtilizationThresholdSetting
+        );
+
+    };
+
+    private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus status) {
+        this.writeLoadDeciderStatus = status;
+    }
+
+    public WriteLoadDeciderStatus getWriteLoadConstraintEnabled() {
+        return this.writeLoadDeciderStatus;
+    }
+
+    public TimeValue getWriteLoadDeciderRerouteIntervalSetting() {
+        return this.writeLoadDeciderRerouteIntervalSetting;
+    }
+
+    public double getWriteThreadPoolHighUtilizationThresholdSetting() {
+        return this.writeThreadPoolHighUtilizationThresholdSetting;
+    }
+
+    private void setWriteLoadDeciderRerouteIntervalSetting(TimeValue timeValue) {
+        this.writeLoadDeciderRerouteIntervalSetting = timeValue;
+    }
+
+    private void setWriteThreadPoolHighUtilizationThresholdSetting(RatioValue percent) {
+        this.writeThreadPoolHighUtilizationThresholdSetting = percent.getAsRatio();
+    }
 }

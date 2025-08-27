@@ -25,7 +25,6 @@ import java.util.Arrays;
 class RoundToLong {
     static final RoundTo.Build BUILD = (source, field, points) -> {
         long[] f = points.stream().mapToLong(p -> ((Number) p).longValue()).toArray();
-        Arrays.sort(f);
         return switch (f.length) {
             // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
             case 1 -> new RoundToLong1Evaluator.Factory(source, field, f[0]);
@@ -35,29 +34,19 @@ class RoundToLong {
             case 2 -> new RoundToLong2Evaluator.Factory(source, field, f[0], f[1]);
             case 3 -> new RoundToLong3Evaluator.Factory(source, field, f[0], f[1], f[2]);
             case 4 -> new RoundToLong4Evaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
+            case 5 -> new RoundToLong5Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4]);
+            case 6 -> new RoundToLong6Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5]);
+            case 7 -> new RoundToLong7Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
+            case 8 -> new RoundToLong8Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+            case 9 -> new RoundToLong9Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
+            case 10 -> new RoundToLong10Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]);
             /*
              * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
              * on 2025-05-22.
              */
-            case 5, 6, 7, 8, 9, 10 -> new RoundToLongLinearSearchEvaluator.Factory(source, field, f);
             default -> new RoundToLongBinarySearchEvaluator.Factory(source, field, f);
         };
     };
-
-    /**
-     * Search the points array for the match linearly. This is faster for smaller arrays even
-     * when finding a position late in the array. Presumably because this is super-SIMD-able.
-     */
-    @Evaluator(extraName = "LinearSearch")
-    static long processLinear(long field, @Fixed(includeInToString = false) long[] points) {
-        // points is always longer than 3 or we use one of the specialized methods below
-        for (int i = 1; i < points.length; i++) {
-            if (field < points[i]) {
-                return points[i - 1];
-            }
-        }
-        return points[points.length - 1];
-    }
 
     @Evaluator(extraName = "BinarySearch")
     static long process(long field, @Fixed(includeInToString = false) long[] points) {
@@ -101,5 +90,220 @@ class RoundToLong {
             return p2;
         }
         return p3;
+    }
+
+    /*
+     * Manual binary search for 5 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "5")
+    static long process(long field, @Fixed long p0, @Fixed long p1, @Fixed long p2, @Fixed long p3, @Fixed long p4) {
+        if (field < p2) {
+            if (field < p1) {
+                return p0;
+            }
+            return p1;
+        }
+        if (field < p3) {
+            return p2;
+        }
+        if (field < p4) {
+            return p3;
+        }
+        return p4;
+    }
+
+    /*
+     * Manual binary search for 6 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "6")
+    static long process(
+        long field,      // hack to keep the formatter happy.
+        @Fixed long p0,  // int is so short this should be on one line but double is not.
+        @Fixed long p1,  // That's not compatible with the templates.
+        @Fixed long p2,  // So we comment to make the formatter not try to change the line.
+        @Fixed long p3,
+        @Fixed long p4,
+        @Fixed long p5
+    ) {
+        if (field < p2) {
+            if (field < p1) {
+                return p0;
+            }
+            return p1;
+        }
+        if (field < p4) {
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p5) {
+            return p4;
+        }
+        return p5;
+    }
+
+    /*
+     * Manual binary search for 7 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "7")
+    static long process(
+        long field,      // hack to keep the formatter happy.
+        @Fixed long p0,  // int is so short this should be on one line but double is not.
+        @Fixed long p1,  // That's not compatible with the templates.
+        @Fixed long p2,  // So we comment to make the formatter not try to change the line.
+        @Fixed long p3,
+        @Fixed long p4,
+        @Fixed long p5,
+        @Fixed long p6
+    ) {
+        if (field < p3) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            return p2;
+        }
+        if (field < p5) {
+            if (field < p4) {
+                return p3;
+            }
+            return p4;
+        }
+        if (field < p6) {
+            return p5;
+        }
+        return p6;
+    }
+
+    /*
+     * Manual binary search for 8 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "8")
+    static long process(
+        long field,
+        @Fixed long p0,
+        @Fixed long p1,
+        @Fixed long p2,
+        @Fixed long p3,
+        @Fixed long p4,
+        @Fixed long p5,
+        @Fixed long p6,
+        @Fixed long p7
+    ) {
+        if (field < p3) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            return p2;
+        }
+        if (field < p5) {
+            if (field < p4) {
+                return p3;
+            }
+            return p4;
+        }
+        if (field < p6) {
+            return p5;
+        }
+        if (field < p7) {
+            return p6;
+        }
+        return p7;
+    }
+
+    /*
+     * Manual binary search for 9 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "9")
+    static long process(
+        long field,
+        @Fixed long p0,
+        @Fixed long p1,
+        @Fixed long p2,
+        @Fixed long p3,
+        @Fixed long p4,
+        @Fixed long p5,
+        @Fixed long p6,
+        @Fixed long p7,
+        @Fixed long p8
+    ) {
+        if (field < p4) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p6) {
+            if (field < p5) {
+                return p4;
+            }
+            return p5;
+        }
+        if (field < p7) {
+            return p6;
+        }
+        if (field < p8) {
+            return p7;
+        }
+        return p8;
+    }
+
+    /*
+     * Manual binary search for 10 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "10")
+    static long process(
+        long field,
+        @Fixed long p0,
+        @Fixed long p1,
+        @Fixed long p2,
+        @Fixed long p3,
+        @Fixed long p4,
+        @Fixed long p5,
+        @Fixed long p6,
+        @Fixed long p7,
+        @Fixed long p8,
+        @Fixed long p9
+    ) {
+        if (field < p4) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p7) {
+            if (field < p5) {
+                return p4;
+            }
+            if (field < p6) {
+                return p5;
+            }
+            return p6;
+        }
+        if (field < p8) {
+            return p7;
+        }
+        if (field < p9) {
+            return p8;
+        }
+        return p9;
     }
 }

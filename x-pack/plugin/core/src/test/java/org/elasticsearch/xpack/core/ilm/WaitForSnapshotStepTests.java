@@ -85,7 +85,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         WaitForSnapshotStep instance = createRandomInstance();
         SetOnce<Exception> error = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);
@@ -126,7 +126,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
                 .put(indexMetadata, true)
                 .putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata)
         );
-        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 isConditionMet.set(conditionMet);
@@ -239,7 +239,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         final var state = projectStateFromProject(
             ProjectMetadata.builder(projectId).put(indexMetadata, true).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata)
         );
-        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);
@@ -306,7 +306,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         final var state = projectStateFromProject(
             ProjectMetadata.builder(projectId).put(indexMetadata, true).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata)
         );
-        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 isConditionMet.set(conditionMet);
@@ -364,7 +364,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
                 .put(indexMetadata, true)
                 .putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata)
         );
-        instance.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);

@@ -118,7 +118,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String ROOT_CAUSE = "root_cause";
 
     static final String TIMED_OUT_HEADER = "X-Timed-Out";
-    static final String EXCEPTION_TYPE_HEADER = "X-Elasticsearch-Exception";
+    static final String EXCEPTION_TYPE_HEADER = "X-Elastic-App-Exception";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;

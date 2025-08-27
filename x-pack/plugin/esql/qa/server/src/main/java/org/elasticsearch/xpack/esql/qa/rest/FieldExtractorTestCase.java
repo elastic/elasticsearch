@@ -30,10 +30,12 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -67,6 +69,9 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @ParametersFactory(argumentFormatting = "%s")
     public static List<Object[]> args() throws Exception {
@@ -336,7 +341,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         assertThat(err, containsString("Unknown column [missing]"));
 
         // TODO this is broken in main too
-        // Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        // Map<String, Object> result = runEsqlSync(
+        // new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"),
+        // new AssertWarnings.NoWarnings(),
+        // profileLogger
+        // );
         // assertResultMap(
         // result,
         // matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
@@ -1777,7 +1786,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             );
             request.pragmasOk();
         }
-        return runEsqlSync(request);
+        return runEsqlSync(request, new AssertWarnings.NoWarnings(), profileLogger);
     }
 
     protected abstract void canUsePragmasOk();

@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -77,7 +77,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     static final String DATABASES_INDEX_PATTERN = DATABASES_INDEX + "*";
     static final int MAX_CHUNK_SIZE = 1024 * 1024;
 
-    private final Client client;
+    private final ProjectClient client;
     private final HttpClient httpClient;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -99,7 +99,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     private final ProjectId projectId;
 
     GeoIpDownloader(
-        Client client,
+        ProjectClient client,
         HttpClient httpClient,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -116,7 +116,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         ProjectId projectId
     ) {
         super(id, type, action, description, parentTask, headers);
-        this.client = client.projectClient(projectId);
+        this.client = client;
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

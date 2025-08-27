@@ -51,19 +51,19 @@ connectors:
 
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v "</absolute/path/to>/connectors-config:/config" \ # NOTE: you must change this path to match where the config.yml is located
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
 
 ::::{tip}
-For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:9.0.0-SNAPSHOT`.
+For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:{{version.stack}}-SNAPSHOT`.
 
 ::::
 

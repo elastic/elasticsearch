@@ -32,6 +32,12 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except unsigned_long"));
+        assert false : "All checked types must work";
+        return null;
+    }
+
+    @Override
+    protected void assertNumberOfCheckedSignatures(int checked) {
+        assertThat(checked, equalTo(0));
     }
 }

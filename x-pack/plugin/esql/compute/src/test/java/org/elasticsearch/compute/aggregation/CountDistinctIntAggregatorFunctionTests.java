@@ -45,8 +45,8 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        long expected = input.stream().flatMapToInt(b -> allInts(b)).distinct().count();
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        long expected = input.stream().flatMapToInt(p -> allInts(p.getBlock(0))).distinct().count();
 
         long count = ((LongBlock) result).getLong(0);
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param

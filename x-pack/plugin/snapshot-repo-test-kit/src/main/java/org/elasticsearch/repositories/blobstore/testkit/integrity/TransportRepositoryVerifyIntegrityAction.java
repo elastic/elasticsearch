@@ -132,6 +132,7 @@ class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
 
             .<RepositoryData>newForked(l -> repository.getRepositoryData(executor, l))
             .andThenApply(repositoryData -> {
+                ensureValidGenId(repositoryData.getGenId());
                 final var cancellableThreads = new CancellableThreads();
                 task.addListener(() -> cancellableThreads.cancel("task cancelled"));
                 final var verifier = new RepositoryIntegrityVerifier(
@@ -154,5 +155,18 @@ class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
             )
             .<RepositoryVerifyIntegrityResponse>andThen((l, repositoryIntegrityVerifier) -> repositoryIntegrityVerifier.start(l))
             .addListener(listener);
+    }
+
+    static void ensureValidGenId(long repositoryGenId) {
+        if (repositoryGenId == RepositoryData.EMPTY_REPO_GEN) {
+            throw new IllegalArgumentException("repository is empty, cannot verify its integrity");
+        }
+        if (repositoryGenId < 0) {
+            final var exception = new IllegalStateException(
+                "repository is in an unexpected state [" + repositoryGenId + "], cannot verify its integrity"
+            );
+            assert false : exception; // cannot be unknown, and if corrupt we throw a corruptedStateException from getRepositoryData
+            throw exception;
+        }
     }
 }

@@ -1,5 +1,0 @@
-pr: 129647
-summary: Fix `PushQueriesIT.testLike()` fails
-area: ES|QL
-type: bug
-issues: []

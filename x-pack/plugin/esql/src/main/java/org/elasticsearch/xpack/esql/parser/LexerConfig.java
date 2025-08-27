@@ -28,6 +28,10 @@ public abstract class LexerConfig extends Lexer {
         return config == null || config.isDevVersion();
     }
 
+    boolean hasMetricsCommand() {
+        return config == null || config.hasMetricsCommand();
+    }
+
     void setEsqlConfig(EsqlConfig config) {
         this.config = config;
     }

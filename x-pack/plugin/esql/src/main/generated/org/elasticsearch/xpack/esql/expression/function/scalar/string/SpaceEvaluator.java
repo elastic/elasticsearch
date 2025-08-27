@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SpaceEvaluator.class);
+
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
@@ -52,6 +55,13 @@ public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
       }
       return eval(page.getPositionCount(), numberVector);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += number.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public BytesRefBlock eval(int positionCount, IntBlock numberBlock) {

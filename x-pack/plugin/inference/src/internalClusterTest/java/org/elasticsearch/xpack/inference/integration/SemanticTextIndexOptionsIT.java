@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,6 +56,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test-index";
     private static final Map<String, Object> BBQ_COMPATIBLE_SERVICE_SETTINGS = Map.of(

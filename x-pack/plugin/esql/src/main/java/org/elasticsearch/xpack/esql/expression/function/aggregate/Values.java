@@ -44,6 +44,7 @@ public class Values extends AggregateFunction implements ToAggregator {
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.UNSIGNED_LONG, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
@@ -72,6 +73,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
@@ -111,6 +113,7 @@ public class Values extends AggregateFunction implements ToAggregator {
                 "ip",
                 "keyword",
                 "long",
+                "unsigned_long",
                 "text",
                 "version" }
         ) Expression v
@@ -153,7 +156,7 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isType(field(), SUPPLIERS::containsKey, sourceText(), DEFAULT, "any type except unsigned_long");
+        return TypeResolutions.isRepresentableExceptCounters(field(), sourceText(), DEFAULT);
     }
 
     @Override

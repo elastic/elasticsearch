@@ -12,6 +12,8 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -25,24 +27,28 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
+ * Some {@link RewriteableAware} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
  * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
- * replacing {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
+ * replacing {@link RewriteableAware} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
 public final class QueryBuilderResolver {
 
     private QueryBuilderResolver() {}
 
     public static void resolveQueryBuilders(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
-        var hasFullTextFunctions = plan.anyMatch(p -> {
-            Holder<Boolean> hasFullTextFunction = new Holder<>(false);
-            p.forEachExpression(FullTextFunction.class, unused -> hasFullTextFunction.set(true));
-            return hasFullTextFunction.get();
+        var hasRewriteableAwareFunctions = plan.anyMatch(p -> {
+            Holder<Boolean> hasRewriteable = new Holder<>(false);
+            p.forEachExpression(expr -> {
+                if (expr instanceof RewriteableAware) {
+                    hasRewriteable.set(true);
+                }
+            });
+            return hasRewriteable.get();
         });
-        if (hasFullTextFunctions) {
+        if (hasRewriteableAwareFunctions) {
             Rewriteable.rewriteAndFetch(
-                new FullTextFunctionsRewritable(plan),
+                new FunctionsRewriteable(plan),
                 queryRewriteContext(services, indexNames(plan)),
                 listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
             );
@@ -70,29 +76,33 @@ public final class QueryBuilderResolver {
         return indexNames;
     }
 
-    private record FullTextFunctionsRewritable(LogicalPlan plan) implements Rewriteable<QueryBuilderResolver.FullTextFunctionsRewritable> {
+    private record FunctionsRewriteable(LogicalPlan plan) implements Rewriteable<FunctionsRewriteable> {
         @Override
-        public FullTextFunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
+        public FunctionsRewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
-            LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, f -> {
-                QueryBuilder builder = f.queryBuilder(), initial = builder;
-                builder = builder == null
-                    ? f.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
-                    : builder;
-                try {
-                    builder = builder.rewrite(ctx);
-                } catch (IOException e) {
-                    exceptionHolder.setIfAbsent(e);
+            LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
+                Expression finalExpression = expr;
+                if (expr instanceof RewriteableAware rewriteableAware) {
+                    QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
+                    builder = builder == null
+                        ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
+                        : builder;
+                    try {
+                        builder = builder.rewrite(ctx);
+                    } catch (IOException e) {
+                        exceptionHolder.setIfAbsent(e);
+                    }
+                    var rewritten = builder != initial;
+                    updated.set(updated.get() || rewritten);
+                    finalExpression = rewritten ? rewriteableAware.replaceQueryBuilder(builder) : finalExpression;
                 }
-                var rewritten = builder != initial;
-                updated.set(updated.get() || rewritten);
-                return rewritten ? f.replaceQueryBuilder(builder) : f;
+                return finalExpression;
             });
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();
             }
-            return updated.get() ? new FullTextFunctionsRewritable(newPlan) : this;
+            return updated.get() ? new FunctionsRewriteable(newPlan) : this;
         }
     }
 }

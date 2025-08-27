@@ -12,6 +12,8 @@ jobs:
     uses: elastic/docs-builder/.github/workflows/preview-build.yml@main
     with:
       path-pattern: docs/**
+      path-pattern-ignore: docs/changelog/**/*.yaml
+      enable-cumulative-comment: true
     permissions:
       deployments: write
       id-token: write

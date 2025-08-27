@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -18,11 +19,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -67,7 +70,7 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.COMPLETION_ERROR_PREFIX;
 
-public class GoogleVertexAiService extends SenderService {
+public class GoogleVertexAiService extends SenderService implements RerankingInferenceService {
 
     public static final String NAME = "googlevertexai";
 
@@ -97,8 +100,16 @@ public class GoogleVertexAiService extends SenderService {
         return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
     }
 
-    public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public GoogleVertexAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -371,6 +382,20 @@ public class GoogleVertexAiService extends SenderService {
 
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // The -003 version rerankers have a content window of 512 tokens,
+        // the later -004 models support 1024 tokens.
+        // https://cloud.google.com/generative-ai-app-builder/docs/ranking
+        // TODO make the rerank window size configurable
+
+        if (modelId != null && modelId.endsWith("-004")) {
+            return 600;
+        } else {
+            return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
+        }
     }
 
     public static class Configuration {

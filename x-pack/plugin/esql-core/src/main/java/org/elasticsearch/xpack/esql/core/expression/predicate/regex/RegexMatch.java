@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
@@ -66,6 +67,14 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
     public Boolean fold(FoldContext ctx) {
         throw new UnsupportedOperationException();
     }
+
+    /**
+     * Returns an equivalent optimized expression taking into account the case of the pattern(s)
+     * @param unwrappedField the field with to_upper/to_lower function removed
+     * @param matchesCaseFn a predicate to check if a pattern matches the case
+     * @return an optimized equivalent Expression or this if no optimization is possible
+     */
+    public abstract Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn);
 
     @Override
     public boolean equals(Object obj) {

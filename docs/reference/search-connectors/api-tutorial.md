@@ -6,45 +6,42 @@ applies_to:
     elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-tutorial-api.html
+description: Use APIs to synchronize data from a PostgreSQL data source into Elasticsearch.
 ---
 
 # Connector API tutorial [es-connectors-tutorial-api]
 
-Learn how to set up a self-managed connector using the [{{es}} Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
+Learn how to set up a self-managed connector using the [{{es}} connector APIs]({{es-apis}}group/endpoint-connector).
 
-For this example we’ll use the connectors-postgresql,PostgreSQL connector to sync data from a PostgreSQL database to {{es}}. We’ll spin up a simple PostgreSQL instance in Docker with some example data, create a connector, and sync the data to {{es}}. You can follow the same steps to set up a connector for another data source.
+For this example we’ll use the [PostgreSQL connector](/reference/search-connectors/es-connectors-postgresql.md) to sync data from a PostgreSQL database to {{es}}. We’ll spin up a simple PostgreSQL instance in Docker with some example data, create a connector, and sync the data to {{es}}. You can follow the same steps to set up a connector for another data source.
 
 ::::{tip}
-This tutorial focuses on running a self-managed connector on your own infrastructure, and managing syncs using the Connector APIs. See connectors for an overview of how connectors work.
+This tutorial focuses on running a self-managed connector on your own infrastructure, and managing syncs using the connector APIs.
 
 If you’re just getting started with {{es}}, this tutorial might be a bit advanced. Refer to [quickstart](docs-content://solutions/search/get-started.md) for a more beginner-friendly introduction to {{es}}.
 
-If you’re just getting started with connectors, you might want to start in the UI first. Check out this tutorial that focuses on managing connectors using the UI:
-
-* [Self-managed connector tutorial](/reference/search-connectors/es-postgresql-connector-client-tutorial.md). Set up a self-managed PostgreSQL connector.
+If you’re just getting started with connectors, you might want to start in the UI first. Check out this tutorial that focuses on managing connectors using the UI: [](/reference/search-connectors/es-postgresql-connector-client-tutorial.md).
 
 ::::
 
-
-### Prerequisites [es-connectors-tutorial-api-prerequisites]
+## Prerequisites [es-connectors-tutorial-api-prerequisites]
 
 * You should be familiar with how connectors, connectors work, to understand how the API calls relate to the overall connector setup.
 * You need to have [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed.
 * You need to have {{es}} running, and an API key to access it. Refer to the next section for details, if you don’t have an {{es}} deployment yet.
 
-
-### Set up {{es}} [es-connectors-tutorial-api-setup-es]
+## Set up {{es}} [es-connectors-tutorial-api-setup-es]
 
 If you already have an {{es}} deployment on Elastic Cloud (*Hosted deployment* or *Serverless project*), you’re good to go. To spin up {{es}} in local dev mode in Docker for testing purposes, open the collapsible section below.
 
 :::::{dropdown} Run local {{es}} in Docker
-```sh
+```sh subs=true
 docker run -p 9200:9200 -d --name elasticsearch \
   -e "discovery.type=single-node" \
   -e "xpack.security.enabled=false" \
   -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
-  docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+  docker.elastic.co/elasticsearch/elasticsearch:{{version.stack}}
 ```
 
 ::::{warning}
@@ -73,7 +70,8 @@ Note: With {{es}} running locally, you will need to pass the username and passwo
 
 
 ::::{admonition} Running API calls
-You can run API calls using the [Dev Tools Console](docs-content://explore-analyze/query-filter/tools/console.md) in Kibana, using `curl` in your terminal, or with our programming language clients. Our example widget allows you to copy code examples in both Dev Tools Console syntax and curl syntax. To use curl, you’ll need to add authentication headers to your request.
+You can run API calls using the [Dev Tools Console](docs-content://explore-analyze/query-filter/tools/console.md) in Kibana, using `curl` in your terminal, or with our programming language clients.
+To use curl, you’ll need to add authentication headers to your request.
 
 Here’s an example of how to do that. Note that if you want the connector ID to be auto-generated, use the `POST _connector` endpoint.
 
@@ -88,13 +86,11 @@ curl -s -X PUT http://localhost:9200/_connector/my-connector-id \
 }'
 ```
 
-Refer to connectors-tutorial-api-create-api-key for instructions on creating an API key.
+Refer to [](/reference/search-connectors/es-postgresql-connector-client-tutorial.md) for instructions on creating an API key.
 
 ::::
 
-
-
-### Run PostgreSQL instance in Docker (optional) [es-connectors-tutorial-api-setup-postgres]
+## Run PostgreSQL instance in Docker (optional) [es-connectors-tutorial-api-setup-postgres]
 
 For this tutorial, we’ll set up a PostgreSQL instance in Docker with some example data. Of course, you can **skip this step and use your own existing PostgreSQL instance** if you have one. Keep in mind that using a different instance might require adjustments to the connector configuration described in the next steps.
 
@@ -105,7 +101,7 @@ Let’s launch a PostgreSQL container with a user and password, exposed at port 
 docker run --name postgres -e POSTGRES_USER=myuser -e POSTGRES_PASSWORD=mypassword -p 5432:5432 -d postgres
 ```
 
-**Download and import example data**
+### Download and import example data
 
 Next we need to create a directory to store our example dataset for this tutorial. In your terminal, run the following command:
 
@@ -145,10 +141,9 @@ This tutorial uses a very basic setup. To use advanced functionality such as fil
 
 Now it’s time for the real fun! We’ll set up a connector to create a searchable mirror of our PostgreSQL data in {{es}}.
 
+## Create a connector [es-connectors-tutorial-api-create-connector]
 
-### Create a connector [es-connectors-tutorial-api-create-connector]
-
-We’ll use the [Create connector API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-put) to create a PostgreSQL connector instance.
+We’ll use the [create connector API]({{es-apis}}operation/operation-connector-put) to create a PostgreSQL connector instance.
 
 Run the following API call, using the [Dev Tools Console](docs-content://explore-analyze/query-filter/tools/console.md) or `curl`:
 
@@ -171,10 +166,9 @@ Note that we specified the `my-connector-id` ID as a part of the `PUT` request. 
 
 If you’d prefer to use an autogenerated ID, replace `PUT _connector/my-connector-id` with `POST _connector`.
 
+## Set up the connector service [es-connectors-tutorial-api-deploy-connector]
 
-### Run connector service [es-connectors-tutorial-api-deploy-connector]
-
-Now we’ll run the connector service so we can start syncing data from our PostgreSQL instance to {{es}}. We’ll use the steps outlined in connectors-run-from-docker.
+Now we’ll run the connector service so we can start syncing data from our PostgreSQL instance to {{es}}. We’ll use the steps outlined in [](/reference/search-connectors/es-connectors-run-from-docker.md).
 
 When running the connectors service on your own infrastructure, you need to provide a configuration file with the following details:
 
@@ -183,10 +177,9 @@ When running the connectors service on your own infrastructure, you need to prov
 * Your third-party data source type (`service_type`)
 * Your connector ID (`connector_id`)
 
+### Create an API key [es-connectors-tutorial-api-create-api-key]
 
-#### Create an API key [es-connectors-tutorial-api-create-api-key]
-
-If you haven’t already created an API key to access {{es}}, you can use the [_security/api_key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) endpoint.
+If you haven’t already created an API key to access {{es}}, you can use the [_security/api_key]({{es-apis}}operation/operation-security-create-api-key) endpoint.
 
 Here, we assume your target {{es}} index name is `music`. If you use a different index name, adjust the request body accordingly.
 
@@ -225,9 +218,7 @@ You can also create an API key in the {{kib}} and Serverless UIs.
 
 ::::
 
-
-
-#### Prepare the configuration file [es-connectors-tutorial-api-prepare-configuration-file]
+### Prepare the configuration file [es-connectors-tutorial-api-prepare-configuration-file]
 
 Let’s create a directory and a `config.yml` file to store the connector configuration:
 
@@ -249,20 +240,19 @@ connectors:
 
 We provide an [example configuration file](https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example) in the `elastic/connectors` repository for reference.
 
-
-#### Run the connector service [es-connectors-tutorial-api-run-connector-service]
+### Run the service [es-connectors-tutorial-api-run-connector-service]
 
 Now that we have the configuration file set up, we can run the connector service locally. This will point your connector instance at your {{es}} deployment.
 
 Run the following Docker command to start the connector service:
 
-```sh
+```sh subs=true
 docker run \
 -v "$HOME/connectors-config:/config" \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -273,12 +263,11 @@ Verify your connector is connected by getting the connector status (should be `n
 GET _connector/my-connector-id
 ```
 
-
-### Configure connector [es-connectors-tutorial-api-update-connector-configuration]
+## Configure the connector [es-connectors-tutorial-api-update-connector-configuration]
 
 Now our connector instance is up and running, but it doesn’t yet know *where* to sync data from. The final piece of the puzzle is to configure our connector with details about our PostgreSQL instance. When setting up a connector in the Elastic Cloud or Serverless UIs, you’re prompted to add these details in the user interface.
 
-But because this tutorial is all about working with connectors *programmatically*, we’ll use the [Update connector configuration API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-configuration) to add our configuration details.
+But because this tutorial is all about working with connectors *programmatically*, we’ll use the [update connector configuration API]({{es-apis}}operation/operation-connector-update-configuration) to add our configuration details.
 
 ::::{tip}
 Before configuring the connector, ensure that the configuration schema is registered by the service. For self-managed connectors, the schema registers on service startup (once the `config.yml` is populated).
@@ -310,9 +299,7 @@ Configuration details are specific to the connector type. The keys and values wi
 
 ::::
 
-
-
-### Sync data [es-connectors-tutorial-api-sync]
+## Sync your data [es-connectors-tutorial-api-sync]
 
 We’re now ready to sync our PostgreSQL data to {{es}}. Run the following API call to start a full sync job:
 
@@ -327,15 +314,13 @@ POST _connector/_sync_job
 To store data in {{es}}, the connector needs to create an index. When we created the connector, we specified the `music` index. The connector will create and configure this {{es}} index before launching the sync job.
 
 ::::{tip}
-In the approach we’ve used here, the connector will use [dynamic mappings](docs-content://manage-data/data-store/mapping.md#mapping-dynamic) to automatically infer the data types of your fields. In a real-world scenario you would use the {{es}} [Create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) to first create the index with the desired field mappings and index settings. Defining your own mappings upfront gives you more control over how your data is indexed.
+In the approach we’ve used here, the connector will use [dynamic mappings](docs-content://manage-data/data-store/mapping.md#mapping-dynamic) to automatically infer the data types of your fields. In a real-world scenario you would use the {{es}} [create index API]({{es-apis}}operation/operation-indices-create) to first create the index with the desired field mappings and index settings. Defining your own mappings upfront gives you more control over how your data is indexed.
 
 ::::
 
+### Check sync status [es-connectors-tutorial-api-check-sync-status]
 
-
-#### Check sync status [es-connectors-tutorial-api-check-sync-status]
-
-Use the [Get sync job API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-sync-job-get) to track the status and progress of the sync job. By default, the most recent job statuses are returned first. Run the following API call to check the status of the sync job:
+Use the [get sync job API]({{es-apis}}operation/operation-connector-sync-job-get) to track the status and progress of the sync job. By default, the most recent job statuses are returned first. Run the following API call to check the status of the sync job:
 
 ```console
 GET _connector/_sync_job?connector_id=my-connector-id&size=1
@@ -344,6 +329,8 @@ GET _connector/_sync_job?connector_id=my-connector-id&size=1
 The job document will be updated as the sync progresses, you can check it as often as you’d like to poll for updates.
 
 Once the job completes, the status should be `completed` and `indexed_document_count` should be **622**.
+
+## Query your data
 
 Verify that data is present in the `music` index with the following API call:
 
@@ -357,8 +344,7 @@ GET music/_count
 GET music/_search
 ```
 
-
-## Troubleshooting [es-connectors-tutorial-api-troubleshooting]
+## Troubleshoot [es-connectors-tutorial-api-troubleshooting]
 
 Use the following command to inspect the latest sync job’s status:
 
@@ -369,7 +355,7 @@ GET _connector/_sync_job?connector_id=my-connector-id&size=1
 If the connector encountered any errors during the sync, you’ll find these in the `error` field.
 
 
-### Cleaning up [es-connectors-tutorial-api-cleanup]
+## Clean up [es-connectors-tutorial-api-cleanup]
 
 To delete the connector and its associated sync jobs run this command:
 
@@ -397,13 +383,12 @@ docker stop <container_id>
 docker rm <container_id>
 ```
 
+## Next steps [es-connectors-tutorial-api-next-steps]
 
-### Next steps [es-connectors-tutorial-api-next-steps]
-
-Congratulations! You’ve successfully set up a self-managed connector using the Connector APIs.
+Congratulations! You’ve successfully set up a self-managed connector using the connector APIs.
 
 Here are some next steps to explore:
 
-* Learn more about the [Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
+* Learn more about the [connector APIs]({{es-apis}}group/endpoint-connector).
 * Learn how to deploy {{es}}, {{kib}}, and the connectors service using Docker Compose in our [quickstart guide](https://github.com/elastic/connectors/tree/main/scripts/stack#readme).
 

@@ -43,7 +43,7 @@ If you **only** need `docvalue_fields`, `size`, and `sort` then [Top metrics](/r
 ::::
 
 
-`top_hits` does not support the [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) parameter. Query rescoring applies only to search hits, not aggregation results. To change the scores used by aggregations, use a [`function_score`](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) or [`script_score`](/reference/query-languages/query-dsl/query-dsl-script-score-query.md) query.
+`top_hits` does not support the [`rescore`](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) parameter. Query rescoring applies only to search hits, not aggregation results. To change the scores used by aggregations, use a [`function_score`](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) or [`script_score`](/reference/query-languages/query-dsl/query-dsl-script-score-query.md) query.
 
 
 ## Example [_example_6]

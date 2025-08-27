@@ -97,6 +97,17 @@ class FileCheckActions {
         File.createTempFile("prefix", "suffix", readWriteDir().toFile());
     }
 
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void fileCreateTempFileSystemTempDirectory() throws IOException {
+        File.createTempFile("prefix", "suffix");
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void fileCreateTempFileNullDirectory() throws IOException {
+        // null directory = system temp directory
+        File.createTempFile("prefix", "suffix", null);
+    }
+
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDelete() throws IOException {
         var toDelete = EntitledActions.createTempFileForWrite();

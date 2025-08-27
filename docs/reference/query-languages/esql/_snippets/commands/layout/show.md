@@ -1,4 +1,7 @@
-## `SHOW` [esql-show]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `SHOW` source command returns information about the deployment and
 its capabilities.

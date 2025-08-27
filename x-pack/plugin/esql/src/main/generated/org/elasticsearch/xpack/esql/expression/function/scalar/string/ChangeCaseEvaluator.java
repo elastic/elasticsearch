@@ -8,6 +8,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.Locale;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChangeCaseEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final Locale locale;
@@ -126,6 +129,13 @@ public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractE
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

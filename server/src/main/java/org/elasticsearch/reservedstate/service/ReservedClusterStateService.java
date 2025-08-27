@@ -461,7 +461,7 @@ public class ReservedClusterStateService {
         }
 
         // We trial run all handler validations to ensure that we can process all of the cluster state error free.
-        var trialRunErrors = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
+        var trialRunErrors = trialRun(projectId, namespace, state, reservedStateChunk, orderedHandlers);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
         var error = checkAndReportError(Optional.of(projectId), namespace, trialRunErrors, reservedStateVersion, versionCheck);
 

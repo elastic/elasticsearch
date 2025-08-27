@@ -87,10 +87,18 @@ To override the default heap size, set the minimum and maximum heap size setting
 
 The heap size should be based on the available RAM:
 
-* Set `Xms` and `Xmx` to no more than 50% of your total memory. {{es}} requires memory for purposes other than the JVM heap. For example, {{es}} uses off-heap buffers for efficient network communication and relies on the operating system’s filesystem cache for efficient access to files. The JVM itself also requires some memory. It’s normal for {{es}} to use more memory than the limit configured with the `Xmx` setting.
+* Set `Xms` and `Xmx` to no more than 50% of the total memory available to each {{es}} node. {{es}} requires memory for purposes other than the JVM heap. For example, {{es}} uses off-heap buffers for efficient network communication and relies on the operating system’s filesystem cache for efficient access to files. The JVM itself also requires some memory. It’s normal for {{es}} to use more memory than the limit configured with the `Xmx` setting.
 
     ::::{note}
-    When running in a container, such as [Docker](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-docker.md), total memory is defined as the amount of memory visible to the container, not the total system memory on the host.
+    When running in a container, such as [Docker](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-docker.md), the total memory available to {{es}} means the amount of memory available within the container, not the total system memory on the host.
+
+    If you are running multiple {{es}} nodes on the same host, or in the same container, the total of all the nodes' heap sizes should not exceed 50% of the total available memory.
+
+    Account for the memory usage of other processes running on the same host, or in the same container, when computing the total memory available to {{es}}.
+
+    The 50% guideline is intended as a safe upper bound on the heap size. You may find that heap sizes smaller than this maximum offer better performance, for instance by allowing your operating system to use a larger filesystem cache.
+
+    If you set the heap size too large, {{es}} may perform poorly and nodes may be terminated by the operating system.
     ::::
 
 * Set `Xms` and `Xmx` to no more than the threshold for compressed ordinary object pointers (oops). The exact threshold varies but 26GB is safe on most systems and can be as large as 30GB on some systems. To verify you are under the threshold, check the {{es}} log for an entry like this:
@@ -131,9 +139,25 @@ If you are running {{es}} as a Windows service, you can change the heap size usi
 
 ## JVM heap dump path setting [heap-dump-path-setting]
 
-By default, {{es}} configures the JVM to dump the heap on out of memory exceptions to the default logs directory. On [RPM](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-rpm.md) and [Debian](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-debian-package.md) packages, the logs directory is `/var/log/elasticsearch`. On [Linux and MacOS](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-from-archive-on-linux-macos.md) and [Windows](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-zip-on-windows.md) distributions, the `logs` directory is located under the root of the {{es}} installation.
+Depending on your stack version, {{es}} configures the JVM to dump the heap on out of memory exceptions to the following location by default:
 
-If this path is not suitable for receiving heap dumps, add the `-XX:HeapDumpPath=...` entry in [`jvm.options`](#set-jvm-options):
+* {applies_to}`stack: ga 9.1` The default logs directory 
+* {applies_to}`stack: ga 9.0` The default data directory
+
+Directory location:
+
+::::{tab-set}
+:::{tab-item} Logs directory
+* [RPM](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-rpm.md) and [Debian](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-debian-package.md) packages: `/var/log/elasticsearch`
+* [Linux and MacOS](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-from-archive-on-linux-macos.md) and [Windows](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-zip-on-windows.md) distributions: The `logs` directory at the root of the {{es}} installation
+:::
+:::{tab-item} Data directory
+* [RPM](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-rpm.md) and [Debian](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-debian-package.md) packages: `/var/lib/elasticsearch`
+* [Linux and MacOS](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-from-archive-on-linux-macos.md) and [Windows](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-zip-on-windows.md) distributions: The `data` directory at the root of the {{es}} installation
+:::
+::::
+
+If this path is not suitable for receiving heap dumps, modify or add the `-XX:HeapDumpPath=...` entry in [`jvm.options`](#set-jvm-options):
 
 * If you specify a directory, the JVM will generate a filename for the heap dump based on the PID of the running instance.
 * If you specify a fixed filename instead of a directory, the file must not exist when the JVM needs to perform a heap dump on an out of memory exception. Otherwise, the heap dump will fail.

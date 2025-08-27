@@ -18,7 +18,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-class SourceTransforms {
+public class SourceTransforms {
     /**
      * This preprocessing step makes it easier to match the document using a unified structure.
      * It performs following modifications:

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -35,6 +36,8 @@ import java.util.stream.Collectors;
  * Extracted columns can be specified using {@link ExpressionEvaluator}
  */
 public class XContentRowEncoder implements ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(XContentRowEncoder.class);
+
     private final XContentType xContentType;
     private final BlockFactory blockFactory;
     private final ColumnInfoImpl[] columnsInfo;
@@ -77,10 +80,10 @@ public class XContentRowEncoder implements ExpressionEvaluator {
     @Override
     public BytesRefBlock eval(Page page) {
         Block[] fieldValueBlocks = new Block[fieldsValueEvaluators.length];
+
         try (
             BytesRefStreamOutput outputStream = new BytesRefStreamOutput();
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(xContentType, outputStream);
-            BytesRefBlock.Builder outputBlockBuilder = blockFactory.newBytesRefBlockBuilder(page.getPositionCount());
+            BytesRefBlock.Builder outputBlockBuilder = blockFactory.newBytesRefBlockBuilder(page.getPositionCount())
         ) {
 
             PositionToXContent[] toXContents = new PositionToXContent[fieldsValueEvaluators.length];
@@ -90,18 +93,28 @@ public class XContentRowEncoder implements ExpressionEvaluator {
             }
 
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
-                xContentBuilder.startObject();
-                for (int i = 0; i < fieldValueBlocks.length; i++) {
-                    String fieldName = columnsInfo[i].name();
-                    Block currentBlock = fieldValueBlocks[i];
-                    if (currentBlock.isNull(pos) || currentBlock.getValueCount(pos) < 1) {
-                        continue;
+                try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(xContentType, outputStream)) {
+
+                    xContentBuilder.startObject();
+                    boolean hasNullsOnly = true;
+                    for (int i = 0; i < fieldValueBlocks.length; i++) {
+                        String fieldName = columnsInfo[i].name();
+                        Block currentBlock = fieldValueBlocks[i];
+                        if (currentBlock.isNull(pos) || currentBlock.getValueCount(pos) < 1) {
+                            continue;
+                        }
+                        hasNullsOnly = false;
+                        toXContents[i].positionToXContent(xContentBuilder.field(fieldName), ToXContent.EMPTY_PARAMS, pos);
                     }
-                    toXContents[i].positionToXContent(xContentBuilder.field(fieldName), ToXContent.EMPTY_PARAMS, pos);
+                    xContentBuilder.endObject().flush();
+
+                    if (hasNullsOnly) {
+                        outputBlockBuilder.appendNull();
+                    } else {
+                        outputBlockBuilder.appendBytesRef(outputStream.get());
+                        outputStream.reset();
+                    }
                 }
-                xContentBuilder.endObject().flush();
-                outputBlockBuilder.appendBytesRef(outputStream.get());
-                outputStream.reset();
             }
 
             return outputBlockBuilder.build();
@@ -110,6 +123,15 @@ public class XContentRowEncoder implements ExpressionEvaluator {
         } finally {
             Releasables.closeExpectNoException(fieldValueBlocks);
         }
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        for (ExpressionEvaluator e : fieldsValueEvaluators) {
+            baseRamBytesUsed += e.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
     }
 
     public List<String> fieldNames() {
@@ -125,7 +147,7 @@ public class XContentRowEncoder implements ExpressionEvaluator {
         private final XContentType xContentType;
         private final Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories;
 
-        private Factory(XContentType xContentType, Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
+        Factory(XContentType xContentType, Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
             this.xContentType = xContentType;
             this.fieldsEvaluatorFactories = fieldsEvaluatorFactories;
         }

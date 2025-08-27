@@ -161,6 +161,7 @@ class FieldCapabilitiesFetcher {
         boolean includeEmptyFields
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
+        boolean includeDimensions = checkIncludeDimensions(filters);
 
         Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
@@ -169,10 +170,10 @@ class FieldCapabilitiesFetcher {
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
             final String field = entry.getKey();
-            if (fieldNameFilter.test(field) == false) {
+            MappedFieldType ft = entry.getValue();
+            if (fieldNameFilter.test(field) == false && ((includeDimensions && ft.isDimension()) == false)) {
                 continue;
             }
-            MappedFieldType ft = entry.getValue();
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
@@ -234,6 +235,15 @@ class FieldCapabilitiesFetcher {
         return true;
     }
 
+    private static boolean checkIncludeDimensions(String[] filters) {
+        for (String filter : filters) {
+            if ("+dimension".equals(filter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean canMatchShard(
         ShardId shardId,
         QueryBuilder indexFilter,
@@ -267,7 +277,8 @@ class FieldCapabilitiesFetcher {
         }
 
         for (String filter : filters) {
-            if ("parent".equals(filter) || "-parent".equals(filter)) {
+            // These "filters" are handled differently, in that they are not ANDed with the field name pattern
+            if ("parent".equals(filter) || "-parent".equals(filter) || "+dimension".equals(filter)) {
                 continue;
             }
             Predicate<MappedFieldType> next = switch (filter) {

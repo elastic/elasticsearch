@@ -37,7 +37,7 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
         description = "The maximum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
@@ -59,7 +59,7 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
                 "ip",
                 "keyword",
                 "text",
-                "long",
+                "unsigned_long",
                 "version" }
         ) Expression field
     ) {

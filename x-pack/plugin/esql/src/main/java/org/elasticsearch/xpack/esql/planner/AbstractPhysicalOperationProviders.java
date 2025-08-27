@@ -174,16 +174,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     context
                 );
-                // ordinal grouping
-            } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
-                operatorFactory = ordinalGroupingOperatorFactory(
-                    source,
-                    aggregateExec,
-                    aggregatorFactories,
-                    groupSpecs.get(0).attribute,
-                    groupSpecs.get(0).elementType(),
-                    context
-                );
             } else {
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
@@ -353,26 +343,18 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-
-            return new BlockHash.GroupSpec(channel, elementType(), Alias.unwrap(expression) instanceof Categorize, null);
+            return new BlockHash.GroupSpec(
+                channel,
+                elementType(),
+                Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
+                null
+            );
         }
 
         ElementType elementType() {
             return PlannerUtils.toElementType(attribute.dataType());
         }
     }
-
-    /**
-     * Build a grouping operator that operates on ordinals if possible.
-     */
-    public abstract Operator.OperatorFactory ordinalGroupingOperatorFactory(
-        PhysicalOperation source,
-        AggregateExec aggregateExec,
-        List<GroupingAggregator.Factory> aggregatorFactories,
-        Attribute attrSource,
-        ElementType groupType,
-        LocalExecutionPlannerContext context
-    );
 
     public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
         TimeSeriesAggregateExec ts,

@@ -15,6 +15,8 @@ import fixture.gcs.GoogleCloudStorageHttpHandler;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
@@ -31,6 +33,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -104,7 +107,10 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        googleCloudStorageService = new GoogleCloudStorageService();
+        googleCloudStorageService = new GoogleCloudStorageService(
+            ClusterServiceUtils.createClusterService(threadPool),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         googleCloudStorageHttpHandler = new GoogleCloudStorageHttpHandler(BUCKET);
         httpServer.createContext("/", googleCloudStorageHttpHandler);
         httpServer.createContext("/token", new FakeOAuth2HttpHandler());
@@ -251,6 +257,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         );
         googleCloudStorageService.refreshAndClearCache(Map.of(clientName, clientSettings));
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore(
+            ProjectId.DEFAULT,
             BUCKET,
             clientName,
             repositoryName,

@@ -270,11 +270,8 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String specialization(int pointsSize) {
-        if (pointsSize < 5) {
-            return Integer.toString(pointsSize);
-        }
         if (pointsSize < 11) {
-            return "LinearSearch";
+            return Integer.toString(pointsSize);
         }
         return "BinarySearch";
     }

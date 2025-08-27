@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * An index template consists of a set of index patterns, an optional template, and a list of
@@ -47,6 +48,7 @@ import java.util.Objects;
  * index.
  */
 public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTemplate>, ToXContentObject {
+
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -57,6 +59,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
     private static final ParseField IGNORE_MISSING_COMPONENT_TEMPLATES = new ParseField("ignore_missing_component_templates");
     private static final ParseField DEPRECATED = new ParseField("deprecated");
+    private static final ParseField CREATED_DATE_MILLIS = new ParseField("created_date_millis");
+    private static final ParseField CREATED_DATE = new ParseField("created_date");
+    private static final ParseField MODIFIED_DATE_MILLIS = new ParseField("modified_date_millis");
+    private static final ParseField MODIFIED_DATE = new ParseField("modified_date");
     public static final CompressedXContent EMPTY_MAPPINGS;
     static {
         try {
@@ -70,18 +76,20 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "index_template",
         false,
-        a -> new ComposableIndexTemplate(
-            (List<String>) a[0],
-            (Template) a[1],
-            (List<String>) a[2],
-            (Long) a[3],
-            (Long) a[4],
-            (Map<String, Object>) a[5],
-            (DataStreamTemplate) a[6],
-            (Boolean) a[7],
-            (List<String>) a[8],
-            (Boolean) a[9]
-        )
+        a -> ComposableIndexTemplate.builder()
+            .indexPatterns((List<String>) a[0])
+            .template((Template) a[1])
+            .componentTemplates((List<String>) a[2])
+            .priority((Long) a[3])
+            .version((Long) a[4])
+            .metadata((Map<String, Object>) a[5])
+            .dataStreamTemplate((DataStreamTemplate) a[6])
+            .allowAutoCreate((Boolean) a[7])
+            .ignoreMissingComponentTemplates((List<String>) a[8])
+            .deprecated((Boolean) a[9])
+            .createdDate((Long) a[10])
+            .modifiedDate((Long) a[11])
+            .build()
     );
 
     static {
@@ -95,6 +103,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_AUTO_CREATE);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), IGNORE_MISSING_COMPONENT_TEMPLATES);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CREATED_DATE_MILLIS);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE_MILLIS);
     }
 
     private final List<String> indexPatterns;
@@ -116,6 +126,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private final List<String> ignoreMissingComponentTemplates;
     @Nullable
     private final Boolean deprecated;
+    @Nullable
+    private final Long createdDateMillis;
+    @Nullable
+    private final Long modifiedDateMillis;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
@@ -129,28 +143,19 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return new Builder();
     }
 
-    private ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamTemplate dataStreamTemplate,
-        @Nullable Boolean allowAutoCreate,
-        @Nullable List<String> ignoreMissingComponentTemplates,
-        @Nullable Boolean deprecated
-    ) {
-        this.indexPatterns = indexPatterns;
-        this.template = template;
-        this.componentTemplates = componentTemplates == null ? List.of() : componentTemplates;
-        this.priority = priority;
-        this.version = version;
-        this.metadata = metadata;
-        this.dataStreamTemplate = dataStreamTemplate;
-        this.allowAutoCreate = allowAutoCreate;
-        this.ignoreMissingComponentTemplates = ignoreMissingComponentTemplates;
-        this.deprecated = deprecated;
+    private ComposableIndexTemplate(final Builder b) {
+        this.indexPatterns = b.indexPatterns;
+        this.template = b.template;
+        this.componentTemplates = b.componentTemplates == null ? List.of() : b.componentTemplates;
+        this.priority = b.priority;
+        this.version = b.version;
+        this.metadata = b.metadata;
+        this.dataStreamTemplate = b.dataStreamTemplate;
+        this.allowAutoCreate = b.allowAutoCreate;
+        this.ignoreMissingComponentTemplates = b.ignoreMissingComponentTemplates;
+        this.deprecated = b.deprecated;
+        this.createdDateMillis = b.createdDateMillis;
+        this.modifiedDateMillis = b.modifiedDateMillis;
     }
 
     public ComposableIndexTemplate(StreamInput in) throws IOException {
@@ -175,6 +180,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.deprecated = in.readOptionalBoolean();
         } else {
             this.deprecated = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_TEMPLATE_TRACKING_INFO)) {
+            this.createdDateMillis = in.readOptionalLong();
+            this.modifiedDateMillis = in.readOptionalLong();
+        } else {
+            this.createdDateMillis = null;
+            this.modifiedDateMillis = null;
         }
     }
 
@@ -257,6 +269,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return Boolean.TRUE.equals(deprecated);
     }
 
+    public Optional<Long> createdDateMillis() {
+        return Optional.ofNullable(createdDateMillis);
+    }
+
+    public Optional<Long> modifiedDateMillis() {
+        return Optional.ofNullable(modifiedDateMillis);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(this.indexPatterns);
@@ -277,6 +297,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(deprecated);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_TEMPLATE_TRACKING_INFO)) {
+            out.writeOptionalLong(createdDateMillis);
+            out.writeOptionalLong(modifiedDateMillis);
         }
     }
 
@@ -319,6 +343,20 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         }
         if (this.deprecated != null) {
             builder.field(DEPRECATED.getPreferredName(), deprecated);
+        }
+        if (this.createdDateMillis != null) {
+            builder.timestampFieldsFromUnixEpochMillis(
+                CREATED_DATE_MILLIS.getPreferredName(),
+                CREATED_DATE.getPreferredName(),
+                this.createdDateMillis
+            );
+        }
+        if (this.modifiedDateMillis != null) {
+            builder.timestampFieldsFromUnixEpochMillis(
+                MODIFIED_DATE_MILLIS.getPreferredName(),
+                MODIFIED_DATE.getPreferredName(),
+                this.modifiedDateMillis
+            );
         }
         builder.endObject();
         return builder;
@@ -422,7 +460,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.dataStreamTemplate,
             this.allowAutoCreate,
             this.ignoreMissingComponentTemplates,
-            this.deprecated
+            this.deprecated,
+            this.createdDateMillis,
+            this.modifiedDateMillis
         );
     }
 
@@ -444,7 +484,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
             && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates)
-            && Objects.equals(deprecated, other.deprecated);
+            && Objects.equals(deprecated, other.deprecated)
+            && Objects.equals(createdDateMillis, other.createdDateMillis)
+            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
     }
 
     static boolean componentTemplatesEquals(List<String> c1, List<String> c2) {
@@ -598,6 +640,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private Boolean allowAutoCreate;
         private List<String> ignoreMissingComponentTemplates;
         private Boolean deprecated;
+        private Long createdDateMillis;
+        private Long modifiedDateMillis;
 
         /**
          * @deprecated use {@link ComposableIndexTemplate#builder()}
@@ -616,6 +660,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.allowAutoCreate = template.allowAutoCreate;
             this.ignoreMissingComponentTemplates = template.ignoreMissingComponentTemplates;
             this.deprecated = template.deprecated;
+            this.createdDateMillis = template.createdDateMillis;
+            this.modifiedDateMillis = template.modifiedDateMillis;
         }
 
         public Builder indexPatterns(List<String> indexPatterns) {
@@ -673,19 +719,18 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return this;
         }
 
+        public Builder createdDate(@Nullable Long createdDate) {
+            this.createdDateMillis = createdDate;
+            return this;
+        }
+
+        public Builder modifiedDate(@Nullable Long modifiedDate) {
+            this.modifiedDateMillis = modifiedDate;
+            return this;
+        }
+
         public ComposableIndexTemplate build() {
-            return new ComposableIndexTemplate(
-                this.indexPatterns,
-                this.template,
-                this.componentTemplates,
-                this.priority,
-                this.version,
-                this.metadata,
-                this.dataStreamTemplate,
-                this.allowAutoCreate,
-                this.ignoreMissingComponentTemplates,
-                this.deprecated
-            );
+            return new ComposableIndexTemplate(this);
         }
     }
 }

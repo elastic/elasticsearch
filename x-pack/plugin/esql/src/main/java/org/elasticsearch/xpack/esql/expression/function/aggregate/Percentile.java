@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -38,6 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Foldables.intValueOf;
 
 public class Percentile extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -169,7 +169,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     private int percentileValue() {
-        return ((Number) percentile.fold(FoldContext.small() /* TODO remove me */)).intValue();
+        return intValueOf(percentile(), source().text(), "Percentile");
     }
 
     @Override

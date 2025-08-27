@@ -81,6 +81,8 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -702,7 +704,8 @@ public class IngestServiceTests extends ESTestCase {
                 return true;
             }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         Map<String, Processor.Factory> processors = new HashMap<>();
@@ -812,6 +815,65 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline.getId(), equalTo(id));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getProcessors().size(), equalTo(0));
+    }
+
+    public void testPutWithTracking() {
+        final IngestService ingestService = createWithProcessors(Map.of());
+        final String id = "_id";
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build(); // Start empty
+        final AtomicInteger instantSourceInvocationCounter = new AtomicInteger();
+        final InstantSource instantSource = () -> Instant.ofEpochMilli(instantSourceInvocationCounter.getAndIncrement());
+
+        // add a new pipeline:
+        PutPipelineRequest putRequest = putJsonPipelineRequest(id, "{\"processors\": []}");
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePutWithInstantSource(projectId, putRequest, clusterState, instantSource);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        Pipeline pipeline = ingestService.getPipeline(projectId, id);
+        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), is(0L));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(0L));
+
+        // overwrite existing pipeline:
+        putRequest = putJsonPipelineRequest(id, """
+            {"processors": [], "description": "_description"}""");
+        previousClusterState = clusterState;
+        clusterState = executePutWithInstantSource(projectId, putRequest, clusterState, instantSource);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        pipeline = ingestService.getPipeline(projectId, id);
+        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), is(0L));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(1L));
+    }
+
+    public void testPutWithTrackingExistingPipelineWithoutCreatedAtOnlyHasModifiedAt() {
+        final IngestService ingestService = createWithProcessors();
+        final String id = "_id";
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .putCustom(
+                        IngestMetadata.TYPE,
+                        new IngestMetadata(
+                            Map.of(id, new PipelineConfiguration(id, Map.of("description", "existing_processor_description")))
+                        )
+                    )
+                    .build()
+            )
+            .build(); // Start empty
+        final AtomicInteger instantSourceInvocationCounter = new AtomicInteger();
+        final InstantSource instantSource = () -> Instant.ofEpochMilli(instantSourceInvocationCounter.getAndIncrement());
+
+        // update existing pipeline which doesn't have `created_date`
+        PutPipelineRequest putRequest = putJsonPipelineRequest(id, "{\"processors\": []}");
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePutWithInstantSource(projectId, putRequest, clusterState, instantSource);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        final Pipeline pipeline = ingestService.getPipeline(projectId, id);
+        assertTrue(pipeline.getCreatedDateMillis().isEmpty());
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(0L));
     }
 
     public void testPutWithErrorResponse() throws IllegalAccessException {
@@ -2982,6 +3044,20 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+
+        var consumer = new Consumer<ActionListener<NodesInfoResponse>>() {
+            final AtomicLong executionCount = new AtomicLong(0);
+
+            @Override
+            public void accept(ActionListener<NodesInfoResponse> nodesInfoResponseActionListener) {
+                executionCount.incrementAndGet();
+            }
+
+            public long getExecutionCount() {
+                return executionCount.get();
+            }
+        };
+
         IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -2998,7 +3074,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            consumer
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -3028,21 +3105,8 @@ public class IngestServiceTests extends ESTestCase {
             }
         };
 
-        var consumer = new Consumer<ActionListener<NodesInfoResponse>>() {
-            final AtomicLong executionCount = new AtomicLong(0);
-
-            @Override
-            public void accept(ActionListener<NodesInfoResponse> nodesInfoResponseActionListener) {
-                executionCount.incrementAndGet();
-            }
-
-            public long getExecutionCount() {
-                return executionCount.get();
-            }
-        };
-
         var request = putJsonPipelineRequest(pipelineId, pipelineString);
-        ingestService.putPipeline(clusterState.metadata().getProject().id(), request, listener, consumer);
+        ingestService.putPipeline(clusterState.metadata().getProject().id(), request, listener);
         latch.await();
 
         assertThat(consumer.getExecutionCount(), equalTo(0L));
@@ -3451,8 +3515,21 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(ProjectId projectId, PutPipelineRequest request) {
+        return oneTaskWithInstantSource(projectId, request, Instant::now);
+    }
+
+    private static List<IngestService.PipelineClusterStateUpdateTask> oneTaskWithInstantSource(
+        final ProjectId projectId,
+        final PutPipelineRequest request,
+        final InstantSource instantSource
+    ) {
         return List.of(
-            new IngestService.PutPipelineClusterStateUpdateTask(projectId, ActionTestUtils.assertNoFailureListener(t -> {}), request)
+            new IngestService.PutPipelineClusterStateUpdateTask(
+                projectId,
+                ActionTestUtils.assertNoFailureListener(t -> {}),
+                request,
+                instantSource
+            )
         );
     }
 
@@ -3461,8 +3538,21 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static ClusterState executePut(ProjectId projectId, PutPipelineRequest request, ClusterState clusterState) {
+        return executePutWithInstantSource(projectId, request, clusterState, Instant::now);
+    }
+
+    private static ClusterState executePutWithInstantSource(
+        final ProjectId projectId,
+        final PutPipelineRequest request,
+        final ClusterState clusterState,
+        final InstantSource instantSource
+    ) {
         try {
-            return executeAndAssertSuccessful(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(projectId, request));
+            return executeAndAssertSuccessful(
+                clusterState,
+                IngestService.PIPELINE_TASK_EXECUTOR,
+                oneTaskWithInstantSource(projectId, request, instantSource)
+            );
         } catch (Exception e) {
             throw new AssertionError(e);
         }

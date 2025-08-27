@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class StDistanceCartesianSourceAndSourceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StDistanceCartesianSourceAndSourceEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator left;
@@ -48,6 +51,14 @@ public final class StDistanceCartesianSourceAndSourceEvaluator implements EvalOp
         return eval(page.getPositionCount(), leftBlock, rightBlock);
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += left.baseRamBytesUsed();
+    baseRamBytesUsed += right.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public DoubleBlock eval(int positionCount, BytesRefBlock leftBlock, BytesRefBlock rightBlock) {

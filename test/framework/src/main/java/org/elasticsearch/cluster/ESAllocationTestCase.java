@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -301,6 +302,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      *
      * @return the cluster state after completing the reroute.
      */
+    @Deprecated(forRemoval = true)
     public static ClusterState startInitializingShardsAndReroute(
         AllocationService allocationService,
         ClusterState clusterState,
@@ -310,6 +312,24 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             allocationService,
             clusterState,
             clusterState.routingTable().index(index).shardsWithState(INITIALIZING)
+        );
+    }
+
+    /**
+     * Mark all initializing shards for the given index as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(
+        AllocationService allocationService,
+        ClusterState clusterState,
+        ProjectId projectId,
+        String index
+    ) {
+        return startShardsAndReroute(
+            allocationService,
+            clusterState,
+            clusterState.routingTable(projectId).index(index).shardsWithState(INITIALIZING)
         );
     }
 

@@ -11,13 +11,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -55,7 +58,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
  * This class is responsible for managing the Hugging Face inference service.
  * It manages model creation, as well as chunked, non-chunked, and unified completion inference.
  */
-public class HuggingFaceService extends HuggingFaceBaseService {
+public class HuggingFaceService extends HuggingFaceBaseService implements RerankingInferenceService {
     public static final String NAME = "hugging_face";
 
     private static final String SERVICE_NAME = "Hugging Face";
@@ -71,8 +74,16 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public HuggingFaceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -216,6 +227,13 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_15_0;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // Assume a small window size as the true value is not known.
+        // TODO make the rerank window size configurable
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
     public static class Configuration {

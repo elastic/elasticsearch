@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This is an IndexResponse that is specifically for simulate requests. Unlike typical IndexResponses, we need to include the original
@@ -37,6 +39,7 @@ public class SimulateIndexResponse extends IndexResponse {
     private final XContentType sourceXContentType;
     private final Collection<String> ignoredFields;
     private final Exception exception;
+    private final CompressedXContent effectiveMapping;
 
     @SuppressWarnings("this-escape")
     public SimulateIndexResponse(StreamInput in) throws IOException {
@@ -54,6 +57,15 @@ public class SimulateIndexResponse extends IndexResponse {
         } else {
             this.ignoredFields = List.of();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
+            if (in.readBoolean()) {
+                this.effectiveMapping = CompressedXContent.readCompressedString(in);
+            } else {
+                this.effectiveMapping = null;
+            }
+        } else {
+            effectiveMapping = null;
+        }
     }
 
     @SuppressWarnings("this-escape")
@@ -65,7 +77,8 @@ public class SimulateIndexResponse extends IndexResponse {
         XContentType sourceXContentType,
         List<String> pipelines,
         Collection<String> ignoredFields,
-        @Nullable Exception exception
+        @Nullable Exception exception,
+        @Nullable CompressedXContent effectiveMapping
     ) {
         // We don't actually care about most of the IndexResponse fields:
         super(
@@ -83,6 +96,7 @@ public class SimulateIndexResponse extends IndexResponse {
         setShardInfo(ShardInfo.EMPTY);
         this.ignoredFields = ignoredFields;
         this.exception = exception;
+        this.effectiveMapping = effectiveMapping;
     }
 
     @Override
@@ -108,6 +122,14 @@ public class SimulateIndexResponse extends IndexResponse {
             ElasticsearchException.generateThrowableXContent(builder, params, exception);
             builder.endObject();
         }
+        if (effectiveMapping == null) {
+            builder.field("effective_mapping", Map.of());
+        } else {
+            builder.field(
+                "effective_mapping",
+                XContentHelper.convertToMap(effectiveMapping.uncompressed(), true, builder.contentType()).v2()
+            );
+        }
         return builder;
     }
 
@@ -126,6 +148,12 @@ public class SimulateIndexResponse extends IndexResponse {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
             out.writeStringCollection(ignoredFields);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
+            out.writeBoolean(effectiveMapping != null);
+            if (effectiveMapping != null) {
+                effectiveMapping.writeTo(out);
+            }
         }
     }
 

@@ -75,7 +75,7 @@ public class TextTests extends ESTestCase {
             var text = new Text(encoded);
             assertFalse(text.hasString());
             assertEquals(stringLength, text.stringLength());
-            assertTrue(text.hasString());
+            assertFalse(text.hasString());
         }
 
         {

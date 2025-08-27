@@ -53,6 +53,13 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     private boolean includeEmptyFields = true;
+    /**
+     * Controls whether the field caps response should always include the list of indices
+     * where a field is defined. This flag is only used locally on the coordinating node,
+     * and does not need to be serialized as the indices information is already carried
+     * in the response if required.
+     */
+    private transient boolean includeIndices = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -208,6 +215,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this;
     }
 
+    public FieldCapabilitiesRequest includeIndices(boolean includeIndices) {
+        this.includeIndices = includeIndices;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -230,6 +242,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
 
     public boolean includeUnmapped() {
         return includeUnmapped;
+    }
+
+    public boolean includeIndices() {
+        return includeIndices;
     }
 
     public boolean includeEmptyFields() {

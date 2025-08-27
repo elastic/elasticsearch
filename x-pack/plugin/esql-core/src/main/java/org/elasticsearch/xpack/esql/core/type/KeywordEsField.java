@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -26,23 +25,16 @@ public class KeywordEsField extends EsField {
     private final int precision;
     private final boolean normalized;
 
-    public KeywordEsField(String name) {
-        this(name, Collections.emptyMap(), true, Short.MAX_VALUE, false);
-    }
-
-    public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision, boolean normalized) {
-        this(name, properties, hasDocValues, precision, normalized, false);
-    }
-
     public KeywordEsField(
         String name,
         Map<String, EsField> properties,
         boolean hasDocValues,
         int precision,
         boolean normalized,
-        boolean isAlias
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
-        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias, TimeSeriesFieldType.UNKNOWN);
+        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias, timeSeriesFieldType);
     }
 
     protected KeywordEsField(

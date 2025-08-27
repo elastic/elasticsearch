@@ -809,7 +809,7 @@ FROM employees
 | KEEP emp_no, first_name, last_name
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
        (WHERE emp_no == 10081 OR emp_no == 10087)
-| COMPLETION x = CONCAT(first_name, " ", last_name) WITH test_completion
+| COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" }
 | SORT _fork, emp_no
 ;
 
@@ -827,7 +827,7 @@ required_capability: completion
 FROM employees
 | KEEP emp_no, first_name, last_name
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081
-       | COMPLETION x = CONCAT(first_name, " ", last_name) WITH test_completion)
+       | COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" })
        (WHERE emp_no == 10081 OR emp_no == 10087)
 | SORT _fork, emp_no
 ;
@@ -845,7 +845,7 @@ required_capability: completion
 
 FROM employees
 | KEEP emp_no, first_name, last_name
-| COMPLETION x = CONCAT(first_name, " ", last_name) WITH test_completion
+| COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" }
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
        (WHERE emp_no == 10081 OR emp_no == 10087)
 | SORT _fork, emp_no

@@ -1,5 +1,0 @@
-pr: 125452
-summary: Add GCS telemetry with `ThreadLocal`
-area: Snapshot/Restore
-type: enhancement
-issues: []

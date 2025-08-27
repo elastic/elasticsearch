@@ -10,7 +10,6 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -198,17 +197,12 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
         }
 
         @Override
-        public BlockLoader.Block constantNulls() {
+        public BlockLoader.Block constantNulls(int count) {
             throw new UnsupportedOperationException("must not be used by column readers");
         }
 
         @Override
-        public BlockLoader.Block constantBytes(BytesRef value) {
-            throw new UnsupportedOperationException("must not be used by column readers");
-        }
-
-        @Override
-        public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
+        public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense) {
             throw new UnsupportedOperationException("must not be used by column readers");
         }
     }
@@ -254,7 +248,8 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
             this.storedFieldsSpec = storedFieldsSpec;
             this.dimensions = new boolean[fields.size()];
             for (int i = 0; i < fields.size(); i++) {
-                dimensions[i] = shardContext.fieldType(fields.get(i).name()).isDimension();
+                final var mappedFieldType = shardContext.fieldType(fields.get(i).name());
+                dimensions[i] = mappedFieldType != null && mappedFieldType.isDimension();
             }
         }
 

@@ -21,20 +21,15 @@ public class WhereGenerator implements CommandGenerator {
     public static final String WHERE = "where";
     public static final CommandGenerator INSTANCE = new WhereGenerator();
 
-    @Override
-    public CommandDescription generate(
-        List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
-    ) {
+    public static String randomExpression(final int nConditions, List<EsqlQueryGenerator.Column> previousOutput) {
         // TODO more complex conditions
-        StringBuilder result = new StringBuilder(" | where ");
-        int nConditions = randomIntBetween(1, 5);
+        var result = new StringBuilder();
+
         for (int i = 0; i < nConditions; i++) {
             String exp = EsqlQueryGenerator.booleanExpression(previousOutput);
             if (exp == null) {
-                // cannot generate expressions, just skip
-                return EMPTY_DESCRIPTION;
+                // Cannot generate expressions, just skip.
+                return null;
             }
             if (i > 0) {
                 result.append(randomBoolean() ? " AND " : " OR ");
@@ -45,8 +40,20 @@ public class WhereGenerator implements CommandGenerator {
             result.append(exp);
         }
 
-        String cmd = result.toString();
-        return new CommandDescription(WHERE, this, cmd, Map.of());
+        return result.toString();
+    }
+
+    @Override
+    public CommandDescription generate(
+        List<CommandDescription> previousCommands,
+        List<EsqlQueryGenerator.Column> previousOutput,
+        QuerySchema schema
+    ) {
+        String expression = randomExpression(randomIntBetween(1, 5), previousOutput);
+        if (expression == null) {
+            return EMPTY_DESCRIPTION;
+        }
+        return new CommandDescription(WHERE, this, " | where " + expression, Map.of());
     }
 
     @Override

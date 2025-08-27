@@ -48,8 +48,8 @@ public class SampleBooleanAggregatorFunctionTests extends AggregatorFunctionTest
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        List<Boolean> inputValues = input.stream().flatMap(AggregatorFunctionTestCase::allBooleans).collect(Collectors.toList());
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        List<Boolean> inputValues = input.stream().flatMap(p -> allBooleans(p.getBlock(0))).collect(Collectors.toList());
         Boolean[] resultValues = AggregatorFunctionTestCase.allBooleans(result).toArray(Boolean[]::new);
         assertThat(resultValues, arrayWithSize(Math.min(inputValues.size(), LIMIT)));
     }

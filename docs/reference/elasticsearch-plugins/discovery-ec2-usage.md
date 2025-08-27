@@ -1,4 +1,6 @@
 ---
+applies_to:
+  stack: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-ec2-usage.html
 ---
@@ -44,6 +46,9 @@ The available settings for the EC2 discovery plugin are as follows.
 
 `discovery.ec2.endpoint`
 :   The EC2 service endpoint to which to connect. See [https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region](https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region) to find the appropriate endpoint for the region. This setting defaults to `ec2.us-east-1.amazonaws.com` which is appropriate for clusters running in the `us-east-1` region.
+
+`discovery.ec2.protocol` {applies_to}`stack: deprecated 9.1`
+:   The protocol to use to connect to the EC2 service endpoint, which may be either `http` or `https`. Defaults to `https`. This setting does not operate from version 9.1 and higher.
 
 `discovery.ec2.proxy.host`
 :   The address or host name of an HTTP proxy through which to connect to EC2. If not set, no proxy is used.

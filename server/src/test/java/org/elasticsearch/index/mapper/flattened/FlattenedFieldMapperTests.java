@@ -960,6 +960,27 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             {"field":{"a":{"b":{"c":"1"}},"b":{"b":{"d":"2"}}}}"""));
     }
 
+    public void testMultipleDotsInPath() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject(".");
+                {
+                    b.field(".", "bar");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        // This behavior is weird to say the least. But this is the only reasonable way to interpret the meaning of the path `...`
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"":{"":{"":{"":"bar"}}}}}"""));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;

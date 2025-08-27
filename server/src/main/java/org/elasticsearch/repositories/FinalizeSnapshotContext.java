@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
 import java.util.Map;
 import java.util.Set;
@@ -111,7 +111,11 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
      * Returns a new {@link ClusterState}, based on the given {@code state} with the create-snapshot entry removed.
      */
     public ClusterState updatedClusterState(ClusterState state) {
-        final ClusterState updatedState = SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot(), updatedShardGenerations);
+        final ClusterState updatedState = SnapshotsServiceUtils.stateWithoutSnapshot(
+            state,
+            snapshotInfo.snapshot(),
+            updatedShardGenerations
+        );
         // Now that the updated cluster state may have changed in-progress shard snapshots' shard generations to the latest shard
         // generation, let's mark any now unreferenced shard generations as obsolete and ready to be deleted.
         obsoleteGenerations.set(

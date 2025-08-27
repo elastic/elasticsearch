@@ -17,5 +17,6 @@
 | keyword | integer | keyword |
 | long | integer | long |
 | text | integer | keyword |
+| unsigned_long | integer | unsigned_long |
 | version | integer | version |
 

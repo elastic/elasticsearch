@@ -13,17 +13,24 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,14 +57,18 @@ public class PatternedTextFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
-
+        private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-
         private final TextParams.Analyzers analyzers;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, MappingParserContext context) {
+            this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
+        }
+
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
+            this.indexSettings = indexSettings;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((PatternedTextFieldMapper) m).indexAnalyzer,
@@ -87,23 +98,34 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         @Override
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
-            return new PatternedTextFieldMapper(leafName(), buildFieldType(context), builderParams(this, context), this);
+            PatternedTextFieldType patternedTextFieldType = buildFieldType(context);
+            BuilderParams builderParams = builderParams(this, context);
+            var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
+                patternedTextFieldType.templateIdFieldName(),
+                indexSettings.getMode(),
+                indexCreatedVersion,
+                true
+            ).indexed(false).build(context);
+            return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser(Builder::new);
 
     private final IndexVersion indexCreatedVersion;
     private final IndexAnalyzers indexAnalyzers;
+    private final IndexSettings indexSettings;
     private final NamedAnalyzer indexAnalyzer;
     private final int positionIncrementGap;
     private final FieldType fieldType;
+    private final KeywordFieldMapper templateIdMapper;
 
     private PatternedTextFieldMapper(
         String simpleName,
         PatternedTextFieldType mappedFieldPatternedTextFieldType,
         BuilderParams builderParams,
-        Builder builder
+        Builder builder,
+        KeywordFieldMapper templateIdMapper
     ) {
         super(simpleName, mappedFieldPatternedTextFieldType, builderParams);
         assert mappedFieldPatternedTextFieldType.getTextSearchInfo().isTokenized();
@@ -112,7 +134,9 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
+        this.indexSettings = builder.indexSettings;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
+        this.templateIdMapper = templateIdMapper;
     }
 
     @Override
@@ -122,7 +146,18 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers).init(this);
+    }
+
+    @Override
+    public Iterator<Mapper> iterator() {
+        List<Mapper> mappers = new ArrayList<>();
+        Iterator<Mapper> m = super.iterator();
+        while (m.hasNext()) {
+            mappers.add(m.next());
+        }
+        mappers.add(templateIdMapper);
+        return mappers.iterator();
     }
 
     @Override
@@ -145,6 +180,9 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         // Add template doc_values
         context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
+
+        // Add template_id doc_values
+        context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
 
         // Add args doc_values
         if (parts.args().isEmpty() == false) {

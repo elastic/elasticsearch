@@ -52,7 +52,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters(new String[] { "repository_s3/10_basic", "repository_s3/20_repository_permanent_credentials" });
+        return createParameters("repository_s3/10_basic", "repository_s3/20_repository_permanent_credentials");
     }
 
     public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

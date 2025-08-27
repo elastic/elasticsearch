@@ -499,7 +499,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                         metadata,
                         resolvedAt,
                         indexTemplateAndCreateRequestSettings,
-                        combinedTemplateMappings) -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()
+                        combinedTemplateMappings,
+                        additionalSettings,
+                        additionalCustomMetadata) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)
                 )
             ),
             null
@@ -642,6 +644,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         );
         ComponentTemplate componentTemplate = new ComponentTemplate(
             Template.builder().settings(componentTemplateSettings).build(),
+            null,
+            null,
             null,
             null,
             null

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -61,6 +62,11 @@ public class RateTests extends AbstractAggregationTestCase {
     }
 
     @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
     public void testAggregateIntermediate() {
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
@@ -95,8 +101,22 @@ public class RateTests extends AbstractAggregationTestCase {
             if (dataRows.size() < 2) {
                 matcher = Matchers.nullValue();
             } else {
-                // TODO: check the value?
-                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(0.0), Matchers.lessThan(Double.POSITIVE_INFINITY));
+                var maxrate = switch (fieldTypedData.type().widenSmallNumeric()) {
+                    case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).max().orElse(0);
+                    case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).max().orElse(0L);
+                    case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).max().orElse(0.0);
+                    default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
+                };
+                var minrate = switch (fieldTypedData.type().widenSmallNumeric()) {
+                    case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).min().orElse(0);
+                    case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).min().orElse(0L);
+                    case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).min().orElse(0.0);
+                    default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
+                };
+                // If the minrate is greater than 0, we need to adjust the maxrate accordingly
+                minrate = Math.min(minrate, 0);
+                maxrate = Math.max(maxrate, maxrate - minrate);
+                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(minrate), Matchers.lessThanOrEqualTo(maxrate));
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
@@ -107,9 +127,9 @@ public class RateTests extends AbstractAggregationTestCase {
         });
     }
 
-    public static List<DataType> signatureTypes(List<DataType> testCaseTypes) {
-        assertThat(testCaseTypes, hasSize(2));
-        assertThat(testCaseTypes.get(1), equalTo(DataType.DATETIME));
-        return List.of(testCaseTypes.get(0));
+    public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
+        assertThat(params, hasSize(2));
+        assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
+        return List.of(params.get(0));
     }
 }

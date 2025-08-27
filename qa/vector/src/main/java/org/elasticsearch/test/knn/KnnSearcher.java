@@ -98,7 +98,7 @@ import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 
 class KnnSearcher {
 
-    private final Path docPath;
+    private final List<Path> docPath;
     private final Path indexPath;
     private final Path queryPath;
     private final int numDocs;
@@ -107,7 +107,7 @@ class KnnSearcher {
     private final float selectivity;
     private final int topK;
     private final int efSearch;
-    private final int nProbe;
+    private final double visitPercentage;
     private final KnnIndexTester.IndexType indexType;
     private int dim;
     private final VectorSimilarityFunction similarityFunction;
@@ -116,7 +116,7 @@ class KnnSearcher {
     private final int searchThreads;
     private final int numSearchers;
 
-    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, int nProbe) {
+    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, double visitPercentage) {
         this.docPath = cmdLineArgs.docVectors();
         this.indexPath = indexPath;
         this.queryPath = cmdLineArgs.queryVectors();
@@ -131,7 +131,7 @@ class KnnSearcher {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
         this.efSearch = cmdLineArgs.numCandidates();
-        this.nProbe = nProbe;
+        this.visitPercentage = visitPercentage;
         this.indexType = cmdLineArgs.indexType();
         this.searchThreads = cmdLineArgs.searchThreads();
         this.numSearchers = cmdLineArgs.numSearchers();
@@ -153,12 +153,6 @@ class KnnSearcher {
                 : null
         ) {
             long queryPathSizeInBytes = input.size();
-            logger.info(
-                "queryPath size: "
-                    + queryPathSizeInBytes
-                    + " bytes, assuming vector count is "
-                    + (queryPathSizeInBytes / ((long) dim * vectorEncoding.byteSize))
-            );
             if (dim == -1) {
                 offsetByteSize = 4;
                 ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
@@ -171,6 +165,17 @@ class KnnSearcher {
                     throw new IllegalArgumentException("queryPath \"" + queryPath + "\" has invalid dimension: " + dim);
                 }
             }
+            if (queryPathSizeInBytes % (((long) dim * vectorEncoding.byteSize + offsetByteSize)) != 0) {
+                throw new IllegalArgumentException(
+                    "docsPath \"" + queryPath + "\" does not contain a whole number of vectors?  size=" + queryPathSizeInBytes
+                );
+            }
+            logger.info(
+                "queryPath size: "
+                    + queryPathSizeInBytes
+                    + " bytes, assuming vector count is "
+                    + (queryPathSizeInBytes / ((long) dim * vectorEncoding.byteSize + offsetByteSize))
+            );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
             try (MMapDirectory dir = new MMapDirectory(indexPath)) {
@@ -293,7 +298,7 @@ class KnnSearcher {
         }
         logger.info("checking results");
         int[][] nn = getOrCalculateExactNN(offsetByteSize, filterQuery);
-        finalResults.nProbe = indexType == KnnIndexTester.IndexType.IVF ? nProbe : 0;
+        finalResults.visitPercentage = indexType == KnnIndexTester.IndexType.IVF ? visitPercentage : 0;
         finalResults.avgRecall = checkResults(resultIds, nn, topK);
         finalResults.qps = (1000f * numQueryVectors) / elapsed;
         finalResults.avgLatency = (float) elapsed / numQueryVectors;
@@ -368,8 +373,13 @@ class KnnSearcher {
         }
     }
 
-    private boolean isNewer(Path path, Path... others) throws IOException {
+    private boolean isNewer(Path path, List<Path> paths, Path... others) throws IOException {
         FileTime modified = Files.getLastModifiedTime(path);
+        for (Path p : paths) {
+            if (Files.getLastModifiedTime(p).compareTo(modified) >= 0) {
+                return false;
+            }
+        }
         for (Path other : others) {
             if (Files.getLastModifiedTime(other).compareTo(modified) >= 0) {
                 return false;
@@ -414,7 +424,8 @@ class KnnSearcher {
         }
         int efSearch = Math.max(topK, this.efSearch);
         if (indexType == KnnIndexTester.IndexType.IVF) {
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, filterQuery, nProbe);
+            float visitRatio = (float) (visitPercentage / 100);
+            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, filterQuery, visitRatio);
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,

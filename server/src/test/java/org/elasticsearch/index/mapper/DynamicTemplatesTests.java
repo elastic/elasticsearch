@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.IndexOptions;
@@ -2205,22 +2204,22 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertNotEquals(InetAddressPoint.class, doc.getField("one_ip").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("one_ip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("one_ip");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertNotEquals(InetAddressPoint.class, doc.getField("ip_two").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("ip_two").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("ip_two");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("three_ip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("three_ip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("three_ip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("ip_four").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("ip_four").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("ip_four");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
@@ -2257,17 +2256,17 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertEquals(InetAddressPoint.class, doc.getField("one100_ip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("one100_ip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("one100_ip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("iptwo").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("iptwo").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("iptwo");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
-        assertNotEquals(InetAddressPoint.class, doc.getField("threeip").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("threeip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
@@ -2303,18 +2302,18 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertEquals(InetAddressPoint.class, doc.getField("oneip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("oneip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("oneip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
         // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
-        assertNotEquals(InetAddressPoint.class, doc.getField("iptwo").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("iptwo").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("iptwo");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertNotEquals(InetAddressPoint.class, doc.getField("threeip").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("threeip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
@@ -2362,18 +2361,18 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertEquals(InetAddressPoint.class, doc.getField("outer.oneip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("outer.oneip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.oneip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
         // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
-        assertNotEquals(InetAddressPoint.class, doc.getField("outer.iptwo").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("outer.iptwo").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.iptwo");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("outer.threeip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("outer.threeip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.threeip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
@@ -2421,18 +2420,18 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         LuceneDocument doc = parsedDoc.rootDoc();
 
-        assertEquals(InetAddressPoint.class, doc.getField("outer.oneip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("outer.oneip").getClass());
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.oneip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());
 
         // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
-        assertNotEquals(InetAddressPoint.class, doc.getField("outer.iptwo").getClass());
+        assertNotEquals(ESInetAddressPoint.class, doc.getField("outer.iptwo").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.iptwo");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
 
-        assertEquals(InetAddressPoint.class, doc.getField("outer.threeip").getClass());
+        assertEquals(ESInetAddressPoint.class, doc.getField("outer.threeip").getClass());
         fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.threeip");
         assertNotNull(fieldMapper);
         assertEquals("ip", fieldMapper.typeName());

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -22,6 +23,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -89,7 +91,10 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
     public static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
-    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 512;
+    // The maximum batch size for sparse text embeddings is set to 16.
+    // This value was reduced from 512 due to memory constraints; batch sizes above 32 can cause GPU out-of-memory errors.
+    // A batch size of 16 provides optimal throughput and stability, especially on lower-tier instance types.
+    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
 
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
@@ -99,8 +104,10 @@ public class ElasticInferenceService extends SenderService {
     );
     private static final String SERVICE_NAME = "Elastic";
 
-    // TODO: check with team, what makes the most sense
-    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 32;
+    // TODO: revisit this value once EIS supports dense models
+    // The maximum batch size for dense text embeddings is proactively set to 16.
+    // This mirrors the memory constraints observed with sparse embeddings
+    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
     // rainbow-sprinkles
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
@@ -139,9 +146,28 @@ public class ElasticInferenceService extends SenderService {
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ModelRegistry modelRegistry,
-        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler
+        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents);
+        this(
+            factory,
+            serviceComponents,
+            elasticInferenceServiceSettings,
+            modelRegistry,
+            authorizationRequestHandler,
+            context.clusterService()
+        );
+    }
+
+    public ElasticInferenceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        ModelRegistry modelRegistry,
+        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
+        ClusterService clusterService
+    ) {
+        super(factory, serviceComponents, clusterService);
         this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );

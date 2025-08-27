@@ -205,7 +205,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
 
     public void testCoalesceIsLazy() {
         List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
-        FieldAttribute evil = new FieldAttribute(Source.EMPTY, "evil", new EsField("evil", sub.get(0).dataType(), Map.of(), true));
+        FieldAttribute evil = new FieldAttribute(
+            Source.EMPTY,
+            "evil",
+            new EsField("evil", sub.get(0).dataType(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         sub.add(evil);
         Coalesce exp = build(Source.EMPTY, sub);
         Layout.Builder builder = new Layout.Builder();
@@ -219,6 +223,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                         @Override
                         public Block eval(Page page) {
                             throw new AssertionError("shouldn't be called");
+                        }
+
+                        @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
                         }
 
                         @Override

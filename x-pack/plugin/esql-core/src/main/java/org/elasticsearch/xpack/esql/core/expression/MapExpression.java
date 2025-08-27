@@ -120,8 +120,16 @@ public class MapExpression extends Expression {
             return map.get(key);
         } else {
             // the key(literal) could be converted to BytesRef by ConvertStringToByteRef
-            return keyFoldedMap.containsKey(key) ? keyFoldedMap.get(key) : keyFoldedMap.get(new BytesRef(key.toString()));
+            return keyFoldedMap.containsKey(key) ? keyFoldedMap.get(key) : keyFoldedMap.get(foldKey(key));
         }
+    }
+
+    public boolean containsKey(Object key) {
+        return keyFoldedMap.containsKey(key) || keyFoldedMap.containsKey(foldKey(key));
+    }
+
+    private BytesRef foldKey(Object key) {
+        return new BytesRef(key.toString());
     }
 
     @Override

@@ -85,7 +85,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         listener = listener.delegateResponse((l, e) -> {
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
-            if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)
+            if (executionInfo.shouldSkipOnFailure(clusterAlias)
                 || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
                     executionInfo,
@@ -107,7 +107,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             listener.delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
-                boolean failFast = executionInfo.isSkipUnavailable(clusterAlias) == false && configuration.allowPartialResults() == false;
+                boolean failFast = executionInfo.shouldSkipOnFailure(clusterAlias) == false && configuration.allowPartialResults() == false;
                 if (failFast) {
                     groupTask = rootTask;
                     onGroupFailure = cancelQueryOnFailure;
@@ -166,7 +166,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 builder.setTook(executionInfo.tookSoFar());
             }
             if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                builder.setFailures(resp.failures);
+                builder.addFailures(resp.failures);
                 if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
                 } else {

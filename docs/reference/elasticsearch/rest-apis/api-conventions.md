@@ -421,7 +421,10 @@ GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 ```
 
-### Component Selectors [api-component-selectors]
+### Component selectors [api-component-selectors]
+```{applies_to}
+stack: ga 9.1
+```
 
 A data stream component is a logical grouping of indices that help organize data inside a data stream. All data streams contain a `data` component by default. The `data` component comprises the data stream's backing indices. When searching, managing, or indexing into a data stream, the `data` component is what you are interacting with by default.
 
@@ -429,7 +432,7 @@ Some data stream features are exposed as additional components alongside its `da
 
 Some APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path parameter also support *selector syntax* which defines which component on a data stream the API should operate on. To use a selector, it is appended to the index or data stream name. Selectors can be combined with other index pattern syntax like [date math](#api-date-math-index-names) and wildcards.
 
-There are currently two selector suffixes supported by {{es}} APIs:
+There are two selector suffixes supported by {{es}} APIs:
 
 `::data`
 :   Refers to a data stream's backing indices containing regular data. Data streams always contain a data component.

@@ -88,12 +88,6 @@ interface ElasticPayload extends SageMakerSchemaPayload {
 
     @Override
     default SageMakerElasticTaskSettings apiTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
-        if (taskSettings != null && (taskSettings.isEmpty() == false)) {
-            validationException.addValidationError(
-                InferenceAction.Request.TASK_SETTINGS.getPreferredName()
-                    + " is only supported during the inference request and cannot be stored in the inference endpoint."
-            );
-        }
         return SageMakerElasticTaskSettings.empty();
     }
 

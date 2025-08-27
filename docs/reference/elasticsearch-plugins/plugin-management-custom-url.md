@@ -46,13 +46,13 @@ HTTP
 :   To install a plugin from an HTTP URL:
 
     ```shell
-    sudo bin/elasticsearch-plugin install https://some.domain/path/to/plugin.zip
+    sudo bin/elasticsearch-plugin install <EXAMPLE_PLUGIN_HOST_URL>/plugin.zip
     ```
 
     The plugin script will refuse to talk to an HTTPS URL with an untrusted certificate. To use a self-signed HTTPS cert, you will need to add the CA cert to a local Java truststore and pass the location to the script as follows:
 
     ```shell
-    sudo CLI_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
+    sudo CLI_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install <MY_HOST_URL>/plugin.zip
     ```
 
 

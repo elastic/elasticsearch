@@ -199,7 +199,7 @@ This section lists the privileges that you can assign to a role.
 `monitor_enrich`
 :   All read-only operations related to managing and executing enrich policies.
 
-`monitor_esql`
+`monitor_esql` {applies_to}`stack: ga 9.1`
 :   All read-only operations related to ES|QL queries.
 
 `monitor_inference`
@@ -286,21 +286,19 @@ This section lists the privileges that you can assign to a role.
 `create`
 :   Privilege to index documents.
 
-    :::{admonition} Deprecated in 8.0
-    Also grants the permission to update the index mapping (but not the data streams mapping), using the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or by relying on [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md). In a future major release, this privilege will not grant any mapping update permissions.
-    :::
-
     ::::{note}
     This privilege does not restrict the index operation to the creation of documents but instead restricts API use to the index API. The index API allows a user to overwrite a previously indexed document. See the `create_doc` privilege for an alternative.
     ::::
 
+    :::{important}
+    Starting from 8.0, this privilege no longer grants the permission to update index mappings.
+    In earlier versions, it implicitly permitted index mapping updates (excluding data stream mappings) via the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or through [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md).
+    Mapping update capabilities will be fully removed in a future major release.
+    :::
+
 
 `create_doc`
 :   Privilege to index documents. It does not grant the permission to update or overwrite existing documents.
-
-    :::{admonition} Deprecated in 8.0
-    Also grants the permission to update the index mapping (but not the data streams mapping), using the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or by relying on [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md). In a future major release, this privilege will not grant any mapping update permissions.
-    :::
 
     ::::{note}
     This privilege relies on the `op_type` of indexing requests ([Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-create) and [Bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk)). When ingesting documents as a user who has the `create_doc` privilege (and no higher privilege such as `index` or `write`), you must ensure that *op_type* is set to *create* through one of the following:
@@ -310,6 +308,12 @@ This section lists the privileges that you can assign to a role.
     * Creating a document with an auto-generated `_id`
 
     ::::
+
+    :::{important}
+    Starting from 8.0, this privilege no longer grants the permission to update index mappings.
+    In earlier versions, it implicitly permitted index mapping updates (excluding data stream mappings) via the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or through [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md).
+    Mapping update capabilities will be fully removed in a future major release.
+    :::
 
 
 `create_index`
@@ -340,8 +344,10 @@ This section lists the privileges that you can assign to a role.
 `index`
 :   Privilege to index and update documents.
 
-    :::{admonition} Deprecated in 8.0
-    Also grants the permission to update the index mapping (but not the data streams mapping), using the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or by relying on [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md). In a future major release, this privilege will not grant any mapping update permissions.
+    :::{important}
+    Starting from 8.0, this privilege no longer grants the permission to update index mappings.
+    In earlier versions, it implicitly permitted index mapping updates (excluding data stream mappings) via the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or through [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md).
+    Mapping update capabilities will be fully removed in a future major release.
     :::
 
 `maintenance`
@@ -352,6 +358,9 @@ This section lists the privileges that you can assign to a role.
 
 `manage_data_stream_lifecycle`
 :   All [Data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) operations relating to reading and managing the built-in lifecycle of a data stream. This includes operations such as adding and removing a lifecycle from a data stream.
+
+`manage_failure_store` {applies_to}`stack: ga 9.1`
+:   All `monitor` privileges plus index and data stream administration limited to failure stores only. Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
 
 `manage_follow_index`
 :   All actions that are required to manage the lifecycle of a follower index, which includes creating a follower index, closing it, and converting it to a regular index. This privilege is necessary only on clusters that contain follower indices.
@@ -382,6 +391,8 @@ This section lists the privileges that you can assign to a role.
 
     This privilege is not available in {{serverless-full}}.
 
+`read_failure_store` {applies_to}`stack: ga 9.1`
+:   Read-only access to actions performed on a data stream's failure store. Required for access to failure store data (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv). Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
 
 `view_index_metadata`
 :   Read-only access to index and data stream metadata (aliases, exists, field capabilities, field mappings, get index, get data stream, ilm explain, mappings, search shards, settings, validate query). This privilege is available for use primarily by {{kib}} users.
@@ -389,8 +400,10 @@ This section lists the privileges that you can assign to a role.
 `write`
 :   Privilege to perform all write operations to documents, which includes the permission to index, update, and delete documents as well as performing bulk operations, while also allowing to dynamically update the index mapping.
 
-    :::{admonition} Deprecated in 8.0
-    It also grants the permission to update the index mapping (but not the data streams mapping), using the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping). This will be retracted in a future major release.
+    :::{important}
+    Starting from 8.0, this privilege no longer grants the permission to update index mappings.
+    In earlier versions, it implicitly permitted index mapping updates (excluding data stream mappings) via the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or through [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md).
+    Mapping update capabilities will be fully removed in a future major release.
     :::
 
 ## Run as privilege [_run_as_privilege]

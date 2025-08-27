@@ -409,9 +409,10 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             try (DirectoryReader reader = iw.getReader()) {
                 KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
                 assertThat(
-                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType),
+                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0),
                     equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
                 );
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(new BytesRef("2-Suffix"))));
                 assertThat(
                     blockLoaderReadValuesFromRowStrideReader(reader, fieldType),
                     equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))

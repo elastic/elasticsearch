@@ -247,6 +247,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         rolesStore = Mockito.spy(
             new CompositeRolesStore(
                 settings,
+                mock(ClusterService.class),
                 mock(RoleProviders.class),
                 mock(NativePrivilegeStore.class),
                 new ThreadContext(settings),

@@ -31,10 +31,9 @@ public class GenerativeForkIT extends GenerativeForkRestTest {
         String testName,
         Integer lineNumber,
         CsvSpecReader.CsvTestCase testCase,
-        String instructions,
-        Mode mode
+        String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override

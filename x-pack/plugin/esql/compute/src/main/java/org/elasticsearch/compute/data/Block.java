@@ -258,6 +258,12 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     }
 
     /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    Block deepCopy(BlockFactory blockFactory);
+
+    /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
      * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */
@@ -345,7 +351,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
-        if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleBlock a) {
+        if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {
             block = a.asCompositeBlock();
         }
         block.elementType().writeTo(out);
@@ -360,7 +366,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
         ElementType elementType = ElementType.readFrom(in);
         Block block = elementType.reader.readBlock(in);
         if (false == supportsAggregateMetricDoubleBlock(in.getTransportVersion()) && block instanceof CompositeBlock compositeBlock) {
-            block = AggregateMetricDoubleBlock.fromCompositeBlock(compositeBlock);
+            block = AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock);
         }
         return block;
     }

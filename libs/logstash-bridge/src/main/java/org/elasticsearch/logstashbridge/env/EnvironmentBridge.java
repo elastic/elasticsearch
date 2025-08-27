@@ -14,13 +14,16 @@ import org.elasticsearch.logstashbridge.common.SettingsBridge;
 
 import java.nio.file.Path;
 
-public class EnvironmentBridge extends StableBridgeAPI.Proxy<Environment> {
-    public static EnvironmentBridge wrap(final Environment delegate) {
+/**
+ * An external bridge for {@link Environment}
+ */
+public class EnvironmentBridge extends StableBridgeAPI.ProxyInternal<Environment> {
+    public static EnvironmentBridge fromInternal(final Environment delegate) {
         return new EnvironmentBridge(delegate);
     }
 
     public EnvironmentBridge(final SettingsBridge settingsBridge, final Path configPath) {
-        this(new Environment(settingsBridge.unwrap(), configPath));
+        this(new Environment(settingsBridge.toInternal(), configPath));
     }
 
     private EnvironmentBridge(final Environment delegate) {
@@ -28,7 +31,7 @@ public class EnvironmentBridge extends StableBridgeAPI.Proxy<Environment> {
     }
 
     @Override
-    public Environment unwrap() {
-        return this.delegate;
+    public Environment toInternal() {
+        return this.internalDelegate;
     }
 }

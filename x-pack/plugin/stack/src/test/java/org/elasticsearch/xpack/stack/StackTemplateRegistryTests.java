@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -607,7 +608,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes,
         boolean addRegistryPipelines
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes, addRegistryPipelines);
+        ClusterState cs = createClusterState(existingTemplates, existingPolicies, nodes, addRegistryPipelines);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -620,7 +621,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(
-        Settings nodeSettings,
         Map<String, Integer> existingComponentTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes,
@@ -651,15 +651,14 @@ public class StackTemplateRegistryTests extends ESTestCase {
         }
         IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelines);
 
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .componentTemplates(componentTemplates)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+            .build();
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .componentTemplates(componentTemplates)
-                    .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
-                    .build()
-            )
+            // We need to ensure only one project is present in the cluster state to simplify the assertions in these tests.
+            .metadata(Metadata.builder().projectMetadata(Map.of(project.id(), project)).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();

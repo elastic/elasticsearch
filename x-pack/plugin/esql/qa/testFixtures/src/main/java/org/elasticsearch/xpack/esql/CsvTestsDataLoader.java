@@ -63,6 +63,16 @@ public class CsvTestsDataLoader {
     private static final TestDataset HOSTS = new TestDataset("hosts");
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
+    private static final TestDataset MULTI_COLUMN_JOINABLE = new TestDataset(
+        "multi_column_joinable",
+        "mapping-multi_column_joinable.json",
+        "multi_column_joinable.csv"
+    );
+    private static final TestDataset MULTI_COLUMN_JOINABLE_LOOKUP = new TestDataset(
+        "multi_column_joinable_lookup",
+        "mapping-multi_column_joinable_lookup.json",
+        "multi_column_joinable_lookup.csv"
+    ).withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
@@ -143,6 +153,11 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
     private static final TestDataset DISTANCES = new TestDataset("distances");
     private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
+        "k8s-downsampled",
+        "k8s-downsampled-mappings.json",
+        "k8s-downsampled.csv"
+    ).withSetting("k8s-downsampled-settings.json");
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
@@ -206,6 +221,7 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
+        Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
@@ -213,7 +229,9 @@ public class CsvTestsDataLoader {
         Map.entry(LOGS.indexName, LOGS),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
-        Map.entry(COLORS.indexName, COLORS)
+        Map.entry(COLORS.indexName, COLORS),
+        Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
+        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -302,7 +320,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -322,12 +340,10 @@ public class CsvTestsDataLoader {
     }
 
     public static Set<TestDataset> availableDatasetsForEs(
-        RestClient client,
         boolean supportsIndexModeLookup,
-        boolean supportsSourceFieldMapping
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled
     ) throws IOException {
-        boolean inferenceEnabled = clusterHasSparseEmbeddingInferenceEndpoint(client);
-
         Set<TestDataset> testDataSets = new HashSet<>();
 
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
@@ -357,12 +373,17 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
-    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, boolean supportsSourceFieldMapping)
-        throws IOException {
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled
+    ) throws IOException {
         loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
+            inferenceEnabled,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -373,12 +394,13 @@ public class CsvTestsDataLoader {
         RestClient client,
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup, supportsSourceFieldMapping)) {
+        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class WildcardLike extends RegexMatch<WildcardPattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -131,5 +133,17 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     // TODO: see whether escaping is needed
     private Query translateField(String targetFieldName, boolean forceStringMatch) {
         return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive(), forceStringMatch);
+    }
+
+    /**
+     * Pushes down string casing optimization for a single pattern using the provided predicate.
+     * Returns a new WildcardLike with case insensitivity or a Literal.FALSE if not matched.
+     */
+    @Override
+    public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
+        if (matchesCaseFn.test(pattern().pattern()) == false) {
+            return Literal.of(this, Boolean.FALSE);
+        }
+        return new WildcardLike(source(), unwrappedField, pattern(), true);
     }
 }

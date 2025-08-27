@@ -22,9 +22,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.internal.hppc.IntIntHashMap;
+import org.apache.lucene.internal.hppc.IntHashSet;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 import java.util.function.IntConsumer;
@@ -34,8 +33,6 @@ import java.util.function.IntConsumer;
  * {@link org.apache.lucene.codecs.lucene90.blocktree.FieldReader} keeps an in-memory reference to the min and max term.
  */
 public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
-    public static final FeatureFlag TRACK_POSTINGS_IN_MEMORY_BYTES = new FeatureFlag("track_postings_in_memory_bytes");
-
     public static final String IN_MEMORY_POSTINGS_BYTES_KEY = "es.postings.in_memory_bytes";
 
     public TrackingPostingsInMemoryBytesCodec(Codec delegate) {
@@ -63,22 +60,22 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
     static final class TrackingLengthFieldsConsumer extends FieldsConsumer {
         final SegmentWriteState state;
         final FieldsConsumer in;
-        final IntIntHashMap termsBytesPerField;
+        final IntHashSet seenFields;
+        final long[] totalBytes;
 
         TrackingLengthFieldsConsumer(SegmentWriteState state, FieldsConsumer in) {
             this.state = state;
             this.in = in;
-            this.termsBytesPerField = new IntIntHashMap(state.fieldInfos.size());
+            this.totalBytes = new long[1];
+            // Alternatively, we can consider using a FixedBitSet here and size to max(fieldNumber).
+            // This should be faster without worrying too much about memory usage.
+            this.seenFields = new IntHashSet(state.fieldInfos.size());
         }
 
         @Override
         public void write(Fields fields, NormsProducer norms) throws IOException {
-            in.write(new TrackingLengthFields(fields, termsBytesPerField, state.fieldInfos), norms);
-            long totalBytes = 0;
-            for (int bytes : termsBytesPerField.values) {
-                totalBytes += bytes;
-            }
-            state.segmentInfo.putAttribute(IN_MEMORY_POSTINGS_BYTES_KEY, Long.toString(totalBytes));
+            in.write(new TrackingLengthFields(fields, state.fieldInfos, seenFields, totalBytes), norms);
+            state.segmentInfo.putAttribute(IN_MEMORY_POSTINGS_BYTES_KEY, Long.toString(totalBytes[0]));
         }
 
         @Override
@@ -88,13 +85,15 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
     }
 
     static final class TrackingLengthFields extends FilterLeafReader.FilterFields {
-        final IntIntHashMap termsBytesPerField;
         final FieldInfos fieldInfos;
+        final IntHashSet seenFields;
+        final long[] totalBytes;
 
-        TrackingLengthFields(Fields in, IntIntHashMap termsBytesPerField, FieldInfos fieldInfos) {
+        TrackingLengthFields(Fields in, FieldInfos fieldInfos, IntHashSet seenFields, long[] totalBytes) {
             super(in);
-            this.termsBytesPerField = termsBytesPerField;
+            this.seenFields = seenFields;
             this.fieldInfos = fieldInfos;
+            this.totalBytes = totalBytes;
         }
 
         @Override
@@ -104,10 +103,14 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
                 return null;
             }
             int fieldNum = fieldInfos.fieldInfo(field).number;
-            return new TrackingLengthTerms(
-                terms,
-                bytes -> termsBytesPerField.put(fieldNum, Math.max(termsBytesPerField.getOrDefault(fieldNum, 0), bytes))
-            );
+            if (seenFields.add(fieldNum)) {
+                return new TrackingLengthTerms(terms, bytes -> totalBytes[0] += bytes);
+            } else {
+                // As far as I know only when bloom filter for _id filter gets written this method gets invoked twice for the same field.
+                // So maybe we can get rid of the seenFields here? And just keep track of whether _id field has been seen? However, this
+                // is fragile and could make us vulnerable to tricky bugs in the future if this is no longer the case.
+                return terms;
+            }
         }
     }
 

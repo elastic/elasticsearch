@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
@@ -342,15 +341,6 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         // We should reroute again despite the clock being the same
         writeLoadConstraintMonitor.onNewInfo(ClusterInfo.builder().nodeUsageStatsForThreadPools(nodeUsageStatsWithExtraHotSpot).build());
         verify(testState.rerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
-    }
-
-    private static ProjectId randomAdditionalProjectId(ClusterState clusterState) {
-        return ProjectId.fromId(
-            randomValueOtherThanMany(
-                projectId -> clusterState.metadata().hasProject(ProjectId.fromId(projectId)),
-                ESTestCase::randomIdentifier
-            )
-        );
     }
 
     private boolean nodeExceedsQueueLatencyThreshold(NodeUsageStatsForThreadPools nodeUsageStats, long latencyThresholdMillis) {

@@ -81,11 +81,12 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
-        ActionListener<IndexResolution> listener
+        ActionListener<IndexResolution> listener,
+        boolean includeAllDimensions
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),
+            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
@@ -98,6 +99,7 @@ public class IndexResolver {
             return IndexResolution.notFound(indexPattern);
         }
 
+        // For each field name, store a list of the field caps responses from each index
         Map<String, List<IndexFieldCapabilities>> fieldsCaps = collectFieldCaps(fieldCapsResponse);
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
@@ -119,7 +121,8 @@ public class IndexResolver {
                 String parent = name.substring(0, nextDot);
                 EsField obj = fields.get(parent);
                 if (obj == null) {
-                    obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
+                    // Object fields can't be dimensions, so we can safely hard code that here
+                    obj = new EsField(parent, OBJECT, new HashMap<>(), false, true, EsField.TimeSeriesFieldType.NONE);
                     isAlias = true;
                     fields.put(parent, obj);
                 } else if (firstUnsupportedParent == null && obj instanceof UnsupportedEsField unsupportedParent) {
@@ -197,10 +200,16 @@ public class IndexResolver {
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
         boolean aggregatable = first.isAggregatable();
+        EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.UNKNOWN;
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
                 if (first.metricType() != fc.metricType()) {
                     return conflictingMetricTypes(name, fullName, fieldCapsResponse);
+                }
+                try {
+                    timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
+                } catch (IllegalArgumentException e) {
+                    return new InvalidMappedField(name, e.getMessage());
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -216,22 +225,22 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return new TextEsField(name, new HashMap<>(), false, isAlias);
+            return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
             // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
             boolean normalized = false;
-            return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias);
+            return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias, timeSeriesFieldType);
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias);
+        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType);
     }
 
     private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
@@ -265,7 +274,12 @@ public class IndexResolver {
         return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames, QueryBuilder requestFilter) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(
+        String index,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions
+    ) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
@@ -274,7 +288,11 @@ public class IndexResolver {
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
-        req.filters("-nested");
+        if (includeAllDimensions) {
+            req.filters("-nested", "+dimension");
+        } else {
+            req.filters("-nested");
+        }
         req.setMergeResults(false);
         return req;
     }

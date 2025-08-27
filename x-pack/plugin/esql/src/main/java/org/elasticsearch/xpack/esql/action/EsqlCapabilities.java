@@ -191,6 +191,11 @@ public class EsqlCapabilities {
         FN_REVERSE_GRAPHEME_CLUSTERS,
 
         /**
+         * Support for function {@code CONTAINS}. Done in <a href="https://github.com/elastic/elasticsearch/pull/133016">#133016.</a>
+         */
+        FN_CONTAINS,
+
+        /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,
@@ -239,6 +244,11 @@ public class EsqlCapabilities {
          * Support for function DAY_NAME
          */
         FN_DAY_NAME,
+
+        /**
+         * Support for function MONTH_NAME
+         */
+        FN_MONTH_NAME,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -826,6 +836,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_SKIP_MV_WARNINGS(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
+         * Fix for async operator sometimes completing the driver without emitting the stored warnings
+         */
+        ASYNC_OPERATOR_WARNINGS_FIX,
+
+        /**
          * Fix pushing down LIMIT past LOOKUP JOIN in case of multiple matching join keys.
          */
         JOIN_LOOKUP_FIX_LIMIT_PUSHDOWN(JOIN_LOOKUP_V12.isEnabled()),
@@ -957,7 +972,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V9(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V10(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1164,6 +1179,11 @@ public class EsqlCapabilities {
         K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
 
         /**
+         * Geospatial field types in the k8s.csv and k8s-downsampled.csv datasets
+         */
+        K8S_DATASETS_GEOSPATIAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
@@ -1318,6 +1338,10 @@ public class EsqlCapabilities {
         FIXED_PROFILE_SERIALIZATION,
 
         /**
+         * Support for lookup join on multiple fields.
+         */
+        LOOKUP_JOIN_ON_MULTIPLE_FIELDS,
+        /**
          * Dot product vector similarity function
          */
         DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
@@ -1345,7 +1369,31 @@ public class EsqlCapabilities {
         /**
          * Support correct counting of skipped shards.
          */
-        CORRECT_SKIPPED_SHARDS_COUNT;
+        CORRECT_SKIPPED_SHARDS_COUNT,
+
+        /*
+         * Support for calculating the scalar vector magnitude.
+         */
+        MAGNITUDE_SCALAR_VECTOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Byte elements dense vector field type support.
+         */
+        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
+         * Support null elements on vector similarity functions
+         */
+        VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,
+
+        /**
+         * Support for vector Hamming distance.
+         */
+        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        /**
+         * Support for tbucket function
+         */
+        TBUCKET;
 
         private final boolean enabled;
 

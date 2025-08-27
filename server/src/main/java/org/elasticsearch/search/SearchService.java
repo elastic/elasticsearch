@@ -552,6 +552,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     protected void putReaderContext(ReaderContext context) {
         final ReaderContext previous = activeReaders.put(context.readerContextId(), context);
+        logger.info("--> adding reader context [{}], current [{}]", context.readerContextId(), activeReaders.size());
         assert previous == null;
         // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
@@ -566,7 +567,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (logger.isTraceEnabled()) {
             logger.trace("removing reader context [{}]", id);
         }
-        return activeReaders.remove(id);
+        ReaderContext remove = activeReaders.remove(id);
+        logger.info(
+            "--> node [{}] removing [{}] reader context [{}], current [{}]",
+            clusterService.localNode().getId(),
+            remove != null,
+            id,
+            activeReaders.size()
+        );
+        return remove;
     }
 
     @Override
@@ -1286,18 +1295,30 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return createAndPutReaderContext(request, indexService, shard, shard.acquireSearcherSupplier(), keepAliveInMillis);
     }
 
-    final ReaderContext createAndPutReaderContext(
+    public final ReaderContext createAndPutReaderContext(
+            ShardSearchRequest request,
+            IndexService indexService,
+            IndexShard shard,
+            Engine.SearcherSupplier reader,
+            long keepAliveInMillis
+    ) {
+        final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
+        return createAndPutReaderContext(request, id, indexService, shard, reader, keepAliveInMillis, true);
+    }
+
+    public final ReaderContext createAndPutReaderContext(
         ShardSearchRequest request,
+        ShardSearchContextId id,
         IndexService indexService,
         IndexShard shard,
         Engine.SearcherSupplier reader,
-        long keepAliveInMillis
+        long keepAliveInMillis,
+        boolean singleSession
     ) {
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
-            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
-            if (request.scroll() != null) {
+            if (request != null && request.scroll() != null) {
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
                     throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());
@@ -1306,7 +1327,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.addOnClose(decreaseScrollContexts);
                 decreaseScrollContexts = null;
             } else {
-                readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, true);
+                readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, singleSession);
             }
             reader = null;
             final ReaderContext finalReaderContext = readerContext;
@@ -2277,6 +2298,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         @Override
         public int hashCode() {
             return Objects.hash(sessionId, id);
+        }
+
+        @Override
+        public String toString() {
+            return "[" + sessionId + "/" + id + "]";
         }
     }
 }

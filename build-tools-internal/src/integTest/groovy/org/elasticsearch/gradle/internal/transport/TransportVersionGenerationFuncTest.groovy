@@ -366,17 +366,16 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "a new definition exists and is in the latest file, but the version id is wrong and needs to be updated"(){
         given:
-        referableAndReferencedTransportVersion("existing_92", "1000000")
-        transportVersionUpperBound("9.2", "existing_92", "1000000")
+        referableAndReferencedTransportVersion("new_tv", "1000000")
+        transportVersionUpperBound("9.2", "new_tv", "1000000")
 
         when:
         def result = runGenerateAndValidateTask("--branches=9.2").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("existing_92", "8123000,8012001")
-        assertUpperBound("9.2", "existing_92,8123000")
-        assertUpperBound("9.1", "existing_92,8012001")
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
     }
 
     def "branches=main should be translated"() {

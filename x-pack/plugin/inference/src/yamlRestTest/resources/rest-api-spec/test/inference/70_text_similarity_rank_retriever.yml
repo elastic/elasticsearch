@@ -515,14 +515,14 @@ setup:
 
 
 ---
-"Text similarity reranker specifying number of snippets must be > 0":
+"Text similarity reranker specifying number of rescore_chunks must be > 0":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
-      catch: /num_snippets must be greater than 0/
+      catch: /num_chunks must be greater than 0/
       search:
         index: test-index
         body:
@@ -538,18 +538,18 @@ setup:
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
               field: inference_text_field
-              snippets:
-                num_snippets: 0
+              chunk_rescorer:
+                num_chunks: 0
           size: 10
 
   - match: { status: 400 }
 
 ---
-"Reranking based on snippets":
+"Reranking based on rescore_chunks":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
       search:
@@ -569,8 +569,8 @@ setup:
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
               field: text
-              snippets:
-                num_snippets: 2
+              chunk_rescorer:
+                num_chunks: 2
           size: 10
 
   - match: { hits.total.value: 2 }
@@ -580,11 +580,11 @@ setup:
   - match: { hits.hits.1._id: "doc_2" }
 
 ---
-"Reranking based on snippets using defaults":
+"Reranking based on rescore_chunks using defaults":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
       search:
@@ -603,7 +603,7 @@ setup:
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
               field: text
-              snippets: { }
+              chunk_rescorer: { }
           size: 10
 
   - match: { hits.total.value: 2 }
@@ -613,11 +613,11 @@ setup:
   - match: { hits.hits.1._id: "doc_2" }
 
 ---
-"Reranking based on snippets on a semantic_text field":
+"Reranking based on rescore_chunks on a semantic_text field":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
       search:
@@ -637,8 +637,8 @@ setup:
               inference_id: my-rerank-model
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
-              snippets:
-                num_snippets: 2
+              chunk_rescorer:
+                num_chunks: 2
           size: 10
 
   - match: { hits.total.value: 2 }
@@ -648,11 +648,11 @@ setup:
   - match: { hits.hits.1._id: "doc_2" }
 
 ---
-"Reranking based on snippets on a semantic_text field using defaults":
+"Reranking based on rescore_chunks on a semantic_text field using defaults":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
       search:
@@ -672,7 +672,7 @@ setup:
               inference_id: my-rerank-model
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
-              snippets: { }
+              chunk_rescorer: { }
           size: 10
 
   - match: { hits.total.value: 2 }
@@ -682,11 +682,11 @@ setup:
   - match: { hits.hits.1._id: "doc_2" }
 
 ---
-"Reranking based on snippets on a semantic_text field specifying chunking settings":
+"Reranking based on rescore_chunks on a semantic_text field specifying chunking settings":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
       search:
@@ -706,7 +706,7 @@ setup:
               inference_id: my-rerank-model
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
-              snippets:
+              chunk_rescorer:
                 chunking_settings:
                   strategy: sentence
                   max_chunk_size: 20
@@ -720,11 +720,11 @@ setup:
   - match: { hits.hits.1._id: "doc_2" }
 
 ---
-"Reranking based on snippets on a semantic_text field specifying chunking settings requires valid chunking settings":
+"Reranking based on rescore_chunks on a semantic_text field specifying chunking settings requires valid chunking settings":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
       catch: /Invalid value/
@@ -745,7 +745,8 @@ setup:
               inference_id: my-rerank-model
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
-              snippets:
+              chunk_rescorer:
+                chunk_size: 20
                 chunking_settings:
                   strategy: sentence
                   max_chunk_size: 10
@@ -753,11 +754,11 @@ setup:
           size: 10
 
 ---
-"Reranking based on snippets on a semantic_text field specifying chunk size":
+"Reranking based on rescore_chunks on a semantic_text field specifying chunk size":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
       search:
@@ -777,7 +778,7 @@ setup:
               inference_id: my-rerank-model
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
-              snippets:
+              chunk_rescorer:
                 chunk_size: 20
           size: 10
 
@@ -788,14 +789,13 @@ setup:
   - match: { hits.hits.1._id: "doc_2" }
 
 ---
-"Reranking based on snippets on a semantic_text field cannot specify both chunking settings and chunk size":
+"Reranking based on chunk_rescorer specifying only max chunk size will default remaining chunking settings":
 
   - requires:
-      cluster_features: "text_similarity_reranker_snippets"
-      reason: snippets introduced in 9.2.0
+      cluster_features: "text_similarity_reranker_rescore_chunks"
+      reason: rescore_chunks introduced in 9.2.0
 
   - do:
-      catch: /Only one of chunking_settings or chunk_size may be provided/
       search:
         index: test-index
         body:
@@ -813,10 +813,8 @@ setup:
               inference_id: my-rerank-model
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
-              snippets:
-                chunk_size: 20
+              chunk_rescorer:
+                chunk_rescorer: 20
                 chunking_settings:
-                  strategy: sentence
                   max_chunk_size: 20
-                  sentence_overlap: 0
           size: 10

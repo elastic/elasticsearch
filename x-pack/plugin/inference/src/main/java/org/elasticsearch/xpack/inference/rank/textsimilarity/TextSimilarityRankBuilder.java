@@ -30,12 +30,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.CHUNK_RESCORER_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FAILURES_ALLOWED_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.SNIPPETS_FIELD;
 
 /**
  * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
@@ -55,7 +55,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String field;
     private final Float minScore;
     private final boolean failuresAllowed;
-    private final SnippetConfig snippetConfig;
+    private final ChunkScorerConfig chunkScorerConfig;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -64,7 +64,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         int rankWindowSize,
         Float minScore,
         boolean failuresAllowed,
-        SnippetConfig snippetConfig
+        ChunkScorerConfig chunkScorerConfig
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
@@ -72,7 +72,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.field = field;
         this.minScore = minScore;
         this.failuresAllowed = failuresAllowed;
-        this.snippetConfig = snippetConfig;
+        this.chunkScorerConfig = chunkScorerConfig;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -88,10 +88,10 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         } else {
             this.failuresAllowed = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            this.snippetConfig = in.readOptionalWriteable(SnippetConfig::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_RESCORE_CHUNKS)) {
+            this.chunkScorerConfig = in.readOptionalWriteable(ChunkScorerConfig::new);
         } else {
-            this.snippetConfig = null;
+            this.chunkScorerConfig = null;
         }
     }
 
@@ -116,8 +116,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             || out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            out.writeOptionalWriteable(snippetConfig);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_RESCORE_CHUNKS)) {
+            out.writeOptionalWriteable(chunkScorerConfig);
         }
     }
 
@@ -134,8 +134,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         if (failuresAllowed) {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
         }
-        if (snippetConfig != null) {
-            builder.field(SNIPPETS_FIELD.getPreferredName(), snippetConfig);
+        if (chunkScorerConfig != null) {
+            builder.field(CHUNK_RESCORER_FIELD.getPreferredName(), chunkScorerConfig);
         }
     }
 
@@ -183,7 +183,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, snippetConfig);
+        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, chunkScorerConfig);
     }
 
     @Override
@@ -197,7 +197,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceText,
             minScore,
             failuresAllowed,
-            snippetConfig != null ? new SnippetConfig(snippetConfig.numSnippets, inferenceText, snippetConfig.chunkingSettings()) : null
+            chunkScorerConfig != null
+                ? new ChunkScorerConfig(chunkScorerConfig.numChunks, inferenceText, chunkScorerConfig.chunkingSettings())
+                : null
         );
     }
 
@@ -229,12 +231,12 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             && Objects.equals(field, that.field)
             && Objects.equals(minScore, that.minScore)
             && failuresAllowed == that.failuresAllowed
-            && Objects.equals(snippetConfig, that.snippetConfig);
+            && Objects.equals(chunkScorerConfig, that.chunkScorerConfig);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, snippetConfig);
+        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, chunkScorerConfig);
     }
 
     @Override

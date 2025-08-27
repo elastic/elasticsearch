@@ -18,14 +18,14 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class SnippetConfig implements Writeable {
+public class ChunkScorerConfig implements Writeable {
 
-    public final Integer numSnippets;
+    public final Integer numChunks;
     private final String inferenceText;
     private final ChunkingSettings chunkingSettings;
 
     public static final int DEFAULT_CHUNK_SIZE = 300;
-    public static final int DEFAULT_NUM_SNIPPETS = 1;
+    public static final int DEFAULT_NUM_CHUNKS = 1;
 
     public static ChunkingSettings createChunkingSettings(Integer chunkSize) {
         int chunkSizeOrDefault = chunkSize != null ? chunkSize : DEFAULT_CHUNK_SIZE;
@@ -34,45 +34,45 @@ public class SnippetConfig implements Writeable {
         return chunkingSettings;
     }
 
-    public SnippetConfig(StreamInput in) throws IOException {
-        this.numSnippets = in.readOptionalVInt();
+    public static ChunkingSettings chunkingSettingsFromMap(Map<String, Object> map) {
+
+        if (map == null || map.isEmpty()) {
+            return createChunkingSettings(DEFAULT_CHUNK_SIZE);
+        }
+
+        if (map.size() == 1 && map.containsKey("max_chunk_size")) {
+            return createChunkingSettings((Integer) map.get("max_chunk_size"));
+        }
+
+        return ChunkingSettingsBuilder.fromMap(map);
+    }
+
+    public ChunkScorerConfig(StreamInput in) throws IOException {
+        this.numChunks = in.readOptionalVInt();
         this.inferenceText = in.readString();
         Map<String, Object> chunkingSettingsMap = in.readGenericMap();
         this.chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
 
-    public SnippetConfig(Integer numSnippets, ChunkingSettings chunkingSettings, Integer chunkSize) {
-        this(numSnippets, null, chunkingSettings, chunkSize);
+    public ChunkScorerConfig(Integer numChunks, ChunkingSettings chunkingSettings) {
+        this(numChunks, null, chunkingSettings);
     }
 
-    public SnippetConfig(Integer numSnippets, String inferenceText, Integer chunkSize) {
-        this(numSnippets, inferenceText, null, chunkSize);
-    }
-
-    public SnippetConfig(Integer numSnippets, String inferenceText, ChunkingSettings chunkingSettings) {
-        this(numSnippets, inferenceText, chunkingSettings, null);
-    }
-
-    public SnippetConfig(Integer numSnippets, String inferenceText, ChunkingSettings chunkingSettings, Integer chunkSize) {
-
-        if (chunkingSettings != null && chunkSize != null) {
-            throw new IllegalArgumentException("Only one of chunking_settings or chunk_size may be provided");
-        }
-
-        this.numSnippets = numSnippets;
+    public ChunkScorerConfig(Integer numChunks, String inferenceText, ChunkingSettings chunkingSettings) {
+        this.numChunks = numChunks;
         this.inferenceText = inferenceText;
-        this.chunkingSettings = chunkingSettings != null ? chunkingSettings : createChunkingSettings(chunkSize);
+        this.chunkingSettings = chunkingSettings;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalVInt(numSnippets);
+        out.writeOptionalVInt(numChunks);
         out.writeString(inferenceText);
         out.writeGenericMap(chunkingSettings.asMap());
     }
 
-    public Integer numSnippets() {
-        return numSnippets;
+    public Integer numChunks() {
+        return numChunks;
     }
 
     public String inferenceText() {
@@ -87,14 +87,14 @@ public class SnippetConfig implements Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SnippetConfig that = (SnippetConfig) o;
-        return Objects.equals(numSnippets, that.numSnippets)
+        ChunkScorerConfig that = (ChunkScorerConfig) o;
+        return Objects.equals(numChunks, that.numChunks)
             && Objects.equals(inferenceText, that.inferenceText)
             && Objects.equals(chunkingSettings, that.chunkingSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numSnippets, inferenceText, chunkingSettings);
+        return Objects.hash(numChunks, inferenceText, chunkingSettings);
     }
 }

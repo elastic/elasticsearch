@@ -23,18 +23,18 @@ import org.elasticsearch.xpack.inference.chunking.ChunkerBuilder;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.SnippetConfig.DEFAULT_NUM_SNIPPETS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.DEFAULT_NUM_CHUNKS;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
 
-    private final SnippetConfig snippetRankInput;
+    private final ChunkScorerConfig chunkScorerConfig;
     private final ChunkingSettings chunkingSettings;
     private final Chunker chunker;
 
-    public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable SnippetConfig snippetRankInput) {
+    public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable ChunkScorerConfig chunkScorerConfig) {
         super(field);
-        this.snippetRankInput = snippetRankInput;
-        chunkingSettings = snippetRankInput != null ? snippetRankInput.chunkingSettings() : null;
+        this.chunkScorerConfig = chunkScorerConfig;
+        chunkingSettings = chunkScorerConfig != null ? chunkScorerConfig.chunkingSettings() : null;
         chunker = chunkingSettings != null ? ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy()) : null;
     }
 
@@ -46,8 +46,8 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
             SearchHit hit = hits.getHits()[i];
             DocumentField docField = hit.field(field);
             if (docField != null) {
-                if (snippetRankInput != null) {
-                    int numSnippets = snippetRankInput.numSnippets() != null ? snippetRankInput.numSnippets() : DEFAULT_NUM_SNIPPETS;
+                if (chunkScorerConfig != null) {
+                    int numChunks = chunkScorerConfig.numChunks() != null ? chunkScorerConfig.numChunks() : DEFAULT_NUM_CHUNKS;
                     List<Chunker.ChunkOffset> chunkOffsets = chunker.chunk(docField.getValue().toString(), chunkingSettings);
                     List<String> chunks = chunkOffsets.stream()
                         .map(offset -> { return docField.getValue().toString().substring(offset.start(), offset.end()); })
@@ -58,12 +58,12 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
                         List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
                             chunks,
-                            snippetRankInput.inferenceText(),
-                            numSnippets
+                            chunkScorerConfig.inferenceText(),
+                            numChunks
                         );
-                        bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(numSnippets).toList();
+                        bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(numChunks).toList();
                     } catch (IOException e) {
-                        throw new IllegalStateException("Could not generate snippets for input to reranker", e);
+                        throw new IllegalStateException("Could not generate chunks for input to reranker", e);
                     }
                     rankFeatureDocs[i].featureData(bestChunks);
 

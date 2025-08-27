@@ -353,7 +353,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion ESQL_TOPN_TIMINGS = def(9_128_0_00);
     public static final TransportVersion NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS = def(9_129_0_00);
-    public static final TransportVersion RERANK_SNIPPETS = def(9_130_0_00);
+    public static final TransportVersion RERANK_RESCORE_CHUNKS = def(9_130_0_00);
     public static final TransportVersion PIPELINE_TRACKING_INFO = def(9_131_0_00);
     public static final TransportVersion COMPONENT_TEMPLATE_TRACKING_INFO = def(9_132_0_00);
     public static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = def(9_133_0_00);

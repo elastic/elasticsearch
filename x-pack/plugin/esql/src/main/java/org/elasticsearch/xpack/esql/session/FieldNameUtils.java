@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -23,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -56,10 +58,12 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
+    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.NAME.toLowerCase(Locale.ROOT));
+
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution) {
 
         // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-        var enrichPolicyMatchFields = enrichResolution.resolvedEnrichPolicies()
+        Set<String> enrichPolicyMatchFields = enrichResolution.resolvedEnrichPolicies()
             .stream()
             .map(ResolvedEnrichPolicy::matchField)
             .collect(Collectors.toSet());
@@ -67,7 +71,7 @@ public class FieldNameUtils {
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
         Set<Aggregate> inlinestatsAggs = new HashSet<>();
-        for (var i : inlinestats) {
+        for (LogicalPlan i : inlinestats) {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
@@ -162,10 +166,17 @@ public class FieldNameUtils {
                 }
             } else {
                 referencesBuilder.get().addAll(p.references());
-                if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
+                if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
                     referencesBuilder.get().add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }
+
+                p.forEachExpression(UnresolvedFunction.class, uf -> {
+                    if (FUNCTIONS_REQUIRING_TIMESTAMP.contains(uf.name().toLowerCase(Locale.ROOT))) {
+                        referencesBuilder.get().add(new UnresolvedAttribute(uf.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    }
+                });
+
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NegDoublesEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator v;
@@ -46,6 +49,13 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
       }
       return eval(page.getPositionCount(), vVector).asBlock();
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += v.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock vBlock) {

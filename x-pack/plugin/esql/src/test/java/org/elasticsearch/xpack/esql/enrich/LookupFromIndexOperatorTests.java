@@ -203,7 +203,17 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             filterAttribute,
             new Literal(Source.EMPTY, value, DataType.INTEGER)
         );
-        EsQueryExec queryExec = new EsQueryExec(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of(), null);
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            "test",
+            IndexMode.LOOKUP,
+            Map.of(),
+            List.of(),
+            null,
+            List.of(),
+            null,
+            List.of()
+        );
         FilterExec filterExec = new FilterExec(Source.EMPTY, queryExec, lessThan);
         return filterExec;
     }
@@ -235,8 +245,8 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         sb.append("right_pre_join_plan=FilterExec\\[lint\\{f}#\\d+ < ")
             .append(LESS_THAN_VALUE)
             .append(
-                "\\[INTEGER]]\\n\\\\_EsQueryExec\\[test], indexMode\\[lookup], query\\[\\]\\[\\],"
-                    + " limit\\[\\], sort\\[\\] estimatedRowSize\\[null]]"
+                "\\[INTEGER]]\\n\\\\_EsQueryExec\\[test], indexMode\\[lookup],\\s*(?:query\\[\\]|\\[\\])?,?\\s*limit\\[\\],"
+                    + "?\\s*sort\\[(?:\\[\\])?\\]\\s*estimatedRowSize\\[null\\]\\s*queryBuilderAndTags \\[\\[\\]\\]\\]"
             );
         return matchesPattern(sb.toString());
     }
@@ -245,7 +255,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         boolean beCranky = mainContext.bigArrays().breakerService() instanceof CrankyCircuitBreakerService;
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
         var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.add(EsqlFlags.ESQL_STRING_LIKE_ON_INDEX);
+        builtInClusterSettings.addAll(EsqlFlags.listAll());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localNode,
@@ -253,7 +263,6 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                 // Reserve 0 bytes in the sub-driver so we are more likely to hit the cranky breaker in it.
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofKb(0))
-                .put(EsqlFlags.ESQL_STRING_LIKE_ON_INDEX.getKey(), true)
                 .build(),
             new ClusterSettings(Settings.EMPTY, builtInClusterSettings)
         );

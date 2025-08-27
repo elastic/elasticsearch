@@ -789,7 +789,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     /**
      *
      * Project[[$$languages$temp_name$32{r$}#33 AS language_code#4, salary{f}#13, language_name{f}#20, _meta_field{f}#27, emp
-     * _no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30, languages{f}#24, last_name{f}#25, long_noidx{f}#31]]
+     * _no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30, languages{f}#24,
+     * last_name{f}#25, long_noidx{f}#31]]
      * \_Limit[1000[INTEGER],true]
      *   \_Join[LEFT,[salary{f}#13],[salary{f}#13],[salary{f}#26]]
      *     |_Eval[[languages{f}#11 AS $$languages$temp_name$32#33]]

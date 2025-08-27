@@ -47,6 +47,7 @@ public class ShrinkAction implements LifecycleAction {
     public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     public static final ParseField ALLOW_WRITE_AFTER_SHRINK = new ParseField("allow_write_after_shrink");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
+    public static final String CLEANUP_SHRINK_INDEX_STEP = "cleanup-shrink-index";
     public static final String SHRINK_STEP = "shrink";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
@@ -170,7 +171,7 @@ public class ShrinkAction implements LifecycleAction {
         StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey checkTargetShardsCountKey = new StepKey(phase, NAME, CheckTargetShardsCountStep.NAME);
-        StepKey cleanupShrinkIndexKey = new StepKey(phase, NAME, CleanupShrinkIndexStep.NAME);
+        StepKey cleanupShrinkIndexKey = new StepKey(phase, NAME, CLEANUP_SHRINK_INDEX_STEP);
         StepKey generateShrinkIndexNameKey = new StepKey(phase, NAME, GenerateUniqueIndexNameStep.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, NAME, CheckShrinkReadyStep.NAME);
@@ -245,10 +246,11 @@ public class ShrinkAction implements LifecycleAction {
         // We generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
         // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and we haven't generated a
         // shrink index name)
-        CleanupShrinkIndexStep cleanupShrinkIndexStep = new CleanupShrinkIndexStep(
+        CleanupGeneratedIndexStep cleanupShrinkIndexStep = new CleanupGeneratedIndexStep(
             cleanupShrinkIndexKey,
             generateShrinkIndexNameKey,
-            client
+            client,
+            ShrinkIndexNameSupplier::getShrinkIndexName
         );
         // generate a unique shrink index name and store it in the ILM execution state
         GenerateUniqueIndexNameStep generateUniqueIndexNameStep = new GenerateUniqueIndexNameStep(

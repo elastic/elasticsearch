@@ -612,66 +612,48 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132601
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132600
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/132602
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133497
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133498
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133499
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/133503
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/133504
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/133505
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/133507
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
   issue: https://github.com/elastic/elasticsearch/issues/133508
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133516
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133517
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133518
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/133520
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLucene
   issue: https://github.com/elastic/elasticsearch/issues/133556
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testFilterNestedFields
   issue: https://github.com/elastic/elasticsearch/issues/133557
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133560
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/10_source_filtering/no filtering}
   issue: https://github.com/elastic/elasticsearch/issues/133561
 - class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
   method: testShardDataPartitioning
   issue: https://github.com/elastic/elasticsearch/issues/133574
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testIntBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133596
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
+  method: testSyntheticSourceMany
+  issue: https://github.com/elastic/elasticsearch/issues/133598
+- class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
+  method: testWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/133600
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testDoubleBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133606
+- class: org.elasticsearch.compute.lucene.LuceneTopNSourceOperatorTests
+  method: testShardDataPartitioningWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/133607
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testBooleanBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133608
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testLongBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133618
+- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/133619
 
 # Examples:
 #

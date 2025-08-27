@@ -65,7 +65,7 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public Block build() {
-        return blockFactory.newLongArrayVector(values, count, 0L).asBlock();
+        return blockFactory.newLongArrayVector(values, count).asBlock();
     }
 
     @Override

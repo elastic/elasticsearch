@@ -490,7 +490,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         ClusterServiceUtils.awaitClusterState(
-            logger,
             s -> s.metadata().getProject(state.projectId()).index(indexMetadata.getIndex()).getLifecycleExecutionState().stepInfo() != null,
             clusterService
         );

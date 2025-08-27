@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvZipEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator leftField;
@@ -53,6 +56,15 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
         }
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += leftField.baseRamBytesUsed();
+    baseRamBytesUsed += rightField.baseRamBytesUsed();
+    baseRamBytesUsed += delim.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock leftFieldBlock,

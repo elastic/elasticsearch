@@ -1980,6 +1980,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             when(projectIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
         } else {
             when(projectIndex.isAvailable(any())).thenReturn(true);
+            doAnswer(invocationOnMock -> {
+                Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
+                runnable.run();
+                return null;
+            }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
             doAnswer(inv -> {
                 final GetRequest request = inv.getArgument(0);
                 final ActionListener<GetResponse> listener = inv.getArgument(1);

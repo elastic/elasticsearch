@@ -112,6 +112,11 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
         return true;
     }
 
+    @Override
+    public BytesRefVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBytesRefVector(value, getPositionCount());
+    }
+
     public static long ramBytesUsed(BytesRef value) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
     }

@@ -47,7 +47,7 @@ import java.util.OptionalLong;
  */
 public interface ExponentialHistogram extends Accountable {
 
-    // TODO(b/128622): support min/max/sum/count storage and merging.
+    // TODO(b/128622): support min/max storage and merging.
     // TODO(b/128622): Add special positive and negative infinity buckets
     // to allow representation of explicit bucket histograms with open boundaries.
 
@@ -92,6 +92,15 @@ public interface ExponentialHistogram extends Accountable {
      * The {@link BucketIterator#scale()} of iterators obtained via {@link Buckets#iterator()} must be the same as {@link #scale()}.
      */
     Buckets negativeBuckets();
+
+    /**
+     * Returns the sum of all values represented by this histogram.
+     * Note that even if histograms are cumulative, the sum is not guaranteed to be monotonically increasing,
+     * because histograms support negative values.
+     *
+     * @return the sum, guaranteed to be zero for empty histograms
+     */
+    double sum();
 
     /**
      * Represents a bucket range of an {@link ExponentialHistogram}, either the positive or the negative range.

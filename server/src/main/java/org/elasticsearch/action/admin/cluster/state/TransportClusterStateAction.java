@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -162,13 +163,19 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
         }
         final Metadata.Builder mdBuilder = Metadata.builder(inputState.metadata());
         final GlobalRoutingTable.Builder rtBuilder = GlobalRoutingTable.builder(inputState.globalRoutingTable());
+        final ProjectStateRegistry.Builder psBuilder = ProjectStateRegistry.builder(inputState);
         for (var projectId : metadata.projects().keySet()) {
             if (projectIds.contains(projectId) == false) {
                 mdBuilder.removeProject(projectId);
                 rtBuilder.removeProject(projectId);
+                psBuilder.removeProject(projectId);
             }
         }
-        return ClusterState.builder(inputState).metadata(mdBuilder.build()).routingTable(rtBuilder.build()).build();
+        return ClusterState.builder(inputState)
+            .metadata(mdBuilder.build())
+            .routingTable(rtBuilder.build())
+            .putCustom(ProjectStateRegistry.TYPE, psBuilder.build())
+            .build();
     }
 
     @SuppressForbidden(reason = "exposing ClusterState#compatibilityVersions requires reading them")

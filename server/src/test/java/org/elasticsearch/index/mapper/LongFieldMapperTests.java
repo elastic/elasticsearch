@@ -103,6 +103,9 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertThat(doc.rootDoc().getFields("field"), hasSize(1));
     }
 
+    // This is the biggest long that double can represent exactly
+    public static final long MAX_SAFE_LONG_FOR_DOUBLE = 1L << 53;
+
     @Override
     protected Number randomNumber() {
         if (randomBoolean()) {
@@ -111,7 +114,8 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         if (randomBoolean()) {
             return randomDouble();
         }
-        return randomDoubleBetween(Long.MIN_VALUE, Long.MAX_VALUE, true);
+        // TODO: increase the range back to full LONG range once https://github.com/elastic/elasticsearch/issues/132893 is fixed
+        return randomDoubleBetween(-MAX_SAFE_LONG_FOR_DOUBLE, MAX_SAFE_LONG_FOR_DOUBLE, true);
     }
 
     public void testFetchCoerced() throws IOException {
@@ -161,7 +165,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         };
     }
 
-    protected boolean supportsBulkBlockReading() {
+    protected boolean supportsBulkLongBlockReading() {
         return true;
     }
 

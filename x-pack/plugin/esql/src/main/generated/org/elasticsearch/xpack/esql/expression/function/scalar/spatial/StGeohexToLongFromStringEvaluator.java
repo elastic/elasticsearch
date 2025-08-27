@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StGeohexToLongFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeohexToLongFromStringEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator gridId;
 
   public StGeohexToLongFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator gridId,
@@ -101,6 +104,13 @@ public final class StGeohexToLongFromStringEvaluator extends AbstractConvertFunc
   @Override
   public void close() {
     Releasables.closeExpectNoException(gridId);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += gridId.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

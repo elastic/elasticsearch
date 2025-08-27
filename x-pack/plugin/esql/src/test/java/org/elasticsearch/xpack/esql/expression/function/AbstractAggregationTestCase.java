@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -49,6 +50,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base class for aggregation tests.
@@ -140,10 +142,28 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
     }
 
+    public void testAggregateToString() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        resolveExpression(expression, e -> {
+            try (var aggregator = aggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
+            }
+        }, this::evaluate);
+    }
+
     public void testGroupingAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
         resolveExpression(expression, this::aggregateGroupingSingleMode, this::evaluate);
+    }
+
+    public void testGroupingAggregateToString() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        resolveExpression(expression, e -> {
+            try (var aggregator = groupingAggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
+            }
+        }, this::evaluate);
     }
 
     public void testAggregateIntermediate() {
@@ -164,6 +184,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     private void aggregateSingleMode(Expression expression) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+            assertAggregatorToString(aggregator);
             for (Page inputPage : rows(testCase.getMultiRowFields())) {
                 try (
                     BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
@@ -187,6 +208,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             assumeFalse("Grouping aggregations must receive data to check results", pages.isEmpty());
 
             try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
                 var groupCount = randomIntBetween(1, 1000);
                 for (Page inputPage : pages) {
                     processPageGrouping(aggregator, inputPage, groupCount);
@@ -481,5 +503,44 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
             }
         }
+    }
+
+    private void assertAggregatorToString(Object aggregator) {
+        if (optIntoToAggregatorToStringChecks() == false) {
+            return;
+        }
+        String expectedStart = switch (aggregator) {
+            case Aggregator a -> "Aggregator[aggregatorFunction=";
+            case GroupingAggregator a -> "GroupingAggregator[aggregatorFunction=";
+            default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
+        };
+        String expectedEnd = switch (aggregator) {
+            case Aggregator a -> "AggregatorFunction[channels=[0]], mode=SINGLE]";
+            case GroupingAggregator a -> "GroupingAggregatorFunction[channels=[0]], mode=SINGLE]";
+            default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
+        };
+
+        String toString = aggregator.toString();
+        assertThat(toString, startsWith(expectedStart));
+        assertThat(toString.substring(expectedStart.length(), toString.length() - expectedEnd.length()), testCase.evaluatorToString());
+        assertThat(toString, endsWith(expectedEnd));
+    }
+
+    protected boolean optIntoToAggregatorToStringChecks() {
+        // TODO remove this when everyone has opted in
+        return false;
+    }
+
+    protected static String standardAggregatorName(String prefix, DataType type) {
+        String typeName = switch (type) {
+            case BOOLEAN -> "Boolean";
+            case KEYWORD, TEXT, VERSION -> "BytesRef";
+            case DOUBLE -> "Double";
+            case INTEGER -> "Int";
+            case IP -> "Ip";
+            case DATETIME, DATE_NANOS, LONG, UNSIGNED_LONG -> "Long";
+            default -> throw new UnsupportedOperationException("name for [" + type + "]");
+        };
+        return prefix + typeName;
     }
 }

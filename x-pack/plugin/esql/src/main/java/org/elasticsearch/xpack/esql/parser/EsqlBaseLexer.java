@@ -283,7 +283,7 @@ public class EsqlBaseLexer extends LexerConfig {
   private boolean DEV_TIME_SERIES_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 2:
-      return this.isDevVersion();
+      return this.hasMetricsCommand();
     }
     return true;
   }

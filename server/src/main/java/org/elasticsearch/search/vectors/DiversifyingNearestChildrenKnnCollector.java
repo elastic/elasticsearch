@@ -20,22 +20,24 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.internal.hppc.IntIntHashMap;
-import org.apache.lucene.search.AbstractKnnCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
 /**
  * This collects the nearest children vectors. Diversifying the results over the provided parent
  * filter. This means the nearest children vectors are returned, but only one per parent
  */
-class DiversifyingNearestChildrenKnnCollector extends AbstractKnnCollector {
+class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollector {
 
     private final BitSet parentBitSet;
     private final NodeIdCachingHeap heap;
+    private long minCompetitiveDocScore = LEAST_COMPETITIVE;
+    private float minCompetitiveScore = Float.NEGATIVE_INFINITY;
 
     /**
      * Create a new object for joining nearest child kNN documents with a parent bitset
@@ -72,7 +74,7 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractKnnCollector {
 
     @Override
     public float minCompetitiveSimilarity() {
-        return heap.size >= k() ? heap.topScore() : Float.NEGATIVE_INFINITY;
+        return heap.size < k() ? Float.NEGATIVE_INFINITY : Math.max(minCompetitiveScore, heap.topScore());
     }
 
     @Override
@@ -99,6 +101,20 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractKnnCollector {
     @Override
     public int numCollected() {
         return heap.size();
+    }
+
+    @Override
+    public long getMinCompetitiveDocScore() {
+        return heap.size() > 0
+            ? Math.max(NeighborQueue.encodeRaw(heap.topNode(), heap.topScore()), minCompetitiveDocScore)
+            : minCompetitiveDocScore;
+    }
+
+    @Override
+    void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
+        long queueMinCompetitiveDocScore = heap.size() > 0 ? NeighborQueue.encodeRaw(heap.topNode(), heap.topScore()) : LEAST_COMPETITIVE;
+        this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
+        this.minCompetitiveScore = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }
 
     /**
@@ -134,10 +150,16 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractKnnCollector {
         }
 
         public final int topNode() {
+            if (size == 0) {
+                return Integer.MAX_VALUE;
+            }
             return heapNodes[1].child;
         }
 
         public final float topScore() {
+            if (size == 0) {
+                return Float.NEGATIVE_INFINITY;
+            }
             return heapNodes[1].score;
         }
 

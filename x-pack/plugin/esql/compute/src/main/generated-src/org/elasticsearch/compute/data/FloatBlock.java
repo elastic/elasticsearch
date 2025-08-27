@@ -40,6 +40,19 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
     @Override
     FloatBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default FloatBlock deepCopy(BlockFactory blockFactory) {
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     FloatBlock keepMask(BooleanVector mask);
 

@@ -40,6 +40,19 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     @Override
     LongBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default LongBlock deepCopy(BlockFactory blockFactory) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     LongBlock keepMask(BooleanVector mask);
 

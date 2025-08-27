@@ -18,6 +18,8 @@ import java.util.Set;
  */
 public final class IndexSettingProviders {
 
+    public static IndexSettingProviders EMPTY = new IndexSettingProviders(Collections.emptySet());
+
     private final Set<IndexSettingProvider> indexSettingProviders;
 
     public IndexSettingProviders(Set<IndexSettingProvider> indexSettingProviders) {

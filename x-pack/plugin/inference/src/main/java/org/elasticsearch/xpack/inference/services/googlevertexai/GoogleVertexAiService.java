@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -69,7 +70,7 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.COMPLETION_ERROR_PREFIX;
 
-public class GoogleVertexAiService extends SenderService {
+public class GoogleVertexAiService extends SenderService implements RerankingInferenceService {
 
     public static final String NAME = "googlevertexai";
 
@@ -381,6 +382,20 @@ public class GoogleVertexAiService extends SenderService {
 
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // The -003 version rerankers have a content window of 512 tokens,
+        // the later -004 models support 1024 tokens.
+        // https://cloud.google.com/generative-ai-app-builder/docs/ranking
+        // TODO make the rerank window size configurable
+
+        if (modelId != null && modelId.endsWith("-004")) {
+            return 600;
+        } else {
+            return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
+        }
     }
 
     public static class Configuration {

@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SortedSetOrdinalsBuilderTests extends ComputeTestCase {
@@ -56,7 +57,7 @@ public class SortedSetOrdinalsBuilderTests extends ComputeTestCase {
             Map<Integer, List<String>> expectedValues = new HashMap<>();
             List<String> allKeys = IntStream.range(0, between(1, 20)).mapToObj(n -> String.format(Locale.ROOT, "v%02d", n)).toList();
             for (int i = 0; i < numDocs; i++) {
-                List<String> subs = randomSubsetOf(allKeys).stream().sorted().toList();
+                List<String> subs = randomNonEmptySubsetOf(allKeys).stream().sorted().toList();
                 expectedValues.put(i, subs);
                 Document doc = new Document();
                 for (String v : subs) {
@@ -108,6 +109,8 @@ public class SortedSetOrdinalsBuilderTests extends ComputeTestCase {
                                     subs.add(val);
                                 }
                             }
+                            BytesRefBlock deepCopy = (BytesRefBlock) assertDeepCopy(valuesBlock);
+                            assertThat(deepCopy.asOrdinals(), equalTo(valuesBlock.asOrdinals()));
                         }
                     }
                 }

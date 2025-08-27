@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.mvdedupe;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -164,6 +165,8 @@ public final class MultivalueDedupe {
     }
 
     private static class Evaluator implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
+
         private final BlockFactory blockFactory;
         private final ExpressionEvaluator field;
         private final BiFunction<BlockFactory, Block, Block> dedupe;
@@ -187,7 +190,14 @@ public final class MultivalueDedupe {
         }
 
         @Override
-        public void close() {}
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            field.close();
+        }
     }
 
     private MultivalueDedupe() {}

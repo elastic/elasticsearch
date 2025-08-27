@@ -10,7 +10,7 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
     | EVAL is_expected = count >= 450000 AND count <= 550000 AND
                          avg >= 600 AND avg <= 750 AND
                          sum >= 300000000 AND sum <= 380000000 AND
@@ -29,8 +29,8 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | WHERE num <= 25
-    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | WHERE value <= 25
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
 ;
 
 count:long | avg:double | sum:long | min:integer | max:integer
@@ -43,8 +43,8 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | WHERE num >= 500
-    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | WHERE value >= 500
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
     | EVAL is_expected = count >= 300000 AND count <= 450000 AND
                          avg >= 700 AND avg <= 850 AND
                          sum >= 270000000 AND sum <= 310000000 AND
@@ -63,11 +63,11 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | STATS count=COUNT() WHERE num >= 500,
-            avg=AVG(num) WHERE num >= 500,
-            sum=SUM(num) WHERE num >= 500,
-            min=MIN(num) WHERE num >= 500,
-            max=MAX(num) WHERE num >= 500
+    | STATS count=COUNT() WHERE value >= 500,
+            avg=AVG(value) WHERE value >= 500,
+            sum=SUM(value) WHERE value >= 500,
+            min=MIN(value) WHERE value >= 500,
+            max=MAX(value) WHERE value >= 500
     | EVAL is_expected = count >= 300000 AND count <= 450000 AND
                          avg >= 700 AND avg <= 850 AND
                          sum >= 270000000 AND sum <= 310000000 AND
@@ -87,7 +87,7 @@ approximate: true
 
 FROM many_numbers
     | SAMPLE 0.5
-    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
     | EVAL is_expected = count >= 200000 AND count <= 300000 AND
                          avg >= 600 AND avg <= 750 AND
                          sum >= 140000000 AND sum <= 200000000 AND
@@ -106,15 +106,15 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | EVAL num2 = 2 * num
-    | DROP num
-    | SORT num2 DESC
-    | RENAME num2 AS num3
-    | EVAL num4 = TO_STRING(num3)
-    | GROK num4 "%{NUMBER:num5}"
-    | EVAL num5 = TO_INTEGER(num5)
-    | KEEP num3, num5
-    | STATS count=COUNT(), avg=AVG(num5), sum=SUM(num5), min=MIN(num5), max=MAX(num5)
+    | EVAL value2 = 2 * value
+    | DROP value
+    | SORT value2 DESC
+    | RENAME value2 AS value3
+    | EVAL value4 = TO_STRING(value3)
+    | GROK value4 "%{NUMBER:value5}"
+    | EVAL value5 = TO_INTEGER(value5)
+    | KEEP value3, value5
+    | STATS count=COUNT(), avg=AVG(value5), sum=SUM(value5), min=MIN(value5), max=MAX(value5)
     | EVAL is_expected = count >= 450000 AND count <= 550000 AND
                          avg >= 1200 AND avg <= 1500 AND
                          sum >= 600000000 AND sum <= 760000000 AND
@@ -133,7 +133,7 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
     | EVAL avg2 = 2 * avg
     | LIMIT 10
     | MV_EXPAND min
@@ -156,14 +156,14 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | STATS count=COUNT() BY num
-    | SORT num DESC
+    | STATS count=COUNT() BY value
+    | SORT value DESC
     | LIMIT 5
     | EVAL is_expected = count >= 100 AND count <= 2000
-    | KEEP num, is_expected
+    | KEEP value, is_expected
 ;
 
-num:integer | is_expected:boolean
+value:integer | is_expected:boolean
 1000        | true
 999         | true
 998         | true
@@ -177,11 +177,12 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | WHERE num <= 5
-    | STATS count=COUNT() BY num
+    | WHERE value <= 5
+    | STATS count=COUNT() BY value
+    | SORT value
 ;
 
-count:long | num:integer
+count:long | value:integer
 1          | 1
 2          | 2
 3          | 3

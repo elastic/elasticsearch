@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToGeohashFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeotileToLongFromStringEvaluator.class);
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToGeohashFromStringEvaluator.class);
 
   private final EvalOperator.ExpressionEvaluator in;
 
@@ -123,7 +123,7 @@ public final class ToGeohashFromStringEvaluator extends AbstractConvertFunction.
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += gridId.baseRamBytesUsed();
+    baseRamBytesUsed += in.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 

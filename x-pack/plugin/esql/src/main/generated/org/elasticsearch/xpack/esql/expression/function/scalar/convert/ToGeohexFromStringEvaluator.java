@@ -123,7 +123,7 @@ public final class ToGeohexFromStringEvaluator extends AbstractConvertFunction.A
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += gridId.baseRamBytesUsed();
+    baseRamBytesUsed += in.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 

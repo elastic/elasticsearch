@@ -25,9 +25,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToGeoShapeFromGeoGridEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToGeoShapeFromGeoGridEvaluator.class);
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToGeoShapeFromGeoGridEvaluator.class);
 
-    private final EvalOperator.ExpressionEvaluator in;
+  private final EvalOperator.ExpressionEvaluator in;
 
   private final DataType dataType;
 
@@ -125,7 +125,7 @@ public final class ToGeoShapeFromGeoGridEvaluator extends AbstractConvertFunctio
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += gridId.baseRamBytesUsed();
+    baseRamBytesUsed += in.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 

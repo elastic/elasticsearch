@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator encodedPoints;
@@ -53,6 +56,14 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implem
         return eval(page.getPositionCount(), encodedPointsBlock, gridIdsBlock);
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += encodedPoints.baseRamBytesUsed();
+    baseRamBytesUsed += gridIds.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public BooleanBlock eval(int positionCount, LongBlock encodedPointsBlock,

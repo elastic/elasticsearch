@@ -29,6 +29,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
@@ -134,7 +135,8 @@ public class HollowIndexEngine extends Engine {
                                 null
                             )
                         ) {
-                            this.shardFieldStats = shardFieldStats(reader.getContext().leaves());
+                            boolean isStateless = DiscoveryNode.isStateless(getEngineConfig().getIndexSettings().getNodeSettings());
+                            this.shardFieldStats = shardFieldStats(reader.getContext().leaves(), isStateless);
                             this.docsStats = docsStats(reader);
                             this.indexDeletionPolicy = hollowIndexEngineDeletionPolicy;
                             this.indexCommit = acquiredCommit;

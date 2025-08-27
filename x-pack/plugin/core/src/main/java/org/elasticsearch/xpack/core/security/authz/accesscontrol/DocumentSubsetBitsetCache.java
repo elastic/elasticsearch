@@ -406,8 +406,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * another. This method is only called by tests.
      */
     void verifyInternalConsistency() {
-        this.bitsetCache.keys().forEach(bck -> {
-            final Set<BitsetCacheKey> set = this.keysByIndex.get(bck.indexKey);
+        bitsetCache.keys().forEach(bck -> {
+            final Set<BitsetCacheKey> set = keysByIndex.get(bck.indexKey);
             if (set == null) {
                 throw new IllegalStateException(
                     "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.indexKey + "] in the lookup map"
@@ -419,8 +419,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 );
             }
         });
-        this.keysByIndex.values().stream().flatMap(Set::stream).forEach(bck -> {
-            if (this.bitsetCache.get(bck) == null) {
+        keysByIndex.values().stream().flatMap(Set::stream).forEach(bck -> {
+            if (bitsetCache.get(bck) == null) {
                 throw new IllegalStateException("Key [" + bck + "] is in the lookup map, but is not in the cache");
             }
         });

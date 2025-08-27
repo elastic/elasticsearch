@@ -43,8 +43,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     @Override
     protected QueryBuilder buildInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation,
-        Float fieldBoost
+        InferenceIndexInformationForField indexInformation
     ) {
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
         QueryBuilder finalQueryBuilder;
@@ -57,7 +56,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
             finalQueryBuilder = buildInferenceQueryWithMultipleInferenceIds(queryBuilder, inferenceIdsIndices);
         }
         finalQueryBuilder.queryName(queryBuilder.queryName());
-        finalQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
+        finalQueryBuilder.boost(queryBuilder.boost());
         return finalQueryBuilder;
     }
 
@@ -80,8 +79,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     @Override
     protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation,
-        Float fieldBoost
+        InferenceIndexInformationForField indexInformation
     ) {
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
@@ -111,7 +109,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 )
             );
         }
-        boolQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
+        boolQueryBuilder.boost(queryBuilder.boost());
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }

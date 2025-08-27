@@ -39,11 +39,10 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
     @Override
     protected QueryBuilder buildInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation,
-        Float fieldBoost
+        InferenceIndexInformationForField indexInformation
     ) {
-        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
-        semanticQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
+        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(getField(queryBuilder), getQuery(queryBuilder), false);
+        semanticQueryBuilder.boost(queryBuilder.boost());
         semanticQueryBuilder.queryName(queryBuilder.queryName());
         return semanticQueryBuilder;
     }
@@ -51,8 +50,7 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
     @Override
     protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation,
-        Float fieldBoost
+        InferenceIndexInformationForField indexInformation
     ) {
         assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder originalMatchQueryBuilder = (MatchQueryBuilder) queryBuilder;
@@ -68,7 +66,7 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
             )
         );
         boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder));
-        boolQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
+        boolQueryBuilder.boost(queryBuilder.boost());
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }
@@ -78,6 +76,12 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
         return MatchQueryBuilder.NAME;
     }
 
+    private String getField(QueryBuilder queryBuilder) {
+        assert (queryBuilder instanceof MatchQueryBuilder);
+        MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
+        return matchQueryBuilder.fieldName();
+    }
+    
     private MatchQueryBuilder copyMatchQueryBuilder(MatchQueryBuilder queryBuilder) {
         MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(queryBuilder.fieldName(), queryBuilder.value());
         matchQueryBuilder.operator(queryBuilder.operator());

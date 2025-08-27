@@ -12,12 +12,10 @@ package org.elasticsearch.search;
 import org.elasticsearch.search.SearchService.ReaderContextId;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.mockito.Mockito.mock;
-
 public class MockSearchServiceTests extends ESTestCase {
 
     public void testAssertNoInFlightContext() {
-        ReaderContextId readerId = mock(ReaderContextId.class);
+        ReaderContextId readerId = new ReaderContextId("sessionId", 1L);
         MockSearchService.addActiveContext(readerId);
         try {
             Throwable e = expectThrows(AssertionError.class, MockSearchService::assertNoInFlightContext);

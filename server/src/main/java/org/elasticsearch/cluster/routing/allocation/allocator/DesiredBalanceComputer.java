@@ -311,8 +311,10 @@ public class DesiredBalanceComputer {
                 // If no such started shard is found, the shard is either
                 // (1) Initialized in a previous desired balance which got reset before the change is reconciled.
                 // (2) The shard failed to start or was deleted before start.
+                // (3) The shard is moved again within one ClusterInfo polling cycle
                 // Remove it from the tracking since it is no longer needed for (1) and failed shard in (2) will go through
-                // a new allocation.
+                // a new allocation. For (3) the new move should be accounted for. For both (2) and (3), we could technically
+                // take the load off the source node (if it is relocation). But skip for now as they are very much edge cases.
                 shardsStartedByAllocate.remove(shardForSimulation);
             }
         }

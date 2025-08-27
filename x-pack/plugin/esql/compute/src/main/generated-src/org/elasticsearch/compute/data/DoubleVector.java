@@ -34,6 +34,19 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     @Override
     DoubleBlock keepMask(BooleanVector mask);
 
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default DoubleVector deepCopy(BlockFactory blockFactory) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
     @Override
     ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 

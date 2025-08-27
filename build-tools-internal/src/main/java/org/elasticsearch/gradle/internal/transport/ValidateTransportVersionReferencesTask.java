@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Validates that each transport version named reference has a constant definition.
+ * Validates that each transport version reference has a referable definition.
  */
 @CacheableTask
 public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
@@ -50,7 +50,7 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
         TransportVersionResourcesService resources = getTransportResources().get();
 
         for (var tvReference : TransportVersionReference.listFromFile(namesFile)) {
-            if (resources.namedDefinitionExists(tvReference.name()) == false) {
+            if (resources.referableDefinitionExists(tvReference.name()) == false) {
                 throw new RuntimeException(
                     "TransportVersion.fromName(\""
                         + tvReference.name()

@@ -65,9 +65,11 @@ public interface BlockLoader {
         /**
          * Attempts to read the values of all documents in {@code docs}
          * Returns {@code null} if unable to load the values.
+         *
+         * @param toDouble a function to convert long values to double, or null if no conversion is needed/supported
          */
         @Nullable
-        BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset) throws IOException;
+        BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset, BlockDocValuesReader.ToDouble toDouble) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -441,6 +443,17 @@ public interface BlockLoader {
         SingletonLongBuilder singletonLongs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense double based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonDoubleBuilder singletonDoubles(int expectedCount);
+
+        /**
          * Build a builder to load only {@code null}s.
          */
         Builder nulls(int expectedCount);
@@ -542,10 +555,18 @@ public interface BlockLoader {
      * Specialized builder for collecting dense arrays of long values.
      */
     interface SingletonLongBuilder extends Builder {
-
         SingletonLongBuilder appendLong(long value);
 
         SingletonLongBuilder appendLongs(long[] values, int from, int length);
+    }
+
+    /**
+     * Specialized builder for collecting dense arrays of double values.
+     */
+    interface SingletonDoubleBuilder extends Builder {
+        SingletonDoubleBuilder appendDouble(double value);
+
+        SingletonDoubleBuilder appendDoubles(double[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {

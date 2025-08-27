@@ -19,11 +19,8 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
@@ -125,7 +122,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    static class SingletonLongs extends BlockDocValuesReader {
+    // Used for testing.
+    interface NumericDocValuesAccessor {
+        NumericDocValues numericDocValues();
+    }
+
+    static class SingletonLongs extends BlockDocValuesReader implements NumericDocValuesAccessor {
         final NumericDocValues numericDocValues;
 
         SingletonLongs(NumericDocValues numericDocValues) {
@@ -135,7 +137,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (numericDocValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block result = direct.tryRead(factory, docs, offset);
+                BlockLoader.Block result = direct.tryRead(factory, docs, offset, null);
                 if (result != null) {
                     return result;
                 }
@@ -146,7 +148,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                     if (numericDocValues.advanceExact(doc)) {
                         builder.appendLong(numericDocValues.longValue());
                     } else {
-                        assert nullsFiltered == false : "nullFiltered is true, but doc [" + doc + "] has no value";
                         builder.appendNull();
                     }
                 }
@@ -172,6 +173,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.SingletonLongs";
+        }
+
+        @Override
+        public NumericDocValues numericDocValues() {
+            return numericDocValues;
         }
     }
 
@@ -352,133 +358,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
     /**
      * Convert from the stored {@link long} into the {@link double} to load.
+     * Sadly, this will go megamorphic pretty quickly and slow us down,
+     * but it gets the job done for now.
      */
-    public sealed interface ToDouble {
+    public interface ToDouble {
         double convert(long v);
-
-        void convert(long[] src, int srcOffset, double[] dst, int dstOff, int count);
-
-        BlockLoader.Block readThenConvert(BlockFactory factory, NumericDocValues dv, Docs docs, int offset) throws IOException;
-
-        ToDouble SORTABLE_SHORT_TO_HALF_FLOAT = new SortableShortToHalfFloat();
-        ToDouble SORTABLE_INT_TO_FLOAT = new SortableIntToFloat();
-        ToDouble SORTABLE_LONG_TO_DOUBLE = new SortableLongToDouble();
-    }
-
-    private static final class SortableShortToHalfFloat implements ToDouble {
-        @Override
-        public double convert(long v) {
-            return HalfFloatPoint.sortableShortToHalfFloat((short) v);
-        }
-
-        @Override
-        public void convert(long[] src, int srcOffset, double[] dst, int dstOff, int count) {
-            for (int i = 0; i < count; i++) {
-                dst[dstOff + i] = HalfFloatPoint.sortableShortToHalfFloat((short) src[srcOffset + i]);
-            }
-        }
-
-        @Override
-        public BlockLoader.Block readThenConvert(BlockFactory factory, NumericDocValues dv, Docs docs, int offset) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (dv.advanceExact(doc)) {
-                        builder.appendDouble(HalfFloatPoint.sortableShortToHalfFloat((short) dv.longValue()));
-                    } else {
-                        builder.appendNull();
-                    }
-                }
-                return builder.build();
-            }
-        }
-    }
-
-    private static final class SortableIntToFloat implements BlockDocValuesReader.ToDouble {
-        @Override
-        public double convert(long v) {
-            return NumericUtils.sortableIntToFloat((int) v);
-        }
-
-        @Override
-        public void convert(long[] src, int srcOffset, double[] dst, int dstOff, int count) {
-            for (int i = 0; i < count; i++) {
-                dst[dstOff + i] = NumericUtils.sortableIntToFloat((int) src[srcOffset + i]);
-            }
-        }
-
-        @Override
-        public BlockLoader.Block readThenConvert(BlockFactory factory, NumericDocValues dv, Docs docs, int offset) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (dv.advanceExact(doc)) {
-                        builder.appendDouble(NumericUtils.sortableIntToFloat((int) dv.longValue()));
-                    } else {
-                        builder.appendNull();
-                    }
-                }
-                return builder.build();
-            }
-        }
-    }
-
-    private static final class SortableLongToDouble implements BlockDocValuesReader.ToDouble {
-        @Override
-        public double convert(long v) {
-            return NumericUtils.sortableLongToDouble(v);
-        }
-
-        @Override
-        public void convert(long[] src, int srcOffset, double[] dst, int dstOff, int count) {
-            for (int i = 0; i < count; i++) {
-                dst[dstOff + i] = NumericUtils.sortableLongToDouble(src[srcOffset + i]);
-            }
-        }
-
-        @Override
-        public BlockLoader.Block readThenConvert(BlockFactory factory, NumericDocValues dv, Docs docs, int offset) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (dv.advanceExact(doc)) {
-                        builder.appendDouble(NumericUtils.sortableLongToDouble(dv.longValue()));
-                    } else {
-                        builder.appendNull();
-                    }
-                }
-                return builder.build();
-            }
-        }
-    }
-
-    public record LongToScaledFloat(double scalingFactor) implements ToDouble {
-        @Override
-        public double convert(long v) {
-            return v / scalingFactor;
-        }
-
-        @Override
-        public void convert(long[] src, int srcOffset, double[] dst, int dstOff, int count) {
-            for (int i = 0; i < count; i++) {
-                dst[dstOff + i] = src[srcOffset + i] / scalingFactor;
-            }
-        }
-
-        @Override
-        public BlockLoader.Block readThenConvert(BlockFactory factory, NumericDocValues dv, Docs docs, int offset) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (dv.advanceExact(doc)) {
-                        builder.appendDouble(dv.longValue() / scalingFactor);
-                    } else {
-                        builder.appendNull();
-                    }
-                }
-                return builder.build();
-            }
-        }
     }
 
     public static class DoublesBlockLoader extends DocValuesBlockLoader {
@@ -513,22 +397,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    public interface OptionalSingletonDoubles {
-        /**
-         * Attempts to read the values of all documents in {@code docs} and convert them to doubles.
-         * Returns {@code null} if unable to load the values.
-         */
-        @Nullable
-        BlockLoader.Block tryReadDoubles(
-            BlockFactory factory,
-            Docs docs,
-            int offset,
-            BlockDocValuesReader.ToDouble toDouble,
-            boolean nullsFiltered
-        ) throws IOException;
-    }
-
-    private static class SingletonDoubles extends BlockDocValuesReader {
+    static class SingletonDoubles extends BlockDocValuesReader implements NumericDocValuesAccessor {
         private final NumericDocValues docValues;
         private final ToDouble toDouble;
 
@@ -539,13 +408,23 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (docValues instanceof OptionalSingletonDoubles direct) {
-                BlockLoader.Block block = direct.tryReadDoubles(factory, docs, offset, toDouble, nullsFiltered);
-                if (block != null) {
-                    return block;
+            if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block result = direct.tryRead(factory, docs, offset, toDouble);
+                if (result != null) {
+                    return result;
                 }
             }
-            return toDouble.readThenConvert(factory, docValues, docs, offset);
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (docValues.advanceExact(doc)) {
+                        builder.appendDouble(toDouble.convert(docValues.longValue()));
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
         }
 
         @Override
@@ -567,9 +446,14 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public String toString() {
             return "BlockDocValuesReader.SingletonDoubles";
         }
+
+        @Override
+        public NumericDocValues numericDocValues() {
+            return docValues;
+        }
     }
 
-    private static class Doubles extends BlockDocValuesReader {
+    static class Doubles extends BlockDocValuesReader {
         private final SortedNumericDocValues docValues;
         private final ToDouble toDouble;
 
@@ -852,7 +736,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                 return readSingleDoc(factory, docs.get(offset));
             }
             if (ordinals instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block block = direct.tryRead(factory, docs, offset);
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset, null);
                 if (block != null) {
                     return block;
                 }

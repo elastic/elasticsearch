@@ -294,6 +294,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             result = 31 * result + Arrays.hashCode(attributes);
             return result;
         }
+
+        @Override
+        public String toString() {
+            return String.format(
+                Locale.ROOT,
+                "ResolvedIndex{name=%s, aliases=%s, attributes=%s, dataStream=%s, mode=%s}",
+                getName(),
+                Arrays.toString(aliases),
+                Arrays.toString(attributes),
+                dataStream,
+                mode
+            );
+        }
     }
 
     public static class ResolvedAlias extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
@@ -350,6 +363,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             int result = Objects.hash(getName());
             result = 31 * result + Arrays.hashCode(indices);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(Locale.ROOT, "ResolvedAlias{name=%s, indices=%s}", getName(), Arrays.toString(indices));
         }
     }
 
@@ -417,6 +435,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             int result = Objects.hash(getName(), timestampField);
             result = 31 * result + Arrays.hashCode(backingIndices);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                Locale.ROOT,
+                "ResolvedDataStream{name=%s, backingIndices=%s, timestampField=%s}",
+                getName(),
+                Arrays.toString(backingIndices),
+                timestampField
+            );
         }
     }
 

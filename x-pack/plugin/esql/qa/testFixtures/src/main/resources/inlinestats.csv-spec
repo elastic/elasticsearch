@@ -51,6 +51,33 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword
          10014 |                 5 | 5                | null
 ;
 
+maxOfIntByKeywordLimit1Aggd
+required_capability: inlinestats_v10
+
+FROM employees
+| KEEP emp_no, languages, gender
+| INLINESTATS max_lang = MAX(languages) BY gender
+| LIMIT 1
+| STATS v = VALUES(max_lang)
+;
+
+v:integer
+5
+;
+
+simpleAvg
+required_capability: inlinestats_v10
+
+FROM employees
+| INLINESTATS a = AVG(salary)
+| LIMIT 2
+| KEEP a;
+
+a:double
+48248.55
+48248.55
+;
+
 maxOfLongByKeyword
 required_capability: inlinestats_v10
 
@@ -247,7 +274,8 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 ;
 
 // TODO: INLINESTATS unit test needed for this one
-pushDownSort_To_LeftSideOnly
+// https://github.com/elastic/elasticsearch/issues/113727
+pushDownSort_To_LeftSideOnly-Ignore
 required_capability: inlinestats_v10
 
 from employees

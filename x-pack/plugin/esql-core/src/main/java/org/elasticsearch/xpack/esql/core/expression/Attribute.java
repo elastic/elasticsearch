@@ -6,14 +6,19 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.TransportVersions.ESQL_QUALIFIERS_IN_ATTRIBUTES;
 
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
@@ -197,4 +202,22 @@ public abstract class Attribute extends NamedExpression {
      * @return true if the attribute represents a TSDB dimension type
      */
     public abstract boolean isDimension();
+
+    protected void checkAndSerializeQualifier(PlanStreamOutput out, TransportVersion version) throws IOException {
+        if (version.onOrAfter(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+            out.writeOptionalCachedString(qualifier());
+        } else if (qualifier() != null) {
+            // Non-null qualifier means the query specifically defined one. Old nodes don't know what to do with it and just writing
+            // null would lose information and lead to undefined, likely invalid queries.
+            // IllegalArgumentException returns a 400 to the user, which is what we want here.
+            throw new IllegalArgumentException("Trying to serialize an Attribute with a qualifier to an old node");
+        }
+    }
+
+    protected static String readQualifier(PlanStreamInput in, TransportVersion version) throws IOException {
+        if (version.onOrAfter(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+            return in.readOptionalCachedString();
+        }
+        return null;
+    }
 }

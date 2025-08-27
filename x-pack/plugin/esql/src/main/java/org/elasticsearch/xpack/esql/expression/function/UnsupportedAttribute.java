@@ -88,20 +88,24 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         this.message = customMessage == null ? errorMessage(name(), field) : customMessage;
     }
 
-    private UnsupportedAttribute(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            readCachedStringWithVersionCheck(in),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2) ? EsField.readFrom(in) : new UnsupportedEsField(in),
-            in.readOptionalString(),
-            NameId.readFrom((PlanStreamInput) in)
-        );
+    private static UnsupportedAttribute innerReadFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
+        String name = readCachedStringWithVersionCheck(in);
+        UnsupportedEsField field = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)
+            ? EsField.readFrom(in)
+            : new UnsupportedEsField(in);
+        String message = in.readOptionalString();
+        NameId id = NameId.readFrom((PlanStreamInput) in);
+
+        return new UnsupportedAttribute(source, qualifier, name, field, message, id);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
             writeCachedStringWithVersionCheck(out, name());
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
                 field().writeTo(out);
@@ -114,7 +118,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     public static UnsupportedAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::innerReadFrom);
     }
 
     @Override

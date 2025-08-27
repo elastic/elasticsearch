@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ESQL_FIELD_ATTRIBUTE_DROP_TYPE;
-import static org.elasticsearch.TransportVersions.ESQL_QUALIFIERS_IN_ATTRIBUTES;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -105,10 +104,7 @@ public class FieldAttribute extends TypedAttribute {
          */
         Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
-        String qualifier = null;
-        if (in.getTransportVersion().onOrAfter(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
-            qualifier = ((PlanStreamInput) in).readOptionalCachedString();
-        }
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
         String name = readCachedStringWithVersionCheck(in);
         if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
             DataType.readFrom(in);
@@ -128,16 +124,14 @@ public class FieldAttribute extends TypedAttribute {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
-            if (out.getTransportVersion().onOrAfter(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
-                ((PlanStreamOutput) out).writeOptionalCachedString(qualifier());
-            }
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
             writeCachedStringWithVersionCheck(out, name());
             if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
                 dataType().writeTo(out);
             }
             field.writeTo(out);
             if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
-                // We used to write the qualifier here. We can still do if needed in the future.
+                // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
             }
             out.writeEnum(nullable());

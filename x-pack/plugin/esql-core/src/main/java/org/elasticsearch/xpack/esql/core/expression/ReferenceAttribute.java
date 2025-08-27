@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.TransportVersions.ESQL_QUALIFIERS_IN_ATTRIBUTES;
+
 /**
  * Attribute based on a reference to an expression.
  */
@@ -58,7 +60,11 @@ public class ReferenceAttribute extends TypedAttribute {
             Source.EMPTY.writeTo(out);
             out.writeString(name());
             dataType().writeTo(out);
-            out.writeOptionalString(qualifier());
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
+            if (out.getTransportVersion().before(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+                // We used to always serialize a null qualifier here, so do the same for bwc.
+                out.writeOptionalString(null);
+            }
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
@@ -82,8 +88,10 @@ public class ReferenceAttribute extends TypedAttribute {
         // We could cache this if we wanted to.
         String name = in.readString();
         DataType dataType = DataType.readFrom(in);
-        // Also cacheable
-        String qualifier = in.readOptionalString();
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
+        if (in.getTransportVersion().before(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+            in.readOptionalString();
+        }
         Nullability nullability = in.readEnum(Nullability.class);
         NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
         boolean synthetic = in.readBoolean();

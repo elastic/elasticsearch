@@ -941,7 +941,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         var boolExprCtx = ctx.booleanExpression();
         Expression value = boolExprCtx == null ? id : expression(boolExprCtx);
-        return new Alias(source, source(ctx.qualifiedName()).text(), value);
+        return new Alias(source, id.qualifier() != null ? id.qualifiedName() : id.name(), value);
     }
 
     @Override

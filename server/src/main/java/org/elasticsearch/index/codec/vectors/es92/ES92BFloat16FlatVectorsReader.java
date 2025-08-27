@@ -58,21 +58,24 @@ public final class ES92BFloat16FlatVectorsReader extends FlatVectorsReader {
     private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
+    private final IOContext dataContext;
 
     public ES92BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
         super(scorer);
         int versionMeta = readMetadata(state);
         this.fieldInfos = state.fieldInfos;
         boolean success = false;
+        // Flat formats are used to randomly access vectors from their node ID that is stored
+        // in the HNSW graph.
+        dataContext =
+            state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
         try {
             vectorData = openDataInput(
                 state,
                 versionMeta,
                 ES92BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION,
                 ES92BFloat16FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
-                // Flat formats are used to randomly access vectors from their node ID that is stored
-                // in the HNSW graph.
-                state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM)
+                dataContext
             );
             success = true;
         } finally {
@@ -173,14 +176,10 @@ public final class ES92BFloat16FlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public FlatVectorsReader getMergeInstance() {
-        try {
-            // Update the read advice since vectors are guaranteed to be accessed sequentially for merge
-            this.vectorData.updateReadAdvice(ReadAdvice.SEQUENTIAL);
-            return this;
-        } catch (IOException exception) {
-            throw new UncheckedIOException(exception);
-        }
+    public FlatVectorsReader getMergeInstance() throws IOException {
+        // Update the read advice since vectors are guaranteed to be accessed sequentially for merge
+        vectorData.updateIOContext(dataContext.withHints(DataAccessHint.SEQUENTIAL));
+        return this;
     }
 
     private FieldEntry getFieldEntryOrThrow(String field) {
@@ -252,7 +251,7 @@ public final class ES92BFloat16FlatVectorsReader extends FlatVectorsReader {
     public void finishMerge() throws IOException {
         // This makes sure that the access pattern hint is reverted back since HNSW implementation
         // needs it
-        this.vectorData.updateReadAdvice(ReadAdvice.RANDOM);
+        vectorData.updateIOContext(dataContext);
     }
 
     @Override

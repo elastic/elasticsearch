@@ -89,7 +89,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         description = "Decay a numeric, spatial or date type value based on the distance of it to an origin.",
         examples = { @Example(file = "decay", tag = "decay") }
     )

@@ -61,7 +61,15 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ssb.parseXContent(parser, true, nf -> true)
                     .rewrite(
-                        new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid")), null)
+                        new QueryRewriteContext(
+                            parserConfig(),
+                            null,
+                            null,
+                            null,
+                            new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
+                            null
+                        )
                     )
             );
             assertEquals("[search_after] cannot be used in children of compound retrievers", iae.getMessage());
@@ -79,7 +87,15 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ssb.parseXContent(parser, true, nf -> true)
                     .rewrite(
-                        new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid")), null)
+                        new QueryRewriteContext(
+                            parserConfig(),
+                            null,
+                            null,
+                            null,
+                            new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
+                            null
+                        )
                     )
             );
             assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
@@ -151,6 +167,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -235,6 +252,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 

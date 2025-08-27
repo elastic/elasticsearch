@@ -47,6 +47,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -177,6 +178,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 

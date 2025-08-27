@@ -865,16 +865,16 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             secondNode.getId(),
             new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 0.0f, 0)))
         );
-        final ClusterInfo initialClusterInfo = ClusterInfo.builder()
-            .shardWriteLoads(Map.of(shardId, 10.0d))
-            .nodeUsageStatsForThreadPools(initialThreadPoolStats)
-            .build();
+
+        final var clusterInfoRef = new AtomicReference<>(
+            ClusterInfo.builder().shardWriteLoads(Map.of(shardId, 10.0d)).nodeUsageStatsForThreadPools(initialThreadPoolStats).build()
+        );
 
         var service = new AllocationService(
             new AllocationDeciders(List.of()),
             createGatewayAllocator(),
             desiredBalanceShardsAllocator,
-            () -> initialClusterInfo,
+            clusterInfoRef::get,
             () -> SnapshotShardSizeInfo.EMPTY,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
@@ -888,7 +888,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
             // When compute ends, the last cluster info it uses is an updated one different from the initial one
             final ClusterInfo updatedClusterInfo = clusterInfoUsedByAllocator.get();
-            assertThat(updatedClusterInfo, not(equalTo(initialClusterInfo)));
+            assertThat(updatedClusterInfo, not(equalTo(clusterInfoRef.get())));
             // Updated thread pool stats reflect the shard movement
             final var fistNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()
                 .get(firstNode.getId())
@@ -944,10 +944,28 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 clusterService.state().routingTable(ProjectId.DEFAULT).shardRoutingTable(shardId).primaryShard().currentNodeId(),
                 equalTo(secondNode.getId())
             );
-            // THIS is the problem. We lost track for the actually started shard when updating/recomputing ClusterInfo so that
-            // it ends up using initialClusterInfo which still shows hotspot
+            // The actually started shard is accounted for when updating/recomputing ClusterInfo
             rerouteAndWait(service, clusterService.state(), "reroute-with-actual-shard-started-event");
             assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
+
+            // 5. A new ClusterInfo is polled
+            clusterInfoRef.set(
+                ClusterInfo.builder()
+                    .shardWriteLoads(Map.of(shardId, 10.0d))
+                    .nodeUsageStatsForThreadPools(
+                        Map.of(
+                            firstNode.getId(),
+                            new NodeUsageStatsForThreadPools(firstNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 5.0f, 30))),
+                            secondNode.getId(),
+                            new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 5.0f, 30)))
+                        )
+                    )
+                    .build()
+            );
+            // No adjust is applied onto the new cluster info since the tracking is reset
+            rerouteAndWait(service, clusterService.state(), "reroute-after-new-cluster-info-polled");
+            assertThat(clusterInfoUsedByAllocator.get(), equalTo(clusterInfoRef.get()));
+
         } finally {
             clusterService.close();
             terminate(threadPool);

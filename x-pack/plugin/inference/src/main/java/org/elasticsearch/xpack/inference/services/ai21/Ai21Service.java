@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.ai21;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -75,6 +74,8 @@ public class Ai21Service extends SenderService {
         "ai21 chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
+
+    private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName("ml_inference_ai21_completion");
 
     public Ai21Service(
         HttpRequestSender.Factory factory,
@@ -224,7 +225,7 @@ public class Ai21Service extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AI21_COMPLETION_ADDED;
+        return ML_INFERENCE_AI21_COMPLETION_ADDED;
     }
 
     @Override

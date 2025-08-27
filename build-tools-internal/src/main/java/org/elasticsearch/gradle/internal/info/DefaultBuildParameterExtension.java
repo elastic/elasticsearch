@@ -29,6 +29,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final Provider<Boolean> inFipsJvm;
     private final Provider<File> runtimeJavaHome;
     private final Boolean isRuntimeJavaHomeSet;
+    private final Boolean earlyAccessJavaRuntime;
     private final List<JavaHome> javaVersions;
     private final JavaVersion minimumCompilerVersion;
     private final JavaVersion minimumRuntimeVersion;
@@ -54,6 +55,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec,
         Provider<JavaVersion> runtimeJavaVersion,
         boolean isRuntimeJavaHomeSet,
+        boolean earlyAccessJavaRuntime,
         Provider<String> runtimeJavaDetails,
         List<JavaHome> javaVersions,
         JavaVersion minimumCompilerVersion,
@@ -72,6 +74,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         this.javaToolChainSpec = cache(providers, javaToolChainSpec);
         this.runtimeJavaVersion = cache(providers, runtimeJavaVersion);
         this.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
+        this.earlyAccessJavaRuntime = earlyAccessJavaRuntime;
         this.runtimeJavaDetails = cache(providers, runtimeJavaDetails);
         this.javaVersions = javaVersions;
         this.minimumCompilerVersion = minimumCompilerVersion;
@@ -118,6 +121,12 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     public Boolean getIsRuntimeJavaHomeSet() {
         return isRuntimeJavaHomeSet;
     }
+
+    @Override
+    public Boolean getIsEarlyAccessRuntimeJavaVersion() {
+        return earlyAccessJavaRuntime;
+    }
+
 
     @Override
     public List<JavaHome> getJavaVersions() {

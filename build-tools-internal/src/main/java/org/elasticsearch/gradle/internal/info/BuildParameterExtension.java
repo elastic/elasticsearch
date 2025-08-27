@@ -32,6 +32,8 @@ public interface BuildParameterExtension {
 
     Boolean getIsRuntimeJavaHomeSet();
 
+    Boolean getIsEarlyAccessRuntimeJavaVersion();
+
     List<JavaHome> getJavaVersions();
 
     JavaVersion getMinimumCompilerVersion();

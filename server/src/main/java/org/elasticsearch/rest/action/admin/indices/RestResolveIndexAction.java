@@ -24,11 +24,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestResolveIndexAction extends BaseRestHandler {
+    private static final Set<String> CAPABILITIES = Set.of("mode_filter");
 
     @Override
     public String getName() {
@@ -38,6 +40,11 @@ public class RestResolveIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_resolve/index/{name}"));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 
     @Override

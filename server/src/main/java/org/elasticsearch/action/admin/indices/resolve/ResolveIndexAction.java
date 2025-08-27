@@ -735,21 +735,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         );
                     }
                     case ALIAS -> {
-                        if (indexModes.isEmpty() == false && indexModes.contains(IndexMode.STANDARD) == false) {
-                            // If we didn't ask for standard indices, skip aliases too
-                            return;
-                        }
                         String[] indexNames = getAliasIndexStream(resolvedExpression, ia, projectState.metadata()).filter(filterPredicate)
                             .map(Index::getName)
                             .toArray(String[]::new);
+                        if (indexModes.isEmpty() == false && indexNames.length == 0) {
+                            return;
+                        }
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                     }
                     case DATA_STREAM -> {
-                        if (indexModes.isEmpty() == false && indexModes.contains(IndexMode.STANDARD) == false) {
-                            // If we didn't ask for standard indices, skip datastreams too
-                            return;
-                        }
                         DataStream dataStream = (DataStream) ia;
                         Stream<Index> dataStreamIndices = resolvedExpression.selector() == null
                             ? dataStream.getIndices().stream()
@@ -758,6 +753,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 case FAILURES -> dataStream.getFailureIndices().stream();
                             };
                         String[] backingIndices = dataStreamIndices.filter(filterPredicate).map(Index::getName).toArray(String[]::new);
+                        if (indexModes.isEmpty() == false && backingIndices.length == 0) {
+                            return;
+                        }
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());

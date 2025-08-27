@@ -446,6 +446,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testRemoteClusterOnlyCCSWithFailuresOnOneShardOnly
   issue: https://github.com/elastic/elasticsearch/issues/133673
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
+  issue: https://github.com/elastic/elasticsearch/issues/127302
 
 # Examples:
 #

@@ -192,10 +192,15 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
                 if (bitsetCache.get(cacheKey) == null) {
                     // key is no longer in the cache, make sure it is no longer in the lookup map either.
-                    final Set<BitsetCacheKey> keys = keysByIndex.get(indexKey);
-                    if (keys != null) {
-                        keys.remove(cacheKey);
-                    }
+                    keysByIndex.compute(indexKey, (ignored, keys) -> {
+                        if (keys != null) {
+                            keys.remove(cacheKey);
+                            if (keys.isEmpty()) {
+                                keys = null;
+                            }
+                        }
+                        return keys;
+                    });
                 }
             }
         });
@@ -424,6 +429,11 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         keysByIndex.values().stream().flatMap(Set::stream).forEach(cacheKey -> {
             if (bitsetCache.get(cacheKey) == null) {
                 throw new IllegalStateException("Key [" + cacheKey + "] is in the lookup map, but is not in the cache");
+            }
+        });
+        keysByIndex.forEach((indexKey, keys) -> {
+            if (keys == null || keys.isEmpty()) {
+                throw new IllegalStateException("The lookup entry for [" + indexKey + "] is null or empty");
             }
         });
     }

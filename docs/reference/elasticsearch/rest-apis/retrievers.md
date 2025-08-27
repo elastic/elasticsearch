@@ -27,7 +27,7 @@ The following retrievers are available:
 :   The [pinned](retrievers/pinned-retriever.md) retriever always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
 
 `rescorer`
-:   The [rescorer](retrievers/rescorer-retriever.md) retriever replaces the functionality of the [query rescorer](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore).
+:   The [rescorer](retrievers/rescorer-retriever.md) retriever replaces the functionality of the [query rescorer](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore).
 
 `rrf`
 :   The [rrf](retrievers/rrf-retriever.md) retriever produces top documents from [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md).
@@ -63,7 +63,7 @@ When a retriever is specified as part of a search, the following elements are no
 * [`search_after`](/reference/elasticsearch/rest-apis/paginate-search-results.md#search-after)
 * [`terminate_after`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-search-terminate-after)
 * [`sort`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
-* [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) use a [rescorer retriever](retrievers/rescorer-retriever.md) instead
+* [`rescore`](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) use a [rescorer retriever](retrievers/rescorer-retriever.md) instead
 
 
 ## Multi-field query format [multi-field-query-format]

@@ -152,6 +152,14 @@ public final class Mapping implements ToXContentFragment {
         return root.syntheticFieldLoader(filter, mappers, false);
     }
 
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+        IgnoredSourceFieldMapper isfm = (IgnoredSourceFieldMapper) metadataMappersByName.get(IgnoredSourceFieldMapper.NAME);
+        if (isfm == null) {
+            return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+        }
+        return isfm.ignoredSourceFormat();
+    }
+
     /**
      * Merges a new mapping into the existing one.
      *

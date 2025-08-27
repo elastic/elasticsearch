@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -115,5 +116,10 @@ public class RestEqlSearchAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "eql_search";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return EqlCapabilities.CAPABILITIES;
     }
 }

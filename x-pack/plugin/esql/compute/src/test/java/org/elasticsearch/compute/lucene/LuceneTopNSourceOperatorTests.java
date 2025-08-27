@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.assertAllRefCountedSameInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -207,6 +208,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                 assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), equalTo(expectedS++));
             }
         }
+        assertAllRefCountedSameInstance(results);
         int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
         assertThat(results, hasSize(pages));
     }

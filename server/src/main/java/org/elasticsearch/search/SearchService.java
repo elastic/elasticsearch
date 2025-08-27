@@ -1286,11 +1286,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public final ReaderContext createAndPutReaderContext(
-            ShardSearchRequest request,
-            IndexService indexService,
-            IndexShard shard,
-            Engine.SearcherSupplier reader,
-            long keepAliveInMillis
+        ShardSearchRequest request,
+        IndexService indexService,
+        IndexShard shard,
+        Engine.SearcherSupplier reader,
+        long keepAliveInMillis
     ) {
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
         return createAndPutReaderContext(request, id, indexService, shard, reader, keepAliveInMillis, true);

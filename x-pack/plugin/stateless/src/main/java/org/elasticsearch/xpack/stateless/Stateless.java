@@ -62,6 +62,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadSamp
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.TransportPublishSearchLoads;
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
 import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
+import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
@@ -368,6 +369,7 @@ public class Stateless extends Plugin
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<SearchCommitPrefetcher.PrefetchExecutor> prefetchExecutor = new SetOnce<>();
     private final SetOnce<BCCHeaderReadExecutor> bccHeaderReadExecutor = new SetOnce<>();
+    private final SetOnce<SearchCommitPrefetcherDynamicSettings> prefetchingDynamicSettings = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -786,6 +788,10 @@ public class Stateless extends Plugin
 
         if (hasSearchRole) {
             setAndGet(this.prefetchExecutor, new SearchCommitPrefetcher.PrefetchExecutor(threadPool));
+            // it is imperative that we do not listen for dynamic settings updates within the prefetcher itself because the prefetcher is
+            // created whenever we create the search engine and it might miss the settings that were updated before the node was started.
+            // also note that we create one search engine per index so we could end up with many instances of settings listeners.
+            setAndGet(this.prefetchingDynamicSettings, new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()));
         }
 
         if (hasMasterRole) {
@@ -1192,9 +1198,9 @@ public class Stateless extends Plugin
             EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
             EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
             SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
-            SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
+            SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
             SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
-            SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+            SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
             SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
             SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
         );
@@ -1546,12 +1552,14 @@ public class Stateless extends Plugin
                 );
             } else {
                 assert prefetchExecutor.get() != null : "Prefetch executor should be instantiated in search nodes";
+                assert prefetchingDynamicSettings.get() != null : "Prefetching dynamic settings should be instantiated in search nodes";
                 return new SearchEngine(
                     config,
                     getClosedShardService(),
                     sharedBlobCacheService.get(),
                     clusterService.get().getClusterSettings(),
-                    prefetchExecutor.get()
+                    prefetchExecutor.get(),
+                    prefetchingDynamicSettings.get()
                 );
             }
         });

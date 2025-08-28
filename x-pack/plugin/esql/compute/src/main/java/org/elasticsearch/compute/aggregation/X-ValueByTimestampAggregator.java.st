@@ -47,7 +47,7 @@ public class $Occurrence$$Type$ByTimestampAggregator {
 
     public static Long$Type$State initSingle(DriverContext driverContext) {
         $if(BytesRef)$
-        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker());
+        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker(), describe());
         $else$
         return new Long$Type$State(0, 0);
         $endif$

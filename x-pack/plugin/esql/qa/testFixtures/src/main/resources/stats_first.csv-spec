@@ -134,7 +134,7 @@ FROM logs
 | STATS message = FIRST(message, @timestamp) BY system
 ; 
 
-message:text                        | system:keyword
+message:keyword                     | system:keyword
 Pinging 192.168.86.046              | ping
 Running cats (cycle 1)              | cron
 Doing java stuff for 192.168.86.038 | java

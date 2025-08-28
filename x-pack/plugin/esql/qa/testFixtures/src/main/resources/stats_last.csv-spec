@@ -134,7 +134,7 @@ FROM logs
 | STATS message = LAST(message, @timestamp) BY system
 ; 
 
-message:text            | system:keyword
+message:keyword         | system:keyword
 No response             | ping
 Running cats (cycle 3)  | cron
 More java stuff         | java

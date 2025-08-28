@@ -29,10 +29,10 @@ final class $v1_Type$$v2_Type$State implements AggregatorState {
     $endif$
     private boolean seen;
 
-    $v1_Type$$v2_Type$State($v1_type$ v1, $v2_type$ v2$if(v2_BytesRef)$, CircuitBreaker breaker$endif$) {
+    $v1_Type$$v2_Type$State($v1_type$ v1, $v2_type$ v2$if(v2_BytesRef)$, CircuitBreaker breaker, String label$endif$) {
         this.v1 = v1;
         $if(v2_BytesRef)$
-        this.v2 = new BreakingBytesRefBuilder(breaker, "$v1_Type$$v2_Type$State", v2.length);
+        this.v2 = new BreakingBytesRefBuilder(breaker, label, v2.length);
         this.v2.copyBytes(v2);
         $else$
         this.v2 = v2;

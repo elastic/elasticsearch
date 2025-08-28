@@ -25,9 +25,9 @@ final class LongBytesRefState implements AggregatorState {
     private final BreakingBytesRefBuilder v2;
     private boolean seen;
 
-    LongBytesRefState(long v1, BytesRef v2, CircuitBreaker breaker) {
+    LongBytesRefState(long v1, BytesRef v2, CircuitBreaker breaker, String label) {
         this.v1 = v1;
-        this.v2 = new BreakingBytesRefBuilder(breaker, "LongBytesRefState", v2.length);
+        this.v2 = new BreakingBytesRefBuilder(breaker, label, v2.length);
         this.v2.copyBytes(v2);
     }
 

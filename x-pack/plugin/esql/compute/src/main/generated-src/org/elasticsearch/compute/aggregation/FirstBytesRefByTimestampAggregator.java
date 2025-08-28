@@ -46,7 +46,7 @@ public class FirstBytesRefByTimestampAggregator {
     }
 
     public static LongBytesRefState initSingle(DriverContext driverContext) {
-        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker());
+        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker(), describe());
     }
 
     public static void first(LongBytesRefState current, BytesRef value, long timestamp) {

@@ -37,7 +37,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FilterDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
@@ -681,11 +681,16 @@ class KnnSearcher {
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     var bitSet = segmentDocs[context.ord];
                     var cardinality = cardinalities[context.ord];
+                    BitSetIterator bitSetIterator = new BitSetIterator(bitSet, cardinality);
                     var scorer = new ConstantScoreScorer(
                         score(),
                         scoreMode,
                         // we do this to simulate an actual query that needs to iterate matches
-                        new DocIdSetIteratorWrapper(new BitSetIterator(bitSet, cardinality))
+                        new FilterDocIdSetIterator(bitSetIterator) {
+                            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                                bitSetIterator.intoBitSet(upTo, bitSet, offset);
+                            }
+                        }
                     );
                     return new ScorerSupplier() {
                         @Override
@@ -725,34 +730,4 @@ class KnnSearcher {
             return 31 * classHash() + hashCode;
         }
     }
-
-    private static class DocIdSetIteratorWrapper extends DocIdSetIterator {
-        int doc = -1;
-        DocIdSetIterator delegate;
-
-        DocIdSetIteratorWrapper(DocIdSetIterator delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public int docID() {
-            return doc;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return doc = delegate.nextDoc();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            return doc = delegate.advance(target);
-        }
-
-        @Override
-        public long cost() {
-            return delegate.cost();
-        }
-    }
-
 }

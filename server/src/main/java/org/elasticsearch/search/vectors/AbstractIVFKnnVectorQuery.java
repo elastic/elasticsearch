@@ -17,6 +17,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
@@ -34,6 +35,7 @@ import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -44,6 +46,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -51,6 +54,8 @@ import java.util.concurrent.Callable;
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
+    // TODO make this a setting?
+    private static final float POST_FILTER_RATIO_THRESHOLD = 0.80f;
 
     protected final String field;
     protected final float providedVisitRatio;
@@ -105,9 +110,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IndexReader reader = indexSearcher.getIndexReader();
 
         final Weight filterWeight;
-        Query rewrittenFilter = null;
         if (filter != null) {
-            rewrittenFilter = filter.rewrite(indexSearcher);
+            Query rewrittenFilter = filter.rewrite(indexSearcher);
             if (rewrittenFilter.getClass() == MatchNoDocsQuery.class) {
                 return rewrittenFilter;
             }
@@ -129,6 +133,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
+        List<ScorerSupplier> scorerSuppliers = new ArrayList<>(leafReaderContexts.size());
 
         assert this instanceof IVFKnnFloatVectorQuery;
         int totalVectors = 0;
@@ -139,19 +144,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             if (floatVectorValues != null) {
                 totalVectors += floatVectorValues.size();
             }
+            ScorerSupplier supplier = null;
             if (filterWeight != null) {
-                ScorerSupplier supplier = filterWeight.scorerSupplier(leafReaderContext);
+                supplier = filterWeight.scorerSupplier(leafReaderContext);
                 if (supplier != null) {
                     filterCost += supplier.cost();
                 }
             }
+            scorerSuppliers.add(supplier);
         }
         // account for gross misestimates of the iterator cost
         filterCost = Math.min(filterCost, totalVectors);
 
         // the filter is very permissive, treat it as a post filter
         float filterRatio = (float) filterCost / totalVectors;
-        boolean overFetch = filterWeight != null && filterRatio > 0.9f;
+        boolean overFetch = filterWeight != null && filterRatio > POST_FILTER_RATIO_THRESHOLD;
         final float visitRatio;
         if (providedVisitRatio == 0.0f) {
             // dynamically set the percentage
@@ -165,17 +172,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
         // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
         // 2k to the collector.
-        int kToCollect = overFetch ? (int) (Math.round(2f * k) / filterRatio + 1f) : Math.round((2f * k));
+        int kToCollect = overFetch ? (int) (2f * k / filterRatio + 1f) : 2 * k;
         KnnCollectorManager knnCollectorManager = getKnnCollectorManager(kToCollect, indexSearcher);
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
-            // very broad filter, don't bother filtering, just over fetch and apply the filter later
-            if (overFetch) {
-                // If the filter is more expensive than the visit ratio, skip it
-                tasks.add(() -> searchLeaf(context, null, knnCollectorManager, visitRatio));
+            // if there is a filter, but for this segment there are no matching docs, skip it
+            if (filterWeight != null && scorerSuppliers.get(context.ord) == null) {
                 continue;
             }
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+            tasks.add(() -> searchLeaf(context, overFetch, scorerSuppliers.get(context.ord), knnCollectorManager, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
@@ -185,17 +190,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (topK.scoreDocs.length == 0) {
             return new MatchNoDocsQuery();
         }
-        if (overFetch) {
-            return new BooleanQuery.Builder().add(rewrittenFilter, BooleanClause.Occur.FILTER)
-                .add(new KnnScoreDocQuery(topK.scoreDocs, reader), BooleanClause.Occur.MUST)
-                .build();
-        }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
+    private TopDocs searchLeaf(
+        LeafReaderContext ctx,
+        boolean postFilter,
+        ScorerSupplier scorerSupplier,
+        KnnCollectorManager knnCollectorManager,
+        float visitRatio
+    ) throws IOException {
+        TopDocs results = getLeafResults(ctx, postFilter, scorerSupplier, knnCollectorManager, visitRatio);
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
         int deduplicateCount = 0;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
@@ -215,21 +220,56 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
+    private TopDocs getLeafResults(
+        LeafReaderContext ctx,
+        boolean postFilter,
+        ScorerSupplier scorerSupplier,
+        KnnCollectorManager knnCollectorManager,
+        float visitRatio
+    ) throws IOException {
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
-
-        if (filterWeight == null) {
+        if (scorerSupplier == null) {
             return approximateSearch(ctx, liveDocs, knnCollectorManager, visitRatio);
         }
-
-        Scorer scorer = filterWeight.scorer(ctx);
-        if (scorer == null) {
-            return TopDocsCollector.EMPTY_TOPDOCS;
+        Bits acceptDocs;
+        if (postFilter) {
+            acceptDocs = liveDocs;
+        } else {
+            Scorer filterScorer = scorerSupplier.get(Long.MAX_VALUE);
+            // it SHOULD never be null, as the supplier was not null
+            assert filterScorer != null;
+            if (filterScorer == null) {
+                return NO_RESULTS;
+            }
+            acceptDocs = createBitSet(filterScorer.iterator(), liveDocs, reader.maxDoc());
         }
-
-        BitSet acceptDocs = createBitSet(scorer.iterator(), liveDocs, reader.maxDoc());
+        TopDocs topDocs = approximateSearch(ctx, acceptDocs, knnCollectorManager, visitRatio);
+        if (postFilter == false) {
+            return topDocs;
+        }
+        // apply post filter
+        Scorer filterScorer = scorerSupplier.get(topDocs.scoreDocs.length);
+        assert filterScorer != null;
+        if (filterScorer == null) {
+            return NO_RESULTS;
+        }
+        TopDocsDocIDIterator topDocsScorer = new TopDocsDocIDIterator(topDocs.scoreDocs);
+        IntHashSet allowedDocs = new IntHashSet(topDocs.scoreDocs.length * 4 / 3);
+        DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(List.of(topDocsScorer, filterScorer.iterator()));
+        while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            allowedDocs.add(iterator.docID());
+        }
+        ScoreDoc[] scoreDocs = Arrays.stream(topDocs.scoreDocs).filter(sd -> allowedDocs.contains(sd.doc)).toArray(ScoreDoc[]::new);
+        if (scoreDocs.length >= k) {
+            return new TopDocs(new TotalHits(topDocs.totalHits.value(), topDocs.totalHits.relation()), scoreDocs);
+        }
+        // We gathered too few results, research without post filter
+        assert filterScorer != null;
+        if (filterScorer == null) {
+            return NO_RESULTS;
+        }
+        acceptDocs = createBitSet(filterScorer.iterator(), liveDocs, reader.maxDoc());
         return approximateSearch(ctx, acceptDocs, knnCollectorManager, visitRatio);
     }
 
@@ -275,6 +315,51 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         @Override
         public KnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context) throws IOException {
             return new TopKnnCollector(k, visitedLimit, searchStrategy);
+        }
+    }
+
+    private static class TopDocsDocIDIterator extends DocIdSetIterator {
+        private final int[] docs;
+        private int index = -1;
+
+        TopDocsDocIDIterator(ScoreDoc[] scoreDocs) {
+            this.docs = new int[scoreDocs.length];
+            for (int i = 0; i < scoreDocs.length; i++) {
+                this.docs[i] = scoreDocs[i].doc;
+            }
+            Arrays.sort(docs);
+        }
+
+        @Override
+        public int docID() {
+            return index < 0 ? -1 : index >= docs.length ? NO_MORE_DOCS : docs[index];
+        }
+
+        @Override
+        public int nextDoc() {
+            if (index < docs.length) {
+                index++;
+            }
+            return docID();
+        }
+
+        @Override
+        public int advance(int target) {
+            int idx = Arrays.binarySearch(docs, target);
+            if (idx < 0) {
+                idx = -(idx + 1);
+            }
+            if (idx >= docs.length) {
+                index = docs.length;
+                return NO_MORE_DOCS;
+            }
+            index = idx;
+            return docID();
+        }
+
+        @Override
+        public long cost() {
+            return docs.length;
         }
     }
 }

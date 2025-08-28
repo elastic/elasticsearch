@@ -241,7 +241,7 @@ public class ExponentialScaleUtils {
             return lowerBound * factor;
         } else {
             if (bucketIndex >= 0) {
-                // the bucket is (1, +inf), approximate midpoint as inf
+                // the bucket is (1, +inf), approximate point of least error as inf
                 return Double.POSITIVE_INFINITY;
             } else {
                 // the bucket is (1/(Inf), 1), approximate point of least error as 0

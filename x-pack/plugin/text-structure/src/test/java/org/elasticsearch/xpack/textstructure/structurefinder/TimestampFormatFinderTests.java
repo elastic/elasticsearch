@@ -1613,6 +1613,16 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         ecsCompatibilityModes.forEach(testFindFormatWithNonMatchingRequiredFormatGivenEcsCompatibility);
     }
 
+    public void testAdditionalTimestampFormats() {
+        validateFindInFullMessage(
+            "2023/10/26 14:35:10 INFO [http-nio-8080-exec-5] org.apache.coyote.http11.Http11Processor.service: Request processed in 50ms",
+            "",
+            "TIMESTAMP_ISO8601",
+            "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
+            List.of("yyyy/MM/dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy.MM.dd HH:mm:ss")
+        );
+    }
+
     public void testSelectBestMatchGivenAllSame() {
         @SuppressWarnings("checkstyle:linelength")
         String sample =

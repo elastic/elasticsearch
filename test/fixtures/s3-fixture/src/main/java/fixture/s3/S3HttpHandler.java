@@ -47,8 +47,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.xml.parsers.DocumentBuilderFactory;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;

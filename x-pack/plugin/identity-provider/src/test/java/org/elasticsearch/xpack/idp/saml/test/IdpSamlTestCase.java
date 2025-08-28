@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
-import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.hamcrest.Matchers;

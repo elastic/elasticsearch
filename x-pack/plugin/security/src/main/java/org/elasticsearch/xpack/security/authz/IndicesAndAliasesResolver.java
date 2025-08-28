@@ -367,6 +367,7 @@ public class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
+                // TODO this behavior could be pluggable
                 if (indicesRequest instanceof IndicesRequest.CrossProjectReplaceable crossProjectReplaceableRequest
                     && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
                     assert crossProjectReplaceableRequest.allowsRemoteIndices();
@@ -404,13 +405,11 @@ public class IndicesAndAliasesResolver {
                     replaceable.getReplaceableIndices()
                 );
 
-                // TODO why on earth would this happen?
+                // TODO this is hack and should not be needed in the final implementation
                 if (IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
                     logger.info("Request has a none expression, short-circuit");
-                    // TODO make sure to clear replaced expressions here...
                     replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
-                    // TODO is it fine to bail like this?
                     return resolvedIndicesBuilder.build();
                 }
 

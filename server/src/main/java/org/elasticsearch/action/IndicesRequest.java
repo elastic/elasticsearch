@@ -87,8 +87,6 @@ public interface IndicesRequest {
     }
 
     record CrossProjectReplaceableIndices(Map<String, ReplacedExpression> replacedExpressionMap) implements ReplaceableIndices {
-        private static final Logger logger = LogManager.getLogger(CrossProjectReplaceableIndices.class);
-
         @Override
         public String[] indices() {
             return ReplacedExpression.toIndices(replacedExpressionMap);

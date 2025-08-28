@@ -34,6 +34,19 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     @Override
     BooleanBlock keepMask(BooleanVector mask);
 
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BooleanVector deepCopy(BlockFactory blockFactory) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
     @Override
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 

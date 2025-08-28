@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -42,32 +41,39 @@ public class HttpRequestSender implements Sender {
      * A helper class for constructing a {@link HttpRequestSender}.
      */
     public static class Factory {
-        private final ServiceComponents serviceComponents;
-        private final HttpClientManager httpClientManager;
-        private final ClusterService clusterService;
-        private final RequestSender requestSender;
+        private final HttpRequestSender httpRequestSender;
 
         public Factory(ServiceComponents serviceComponents, HttpClientManager httpClientManager, ClusterService clusterService) {
-            this.serviceComponents = Objects.requireNonNull(serviceComponents);
-            this.httpClientManager = Objects.requireNonNull(httpClientManager);
-            this.clusterService = Objects.requireNonNull(clusterService);
+            Objects.requireNonNull(serviceComponents);
+            Objects.requireNonNull(clusterService);
+            Objects.requireNonNull(httpClientManager);
 
-            requestSender = new RetryingHttpSender(
-                this.httpClientManager.getHttpClient(),
+            var requestSender = new RetryingHttpSender(
+                httpClientManager.getHttpClient(),
                 serviceComponents.throttlerManager(),
                 new RetrySettings(serviceComponents.settings(), clusterService),
                 serviceComponents.threadPool()
             );
+
+            var startCompleted = new CountDownLatch(1);
+            var service = new RequestExecutorService(
+                serviceComponents.threadPool(),
+                startCompleted,
+                new RequestExecutorServiceSettings(serviceComponents.settings(), clusterService),
+                requestSender
+            );
+
+            httpRequestSender = new HttpRequestSender(
+                serviceComponents.threadPool(),
+                httpClientManager,
+                requestSender,
+                service,
+                startCompleted
+            );
         }
 
         public Sender createSender() {
-            return new HttpRequestSender(
-                serviceComponents.threadPool(),
-                httpClientManager,
-                clusterService,
-                serviceComponents.settings(),
-                requestSender
-            );
+            return httpRequestSender;
         }
     }
 
@@ -75,27 +81,23 @@ public class HttpRequestSender implements Sender {
 
     private final ThreadPool threadPool;
     private final HttpClientManager manager;
-    private final RequestExecutor service;
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final CountDownLatch startCompleted = new CountDownLatch(1);
     private final RequestSender requestSender;
+    private final RequestExecutor service;
+    private final CountDownLatch startCompleted;
 
     private HttpRequestSender(
         ThreadPool threadPool,
         HttpClientManager httpClientManager,
-        ClusterService clusterService,
-        Settings settings,
-        RequestSender requestSender
+        RequestSender requestSender,
+        RequestExecutor service,
+        CountDownLatch startCompleted
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.manager = Objects.requireNonNull(httpClientManager);
         this.requestSender = Objects.requireNonNull(requestSender);
-        service = new RequestExecutorService(
-            threadPool,
-            startCompleted,
-            new RequestExecutorServiceSettings(settings, clusterService),
-            requestSender
-        );
+        this.service = Objects.requireNonNull(service);
+        this.startCompleted = Objects.requireNonNull(startCompleted);
     }
 
     /**

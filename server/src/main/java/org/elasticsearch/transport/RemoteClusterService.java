@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -43,6 +42,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -82,16 +82,16 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
+    private final boolean canUseSkipUnavailable;
 
-    @FixForMultiProject(description = "Inject the ProjectResolver instance.")
-    RemoteClusterService(Settings settings, TransportService transportService) {
+    RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
         this.isRemoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.isSearchNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.isStateless = DiscoveryNode.isStateless(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
-        this.projectResolver = DefaultProjectResolver.INSTANCE;
+        this.projectResolver = projectResolver;
         this.remoteClusters = projectResolver.supportsMultipleProjects()
             ? ConcurrentCollections.newConcurrentMap()
             : Map.of(ProjectId.DEFAULT, ConcurrentCollections.newConcurrentMap());
@@ -99,6 +99,11 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
+        /*
+         * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
+         *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
+         */
+        this.canUseSkipUnavailable = settings.getAsBoolean("serverless.cross_project.enabled", false) == false;
     }
 
     /**
@@ -209,10 +214,28 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     /**
-     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable
+     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable.
+     * @param clusterAlias Name of the cluster
+     * @return A boolean optional that denotes if the cluster is configured to be skipped. In CPS-like environment,
+     * it returns an empty value where we default/fall back to true.
      */
-    public boolean isSkipUnavailable(String clusterAlias) {
-        return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
+    public Optional<Boolean> isSkipUnavailable(String clusterAlias) {
+        if (canUseSkipUnavailable == false) {
+            return Optional.empty();
+        } else {
+            return Optional.of(getRemoteClusterConnection(clusterAlias).isSkipUnavailable());
+        }
+    }
+
+    /**
+     * Signifies if an error can be skipped for the specified cluster based on skip_unavailable, or,
+     * allow_partial_search_results if in CPS-like environment.
+     * @param clusterAlias Name of the cluster
+     * @param allowPartialSearchResults If partial results can be served for the search request.
+     * @return boolean
+     */
+    public boolean shouldSkipOnFailure(String clusterAlias, Boolean allowPartialSearchResults) {
+        return isSkipUnavailable(clusterAlias).orElseGet(() -> allowPartialSearchResults != null && allowPartialSearchResults);
     }
 
     public Transport.Connection getConnection(String cluster) {
@@ -409,10 +432,22 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
+        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
+        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+        final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
+        updateRemoteCluster(linkedProjectConfig, forceRebuild, listener);
+    }
 
+    private synchronized void updateRemoteCluster(
+        LinkedProjectConfig config,
+        boolean forceRebuild,
+        ActionListener<RemoteClusterConnectionStatus> listener
+    ) {
+        final var projectId = config.originProjectId();
+        final var clusterAlias = config.linkedProjectAlias();
         final var connectionMap = getConnectionsMapForProject(projectId);
         RemoteClusterConnection remote = connectionMap.get(clusterAlias);
-        if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, newSettings) == false) {
+        if (config.isConnectionEnabled() == false) {
             try {
                 IOUtils.close(remote);
             } catch (IOException e) {
@@ -425,11 +460,10 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         if (remote == null) {
             // this is a new cluster we have to add a new representation
-            Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
-        } else if (forceRebuild || remote.shouldRebuildConnection(newSettings)) {
+        } else if (forceRebuild || remote.shouldRebuildConnection(config)) {
             // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);
@@ -437,8 +471,7 @@ public final class RemoteClusterService extends RemoteClusterAware
                 logger.warn("project [" + projectId + "] failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             connectionMap.remove(clusterAlias);
-            Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else {
@@ -471,7 +504,9 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
-            updateRemoteCluster(projectId, clusterAlias, settings, false, listener.map(ignored -> null));
+            @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+            final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, settings);
+            updateRemoteCluster(linkedProjectConfig, false, listener.map(ignored -> null));
         }
 
         if (enabledClusters.isEmpty()) {
@@ -583,7 +618,9 @@ public final class RemoteClusterService extends RemoteClusterAware
         return new RemoteClusterAwareClient(transportService, clusterAlias, responseExecutor, switch (disconnectedStrategy) {
             case RECONNECT_IF_DISCONNECTED -> true;
             case FAIL_IF_DISCONNECTED -> false;
-            case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
+            case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService()
+                .isSkipUnavailable(clusterAlias)
+                .orElse(true) == false;
         });
     }
 
@@ -655,9 +692,9 @@ public final class RemoteClusterService extends RemoteClusterAware
     /**
      * Returns the map of connections for the given {@link ProjectId}.
      */
+    @FixForMultiProject(description = "Assert ProjectId.DEFAULT should not be used in multi-project environment")
     private Map<String, RemoteClusterConnection> getConnectionsMapForProject(ProjectId projectId) {
         if (projectResolver.supportsMultipleProjects()) {
-            assert ProjectId.DEFAULT.equals(projectId) == false : "The default project ID should not be used in multi-project environment";
             return remoteClusters.computeIfAbsent(projectId, unused -> ConcurrentCollections.newConcurrentMap());
         }
         assert ProjectId.DEFAULT.equals(projectId) : "Only the default project ID should be used when multiple projects are not supported";

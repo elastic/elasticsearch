@@ -1500,7 +1500,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(actual, equalTo(expected));
     }
 
-    protected boolean supportsBulkBlockReading() {
+    protected boolean supportsBulkLongBlockReading() {
+        return false;
+    }
+
+    protected boolean supportsBulkDoubleBlockReading() {
         return false;
     }
 
@@ -1513,7 +1517,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSingletonLongBulkBlockReading() throws IOException {
-        assumeTrue("field type supports bulk singleton long reading", supportsBulkBlockReading());
+        assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonLongs) columnAtATimeReader);
+    }
+
+    public void testSingletonDoubleBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton double reading", supportsBulkDoubleBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonDoubles) columnAtATimeReader);
+    }
+
+    private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
+        throws IOException {
+        assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
         var settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mode", "logsdb").build();
         var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
         var mapper = mapperService.documentMapper();
@@ -1539,10 +1554,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                assertThat(
+                    ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues(),
+                    instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)
+                );
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 for (int i = 0; i < block.size(); i++) {
                     assertThat(block.get(i), equalTo(expectedSampleValues[i]));
                 }
@@ -1564,10 +1582,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                assertThat(columnReader.numericDocValues, not(instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)));
+                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                assertThat(
+                    ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues(),
+                    not(instanceOf(BlockLoader.OptionalColumnAtATimeReader.class))
+                );
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), nullValue());
                 assertThat(block.get(2), equalTo(expectedSampleValues[2]));
@@ -1595,9 +1616,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
                 var columnReader = blockLoader.columnAtATimeReader(context);
-                assertThat(columnReader, instanceOf(BlockDocValuesReader.Longs.class));
+                assertThat(
+                    columnReader,
+                    anyOf(instanceOf(BlockDocValuesReader.Longs.class), instanceOf(BlockDocValuesReader.Doubles.class))
+                );
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), equalTo(List.of(expectedSampleValues[0], expectedSampleValues[1])));
                 assertThat(block.get(2), equalTo(expectedSampleValues[2]));

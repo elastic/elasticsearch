@@ -21,17 +21,29 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.elasticsearch.core.Releasable;
-
 /**
- * A histogram which participates in the {@link ExponentialHistogramCircuitBreaker} and therefore requires proper releasing.
+ * Basic implementation for {@link ExponentialHistogram} with common functionality.
  */
-public interface ReleasableExponentialHistogram extends ExponentialHistogram, Releasable {
+public abstract class AbstractExponentialHistogram implements ExponentialHistogram {
 
-    /**
-     * @return an empty singleton, which does not allocate any memory and therefore {@link #close()} is a no-op.
-     */
-    static ReleasableExponentialHistogram empty() {
-        return EmptyExponentialHistogram.INSTANCE;
+    @Override
+    public long valueCount() {
+        return zeroBucket().count() + negativeBuckets().valueCount() + positiveBuckets().valueCount();
+    }
+
+    @Override
+    public int hashCode() {
+        return ExponentialHistogram.hashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj instanceof ExponentialHistogram) {
+            return ExponentialHistogram.equals(this, (ExponentialHistogram) obj);
+        }
+        return false;
     }
 }

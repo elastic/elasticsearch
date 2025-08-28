@@ -28,9 +28,9 @@ import java.util.List;
 import java.util.OptionalLong;
 
 /**
- * Base class for implementations of exponential histograms adhering to the
+ * Interface for implementations of exponential histograms adhering to the
  * <a href="https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram">OpenTelemetry definition</a>.
- * This class supports sparse implementations, allowing iteration over buckets without requiring direct index access.<br>
+ * This interface supports sparse implementations, allowing iteration over buckets without requiring direct index access.<br>
  * The most important properties are:
  * <ul>
  *     <li>The histogram has a scale parameter, which defines the accuracy. A higher scale implies a higher accuracy.
@@ -45,7 +45,7 @@ import java.util.OptionalLong;
  * Additionally, all algorithms assume that samples within a bucket are located at a single point: the point of least relative error
  * (see {@link ExponentialScaleUtils#getPointOfLeastRelativeError(long, int)}).
  */
-public abstract class ExponentialHistogram implements Accountable {
+public interface ExponentialHistogram extends Accountable {
 
     // TODO(b/128622): support min/max storage and merging.
     // TODO(b/128622): Add special positive and negative infinity buckets
@@ -56,17 +56,17 @@ public abstract class ExponentialHistogram implements Accountable {
     // Theoretically, a MAX_SCALE of 51 would work and would still cover the entire range of double values.
     // For that to work, the math for converting from double to indices and back would need to be reworked.
     // One option would be to use "Quadruple": https://github.com/m-vokhm/Quadruple
-    public static final int MAX_SCALE = 38;
+    int MAX_SCALE = 38;
 
     // At this scale, all double values fall into a single bucket.
-    public static final int MIN_SCALE = -11;
+    int MIN_SCALE = -11;
 
     // Only use 62 bits (plus the sign bit) at max to allow computing the difference between the smallest and largest index without causing
     // an overflow.
     // The extra bit also provides room for compact storage tricks.
-    public static final int MAX_INDEX_BITS = 62;
-    public static final long MAX_INDEX = (1L << MAX_INDEX_BITS) - 1;
-    public static final long MIN_INDEX = -MAX_INDEX;
+    int MAX_INDEX_BITS = 62;
+    long MAX_INDEX = (1L << MAX_INDEX_BITS) - 1;
+    long MIN_INDEX = -MAX_INDEX;
 
     /**
      * The scale of the histogram. Higher scales result in higher accuracy but potentially more buckets.
@@ -74,24 +74,24 @@ public abstract class ExponentialHistogram implements Accountable {
      *
      * @return the scale of the histogram
      */
-    public abstract int scale();
+    int scale();
 
     /**
      * @return the {@link ZeroBucket} representing the number of zero (or close-to-zero) values and its threshold
      */
-    public abstract ZeroBucket zeroBucket();
+    ZeroBucket zeroBucket();
 
     /**
      * @return a {@link Buckets} instance for the populated buckets covering the positive value range of this histogram.
      * The {@link BucketIterator#scale()} of iterators obtained via {@link Buckets#iterator()} must be the same as {@link #scale()}.
      */
-    public abstract Buckets positiveBuckets();
+    Buckets positiveBuckets();
 
     /**
      * @return a {@link Buckets} instance for the populated buckets covering the negative value range of this histogram.
      * The {@link BucketIterator#scale()} of iterators obtained via {@link Buckets#iterator()} must be the same as {@link #scale()}.
      */
-    public abstract Buckets negativeBuckets();
+    Buckets negativeBuckets();
 
     /**
      * Returns the sum of all values represented by this histogram.
@@ -100,7 +100,7 @@ public abstract class ExponentialHistogram implements Accountable {
      *
      * @return the sum, guaranteed to be zero for empty histograms
      */
-    public abstract double sum();
+    double sum();
 
     /**
      * Returns the number of values represented by this histogram.
@@ -108,14 +108,12 @@ public abstract class ExponentialHistogram implements Accountable {
      *
      * @return the value count, guaranteed to be zero for empty histograms
      */
-    public long valueCount() {
-        return zeroBucket().count() + positiveBuckets().valueCount() + negativeBuckets().valueCount();
-    }
+    long valueCount();
 
     /**
      * Represents a bucket range of an {@link ExponentialHistogram}, either the positive or the negative range.
      */
-    public interface Buckets {
+    interface Buckets {
 
         /**
          * @return a {@link BucketIterator} for the populated buckets of this bucket range.
@@ -135,23 +133,22 @@ public abstract class ExponentialHistogram implements Accountable {
 
     }
 
-    @Override
-    public boolean equals(Object other) {
-        if (this == other) return true;
-        if (other == null) return false;
+    /**
+     * Value-based equality for exponential histograms.
+     * @param a the first histogram (can be null)
+     * @param b the second histogram (can be null)
+     * @return true, if both histograms are equal
+     */
+    static boolean equals(ExponentialHistogram a, ExponentialHistogram b) {
+        if (a == b) return true;
+        if (a == null) return false;
+        if (b == null) return false;
 
-        if ((other instanceof ExponentialHistogram) == false) {
-            return false;
-        }
-        ExponentialHistogram that = (ExponentialHistogram) other;
-
-        if (scale() != that.scale()) return false;
-        if (sum() != that.sum()) return false;
-        if (zeroBucket().equals(that.zeroBucket()) == false) return false;
-        if (bucketIteratorsEqual(negativeBuckets().iterator(), that.negativeBuckets().iterator()) == false) return false;
-        if (bucketIteratorsEqual(positiveBuckets().iterator(), that.positiveBuckets().iterator()) == false) return false;
-
-        return true;
+        return a.scale() == b.scale()
+            && a.sum() == b.sum()
+            && a.zeroBucket().equals(b.zeroBucket())
+            && bucketIteratorsEqual(a.negativeBuckets().iterator(), b.negativeBuckets().iterator())
+            && bucketIteratorsEqual(a.positiveBuckets().iterator(), b.positiveBuckets().iterator());
     }
 
     private static boolean bucketIteratorsEqual(BucketIterator a, BucketIterator b) {
@@ -168,19 +165,23 @@ public abstract class ExponentialHistogram implements Accountable {
         return a.hasNext() == b.hasNext();
     }
 
-    @Override
-    public int hashCode() {
-        int hash = scale();
-        hash = 31 * hash + Double.hashCode(sum());
-        hash = 31 * hash + zeroBucket().hashCode();
-        hash = 31 * hash + Long.hashCode(valueCount());
+    /**
+     * Default hash code implementation to be used with {@link #equals(ExponentialHistogram, ExponentialHistogram)}.
+     * @param histogram the histogram to hash
+     * @return the hash code
+     */
+    static int hashCode(ExponentialHistogram histogram) {
+        int hash = histogram.scale();
+        hash = 31 * hash + Double.hashCode(histogram.sum());
+        hash = 31 * hash + histogram.zeroBucket().hashCode();
+        hash = 31 * hash + Long.hashCode(histogram.valueCount());
         // we intentionally don't include the hash of the buckets here, because that is likely expensive to compute
         // instead, we assume that the value count and sum are a good enough approximation in most cases to minimize collisions
         // the value count is typically available as a cached value and doesn't involve iterating over all buckets
         return hash;
     }
 
-    public static ExponentialHistogram empty() {
+    static ExponentialHistogram empty() {
         return EmptyExponentialHistogram.INSTANCE;
     }
 
@@ -194,7 +195,7 @@ public abstract class ExponentialHistogram implements Accountable {
      * @param values the values to be added to the histogram
      * @return a new {@link ReleasableExponentialHistogram}
      */
-    public static ReleasableExponentialHistogram create(int maxBucketCount, ExponentialHistogramCircuitBreaker breaker, double... values) {
+    static ReleasableExponentialHistogram create(int maxBucketCount, ExponentialHistogramCircuitBreaker breaker, double... values) {
         try (ExponentialHistogramGenerator generator = ExponentialHistogramGenerator.create(maxBucketCount, breaker)) {
             for (double val : values) {
                 generator.add(val);
@@ -211,7 +212,7 @@ public abstract class ExponentialHistogram implements Accountable {
      * @param histograms the histograms to merge
      * @return the merged histogram
      */
-    public static ReleasableExponentialHistogram merge(
+    static ReleasableExponentialHistogram merge(
         int maxBucketCount,
         ExponentialHistogramCircuitBreaker breaker,
         Iterator<ExponentialHistogram> histograms
@@ -232,7 +233,7 @@ public abstract class ExponentialHistogram implements Accountable {
      * @param histograms the histograms to merge
      * @return the merged histogram
      */
-    public static ReleasableExponentialHistogram merge(
+    static ReleasableExponentialHistogram merge(
         int maxBucketCount,
         ExponentialHistogramCircuitBreaker breaker,
         ExponentialHistogram... histograms

@@ -1399,7 +1399,12 @@ public class EsqlCapabilities {
         /**
          * Allow qualifiers in attribute names.
          */
-        NAME_QUALIFIERS(Build.current().isSnapshot());
+        NAME_QUALIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * URL encoding function.
+         */
+        URL_ENCODE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

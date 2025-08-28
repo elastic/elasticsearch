@@ -107,9 +107,12 @@ public class First extends AggregateFunction implements ToAggregator {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(field(), dt -> dt == DataType.BOOLEAN || dt == DataType.DATETIME
-            || DataType.isString(dt)
-            || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+        return isType(
+            field(),
+            dt -> dt == DataType.BOOLEAN
+                || dt == DataType.DATETIME
+                || DataType.isString(dt)
+                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
             sourceText(),
             FIRST,
             "boolean",

@@ -344,7 +344,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), getThirdPartyClasspath());
-            // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23/24 for now, and just the vector module.
+            // Enable explicitly for each release as appropriate and just the vector module.
             if (isJavaVersion(VERSION_20)
                 || isJavaVersion(VERSION_21)
                 || isJavaVersion(VERSION_22)

@@ -137,7 +137,7 @@ FROM events_*
 
 ### Date and date_nanos union type [esql-multi-index-date-date-nanos-union]
 
-When the type of an {{ES|QL}} field is a *union* of `date` and `date_nanos` across different indices, {{ES|QL}} automatically casts all values to the `date_nanos` type during query execution. This implicit casting ensures that all values are handled with nanosecond precision, regardless of their original type. As a result, users can write queries against such fields without needing to perform explicit type conversions, and the query engine will seamlessly align the types for consistent and precise results.
+When the type of an {{esql}} field is a *union* of `date` and `date_nanos` across different indices, {{ES|QL}} automatically casts all values to the `date_nanos` type during query execution. This implicit casting ensures that all values are handled with nanosecond precision, regardless of their original type. As a result, users can write queries against such fields without needing to perform explicit type conversions, and the query engine will seamlessly align the types for consistent and precise results.
 
 For example, if the `@timestamp` field is mapped as `date` in one index and `date_nanos` in another, {{ES|QL}} will automatically treat all `@timestamp` values as `date_nanos` during query execution. This allows users to write queries that utilize the `@timestamp` field without encountering type mismatch errors, ensuring accurate time-based operations and comparisons across the combined dataset.
 
@@ -178,8 +178,8 @@ FROM events_date, events_date_nanos
 | SORT @timestamp DESC
 ```
 
-| @timestamp:date | client_ip:ip | event_duration:long | message:keyword |
-| --- | --- | --- | --- |
+| @timestamp:date_nanos    | client_ip:ip | event_duration:long | message:keyword |
+|--------------------------| --- | --- | --- |
 | 2023-10-23T13:55:01.543Z | 172.21.3.15 | 1756467 | Connected to 10.1.0.1 |
 | 2023-10-23T13:53:55.832Z | 172.21.3.15 | 5033755 | Connection error |
 | 2023-10-23T13:52:55.015Z | 172.21.3.15 | 8268153 | Connection error |

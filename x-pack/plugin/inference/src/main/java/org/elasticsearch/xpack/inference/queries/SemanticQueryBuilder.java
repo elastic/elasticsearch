@@ -238,8 +238,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 inferenceResults = inferenceResultsMap.get(inferenceId);
             }
 
-            return switch (inferenceResults) {
-                case null -> throw new IllegalStateException(
+            if (inferenceResults == null) {
+                throw new IllegalStateException(
                     "No inference results set for ["
                         + semanticTextFieldType.typeName()
                         + "] field ["
@@ -248,25 +248,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                         + inferenceId
                         + "]"
                 );
-                case ErrorInferenceResults errorInferenceResults -> throw new InferenceException(
-                    "Field [" + fieldName + "] with inference ID [" + inferenceId + "] query inference error",
-                    errorInferenceResults.getException()
-                );  // Use InferenceException here so that the status code is set by the cause
-                case WarningInferenceResults warningInferenceResults -> throw new IllegalStateException(
-                    "Field ["
-                        + fieldName
-                        + "] with inference ID ["
-                        + inferenceId
-                        + "] query inference warning: "
-                        + warningInferenceResults.getWarning()
-                );
-                default -> semanticTextFieldType.semanticQuery(
-                    inferenceResults,
-                    searchExecutionContext.requestSize(),
-                    boost(),
-                    queryName()
-                );
-            };
+            }
+
+            return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
         } else if (lenient != null && lenient) {
             return new MatchNoneQueryBuilder();
         } else {
@@ -278,6 +262,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         if (inferenceResultsMap != null) {
+            inferenceResultsErrorCheck();
             return this;
         }
 
@@ -376,6 +361,30 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         return inferenceResults;
+    }
+
+    private void inferenceResultsErrorCheck() {
+        for (var entry : inferenceResultsMap.entrySet()) {
+            String inferenceId = entry.getKey();
+            InferenceResults inferenceResults = entry.getValue();
+
+            if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {
+                // Use InferenceException here so that the status code is set by the cause
+                throw new InferenceException(
+                    "Field [" + fieldName + "] with inference ID [" + inferenceId + "] query inference error",
+                    errorInferenceResults.getException()
+                );
+            } else if (inferenceResults instanceof WarningInferenceResults warningInferenceResults) {
+                throw new IllegalStateException(
+                    "Field ["
+                        + fieldName
+                        + "] with inference ID ["
+                        + inferenceId
+                        + "] query inference warning: "
+                        + warningInferenceResults.getWarning()
+                );
+            }
+        }
     }
 
     @Override

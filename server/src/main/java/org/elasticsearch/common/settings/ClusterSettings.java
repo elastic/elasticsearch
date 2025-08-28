@@ -132,11 +132,10 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShutdownProgressTracker;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
-import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterSettings;
+import org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings;
+import org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -366,20 +365,20 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
         TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
         TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE,
-        RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
-        SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
-        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
-        RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
-        RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
-        RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-        RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME,
-        RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-        ProxyConnectionStrategy.PROXY_ADDRESS,
-        ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-        ProxyConnectionStrategy.SERVER_NAME,
-        SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
-        SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-        SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
+        RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+        RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
+        RemoteClusterSettings.REMOTE_NODE_ATTRIBUTE,
+        RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
+        RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
+        RemoteClusterSettings.REMOTE_CLUSTER_COMPRESSION_SCHEME,
+        RemoteClusterSettings.REMOTE_CONNECTION_MODE,
+        ProxyConnectionStrategySettings.PROXY_ADDRESS,
+        ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS,
+        ProxyConnectionStrategySettings.SERVER_NAME,
+        SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
+        SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
+        SniffConnectionStrategySettings.REMOTE_CONNECTIONS_PER_CLUSTER,
+        SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
         SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING,
@@ -605,7 +604,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SimulatePipelineTransportAction.INGEST_NODE_TRANSPORT_ACTION_TIMEOUT,
         WriteAckDelay.WRITE_ACK_DELAY_INTERVAL,
         WriteAckDelay.WRITE_ACK_DELAY_RANDOMNESS_BOUND,
-        RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS,
+        RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS,
         RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED,
         RemoteClusterPortSettings.HOST,
         RemoteClusterPortSettings.PUBLISH_HOST,
@@ -649,7 +648,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_DURATION_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING,
-        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_POLLING_INTERVAL_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING
     );
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +24,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -280,9 +280,10 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 List.of(esqlContext),
                 ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SEGMENT,
+                DataPartitioning.AutoStrategy.DEFAULT,
                 1,
                 10000,
-                DocIdSetIterator.NO_MORE_DOCS,
+                LuceneOperator.NO_LIMIT,
                 false // no scoring
             );
             List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>();
@@ -292,6 +293,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new ValuesSourceReaderOperator.FieldInfo(
                         "key" + idx,
                         PlannerUtils.toElementType(keyTypes.get(idx)),
+                        false,
                         shard -> searchContext.getSearchExecutionContext().getFieldType("key" + idx).blockLoader(blContext())
                     )
                 );

@@ -438,7 +438,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM).longValue()));
                 var avg = aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
                 assertThat((Double) row.get(5), closeTo(avg, avg * 0.01));
-//                assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
+                // assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
         }
     }
@@ -483,7 +483,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM).longValue()));
                 var avg = aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
                 assertThat((Double) row.get(5), closeTo(avg, avg * 0.01));
-//                assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
+                // assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
         }
     }

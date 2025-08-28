@@ -24,8 +24,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,9 +75,7 @@ class TSDataGenerationHelper {
         for (int i = 0; i < numDocs; i++) {
             // Random timestamps within the last 90 days.
             while (true) {
-                var randomIns = Instant.ofEpochMilli(
-                    ESTestCase.randomLongBetween(timeRangeEnd, timeRangeStart)
-                );
+                var randomIns = Instant.ofEpochMilli(ESTestCase.randomLongBetween(timeRangeEnd, timeRangeStart));
                 if (timestampSet.add(randomIns)) {
                     break;
                 }

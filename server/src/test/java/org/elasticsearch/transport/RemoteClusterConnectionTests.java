@@ -74,6 +74,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -237,8 +239,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
                 try (
                     RemoteClusterConnection connection = new RemoteClusterConnection(
-                        settings,
-                        clusterAlias,
+                        RemoteClusterSettings.toConfig(clusterAlias, settings),
                         service,
                         randomFrom(RemoteClusterCredentialsManager.EMPTY, buildCredentialsManager(clusterAlias))
                     )
@@ -314,8 +315,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 Settings settings = buildRandomSettings(clusterAlias, seedNodes);
                 try (
                     RemoteClusterConnection connection = new RemoteClusterConnection(
-                        settings,
-                        clusterAlias,
+                        RemoteClusterSettings.toConfig(clusterAlias, settings),
                         service,
                         RemoteClusterCredentialsManager.EMPTY
                     )
@@ -456,7 +456,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 String clusterAlias = "test-cluster";
                 Settings settings = Settings.builder()
                     .put(buildSniffSettings(clusterAlias, seedNodes))
-                    .put(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections)
+                    .put(SniffConnectionStrategySettings.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections)
                     .build();
                 if (hasClusterCredentials) {
                     final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -468,8 +468,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 }
                 try (
                     RemoteClusterConnection connection = new RemoteClusterConnection(
-                        settings,
-                        clusterAlias,
+                        RemoteClusterSettings.toConfig(clusterAlias, settings),
                         service,
                         hasClusterCredentials ? buildCredentialsManager(clusterAlias) : RemoteClusterCredentialsManager.EMPTY
                     )
@@ -665,8 +664,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
                 try (
                     RemoteClusterConnection connection = new RemoteClusterConnection(
-                        settings,
-                        clusterAlias,
+                        RemoteClusterSettings.toConfig(clusterAlias, settings),
                         service,
                         hasClusterCredentials ? buildCredentialsManager(clusterAlias) : RemoteClusterCredentialsManager.EMPTY
                     )
@@ -722,8 +720,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
                 try (
                     RemoteClusterConnection connection = new RemoteClusterConnection(
-                        settings,
-                        clusterAlias,
+                        RemoteClusterSettings.toConfig(clusterAlias, settings),
                         service,
                         RemoteClusterCredentialsManager.EMPTY
                     )
@@ -795,8 +792,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 Settings settings = buildRandomSettings(clusterAlias, seedNodes);
                 try (
                     RemoteClusterConnection connection = new RemoteClusterConnection(
-                        settings,
-                        clusterAlias,
+                        RemoteClusterSettings.toConfig(clusterAlias, settings),
                         service,
                         randomFrom(RemoteClusterCredentialsManager.EMPTY, buildCredentialsManager(clusterAlias))
                     )
@@ -896,8 +892,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
                 try (
                     RemoteClusterConnection connection = new RemoteClusterConnection(
-                        settings,
-                        clusterAlias,
+                        RemoteClusterSettings.toConfig(clusterAlias, settings),
                         service,
                         RemoteClusterCredentialsManager.EMPTY
                     )
@@ -935,16 +930,16 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     private static Settings buildProxySettings(String clusterAlias, List<String> addresses) {
         Settings.Builder builder = Settings.builder();
-        builder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).getKey(), addresses.get(0));
-        builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "proxy");
+        builder.put(ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).getKey(), addresses.get(0));
+        builder.put(RemoteClusterSettings.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "proxy");
         return builder.build();
     }
 
     private static Settings buildSniffSettings(String clusterAlias, List<String> seedNodes) {
         Settings.Builder builder = Settings.builder();
-        builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "sniff");
+        builder.put(RemoteClusterSettings.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "sniff");
         builder.put(
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
             Strings.collectionToCommaDelimitedString(seedNodes)
         );
         return builder.build();

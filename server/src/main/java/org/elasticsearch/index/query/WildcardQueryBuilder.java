@@ -46,6 +46,8 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     private static final ParseField VALUE_FIELD = new ParseField("value");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
 
+    private static final TransportVersion ESQL_FIXED_INDEX_LIKE = TransportVersion.fromName("esql_fixed_index_like");
+
     private final String fieldName;
 
     private final String value;
@@ -126,9 +128,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
      * Returns true if the Transport version is compatible with ESQL_FIXED_INDEX_LIKE
      */
     public static boolean expressionTransportSupported(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
-            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19)
-            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1);
+        return version.supports(ESQL_FIXED_INDEX_LIKE);
     }
 
     @Override

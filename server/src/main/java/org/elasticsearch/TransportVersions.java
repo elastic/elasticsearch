@@ -212,7 +212,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION_8_19 = def(8_841_0_60);
     public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19 = def(8_841_0_61);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
-    public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_3 = def(8_841_0_67);
@@ -335,27 +334,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
     public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
-    public static final TransportVersion ESQL_FIXED_INDEX_LIKE_9_1 = def(9_112_0_02);
-    public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS_9_1 = def(9_112_0_03);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_2 = def(9_112_0_05);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_3 = def(9_112_0_06);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_4 = def(9_112_0_07);
-    public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
-    public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
-    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = def(9_115_0_00);
-    public static final TransportVersion ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS = def(9_117_0_00);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = def(9_118_0_00);
-    public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
-    public static final TransportVersion LOOKUP_JOIN_CCS = def(9_120_0_00);
-    public static final TransportVersion NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = def(9_121_0_00);
-    public static final TransportVersion ESQL_CATEGORIZE_OPTIONS = def(9_122_0_00);
-    public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED = def(9_123_0_00);
-    public static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = def(9_124_0_00);
-    public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
-    public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
-    public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
-    public static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = def(9_145_0_00);
     public static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = def(9_146_0_00);
 
     /*
@@ -418,12 +396,6 @@ public class TransportVersions {
      * This should be the transport version used by the highest minor version of the previous major.
      */
     public static final TransportVersion MINIMUM_COMPATIBLE = INITIAL_ELASTICSEARCH_8_19;
-
-    /**
-     * Reference to the minimum transport version that can be used with CCS.
-     * This should be the transport version used by the previous minor release.
-     */
-    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_1_3;
 
     /**
      * Sorted list of all versions defined in this class

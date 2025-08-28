@@ -61,8 +61,8 @@ import java.util.stream.Collectors;
  * numbers. So the minimum compatible version is hard-coded as the transport version used by the highest minor release of the previous
  * major version. {@link TransportVersions#MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
  * <p>
- * The earliest CCS compatible version is hardcoded at {@link TransportVersions#MINIMUM_CCS_VERSION}, as the transport version used by the
- * previous minor release. This should be updated appropriately whenever a minor release happens.
+ * The earliest CCS compatible version is hardcoded at {@link TransportVersion.VersionsHolder#MINIMUM_CCS_VERSION}, as the transport version
+ * used by the previous minor release. This should be updated appropriately whenever a minor release happens.
  *
  * <h2>Scope of usefulness of {@link TransportVersion}</h2>
  * {@link TransportVersion} is a property of the transport connection between a pair of nodes, and should not be used as an indication of
@@ -275,6 +275,14 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
+     * Reference to the minimum transport version that can be used with CCS.
+     * This should be the transport version used by the previous minor release.
+     */
+    public static TransportVersion minimumCCSVersion() {
+        return VersionsHolder.MINIMUM_CCS_VERSION;
+    }
+
+    /**
      * Sorted list of all defined transport versions
      */
     public static List<TransportVersion> getAllVersions() {
@@ -422,7 +430,9 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         private static final Map<Integer, TransportVersion> ALL_VERSIONS_BY_ID;
         private static final Map<String, TransportVersion> ALL_VERSIONS_BY_NAME;
         private static final IntFunction<String> VERSION_LOOKUP_BY_RELEASE;
+
         private static final TransportVersion CURRENT;
+        private static final TransportVersion MINIMUM_CCS_VERSION;
 
         static {
             // collect all the transport versions from server and es modules/plugins (defined in server)
@@ -460,7 +470,9 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             ALL_VERSIONS = Collections.unmodifiableList(allVersions);
             ALL_VERSIONS_BY_ID = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
             ALL_VERSIONS_BY_NAME = Collections.unmodifiableMap(allVersionsByName);
+
             CURRENT = ALL_VERSIONS.getLast();
+            MINIMUM_CCS_VERSION = ALL_VERSIONS_BY_ID.get(9112006);
         }
 
         private static List<TransportVersion> addTransportVersions(Collection<TransportVersion> addFrom, List<TransportVersion> addTo) {

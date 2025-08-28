@@ -30,6 +30,10 @@ import java.util.NavigableSet;
 
 public abstract class LocalSupplierTests extends AbstractWireTestCase<LocalSupplier> {
 
+    private static final TransportVersion ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS = TransportVersion.fromName(
+        "esql_local_relation_with_new_blocks"
+    );
+
     private static final NavigableSet<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
@@ -70,7 +74,7 @@ public abstract class LocalSupplierTests extends AbstractWireTestCase<LocalSuppl
     }
 
     protected void writeTo(BytesStreamOutput output, LocalSupplier instance, TransportVersion version) throws IOException {
-        if (version.onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (version.supports(ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
             new PlanStreamOutput(output, null).writeNamedWriteable(instance);
         } else {
             instance.writeTo(new PlanStreamOutput(output, null));
@@ -78,7 +82,7 @@ public abstract class LocalSupplierTests extends AbstractWireTestCase<LocalSuppl
     }
 
     protected LocalSupplier readFrom(StreamInput input, TransportVersion version) throws IOException {
-        if (version.onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (version.supports(ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
             return new PlanStreamInput(input, getNamedWriteableRegistry(), null).readNamedWriteable(LocalSupplier.class);
         } else {
             return LocalSourceExec.readLegacyLocalSupplierFrom(new PlanStreamInput(input, getNamedWriteableRegistry(), null));

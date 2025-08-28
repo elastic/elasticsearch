@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,6 +77,8 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         Map.ofEntries(entry(ANALYZER, KEYWORD), entry(OUTPUT_FORMAT, KEYWORD), entry(SIMILARITY_THRESHOLD, INTEGER))
     );
 
+    private static final TransportVersion ESQL_CATEGORIZE_OPTIONS = TransportVersion.fromName("esql_categorize_options");
+
     private final Expression field;
     private final Expression options;
 
@@ -141,9 +143,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CATEGORIZE_OPTIONS)
-                ? in.readOptionalNamedWriteable(Expression.class)
-                : null
+            in.getTransportVersion().supports(ESQL_CATEGORIZE_OPTIONS) ? in.readOptionalNamedWriteable(Expression.class) : null
         );
     }
 
@@ -151,7 +151,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CATEGORIZE_OPTIONS)) {
+        if (out.getTransportVersion().supports(ESQL_CATEGORIZE_OPTIONS)) {
             out.writeOptionalNamedWriteable(options);
         }
     }

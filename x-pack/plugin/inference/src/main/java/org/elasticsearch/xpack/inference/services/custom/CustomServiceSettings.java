@@ -66,6 +66,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
     private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
 
+    private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = TransportVersion.fromName(
+        "ml_inference_custom_service_embedding_type"
+    );
+
     public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
         ValidationException validationException = new ValidationException();
 
@@ -169,7 +173,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             this.dimensions = in.readOptionalVInt();
             this.maxInputTokens = in.readOptionalVInt();
 
-            if (in.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
+            if (in.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE) == false) {
                 in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class);
             }
         }
@@ -180,7 +184,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
 
-            if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
+            if (out.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE) == false) {
                 out.writeOptionalEnum(null);
             }
         }

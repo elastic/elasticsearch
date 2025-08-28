@@ -37,6 +37,10 @@ import static org.mockito.Mockito.mock;
 
 public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializationTestCase<TextEmbeddingResponseParser> {
 
+    private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = TransportVersion.fromName(
+        "ml_inference_custom_service_embedding_type"
+    );
+
     public static TextEmbeddingResponseParser createRandom() {
         return new TextEmbeddingResponseParser("$." + randomAlphaOfLength(5), randomFrom(CustomServiceEmbeddingType.values()));
     }
@@ -317,7 +321,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
 
     @Override
     protected TextEmbeddingResponseParser mutateInstanceForVersion(TextEmbeddingResponseParser instance, TransportVersion version) {
-        if (version.before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
+        if (version.supports(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE) == false) {
             return new TextEmbeddingResponseParser(instance.getTextEmbeddingsPath(), CustomServiceEmbeddingType.FLOAT);
         }
         return instance;

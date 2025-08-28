@@ -85,7 +85,7 @@ public record ESONFlat(
     }
 
     private static List<ESONEntry> readKeys(StreamInput in) throws IOException {
-        int expected = in.readVInt();
+        int expected = ESONByteArrayXContentParser.readShortInt(in);
         ESONStack esonStack = new ESONStack();
         ArrayList<ESONEntry> keys = new ArrayList<>(expected);
         byte startType = in.readByte();
@@ -97,7 +97,7 @@ public record ESONFlat(
             int stackValue = esonStack.currentStackValue();
             final String key;
             if (ESONStack.isObject(stackValue)) {
-                int stringLength = in.readVInt();
+                int stringLength = ESONByteArrayXContentParser.readShortInt(in);
                 byte[] stringBytes = new byte[stringLength];
                 in.readBytes(stringBytes, 0, stringLength);
                 key = new String(stringBytes, StandardCharsets.UTF_8);
@@ -142,7 +142,7 @@ public record ESONFlat(
             // }
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(getBytesRefRecycler())) {
                 List<ESONEntry> esonEntries = keys.get();
-                streamOutput.writeVInt(esonEntries.size());
+                streamOutput.writeShortInt(esonEntries.size());
                 for (ESONEntry entry : esonEntries) {
                     String key = entry.key();
                     if (key != null) {

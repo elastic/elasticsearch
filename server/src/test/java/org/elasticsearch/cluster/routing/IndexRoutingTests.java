@@ -705,7 +705,7 @@ public class IndexRoutingTests extends ESTestCase {
         var shardToRouting = new HashMap<Integer, String>();
         do {
             var routing = randomAlphaOfLength(5);
-            var shard = initialRouting.indexShard("dummy", routing, null, null);
+            var shard = initialRouting.indexShard("dummy", routing, null, (BytesReference) null);
             if (shardToRouting.containsKey(shard) == false) {
                 shardToRouting.put(shard, routing);
             }
@@ -785,7 +785,7 @@ public class IndexRoutingTests extends ESTestCase {
         var shardToRouting = new TreeMap<Integer, String>();
         do {
             var routing = randomAlphaOfLength(5);
-            var shard = initialRouting.indexShard("dummy", routing, null, null);
+            var shard = initialRouting.indexShard("dummy", routing, null, (BytesReference) null);
             if (shardToRouting.containsKey(shard) == false) {
                 shardToRouting.put(shard, routing);
             }

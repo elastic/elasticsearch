@@ -16,6 +16,9 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -140,6 +143,31 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
             int lowerBits = Short.toUnsignedInt(y);
             return upperBits | lowerBits;
         }
+    }
+
+    public static int readShortInt(InputStream inputStream) throws IOException {
+        short x = readShort(inputStream);
+
+        if (x > 0) {
+            return x;
+        } else {
+            short y = readShort(inputStream);
+
+            int upperBits = (x & 0x7FFF) << 16;
+            int lowerBits = Short.toUnsignedInt(y);
+            return upperBits | lowerBits;
+        }
+    }
+
+    private static short readShort(InputStream inputStream) throws IOException {
+        int b3 = inputStream.read();
+        int b4 = inputStream.read();
+        if (b3 == -1 || b4 == -1) {
+            throw new EOFException("Unexpected end of stream");
+        }
+
+        short y = (short) ((b3 << 8) | b4);
+        return y;
     }
 
     @Override

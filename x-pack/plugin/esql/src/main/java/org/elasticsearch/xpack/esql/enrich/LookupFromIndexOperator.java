@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -257,6 +257,10 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
+        private static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = TransportVersion.fromName(
+            "esql_lookup_operator_emitted_rows"
+        );
+
         private final long totalRows;
         /**
          * Total number of pages emitted by this {@link Operator}.
@@ -278,7 +282,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             super(in);
             this.totalRows = in.readVLong();
             this.emittedPages = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
                 this.emittedRows = in.readVLong();
             } else {
                 this.emittedRows = 0L;
@@ -290,7 +294,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             super.writeTo(out);
             out.writeVLong(totalRows);
             out.writeVLong(emittedPages);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
                 out.writeVLong(emittedRows);
             }
 

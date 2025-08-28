@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -178,6 +179,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
+
+        private static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = TransportVersion.fromName(
+            "esql_lookup_join_on_many_fields"
+        );
+
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
 
@@ -213,7 +219,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
 
             DataType inputDataType = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
                 inputDataType = DataType.fromTypeName(in.readString());
             }
 
@@ -224,7 +230,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             List<MatchConfig> matchFields = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
                 matchFields = planIn.readCollectionAsList(MatchConfig::new);
             } else {
                 String matchField = in.readString();
@@ -273,7 +279,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
                 throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
                 // only write this for old versions
                 // older versions only support a single match field
                 if (matchFields.size() > 1) {
@@ -284,7 +290,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
                 // serialize all match fields for new versions
                 planOut.writeCollection(matchFields, (o, matchConfig) -> matchConfig.writeTo(o));
             } else {

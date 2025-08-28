@@ -194,64 +194,67 @@ public class IndexLifecycleService
     private void maybeRunAsyncActions(ProjectState state) {
         final ProjectMetadata projectMetadata = state.metadata();
         final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null) {
-            OperationMode currentMode = currentILMMode(projectMetadata);
-            if (OperationMode.STOPPED.equals(currentMode)) {
-                return;
-            }
+        if (currentMetadata == null) {
+            return;
+        }
+        OperationMode currentMode = currentILMMode(projectMetadata);
+        if (OperationMode.STOPPED.equals(currentMode)) {
+            return;
+        }
 
-            boolean safeToStop = true; // true until proven false by a run policy
-            for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
-                if (projectMetadata.isIndexManagedByILM(idxMeta) == false) {
+        boolean safeToStop = true; // true until proven false by a run policy
+        for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
+            if (projectMetadata.isIndexManagedByILM(idxMeta) == false) {
+                continue;
+            }
+            String policyName = idxMeta.getLifecyclePolicyName();
+            final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+            StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
+
+            try {
+                if (currentMode == OperationMode.RUNNING) {
+                    lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
                     continue;
                 }
-                String policyName = idxMeta.getLifecyclePolicyName();
-                final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
-                StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
-
-                try {
-                    if (currentMode == OperationMode.RUNNING) {
-                        lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
-                        continue;
-                    }
-                    if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
-                        logger.info(
-                            "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
-                            idxMeta.getIndex().getName(),
-                            policyName,
-                            stepKey.name()
-                        );
-                        lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
-                        // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
-                        safeToStop = false;
-                    } else {
-                        logger.info(
-                            "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
-                            stepKey == null ? "n/a" : stepKey.name(),
-                            idxMeta.getIndex().getName(),
-                            policyName
-                        );
-                    }
-                } catch (Exception e) {
-                    String logMessage = format(
-                        "async action execution failed during master election trigger for index [%s] with policy [%s] in step [%s]",
+                // We only get here if ILM is in STOPPING mode. In that case, we need to check if there is any index that is in a step
+                // that we can't stop ILM in. If there is, we don't stop ILM yet.
+                if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
+                    logger.info(
+                        "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                         idxMeta.getIndex().getName(),
                         policyName,
-                        stepKey
+                        stepKey.name()
                     );
-                    if (logger.isTraceEnabled()) {
-                        logMessage += format(", lifecycle state: [%s]", lifecycleState.asMap());
-                    }
-                    logger.warn(logMessage, e);
-
-                    // Don't rethrow the exception, we don't want a failure for one index to be
-                    // called to cause actions not to be triggered for further indices
+                    lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
+                    // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
+                    safeToStop = false;
+                } else {
+                    logger.info(
+                        "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
+                        stepKey == null ? "n/a" : stepKey.name(),
+                        idxMeta.getIndex().getName(),
+                        policyName
+                    );
                 }
-            }
+            } catch (Exception e) {
+                String logMessage = format(
+                    "async action execution failed during master election trigger for index [%s] with policy [%s] in step [%s]",
+                    idxMeta.getIndex().getName(),
+                    policyName,
+                    stepKey
+                );
+                if (logger.isTraceEnabled()) {
+                    logMessage += format(", lifecycle state: [%s]", lifecycleState.asMap());
+                }
+                logger.warn(logMessage, e);
 
-            if (safeToStop && OperationMode.STOPPING == currentMode) {
-                stopILM(state.projectId());
+                // Don't rethrow the exception, we don't want a failure for one index to be
+                // called to cause actions not to be triggered for further indices
             }
+        }
+
+        if (safeToStop && OperationMode.STOPPING == currentMode) {
+            stopILM(state.projectId());
         }
     }
 

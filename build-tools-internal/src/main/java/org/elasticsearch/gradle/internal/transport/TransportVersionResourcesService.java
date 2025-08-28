@@ -190,6 +190,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return getMainFile(resourcePath, TransportVersionUpperBound::fromString);
     }
 
+    /** Retrieve all upper bounds that exist on main */
     List<TransportVersionUpperBound> getUpperBoundsFromMain() throws IOException {
         List<TransportVersionUpperBound> upperBounds = new ArrayList<>();
         for (String mainPathString : getMainResources()) {
@@ -203,6 +204,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return upperBounds;
     }
 
+    /** Write the given upper bound to a file in the transport resources */
     void writeUpperBound(TransportVersionUpperBound upperBound) throws IOException {
         Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.releaseBranch()));
         logger.debug("Writing upper bound [" + upperBound + "] to [" + path + "]");

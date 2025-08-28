@@ -115,7 +115,13 @@ class HardcodedEntitlements {
                 )
             ),
             new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
-            new Scope("java.xml", List.of(new ReadJdkImageEntitlement())),
+            new Scope("java.xml", List.of(
+                new ReadJdkImageEntitlement(),
+                // java.xml does some reflective stuff that reads calling jars, so allow reading the codebases
+                // of any code in the system so that they can all use java.xml
+                new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(LIB, READ))),
+                new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(MODULES, READ))),
+                new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(PLUGINS, READ))))),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",

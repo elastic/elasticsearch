@@ -11,6 +11,9 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
@@ -19,12 +22,21 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 final class $v1_Type$$v2_Type$State implements AggregatorState {
     private $v1_type$ v1;
+    $if(v2_BytesRef)$
+    private final BreakingBytesRefBuilder v2;
+    $else$
     private $v2_type$ v2;
+    $endif$
     private boolean seen;
 
-    $v1_Type$$v2_Type$State($v1_type$ v1, $v2_type$ v2) {
+    $v1_Type$$v2_Type$State($v1_type$ v1, $v2_type$ v2$if(v2_BytesRef)$, CircuitBreaker breaker$endif$) {
         this.v1 = v1;
+        $if(v2_BytesRef)$
+        this.v2 = new BreakingBytesRefBuilder(breaker, "$v1_Type$$v2_Type$State", v2.length);
+        this.v2.copyBytes(v2);
+        $else$
         this.v2 = v2;
+        $endif$
     }
 
     $v1_type$ v1() {
@@ -36,11 +48,15 @@ final class $v1_Type$$v2_Type$State implements AggregatorState {
     }
 
     $v2_type$ v2() {
-        return v2;
+        return v2$if(v2_BytesRef)$.bytesRefView()$endif$;
     }
 
     void v2($v2_type$ v2) {
+        $if(v2_BytesRef)$
+        this.v2.copyBytes(v2);
+        $else$
         this.v2 = v2;
+        $endif$
     }
 
     boolean seen() {
@@ -56,10 +72,14 @@ final class $v1_Type$$v2_Type$State implements AggregatorState {
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         assert blocks.length >= offset + 3;
         blocks[offset + 0] = driverContext.blockFactory().newConstant$v1_Type$BlockWith(v1, 1);
-        blocks[offset + 1] = driverContext.blockFactory().newConstant$v2_Type$BlockWith(v2, 1);
+        blocks[offset + 1] = driverContext.blockFactory().newConstant$v2_Type$BlockWith(v2$if(v2_BytesRef)$.bytesRefView()$endif$, 1);
         blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        $if(v2_BytesRef)$
+        Releasables.close(this.v2);
+        $endif$
+    }
 }

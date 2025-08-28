@@ -46,7 +46,7 @@ public class LastBytesRefByTimestampAggregator {
     }
 
     public static LongBytesRefState initSingle(DriverContext driverContext) {
-        return new LongBytesRefState(0, new BytesRef());
+        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker());
     }
 
     public static void first(LongBytesRefState current, BytesRef value, long timestamp) {
@@ -57,7 +57,7 @@ public class LastBytesRefByTimestampAggregator {
     public static void combine(LongBytesRefState current, BytesRef value, long timestamp) {
         if (timestamp > current.v1()) {
             current.v1(timestamp);
-            current.v2(value.clone());
+            current.v2(value);
         }
     }
 
@@ -114,7 +114,7 @@ public class LastBytesRefByTimestampAggregator {
         private final CircuitBreaker breaker;
         private int maxGroupId = -1;
 
-        GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+        GroupingState(BigArrays bigArrays,CircuitBreaker breaker) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;

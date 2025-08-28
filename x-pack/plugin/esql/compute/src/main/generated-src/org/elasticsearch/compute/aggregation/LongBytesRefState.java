@@ -11,6 +11,9 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
@@ -19,12 +22,13 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 final class LongBytesRefState implements AggregatorState {
     private long v1;
-    private BytesRef v2;
+    private final BreakingBytesRefBuilder v2;
     private boolean seen;
 
-    LongBytesRefState(long v1, BytesRef v2) {
+    LongBytesRefState(long v1, BytesRef v2, CircuitBreaker breaker) {
         this.v1 = v1;
-        this.v2 = v2;
+        this.v2 = new BreakingBytesRefBuilder(breaker, "LongBytesRefState", v2.length);
+        this.v2.copyBytes(v2);
     }
 
     long v1() {
@@ -36,11 +40,11 @@ final class LongBytesRefState implements AggregatorState {
     }
 
     BytesRef v2() {
-        return v2;
+        return v2.bytesRefView();
     }
 
     void v2(BytesRef v2) {
-        this.v2 = v2;
+        this.v2.copyBytes(v2);
     }
 
     boolean seen() {
@@ -56,10 +60,12 @@ final class LongBytesRefState implements AggregatorState {
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         assert blocks.length >= offset + 3;
         blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(v1, 1);
-        blocks[offset + 1] = driverContext.blockFactory().newConstantBytesRefBlockWith(v2, 1);
+        blocks[offset + 1] = driverContext.blockFactory().newConstantBytesRefBlockWith(v2.bytesRefView(), 1);
         blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        Releasables.close(this.v2);
+    }
 }

@@ -47,7 +47,7 @@ public class $Occurrence$$Type$ByTimestampAggregator {
 
     public static Long$Type$State initSingle(DriverContext driverContext) {
         $if(BytesRef)$
-        return new Long$Type$State(0, new BytesRef());
+        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker());
         $else$
         return new Long$Type$State(0, 0);
         $endif$
@@ -61,11 +61,7 @@ public class $Occurrence$$Type$ByTimestampAggregator {
     public static void combine(Long$Type$State current, $type$ value, long timestamp) {
         if (timestamp $if(First)$<$else$>$endif$ current.v1()) {
             current.v1(timestamp);
-            $if(BytesRef)$
-            current.v2(value.clone());
-            $else$
             current.v2(value);
-            $endif$
         }
     }
 

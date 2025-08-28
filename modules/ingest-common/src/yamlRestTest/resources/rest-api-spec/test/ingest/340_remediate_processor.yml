@@ -1,0 +1,159 @@
+setup:
+#  - requires:
+#      cluster_features: ["DATA_STREAM_FAILURE_STORE_FEATURE"]
+#      reason: "data stream failure store required"
+
+  # Create index template for data stream with failure store enabled
+  - do:
+      indices.put_index_template:
+        name: test-logs-template
+        body:
+          index_patterns: ["test-logs-*"]
+          data_stream:
+            allow_custom_routing: true
+          template:
+            data_stream_options:
+              failure_store:
+                enabled: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                message:
+                  type: text
+                count:
+                  type: long
+
+  # Create a pipeline that will cause mapping failures
+  - do:
+      ingest.put_pipeline:
+        id: "failing_pipeline"
+        body:
+          description: "Pipeline that may cause mapping failures"
+          processors:
+            - set:
+                field: count
+                value: "not_a_number"  # This will cause a mapping failure
+
+  # Create a remediation-pipeline with remediate processor
+  - do:
+      ingest.put_pipeline:
+        id: "remediation_pipeline"
+        body:
+          description: "Pipeline to remediate failed documents"
+          processors:
+            - remediate: {}
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: test-logs-remediate
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "failing_pipeline"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "remediation_pipeline"
+        ignore: 404
+
+  - do:
+      indices.delete_index_template:
+        name: test-logs-template
+        ignore: 404
+
+---
+"Test remediate processor with data stream failure store":
+  # Create the data stream by indexing a document
+  - do:
+      index:
+        index: test-logs-remediate
+        routing: custom-route-123
+        pipeline: failing_pipeline
+        body:
+          "@timestamp": "2023-01-01T00:00:00Z"
+          message: "test message"
+          count: 42  # This will be overwritten by the pipeline and cause failure
+
+  # Wait for the failure store to be populated
+  - do:
+      indices.refresh:
+        index: ".fs-test-logs-remediate-*"
+
+  # Check that document went to failure store
+  - do:
+      search:
+        index: ".fs-test-logs-remediate-*"
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.document.source.message: "test message" }
+  - match: { hits.hits.0._source.document.source.count: "not_a_number" }
+  - match: { hits.hits.0._source.document.index: "test-logs-remediate" }
+  - match: { hits.hits.0._source.document.routing: "custom-route-123" }
+  - is_true: hits.hits.0._source.error
+
+  # Get the failure document ID for remediation
+  - set: { hits.hits.0._id: failure_doc_id }
+  - set: { hits.hits.0._source: original_source }
+
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - remediate: {}
+          docs:
+            - _source: $original_source
+              _index: "test-logs-remediate"
+              _id: "${failure_doc_id}"
+
+  # Check that it is using the remediated format
+  - match: { docs.0.doc._index: "test-logs-remediate" }
+  - match: { docs.0.doc._routing: "custom-route-123" }
+  - match: { docs.0.doc._source.message: "test message" }
+  - match: { docs.0.doc._source.count: "not_a_number" }
+  - is_false: docs.0.doc._source.error
+  - is_false: docs.0.doc._source.document
+
+---
+"Test remediate processor error handling - missing document field":
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - remediate: {}
+          docs:
+            - _source:
+                error: "simulated failure"
+                message: "test message"
+                count: 42
+                # Missing "document" field - should cause error
+
+  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.reason: "field [document] not present as part of path [document]" }
+
+---
+"Test remediate processor error handling - missing source field":
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - remediate: {}
+          docs:
+            - _source:
+                error: "simulated failure"
+                document:
+                  index: "original-index"
+                  # Missing "source" field - should cause error
+
+  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.reason: "field [source] not present as part of path [document.source]" }

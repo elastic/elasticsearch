@@ -24,7 +24,19 @@ public abstract class TypedAttribute extends Attribute {
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, nullability, id, synthetic);
+        this(source, null, name, dataType, nullability, id, synthetic);
+    }
+
+    protected TypedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
+        super(source, qualifier, name, nullability, id, synthetic);
         this.dataType = dataType;
     }
 

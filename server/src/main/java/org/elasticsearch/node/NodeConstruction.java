@@ -118,9 +118,9 @@ import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
-import org.elasticsearch.index.mapper.ServerlessRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -700,11 +700,9 @@ class NodeConstruction {
         // serverless deployments plug-in the namespace validator that prohibits mappings with "_project"
         RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
             RootObjectMapperNamespaceValidator.class,
-            // () -> new DefaultRootObjectMapperNamespaceValidator()
-            () -> new ServerlessRootObjectMapperNamespaceValidator() // MP FIXME - for this testing branch only
+            () -> new DefaultRootObjectMapperNamespaceValidator()
         );
         modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
-        logger.warn("XXX namespaceValidator loaded: " + namespaceValidator);  // MP FIXME remove
 
         assert nodeEnvironment.nodeId() != null : "node ID must be set before constructing the Node";
         TaskManager taskManager = new TaskManager(

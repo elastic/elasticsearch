@@ -1,0 +1,5 @@
+pr: 133752
+summary: Fix enrich fails to update when source changes
+area: Ingest Node
+type: bug
+issues: []

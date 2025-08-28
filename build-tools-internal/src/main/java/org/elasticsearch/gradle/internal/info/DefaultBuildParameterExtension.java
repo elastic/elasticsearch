@@ -28,8 +28,7 @@ import java.util.function.Supplier;
 public abstract class DefaultBuildParameterExtension implements BuildParameterExtension {
     private final Provider<Boolean> inFipsJvm;
     private final Provider<File> runtimeJavaHome;
-    private final Boolean isRuntimeJavaHomeSet;
-    private final Boolean earlyAccessJavaRuntime;
+    private final RuntimeJava runtimeJava;
     private final List<JavaHome> javaVersions;
     private final JavaVersion minimumCompilerVersion;
     private final JavaVersion minimumRuntimeVersion;
@@ -51,12 +50,8 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     public DefaultBuildParameterExtension(
         ProviderFactory providers,
-        Provider<File> runtimeJavaHome,
+        RuntimeJava runtimeJava,
         Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec,
-        Provider<JavaVersion> runtimeJavaVersion,
-        boolean isRuntimeJavaHomeSet,
-        boolean earlyAccessJavaRuntime,
-        Provider<String> runtimeJavaDetails,
         List<JavaHome> javaVersions,
         JavaVersion minimumCompilerVersion,
         JavaVersion minimumRuntimeVersion,
@@ -70,12 +65,12 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         Provider<BwcVersions> bwcVersions
     ) {
         this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(DefaultBuildParameterExtension::parseBoolean);
-        this.runtimeJavaHome = cache(providers, runtimeJavaHome);
+        this.runtimeJava = runtimeJava;
+        this.runtimeJavaHome = cache(providers, runtimeJava.getJavahome());
         this.javaToolChainSpec = cache(providers, javaToolChainSpec);
-        this.runtimeJavaVersion = cache(providers, runtimeJavaVersion);
-        this.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
-        this.earlyAccessJavaRuntime = earlyAccessJavaRuntime;
-        this.runtimeJavaDetails = cache(providers, runtimeJavaDetails);
+        this.runtimeJavaVersion = cache(providers, runtimeJava.getJavaVersion());
+        // this.runtimeJavaVersion = runtimeJava.getJavaVersion();
+        this.runtimeJavaDetails = cache(providers, runtimeJava.getVendorDetails());
         this.javaVersions = javaVersions;
         this.minimumCompilerVersion = minimumCompilerVersion;
         this.minimumRuntimeVersion = minimumRuntimeVersion;
@@ -119,14 +114,13 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     @Override
     public Boolean getIsRuntimeJavaHomeSet() {
-        return isRuntimeJavaHomeSet;
+        return runtimeJava.isExplicitlySet();
     }
 
     @Override
-    public Boolean getIsEarlyAccessRuntimeJavaVersion() {
-        return earlyAccessJavaRuntime;
+    public RuntimeJava getRuntimeJava() {
+        return runtimeJava;
     }
-
 
     @Override
     public List<JavaHome> getJavaVersions() {
@@ -156,11 +150,6 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     @Override
     public Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
         return javaToolChainSpec;
-    }
-
-    @Override
-    public Provider<String> getRuntimeJavaDetails() {
-        return runtimeJavaDetails;
     }
 
     @Override

@@ -20,7 +20,7 @@ import org.elasticsearch.gradle.transform.FilteringJarTransform
 import java.nio.file.Files
 import java.nio.file.Path
 
-import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestEABuildNumber
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuildNumber
 
 plugins {
   id 'base'
@@ -249,23 +249,24 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   apply plugin: 'elasticsearch.jdk-download'
   apply plugin: 'elasticsearch.repositories'
 
-  if (buildParams.getIsEarlyAccessRuntimeJavaVersion()) {
-    Integer buildNumber = Integer.getInteger("runtime.java.build");
+  if (buildParams.runtimeJava.preRelease) {
+    Integer buildNumber = Integer.getInteger("runtime.java.build")
+    String preReleaseType = buildParams.runtimeJava.preReleaseType
     def runtimeJavaMajorVersion = Integer.parseInt(buildParams.runtimeJavaVersion.get().getMajorVersion())
     if (buildNumber == null) {
-      buildNumber = findLatestEABuildNumber(runtimeJavaMajorVersion);
+      buildNumber = findLatestPreReleaseBuildNumber(runtimeJavaMajorVersion, preReleaseType);
     }
-    String eaVersionString = String.format("%d-ea+%d", runtimeJavaMajorVersion, buildNumber);
+    String preReleaseVersionString = String.format("%d-%s+%d", runtimeJavaMajorVersion, preReleaseType, buildNumber);
 
     project.jdks {
       ['darwin', 'windows', 'linux'].each { platform ->
         (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
           "bundled_${platform}_${architecture}" {
-            it.version = eaVersionString;
+            it.version = preReleaseVersionString;
             it.vendor = "openjdk"
             it.platform = platform
             it.architecture = architecture
-            it.distributionVersion = "ea"
+            it.distributionVersion = preReleaseType
           }
         }
       }

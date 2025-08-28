@@ -32,7 +32,7 @@ public interface BuildParameterExtension {
 
     Boolean getIsRuntimeJavaHomeSet();
 
-    Boolean getIsEarlyAccessRuntimeJavaVersion();
+    RuntimeJava getRuntimeJava();
 
     List<JavaHome> getJavaVersions();
 
@@ -45,8 +45,6 @@ public interface BuildParameterExtension {
     Provider<JavaVersion> getRuntimeJavaVersion();
 
     Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec();
-
-    Provider<String> getRuntimeJavaDetails();
 
     Provider<String> getGitRevision();
 

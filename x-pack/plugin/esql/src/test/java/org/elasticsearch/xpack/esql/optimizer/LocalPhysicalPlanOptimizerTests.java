@@ -1401,6 +1401,84 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
+    public void testKnnUsesLimitForK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3])
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0.1f, 0.2f, 0.3f },
+            10,
+            null,
+            null,
+            null
+        );
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    public void testKnnKAndMinCandidatesLowerK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 50})
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0.1f, 0.2f, 0.3f },
+            50,
+            50,
+            null,
+            null
+        );
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    public void testKnnKAndMinCandidatesHigherK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 10})
+            | limit 50
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0.1f, 0.2f, 0.3f },
+            50,
+            50,
+            null,
+            null
+        );
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
     /**
      * Expecting
      * LimitExec[1000[INTEGER]]

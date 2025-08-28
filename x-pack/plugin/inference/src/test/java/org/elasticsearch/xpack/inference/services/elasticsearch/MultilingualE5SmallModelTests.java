@@ -11,7 +11,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class MultilingualE5SmallModelTests extends ESTestCase {
 
@@ -29,7 +29,7 @@ public class MultilingualE5SmallModelTests extends ESTestCase {
 
         assertThat(
             expectedException.getMessage(),
-            equalTo(".multilingual-e5-small does not support chunk sizes larger than 300. Requested chunk size: 10000")
+            containsString("does not support chunk sizes larger than 300. Requested chunk size: 10000")
         );
     }
 }

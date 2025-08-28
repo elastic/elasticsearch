@@ -207,8 +207,10 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                 instance.similarity
             ).addFilterQueries(instance.filterQueries).boost(instance.boost);
             case 8 -> {
-                Float newVisitPercentage = randomValueOtherThan(instance.visitPercentage, () -> instance.visitPercentage +
-                    ESTestCase.randomFloatBetween(-100f, 100f, true));
+                Float newVisitPercentage = randomValueOtherThan(
+                    instance.visitPercentage,
+                    () -> instance.visitPercentage + ESTestCase.randomFloatBetween(-100f, 100f, true)
+                );
                 yield new KnnSearchBuilder(
                     instance.field,
                     instance.queryVector,
@@ -249,10 +251,15 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             builder.addFilterQuery(filter);
         }
 
-        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands, numCands,
-            visitPercentage, rescoreVectorBuilder, similarity)
-            .addFilterQueries(filterQueries)
-            .boost(boost);
+        QueryBuilder expected = new KnnVectorQueryBuilder(
+            field,
+            vector,
+            numCands,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            similarity
+        ).addFilterQueries(filterQueries).boost(boost);
         assertEquals(expected, builder.toQueryBuilder());
     }
 

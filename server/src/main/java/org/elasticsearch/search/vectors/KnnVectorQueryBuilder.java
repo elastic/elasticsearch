@@ -141,8 +141,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         RescoreVectorBuilder rescoreVectorBuilder,
         Float vectorSimilarity
     ) {
-        this(fieldName, VectorData.fromFloats(queryVector), null, null, k, numCands,
-            visitPercentage, rescoreVectorBuilder, vectorSimilarity);
+        this(
+            fieldName,
+            VectorData.fromFloats(queryVector),
+            null,
+            null,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            vectorSimilarity
+        );
     }
 
     public KnnVectorQueryBuilder(
@@ -165,8 +174,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         RescoreVectorBuilder rescoreVectorBuilder,
         Float vectorSimilarity
     ) {
-        this(fieldName, VectorData.fromBytes(queryVector), null, null, k, numCands,
-            visitPercentage, rescoreVectorBuilder, vectorSimilarity);
+        this(
+            fieldName,
+            VectorData.fromBytes(queryVector),
+            null,
+            null,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            vectorSimilarity
+        );
     }
 
     public KnnVectorQueryBuilder(
@@ -245,7 +263,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             this.numCands = in.readVInt();
         }
         // FIXME: validate transport version changes
-        if(in.getTransportVersion().onOrAfter(TransportVersions.V_9_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_9_1_0)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
             this.visitPercentage = in.readFloat();
@@ -443,11 +461,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             if (queryVectorSupplier.get() == null) {
                 return this;
             }
-            return new KnnVectorQueryBuilder(fieldName, queryVectorSupplier.get(), k, numCands,
-                visitPercentage, rescoreVectorBuilder, vectorSimilarity)
-                .boost(boost)
-                .queryName(queryName)
-                .addFilterQueries(filterQueries);
+            return new KnnVectorQueryBuilder(
+                fieldName,
+                queryVectorSupplier.get(),
+                k,
+                numCands,
+                visitPercentage,
+                rescoreVectorBuilder,
+                vectorSimilarity
+            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();

@@ -436,11 +436,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             if (querySupplier.get() == null) {
                 return this;
             }
-            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands,
-                visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
-                .queryName(queryName)
-                .addFilterQueries(filterQueries)
-                .innerHit(innerHitBuilder);
+            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
+                boost
+            ).queryName(queryName).addFilterQueries(filterQueries).innerHit(innerHitBuilder);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
@@ -460,8 +458,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 }
                 ll.onResponse(null);
             })));
-            return new KnnSearchBuilder(field, toSet::get, k, numCands,
-                visitPercentage, rescoreVectorBuilder, filterQueries, similarity).boost(boost)
+            return new KnnSearchBuilder(field, toSet::get, k, numCands, visitPercentage, rescoreVectorBuilder, filterQueries, similarity)
+                .boost(boost)
                 .queryName(queryName)
                 .innerHit(innerHitBuilder);
         }
@@ -487,10 +485,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands,
-            visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
-            .queryName(queryName)
-            .addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
+            boost
+        ).queryName(queryName).addFilterQueries(filterQueries);
     }
 
     public Float getSimilarity() {

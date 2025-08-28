@@ -259,7 +259,7 @@ public class KnnSearchRequestParser {
             if (numCands > NUM_CANDS_LIMIT) {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
-            if(visitPercentage < 0.0f || visitPercentage > 100.0f) {
+            if (visitPercentage < 0.0f || visitPercentage > 100.0f) {
                 throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
             }
             return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, null, null);

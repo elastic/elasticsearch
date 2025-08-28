@@ -10,7 +10,7 @@ applies_to:
 To make API calls to Microsoft Graph, Elasticsearch requires Azure credentials
 with the correct permissions.
 
-## Create a custom Azure Application
+## Create a custom Azure application
 
 1) Log in to the [Azure portal](https://portal.azure.com) and go to Microsoft
    Entra ID.
@@ -23,7 +23,7 @@ with the correct permissions.
 :alt: "create your own application" page
 :::
 
-## Configure the custom Application
+## Configure the custom application
 
 1) In the [Azure portal](https://portal.azure.com), go to Microsoft Entra ID.
 2) Under **App registrations**, select the **All applications** tab, and then
@@ -51,8 +51,9 @@ with the correct permissions.
     3. Choose **Application permissions**.
     4. Select `Directory.ReadWrite.All`, `Group.ReadWrite.All`, `User.Read.All`.
 
-   Note that an Azure Admin will need to approve these permissions before the
-   credentials can be used
+   :::{note}
+   An Azure Admin must approve these permissions before the credentials can be used.
+
    :::{image} ./images/ms-graph-authz/05-configure-api-permissions.png
    :alt: configure api permissions
    :::

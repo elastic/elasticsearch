@@ -5,7 +5,7 @@ applies_to:
   stack: ga 9.1
 ---
 
-# Authentication Plugins [authentication]
+# Authentication plugins [authentication]
 
 Authentication plugins extend the functionality provided by the built-in [authentication realms](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authentication-realms.md).
 

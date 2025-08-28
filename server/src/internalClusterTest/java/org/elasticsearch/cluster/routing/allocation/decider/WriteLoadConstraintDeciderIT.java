@@ -53,16 +53,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-            )
-            .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
@@ -77,8 +67,20 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
      * Node1 while Node3 is hot-spotting, resulting in reassignment of all shards to Node2.
      */
     public void testHighNodeWriteLoadPreventsNewShardAllocation() {
-        final String masterName = internalCluster().startMasterOnlyNode();
-        final var dataNodes = internalCluster().startDataOnlyNodes(3);
+        int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
+        Settings settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                randomUtilizationThresholdPercent + "%"
+            )
+            .build();
+
+        final String masterName = internalCluster().startMasterOnlyNode(settings);
+        final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
         final String firstDataNodeName = dataNodes.get(0);
         final String secondDataNodeName = dataNodes.get(1);
         final String thirdDataNodeName = dataNodes.get(2);
@@ -165,7 +167,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final NodeUsageStatsForThreadPools thirdNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
             thirdDiscoveryNode,
             2,
-            1.00f,
+            randomUtilizationThresholdPercent + 1 / 100,
             0
         );
 

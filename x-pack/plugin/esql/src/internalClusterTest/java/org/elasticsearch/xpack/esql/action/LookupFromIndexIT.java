@@ -64,8 +64,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
@@ -240,8 +241,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         Expression greaterThan = new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
-        EsQueryExec queryExec = new EsQueryExec(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of(), null);
-        return new FilterExec(Source.EMPTY, queryExec, greaterThan);
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of());
+        Filter filter = new Filter(Source.EMPTY, esRelation, greaterThan);
+        return new FragmentExec(filter);
     }
 
     private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, PhysicalPlan filters) throws IOException {
@@ -274,8 +276,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
         Predicate<Integer> filterPredicate = l -> true;
-        if (filters instanceof FilterExec filterExec) {
-            if (filterExec.condition() instanceof GreaterThan gt
+        if (filters instanceof FragmentExec fragmentExec) {
+            if (fragmentExec.fragment() instanceof Filter filter
+                && filter.condition() instanceof GreaterThan gt
                 && gt.left() instanceof FieldAttribute fa
                 && fa.name().equals("l")
                 && gt.right() instanceof Literal lit) {

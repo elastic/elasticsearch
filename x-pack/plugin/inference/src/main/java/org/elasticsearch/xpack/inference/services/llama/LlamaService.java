@@ -366,12 +366,6 @@ public class LlamaService extends SenderService {
         return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
     }
 
-    @Override
-    public boolean hideFromConfigurationApi() {
-        // The Llama service is very configurable so we're going to hide it from being exposed in the service API.
-        return true;
-    }
-
     /**
      * Configuration class for the Llama inference service.
      * It provides the settings and configurations required for the service.

@@ -427,7 +427,13 @@ public class CsvTests extends ESTestCase {
             if (mapping.containsKey(entry.getKey())) {
                 DataType dataType = DataType.fromTypeName(entry.getValue());
                 EsField field = mapping.get(entry.getKey());
-                EsField editedField = new EsField(field.getName(), dataType, field.getProperties(), field.isAggregatable());
+                EsField editedField = new EsField(
+                    field.getName(),
+                    dataType,
+                    field.getProperties(),
+                    field.isAggregatable(),
+                    field.getTimeSeriesFieldType()
+                );
                 mapping.put(entry.getKey(), editedField);
             }
         }
@@ -596,21 +602,28 @@ public class CsvTests extends ESTestCase {
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
-        session.optimizeAndExecute(
-            new EsqlQueryRequest(),
-            new EsqlExecutionInfo(randomBoolean()),
-            planRunner(bigArrays, foldCtx, physicalOperationProviders),
-            analyzed,
-            listener.map(
-                result -> new ActualResults(
-                    result.schema().stream().map(Attribute::name).toList(),
-                    result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
-                    result.schema().stream().map(Attribute::dataType).toList(),
-                    result.pages(),
-                    threadPool.getThreadContext().getResponseHeaders()
+
+        session.preOptimizedPlan(analyzed, listener.delegateFailureAndWrap((l, preOptimized) -> {
+            session.executeOptimizedPlan(
+                new EsqlQueryRequest(),
+                new EsqlExecutionInfo(randomBoolean()),
+                planRunner(bigArrays, foldCtx, physicalOperationProviders),
+                session.optimizedPlan(preOptimized),
+                listener.delegateFailureAndWrap(
+                    // Wrap so we can capture the warnings in the calling thread
+                    (next, result) -> next.onResponse(
+                        new ActualResults(
+                            result.schema().stream().map(Attribute::name).toList(),
+                            result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
+                            result.schema().stream().map(Attribute::dataType).toList(),
+                            result.pages(),
+                            threadPool.getThreadContext().getResponseHeaders()
+                        )
+                    )
                 )
-            )
-        );
+            );
+        }));
+
         return listener.get();
     }
 

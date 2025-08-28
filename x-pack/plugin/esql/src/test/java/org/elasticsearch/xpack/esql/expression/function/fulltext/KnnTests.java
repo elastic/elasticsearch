@@ -67,7 +67,7 @@ public class KnnTests extends AbstractFunctionTestCase {
                             new FieldAttribute(
                                 Source.EMPTY,
                                 randomIdentifier(),
-                                new EsField(randomIdentifier(), DENSE_VECTOR, Map.of(), false)
+                                new EsField(randomIdentifier(), DENSE_VECTOR, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
                             ),
                             DENSE_VECTOR,
                             "dense_vector field"

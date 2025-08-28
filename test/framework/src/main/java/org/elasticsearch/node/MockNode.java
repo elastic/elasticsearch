@@ -173,7 +173,8 @@ public class MockNode extends Node {
             ClusterSettings clusterSettings,
             TaskManager taskManager,
             Tracer tracer,
-            String nodeId
+            String nodeId,
+            ProjectResolver projectResolver
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -191,7 +192,8 @@ public class MockNode extends Node {
                     clusterSettings,
                     taskManager,
                     tracer,
-                    nodeId
+                    nodeId,
+                    projectResolver
                 );
             } else {
                 return new MockTransportService(

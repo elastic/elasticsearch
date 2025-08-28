@@ -20,6 +20,7 @@ import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -119,6 +120,20 @@ public class XmlUtils {
         validator.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
         validator.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
         return validator;
+    }
+
+    @SuppressForbidden(reason = "This is the only allowed way to construct a SAXParser")
+    public static SAXParserFactory getHardenedSaxParserFactory() throws SAXNotSupportedException, SAXNotRecognizedException,
+        ParserConfigurationException {
+        var saxParserFactory = SAXParserFactory.newInstance();
+
+        saxParserFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        saxParserFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        saxParserFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        saxParserFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        saxParserFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+
+        return saxParserFactory;
     }
 
     private static class ErrorHandler implements org.xml.sax.ErrorHandler {

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FileMatchers;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -145,7 +146,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
     }
 
     protected void print(Element element, Writer writer, boolean pretty) throws TransformerException {
-        final Transformer serializer = SamlFactory.getHardenedXMLTransformer();
+        final Transformer serializer = XmlUtils.getHardenedXMLTransformer();
         if (pretty) {
             serializer.setOutputProperty(OutputKeys.INDENT, "yes");
         }

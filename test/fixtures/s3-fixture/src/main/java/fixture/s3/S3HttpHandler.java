@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -471,7 +472,7 @@ public class S3HttpHandler implements HttpHandler {
 
     static List<String> extractPartEtags(BytesReference completeMultipartUploadBody) {
         try {
-            final var document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(completeMultipartUploadBody.streamInput());
+            final var document = XmlUtils.getHardenedBuilderFactory().newDocumentBuilder().parse(completeMultipartUploadBody.streamInput());
             final var parts = document.getElementsByTagName("Part");
             final var result = new ArrayList<String>(parts.getLength());
             for (int partIndex = 0; partIndex < parts.getLength(); partIndex++) {

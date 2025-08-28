@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.GrokGenerato
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.MetricsStatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.MvExpandGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.MetricGenerator;
 
 import java.util.List;
 import java.util.Set;
@@ -52,6 +54,11 @@ public class EsqlQueryGenerator {
     static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE);
 
     /**
+     * Commands at the beginning of queries that begin queries on time series indices, eg. TS
+     */
+    static List<CommandGenerator> TIME_SERIES_SOURCE_COMMANDS = List.of(MetricGenerator.INSTANCE);
+
+    /**
      * These are downstream commands, ie. that cannot appear as the first command in a query
      */
     static List<CommandGenerator> PIPE_COMMANDS = List.of(
@@ -72,12 +79,40 @@ public class EsqlQueryGenerator {
         WhereGenerator.INSTANCE
     );
 
+    static List<CommandGenerator> TIME_SERIES_PIPE_COMMANDS = List.of(
+        ChangePointGenerator.INSTANCE,
+        DissectGenerator.INSTANCE,
+        DropGenerator.INSTANCE,
+        EnrichGenerator.INSTANCE,
+        EvalGenerator.INSTANCE,
+        ForkGenerator.INSTANCE,
+        GrokGenerator.INSTANCE,
+        KeepGenerator.INSTANCE,
+        LimitGenerator.INSTANCE,
+        LookupJoinGenerator.INSTANCE,
+        MetricsStatsGenerator.INSTANCE,
+        MvExpandGenerator.INSTANCE,
+        RenameGenerator.INSTANCE,
+        SortGenerator.INSTANCE,
+        StatsGenerator.INSTANCE,
+        WhereGenerator.INSTANCE
+    );
+
     public static CommandGenerator sourceCommand() {
         return randomFrom(SOURCE_COMMANDS);
     }
 
+    public static CommandGenerator timeSeriesSourceCommand() {
+        return randomFrom(TIME_SERIES_SOURCE_COMMANDS);
+    }
+
     public static CommandGenerator randomPipeCommandGenerator() {
         return randomFrom(PIPE_COMMANDS);
+    }
+
+    public static CommandGenerator randomMetricsPipeCommandGenerator() {
+        // todo better way
+        return randomFrom(TIME_SERIES_PIPE_COMMANDS);
     }
 
     public interface Executor {
@@ -95,7 +130,8 @@ public class EsqlQueryGenerator {
         final int depth,
         CommandGenerator commandGenerator,
         final CommandGenerator.QuerySchema schema,
-        Executor executor
+        Executor executor,
+        boolean isTimeSeries
     ) {
         CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), schema);
         executor.run(commandGenerator, desc);
@@ -107,7 +143,7 @@ public class EsqlQueryGenerator {
             if (executor.currentSchema().isEmpty()) {
                 break;
             }
-            commandGenerator = EsqlQueryGenerator.randomPipeCommandGenerator();
+            commandGenerator = isTimeSeries ? randomMetricsPipeCommandGenerator() : EsqlQueryGenerator.randomPipeCommandGenerator();
             desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;
@@ -217,6 +253,61 @@ public class EsqlQueryGenerator {
             || col.type.equals("version");
     }
 
+    public static String metricsAgg(List<Column> previousOutput) {
+        String outerCommand = randomFrom("min", "max", "sum", "count", "avg");
+        String innerCommand = switch (randomIntBetween(0, 3)) {
+            case 0 -> {
+                // input can be numerics + aggregate_metric_double
+                String numericPlusAggMetricFieldName = randomMetricsNumericField(previousOutput);
+                if (numericPlusAggMetricFieldName == null) {
+                    yield null;
+                }
+                yield switch ((randomIntBetween(0, 3))) {
+                    case 0 -> "max_over_time(" + numericPlusAggMetricFieldName + ")";
+                    case 1 -> "min_over_time(" + numericPlusAggMetricFieldName + ")";
+                    case 2 -> "sum_over_time(" + numericPlusAggMetricFieldName + ")";
+                    default -> "avg_over_time(" + numericPlusAggMetricFieldName + ")";
+                };
+            }
+            case 1 -> {
+                // input can be a counter
+                String counterField = randomCounterField(previousOutput);
+                if (counterField == null) {
+                    yield null;
+                }
+                yield "rate(" + counterField + ")";
+            }
+            case 2 -> {
+                // numerics except aggregate_metric_double
+                // TODO: move to case 0 when support for aggregate_metric_double is added to these functions
+                String numericFieldName = randomNumericField(previousOutput);
+                if (numericFieldName == null) {
+                    yield null;
+                }
+                yield (randomBoolean() ? "first_over_time(" : "last_over_time(") + numericFieldName + ")";
+            }
+            default -> {
+                // TODO: add other types that count_over_time supports
+                String otherFieldName = randomBoolean() ? randomStringField(previousOutput) : randomNumericOrDateField(previousOutput);
+                if (otherFieldName == null) {
+                    yield null;
+                }
+                if (randomBoolean()) {
+                    yield "count_over_time(" + otherFieldName + ")";
+                } else {
+                    yield "count_distinct_over_time(" + otherFieldName + ")";
+                    // TODO: replace with the below
+                    // yield "count_distinct_over_time(" + otherFieldName + (randomBoolean() ? ", " + randomNonNegativeInt() : "") + ")";
+                }
+            }
+        };
+        if (innerCommand == null) {
+            // TODO: figure out a default that maybe makes more sense than using a timestamp field
+            innerCommand = "count_over_time(" + randomDateField(previousOutput) + ")";
+        }
+        return outerCommand + "(" + innerCommand + ")";
+    }
+
     public static String agg(List<Column> previousOutput) {
         String name = randomNumericOrDateField(previousOutput);
         if (name != null && randomBoolean()) {
@@ -249,6 +340,30 @@ public class EsqlQueryGenerator {
 
     public static String randomNumericField(List<Column> previousOutput) {
         return randomName(previousOutput, Set.of("long", "integer", "double"));
+    }
+
+    public static String randomMetricsNumericField(List<Column> previousOutput) {
+        Set<String> allowedTypes = Set.of("double", "long", "unsigned_long", "integer", "aggregate_metric_double");
+        List<String> items = previousOutput.stream()
+            .filter(
+                x -> allowedTypes.contains(x.type())
+                    || (x.type().equals("unsupported") && canBeCastedToAggregateMetricDouble(x.originalTypes()))
+            )
+            .map(Column::name)
+            .toList();
+        if (items.isEmpty()) {
+            return null;
+        }
+        return items.get(randomIntBetween(0, items.size() - 1));
+    }
+
+    public static String randomCounterField(List<Column> previousOutput) {
+        return randomName(previousOutput, Set.of("counter_long", "counter_double", "counter_integer"));
+    }
+
+    private static boolean canBeCastedToAggregateMetricDouble(List<String> types) {
+        return types.contains("aggregate_metric_double")
+            && Set.of("double", "long", "unsigned_long", "integer", "aggregate_metric_double").containsAll(types);
     }
 
     public static String randomStringField(List<Column> previousOutput) {

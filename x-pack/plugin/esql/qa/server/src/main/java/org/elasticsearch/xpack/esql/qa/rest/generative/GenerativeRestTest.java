@@ -79,6 +79,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     protected abstract boolean supportsSourceFieldMapping();
 
+    protected boolean requiresTimeSeries() {
+        return false;
+    }
+
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
@@ -142,8 +146,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 EsqlQueryGenerator.QueryExecuted previousResult;
             };
-            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, EsqlQueryGenerator.sourceCommand(), mappingInfo, exec);
+            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries());
         }
+    }
+
+    protected CommandGenerator sourceCommand() {
+        return EsqlQueryGenerator.sourceCommand();
     }
 
     private static CommandGenerator.ValidationResult checkResults(
@@ -234,7 +242,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries()).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

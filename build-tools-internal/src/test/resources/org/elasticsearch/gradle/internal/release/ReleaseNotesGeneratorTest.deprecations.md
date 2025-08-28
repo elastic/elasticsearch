@@ -17,14 +17,14 @@ To give you insight into what deprecated features you’re using, {{es}}:
 % ## Next version [elasticsearch-nextversion-deprecations]
 
 ```{applies_to}
-stack: coming 9.1.0
+stack: ga 9.1.0
 ```
 ## 9.1.0 [elasticsearch-9.1.0-deprecations]
 
 There are no deprecations associated with this release.
 
 ```{applies_to}
-stack: coming 9.0.10
+stack: ga 9.0.10
 ```
 ## 9.0.10 [elasticsearch-9.0.10-deprecations]
 

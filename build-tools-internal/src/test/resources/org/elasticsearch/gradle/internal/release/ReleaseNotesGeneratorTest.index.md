@@ -22,7 +22,7 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 ## 9.1.0 [elasticsearch-9.1.0-release-notes]
 ```{applies_to}
-stack: coming 9.1.0
+stack: ga 9.1.0
 ```
 
 ### Highlights [elasticsearch-9.1.0-highlights]
@@ -50,7 +50,7 @@ Search:
 
 ## 9.0.10 [elasticsearch-9.0.10-release-notes]
 ```{applies_to}
-stack: coming 9.0.10
+stack: ga 9.0.10
 ```
 
 ### Features and enhancements [elasticsearch-9.0.10-features-enhancements]

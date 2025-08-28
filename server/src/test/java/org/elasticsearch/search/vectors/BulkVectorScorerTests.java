@@ -54,10 +54,16 @@ public class BulkVectorScorerTests extends ESTestCase {
                 // Create bulk vector query
                 float[] queryVector = randomVector(VECTOR_DIMS);
                 var valueSource = new AccessibleVectorSimilarityFloatValueSource(
-                    VECTOR_FIELD, queryVector, VectorSimilarityFunction.COSINE);
+                    VECTOR_FIELD,
+                    queryVector,
+                    VectorSimilarityFunction.COSINE
+                );
 
                 BulkVectorFunctionScoreQuery bulkQuery = new BulkVectorFunctionScoreQuery(
-                    new KnnScoreDocQuery(topDocs.scoreDocs, reader), valueSource, topDocs.scoreDocs);
+                    new KnnScoreDocQuery(topDocs.scoreDocs, reader),
+                    valueSource,
+                    topDocs.scoreDocs
+                );
 
                 Weight weight = bulkQuery.createWeight(searcher, org.apache.lucene.search.ScoreMode.COMPLETE, 1.0f);
 
@@ -65,8 +71,7 @@ public class BulkVectorScorerTests extends ESTestCase {
                 BulkScorer bulkScorer = weight.scorerSupplier(leafContext).bulkScorer();
 
                 assertNotNull("BulkScorer should be created", bulkScorer);
-                assertTrue("Should be BulkVectorScorer instance",
-                    bulkScorer instanceof BulkVectorScorer);
+                assertTrue("Should be BulkVectorScorer instance", bulkScorer instanceof BulkVectorScorer);
 
                 // Test bulk scoring execution
                 TestCollector collector = new TestCollector();
@@ -96,10 +101,16 @@ public class BulkVectorScorerTests extends ESTestCase {
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 15);
                 float[] queryVector = randomVector(VECTOR_DIMS);
                 var valueSource = new AccessibleVectorSimilarityFloatValueSource(
-                    VECTOR_FIELD, queryVector, VectorSimilarityFunction.DOT_PRODUCT);
+                    VECTOR_FIELD,
+                    queryVector,
+                    VectorSimilarityFunction.DOT_PRODUCT
+                );
 
                 BulkVectorFunctionScoreQuery bulkQuery = new BulkVectorFunctionScoreQuery(
-                    new KnnScoreDocQuery(topDocs.scoreDocs, reader), valueSource, topDocs.scoreDocs);
+                    new KnnScoreDocQuery(topDocs.scoreDocs, reader),
+                    valueSource,
+                    topDocs.scoreDocs
+                );
 
                 // Execute with custom collector to verify interception
                 TestCollector collector = new TestCollector();

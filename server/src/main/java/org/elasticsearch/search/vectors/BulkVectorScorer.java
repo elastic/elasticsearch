@@ -31,9 +31,10 @@ public class BulkVectorScorer extends BulkScorer {
 
     public BulkVectorScorer(
         BulkScorer subQueryBulkScorer,
-                           int[] segmentDocIds,
+        int[] segmentDocIds,
         AccessibleVectorSimilarityFloatValueSource valueSource,
-                           LeafReaderContext context) {
+        LeafReaderContext context
+    ) {
         this.subQueryBulkScorer = subQueryBulkScorer;
         this.segmentDocIds = segmentDocIds;
         this.valueSource = valueSource;
@@ -63,8 +64,7 @@ public class BulkVectorScorer extends BulkScorer {
     private void performBulkVectorProcessing() throws IOException {
         // batch loading
         DirectIOVectorBatchLoader batchLoader = new DirectIOVectorBatchLoader();
-        Map<Integer, float[]> vectorCache = batchLoader.loadSegmentVectors(
-            segmentDocIds, context, valueSource.field());
+        Map<Integer, float[]> vectorCache = batchLoader.loadSegmentVectors(segmentDocIds, context, valueSource.field());
 
         // batch similarity
         float[] similarities = BatchVectorSimilarity.computeBatchSimilarity(

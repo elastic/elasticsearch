@@ -36,7 +36,8 @@ public class BulkVectorFunctionScoreWeight extends Weight {
         Query parent,
         Weight subQueryWeight,
         AccessibleVectorSimilarityFloatValueSource valueSource,
-                                       ScoreDoc[] scoreDocs) {
+        ScoreDoc[] scoreDocs
+    ) {
         super(parent);
         this.subQueryWeight = subQueryWeight;
         this.valueSource = valueSource;
@@ -60,7 +61,8 @@ public class BulkVectorFunctionScoreWeight extends Weight {
             @Override
             public Scorer get(long leadCost) throws IOException {
                 throw new UnsupportedOperationException(
-                    "Individual Scorer not supported when bulk vector processing is enabled. Use bulkScorer() instead.");
+                    "Individual Scorer not supported when bulk vector processing is enabled. Use bulkScorer() instead."
+                );
             }
 
             @Override

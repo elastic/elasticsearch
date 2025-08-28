@@ -74,7 +74,7 @@ public class DirectIOVectorBatchLoader {
             .nextDoc()) {
             if (currentDoc == docId) {
                 float[] vector = vectorValues.vectorValue(iterator.index());
-                return vector != null ? vector: null;
+                return vector != null ? vector : null;
             }
         }
 

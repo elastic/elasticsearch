@@ -22,9 +22,7 @@ class AccessibleVectorSimilarityFloatValueSource extends VectorSimilarityFloatVa
     float[] target;
     VectorSimilarityFunction vectorSimilarityFunction;
 
-    AccessibleVectorSimilarityFloatValueSource(String field,
-                                                      float[] target,
-                                                      VectorSimilarityFunction vectorSimilarityFunction) {
+    AccessibleVectorSimilarityFloatValueSource(String field, float[] target, VectorSimilarityFunction vectorSimilarityFunction) {
         super(field, target, vectorSimilarityFunction);
         this.field = field;
         this.target = target;

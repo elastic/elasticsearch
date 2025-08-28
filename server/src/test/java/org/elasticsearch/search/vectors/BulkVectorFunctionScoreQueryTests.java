@@ -22,7 +22,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
-import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -56,14 +55,20 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
                 // Create query vector and value source
                 float[] queryVector = randomVector(VECTOR_DIMS);
                 var valueSource = new AccessibleVectorSimilarityFloatValueSource(
-                    VECTOR_FIELD, queryVector, VectorSimilarityFunction.COSINE);
+                    VECTOR_FIELD,
+                    queryVector,
+                    VectorSimilarityFunction.COSINE
+                );
 
                 // Get top documents
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 50);
 
                 // Test bulk vector function score query
                 BulkVectorFunctionScoreQuery bulkQuery = new BulkVectorFunctionScoreQuery(
-                    new KnnScoreDocQuery(topDocs.scoreDocs, reader), valueSource, topDocs.scoreDocs);
+                    new KnnScoreDocQuery(topDocs.scoreDocs, reader),
+                    valueSource,
+                    topDocs.scoreDocs
+                );
 
                 TopDocs bulkResults = searcher.search(bulkQuery, 10);
 
@@ -97,7 +102,13 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
                 // Create inline rescoring by using KnnFloatVectorQuery with matching k and rescoreK
                 KnnFloatVectorQuery innerQuery = new KnnFloatVectorQuery(VECTOR_FIELD, queryVector, 10);
                 RescoreKnnVectorQuery rescoreQuery = RescoreKnnVectorQuery.fromInnerQuery(
-                    VECTOR_FIELD, queryVector, VectorSimilarityFunction.COSINE, 5, 10, innerQuery);
+                    VECTOR_FIELD,
+                    queryVector,
+                    VectorSimilarityFunction.COSINE,
+                    5,
+                    10,
+                    innerQuery
+                );
 
                 TopDocs results = searcher.search(rescoreQuery, 5);
 
@@ -129,7 +140,13 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
 
                 // Create late rescoring by using different k and rescoreK values
                 RescoreKnnVectorQuery rescoreQuery = RescoreKnnVectorQuery.fromInnerQuery(
-                    VECTOR_FIELD, queryVector, VectorSimilarityFunction.COSINE, 8, 30, new MatchAllDocsQuery());
+                    VECTOR_FIELD,
+                    queryVector,
+                    VectorSimilarityFunction.COSINE,
+                    8,
+                    30,
+                    new MatchAllDocsQuery()
+                );
 
                 TopDocs results = searcher.search(rescoreQuery, 8);
 
@@ -156,9 +173,15 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
                 // Create bulk query
                 float[] queryVector = randomVector(VECTOR_DIMS);
                 var valueSource = new AccessibleVectorSimilarityFloatValueSource(
-                    VECTOR_FIELD, queryVector, VectorSimilarityFunction.COSINE);
+                    VECTOR_FIELD,
+                    queryVector,
+                    VectorSimilarityFunction.COSINE
+                );
                 BulkVectorFunctionScoreQuery query = new BulkVectorFunctionScoreQuery(
-                    new KnnScoreDocQuery(originalScoreDocs, reader), valueSource, originalScoreDocs);
+                    new KnnScoreDocQuery(originalScoreDocs, reader),
+                    valueSource,
+                    originalScoreDocs
+                );
 
                 // Test query rewrite preserves context
                 BulkVectorFunctionScoreQuery rewritten = (BulkVectorFunctionScoreQuery) query.rewrite(searcher);

@@ -14,7 +14,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -15,11 +15,14 @@ import java.util.Map;
 
 public final class BatchVectorSimilarity {
 
-    private BatchVectorSimilarity() {
-    }
+    private BatchVectorSimilarity() {}
 
-    public static float[] computeBatchSimilarity(float[] queryVector, Map<Integer, float[]> docVectors,
-                                               int[] docIds, VectorSimilarityFunction function) {
+    public static float[] computeBatchSimilarity(
+        float[] queryVector,
+        Map<Integer, float[]> docVectors,
+        int[] docIds,
+        VectorSimilarityFunction function
+    ) {
         float[] results = new float[docIds.length];
         float[][] data = organizeSIMDVectors(docVectors, docIds);
 

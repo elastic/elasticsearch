@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.List;
@@ -185,13 +186,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         return true;
     }
 
-    void trackStoredFields(BlockLoader.FieldsSpec spec, boolean sequential) {
+    void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {
         readersBuilt.merge(
             "stored_fields["
                 + "requires_source:"
-                + spec.storedFieldsSpec().requiresSource()
+                + spec.requiresSource()
                 + ", fields:"
-                + (spec.storedFieldsSpec().requiredStoredFields().size() + spec.ignoredFieldsSpec().requiredIgnoredFields().size())
+                + spec.requiredStoredFields().size()
                 + ", sequential: "
                 + sequential
                 + "]",

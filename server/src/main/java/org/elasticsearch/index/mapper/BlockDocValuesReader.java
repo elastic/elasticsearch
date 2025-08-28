@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
@@ -75,8 +76,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public final FieldsSpec rowStrideFieldSpec() {
-            return FieldsSpec.NO_REQUIREMENTS;
+        public final StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
         }
 
         @Override

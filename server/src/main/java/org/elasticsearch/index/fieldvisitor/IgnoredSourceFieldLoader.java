@@ -14,8 +14,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,7 +30,9 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
     private final Map<String, Set<String>> potentialFieldsInIgnoreSource;
     private final Set<String> fieldNames;
 
-    IgnoredSourceFieldLoader(BlockLoader.FieldsSpec spec, boolean forceSequentialReader) {
+    IgnoredSourceFieldLoader(StoredFieldsSpec spec, boolean forceSequentialReader) {
+        assert IgnoredSourceFieldLoader.supports(spec);
+
         fieldNames = new HashSet<>(spec.ignoredFieldsSpec().requiredIgnoredFields());
         this.forceSequentialReader = forceSequentialReader;
 
@@ -129,8 +131,8 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
     }
 
-    static boolean supports(BlockLoader.FieldsSpec spec) {
-        return spec.storedFieldsSpec().noRequirements()
+    static boolean supports(StoredFieldsSpec spec) {
+        return spec.onlyRequiresIgnoredFields()
             && spec.ignoredFieldsSpec().format() == IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE;
     }
 }

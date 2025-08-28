@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IgnoredFieldsSpec;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -44,12 +43,12 @@ public class StoredFieldLoaderTests extends ESTestCase {
         return doc;
     }
 
-    private BlockLoader.FieldsSpec fieldsSpec(
+    private StoredFieldsSpec fieldsSpec(
         Set<String> storedFields,
         Set<String> ignoredFields,
         IgnoredSourceFieldMapper.IgnoredSourceFormat format
     ) {
-        return new BlockLoader.FieldsSpec(new StoredFieldsSpec(false, false, storedFields), new IgnoredFieldsSpec(ignoredFields, format));
+        return new StoredFieldsSpec(false, false, storedFields, new IgnoredFieldsSpec(ignoredFields, format));
     }
 
     public void testEmpty() throws IOException {
@@ -160,26 +159,26 @@ public class StoredFieldLoaderTests extends ESTestCase {
         );
     }
 
-    private void testStoredFieldLoader(Document doc, BlockLoader.FieldsSpec spec, Consumer<Map<String, List<Object>>> storedFieldsTest)
+    private void testStoredFieldLoader(Document doc, StoredFieldsSpec spec, Consumer<Map<String, List<Object>>> storedFieldsTest)
         throws IOException {
         testLoader(doc, spec, StoredFieldLoader.class, storedFieldsTest);
     }
 
-    private void testIgnoredSourceLoader(Document doc, BlockLoader.FieldsSpec spec, Consumer<Map<String, List<Object>>> storedFieldsTest)
+    private void testIgnoredSourceLoader(Document doc, StoredFieldsSpec spec, Consumer<Map<String, List<Object>>> storedFieldsTest)
         throws IOException {
         testLoader(doc, spec, IgnoredSourceFieldLoader.class, storedFieldsTest);
     }
 
     private void testLoader(
         Document doc,
-        BlockLoader.FieldsSpec spec,
+        StoredFieldsSpec spec,
         Class<? extends StoredFieldLoader> expectedLoaderClass,
         Consumer<Map<String, List<Object>>> storedFieldsTest
     ) throws IOException {
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
             iw.addDocument(doc);
             try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                StoredFieldLoader loader = StoredFieldLoader.fromSpec(spec, false);
+                StoredFieldLoader loader = StoredFieldLoader.fromSpec(spec);
                 assertThat(loader, Matchers.isA(expectedLoaderClass));
                 var leafLoader = loader.getLoader(reader.leaves().getFirst(), new int[] { 0 });
                 leafLoader.advanceTo(0);

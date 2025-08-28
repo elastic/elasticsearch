@@ -54,12 +54,10 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
         BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup);
         assertThat(loader.columnAtATimeReader(ctx), nullValue());
         BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
-        assertThat(loader.rowStrideFieldSpec(), equalTo(new BlockLoader.FieldsSpec(StoredFieldsSpec.NEEDS_SOURCE, IgnoredFieldsSpec.NONE)));
+        assertThat(loader.rowStrideStoredFieldSpec(), equalTo(StoredFieldsSpec.NEEDS_SOURCE));
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-            StoredFieldLoader.fromSpec(loader.rowStrideFieldSpec(), false).getLoader(ctx, null),
-            loader.rowStrideFieldSpec().storedFieldsSpec().requiresSource()
-                ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null)
-                : null
+            StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+            loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
         );
         BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
         storedFields.advanceTo(0);

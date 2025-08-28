@@ -10,17 +10,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Defines which fields need to be loaded from _ignored_source during a fetch
+ * Defines which fields need to be loaded from _ignored_source during a fetch.
  */
 public record IgnoredFieldsSpec(Set<String> requiredIgnoredFields, IgnoredSourceFieldMapper.IgnoredSourceFormat format) {
     public static IgnoredFieldsSpec NONE = new IgnoredFieldsSpec(Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE);
+
+    public boolean noRequirements() {
+        return requiredIgnoredFields.isEmpty();
+    }
 
     public IgnoredFieldsSpec merge(IgnoredFieldsSpec other) {
         if (this.format == IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE) {
@@ -31,6 +34,9 @@ public record IgnoredFieldsSpec(Set<String> requiredIgnoredFields, IgnoredSource
         }
         if (other.requiredIgnoredFields.isEmpty()) {
             return this;
+        }
+        if (this.requiredIgnoredFields.isEmpty()) {
+            return other;
         }
 
         if (this.format != other.format) {
@@ -44,12 +50,11 @@ public record IgnoredFieldsSpec(Set<String> requiredIgnoredFields, IgnoredSource
         return new IgnoredFieldsSpec(mergedFields, format);
     }
 
-    public StoredFieldsSpec requiredStoredFields() {
-        return new StoredFieldsSpec(
-            false,
-            false,
-            requiredIgnoredFields.stream().flatMap(field -> format.requiredStoredFields(field).stream()).collect(Collectors.toSet())
-        );
+    /**
+     * Get the set of stored fields required to load the specified fields from _ignored_source.
+     */
+    public Set<String> requiredStoredFields() {
+        return requiredIgnoredFields.stream().flatMap(field -> format.requiredStoredFields(field).stream()).collect(Collectors.toSet());
 
     }
 }

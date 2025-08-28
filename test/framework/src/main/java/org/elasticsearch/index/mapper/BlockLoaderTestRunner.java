@@ -118,17 +118,17 @@ public class BlockLoaderTestRunner {
             return block.get(0);
         }
 
-        BlockLoader.FieldsSpec fieldsSpec = blockLoader.rowStrideFieldSpec();
+        StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
         SourceLoader.Leaf leafSourceLoader = null;
-        if (fieldsSpec.storedFieldsSpec().requiresSource()) {
+        if (storedFieldsSpec.requiresSource()) {
             var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
             leafSourceLoader = sourceLoader.leaf(context.reader(), null);
-            fieldsSpec = fieldsSpec.merge(
-                new StoredFieldsSpec(true, fieldsSpec.storedFieldsSpec().requiresMetadata(), sourceLoader.requiredStoredFields())
+            storedFieldsSpec = storedFieldsSpec.merge(
+                new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
             );
         }
         BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
-            StoredFieldLoader.fromSpec(fieldsSpec, false).getLoader(context, null),
+            StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(context, null),
             leafSourceLoader
         );
         storedFieldsLoader.advanceTo(1);

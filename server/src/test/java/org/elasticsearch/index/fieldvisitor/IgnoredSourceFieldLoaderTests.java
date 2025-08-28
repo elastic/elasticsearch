@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IgnoredFieldsSpec;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -28,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -42,17 +40,21 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
     public void testSupports() {
         assertTrue(
             IgnoredSourceFieldLoader.supports(
-                new BlockLoader.FieldsSpec(
-                    StoredFieldsSpec.NO_REQUIREMENTS,
+                new StoredFieldsSpec(
+                    false,
+                    false,
+                    Set.of(),
                     new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE)
                 )
             )
         );
 
-        assertTrue(
+        assertFalse(
             IgnoredSourceFieldLoader.supports(
-                new BlockLoader.FieldsSpec(
-                    StoredFieldsSpec.NO_REQUIREMENTS,
+                new StoredFieldsSpec(
+                    false,
+                    false,
+                    Set.of(),
                     new IgnoredFieldsSpec(Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE)
                 )
             )
@@ -60,16 +62,16 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
 
         assertFalse(
             IgnoredSourceFieldLoader.supports(
-                new BlockLoader.FieldsSpec(
-                    StoredFieldsSpec.NEEDS_SOURCE,
+                new StoredFieldsSpec(
+                    true,
+                    false,
+                    Set.of(),
                     new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE)
                 )
             )
         );
 
-        assertFalse(
-            IgnoredSourceFieldLoader.supports(new BlockLoader.FieldsSpec(StoredFieldsSpec.NO_REQUIREMENTS, IgnoredFieldsSpec.NONE))
-        );
+        assertFalse(IgnoredSourceFieldLoader.supports(StoredFieldsSpec.NO_REQUIREMENTS));
     }
 
     public void testLoadSingle() throws IOException {
@@ -81,10 +83,6 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
         testLoader(doc, Set.of("foo"), storedFields -> {
             assertThat(storedFields, hasEntry(equalTo("_ignored_source.foo"), containsInAnyOrder(value)));
         });
-    }
-
-    public void testLoaderNone() throws IOException {
-        testLoader(new Document(), Set.of(), storedFields -> { assertThat(storedFields, anEmptyMap()); });
     }
 
     public void testLoadMultiple() throws IOException {
@@ -125,8 +123,10 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
     private void testLoader(Document doc, Set<String> fieldsToLoad, Consumer<Map<String, List<Object>>> storedFieldsTest)
         throws IOException {
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
-            BlockLoader.FieldsSpec spec = new BlockLoader.FieldsSpec(
-                StoredFieldsSpec.NO_REQUIREMENTS,
+            StoredFieldsSpec spec = new StoredFieldsSpec(
+                false,
+                false,
+                Set.of(),
                 new IgnoredFieldsSpec(fieldsToLoad, IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE)
             );
             assertTrue(IgnoredSourceFieldLoader.supports(spec));

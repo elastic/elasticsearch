@@ -17,7 +17,6 @@ import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -51,16 +50,18 @@ public abstract class StoredFieldLoader {
      * Creates a new StoredFieldLoader using a StoredFieldsSpec
      */
     public static StoredFieldLoader fromSpec(StoredFieldsSpec spec) {
-        if (spec.noRequirements()) {
-            return StoredFieldLoader.empty();
-        }
-        return create(spec.requiresSource(), spec.requiredStoredFields());
+        return fromSpec(spec, false);
     }
 
     /**
-     * Crates a new StoredFieldLoader using a BlockLoader.FieldsSpec
+     * Creates a new StoredFieldLoader using a StoredFieldsSpec that is optimized
+     * for loading documents in order.
      */
-    public static StoredFieldLoader fromSpec(BlockLoader.FieldsSpec spec, boolean forceSequentialReader) {
+    public static StoredFieldLoader fromSpecSequential(StoredFieldsSpec spec) {
+        return fromSpec(spec, true);
+    }
+
+    private static StoredFieldLoader fromSpec(StoredFieldsSpec spec, boolean forceSequentialReader) {
         if (spec.noRequirements()) {
             return StoredFieldLoader.empty();
         }
@@ -68,13 +69,7 @@ public abstract class StoredFieldLoader {
         if (IgnoredSourceFieldLoader.supports(spec)) {
             return new IgnoredSourceFieldLoader(spec, forceSequentialReader);
         }
-
-        StoredFieldsSpec mergedSpec = spec.storedFieldsSpec().merge(spec.ignoredFieldsSpec().requiredStoredFields());
-        if (forceSequentialReader) {
-            return fromSpecSequential(mergedSpec);
-        } else {
-            return fromSpec(mergedSpec);
-        }
+        return create(spec.requiresSource(), spec.requiredStoredFields(), forceSequentialReader);
     }
 
     public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
@@ -98,28 +93,6 @@ public abstract class StoredFieldLoader {
             @Override
             public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
                 return new ReaderStoredFieldLoader(forceSequentialReader ? sequentialReader(ctx) : reader(ctx, docs), loadSource, fields);
-            }
-
-            @Override
-            public List<String> fieldsToLoad() {
-                return fieldsToLoad;
-            }
-        };
-    }
-
-    /**
-     * Creates a new StoredFieldLoader using a StoredFieldsSpec that is optimized
-     * for loading documents in order.
-     */
-    public static StoredFieldLoader fromSpecSequential(StoredFieldsSpec spec) {
-        if (spec.noRequirements()) {
-            return StoredFieldLoader.empty();
-        }
-        List<String> fieldsToLoad = fieldsToLoad(spec.requiresSource(), spec.requiredStoredFields());
-        return new StoredFieldLoader() {
-            @Override
-            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
-                return new ReaderStoredFieldLoader(sequentialReader(ctx), spec.requiresSource(), spec.requiredStoredFields());
             }
 
             @Override

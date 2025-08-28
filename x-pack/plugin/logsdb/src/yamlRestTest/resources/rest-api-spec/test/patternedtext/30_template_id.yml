@@ -83,10 +83,6 @@ Get template_id field:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields: {"foo.template_id": ["mOVsnxlxdac"]} }
 
-
-# 2, 5 "iJEgF75EQNk" > mOVsnxlxdac
-# 3 vSr1YMYPups => 1l_PtCLQ5xY
-# 4 k-2qtjujOCw
 ---
 Sort by template_id descending from index config setting:
   - do:

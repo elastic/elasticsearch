@@ -53,14 +53,14 @@ public class Arg {
         }
     }
 
-    record Info(Type type, int offsetInfoTemplate) {
+    record Info(Type type, int offsetInTemplate) {
         public Info {
-            assert offsetInfoTemplate >= 0;
+            assert offsetInTemplate >= 0;
         }
 
         void writeTo(ByteArrayDataOutput out, int previousOffset) throws IOException {
             out.writeVInt(type.toCode());
-            int diff = offsetInfoTemplate - previousOffset;
+            int diff = offsetInTemplate - previousOffset;
             out.writeVInt(diff);
         }
 
@@ -89,7 +89,7 @@ public class Arg {
         int previousOffset = 0;
         for (var arg : arguments) {
             arg.writeTo(dataInput, previousOffset);
-            previousOffset = arg.offsetInfoTemplate;
+            previousOffset = arg.offsetInTemplate;
         }
 
         int size = dataInput.getPosition();
@@ -107,7 +107,7 @@ public class Arg {
         for (int i = 0; i < numArgs; i++) {
             var argInfo = Info.readFrom(input, previousOffset);
             arguments.add(argInfo);
-            previousOffset = argInfo.offsetInfoTemplate;
+            previousOffset = argInfo.offsetInTemplate;
         }
         return arguments;
     }

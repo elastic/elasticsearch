@@ -87,9 +87,9 @@ public class PatternedTextValueProcessor {
             String arg = args[i];
             var argInfo = argsInfo.get(i);
 
-            builder.append(template, nextToWrite, argInfo.offsetInfoTemplate());
+            builder.append(template, nextToWrite, argInfo.offsetInTemplate());
             builder.append(arg);
-            nextToWrite = argInfo.offsetInfoTemplate();
+            nextToWrite = argInfo.offsetInTemplate();
         }
 
         if (nextToWrite < template.length()) {

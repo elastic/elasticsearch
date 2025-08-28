@@ -1245,7 +1245,7 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
-            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3], 10)");
+            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
         }
     }
 
@@ -1378,7 +1378,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2], 10)", "function");
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
         }
 
     }
@@ -1433,7 +1433,7 @@ public class VerifierTests extends ESTestCase {
             checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3], 10)");
+            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
         }
     }
 
@@ -1498,7 +1498,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3], 10)", "function");
+            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
         }
     }
 
@@ -2148,7 +2148,7 @@ public class VerifierTests extends ESTestCase {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
-            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], 10, {\"%s\": %s})");
+            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
         }
     }
 
@@ -2268,7 +2268,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
-            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2], 10)");
+            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
         }
     }
 

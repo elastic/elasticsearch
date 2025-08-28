@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -99,6 +100,11 @@ import java.util.stream.Collectors;
  *   processor definitions.
  */
 public class SimulateBulkRequest extends BulkRequest {
+
+    private static final TransportVersion SIMULATE_INGEST_MAPPING_MERGE_TYPE = TransportVersion.fromName(
+        "simulate_ingest_mapping_merge_type"
+    );
+
     private final Map<String, Map<String, Object>> pipelineSubstitutions;
     private final Map<String, Map<String, Object>> componentTemplateSubstitutions;
     private final Map<String, Map<String, Object>> indexTemplateSubstitutions;
@@ -150,7 +156,7 @@ public class SimulateBulkRequest extends BulkRequest {
         } else {
             mappingAddition = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
+        if (in.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
             mappingMergeType = in.readOptionalString();
         } else {
             mappingMergeType = null;
@@ -168,7 +174,7 @@ public class SimulateBulkRequest extends BulkRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             out.writeGenericValue(mappingAddition);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
+        if (out.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
             out.writeOptionalString(mappingMergeType);
         }
     }

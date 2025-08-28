@@ -19,7 +19,6 @@
  */
 package org.elasticsearch.index.codec.vectors.es92;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
@@ -29,15 +28,15 @@ import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
-import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.util.Set;
 
-public final class ES92BFloat16FlatVectorsFormat extends FlatVectorsFormat {
+public final class ES92BFloat16FlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     static final String NAME = "ES92BFloat16FlatVectorsFormat";
     static final String META_CODEC_NAME = "ES92BFloat16FlatVectorsFormatMeta";
@@ -57,12 +56,17 @@ public final class ES92BFloat16FlatVectorsFormat extends FlatVectorsFormat {
     }
 
     @Override
+    protected FlatVectorsScorer flatVectorsScorer() {
+        return vectorsScorer;
+    }
+
+    @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES92BFloat16FlatVectorsWriter(state, vectorsScorer);
     }
 
     static boolean shouldUseDirectIO(SegmentReadState state) {
-        return ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO && FsDirectoryFactory.isHybridFs(state.directory);
+        return USE_DIRECT_IO && FsDirectoryFactory.isHybridFs(state.directory);
     }
 
     @Override
@@ -85,11 +89,6 @@ public final class ES92BFloat16FlatVectorsFormat extends FlatVectorsFormat {
         } else {
             return new ES92BFloat16FlatVectorsReader(state, vectorsScorer);
         }
-    }
-
-    @Override
-    public String toString() {
-        return "ES92BFloat16FlatVectorsFormat(" + "vectorsScorer=" + vectorsScorer + ')';
     }
 
     static class DirectIOContext implements IOContext {

@@ -22,9 +22,11 @@ package org.elasticsearch.index.codec.vectors.es92;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryFlatVectorsScorer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsReader;
@@ -87,18 +89,9 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
-public class ES92BinaryQuantizedBFloat16VectorsFormat extends FlatVectorsFormat {
+public class ES92BinaryQuantizedBFloat16VectorsFormat extends AbstractFlatVectorsFormat {
 
-    public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
     public static final String NAME = "ES92BinaryQuantizedBFloat16VectorsFormat";
-
-    static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
-    static final String META_CODEC_NAME = "ES92BinaryQuantizedBFloat16VectorsFormatMeta";
-    static final String VECTOR_DATA_CODEC_NAME = "ES92BinaryQuantizedBFloat16VectorsFormatData";
-    static final String META_EXTENSION = "vemb";
-    static final String VECTOR_DATA_EXTENSION = "veb";
-    static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
     private static final FlatVectorsFormat rawVectorFormat = new ES92BFloat16FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
@@ -114,6 +107,11 @@ public class ES92BinaryQuantizedBFloat16VectorsFormat extends FlatVectorsFormat 
     }
 
     @Override
+    protected FlatVectorsScorer flatVectorsScorer() {
+        return scorer;
+    }
+
+    @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES818BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
     }
@@ -121,15 +119,5 @@ public class ES92BinaryQuantizedBFloat16VectorsFormat extends FlatVectorsFormat 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
-    }
-
-    @Override
-    public int getMaxDimensions(String fieldName) {
-        return MAX_DIMS_COUNT;
-    }
-
-    @Override
-    public String toString() {
-        return "ES92BinaryQuantizedBFloat16VectorsFormat(name=" + NAME + ", flatVectorScorer=" + scorer + ")";
     }
 }

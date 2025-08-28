@@ -181,6 +181,7 @@ public class VectorIT extends ESIntegTestCase {
     }
 
     public void testSparseVectorExists() throws IOException {
+        String indexName = "sparse_vector_index";
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -199,19 +200,19 @@ public class VectorIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 10)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        prepareCreate(INDEX_NAME).setMapping(mapping).setSettings(settings).get();
+        prepareCreate("sparse_vector_index").setMapping(mapping).setSettings(settings).get();
         int loops = 10;
         for (int i = 0; i < loops; i++) {
-            prepareIndex(INDEX_NAME).setSource(VECTOR_FIELD, List.of(Map.of("dim", 1.0f), Map.of("dim", 12.0f)), "id", 1).get();
-            prepareIndex(INDEX_NAME).setSource(VECTOR_FIELD, Map.of("dim", 2.0f), "id", 2).get();
-            prepareIndex(INDEX_NAME).setSource(VECTOR_FIELD, List.of(), "id", 3).get();
-            prepareIndex(INDEX_NAME).setSource(VECTOR_FIELD, Map.of(), "id", 4).get();
-            refresh(INDEX_NAME);
+            prepareIndex(indexName).setSource(VECTOR_FIELD, List.of(Map.of("dim", 1.0f), Map.of("dim", 12.0f)), "id", 1).get();
+            prepareIndex(indexName).setSource(VECTOR_FIELD, Map.of("dim", 2.0f), "id", 2).get();
+            prepareIndex(indexName).setSource(VECTOR_FIELD, List.of(), "id", 3).get();
+            prepareIndex(indexName).setSource(VECTOR_FIELD, Map.of(), "id", 4).get();
+            refresh(indexName);
         }
         TermsAggregationBuilder builder = new TermsAggregationBuilder("agg").field("id").size(1000);
         for (int i = 0; i < 10; i++) {
             assertResponse(
-                client().prepareSearch(INDEX_NAME)
+                client().prepareSearch(indexName)
                     .setQuery(QueryBuilders.existsQuery(VECTOR_FIELD))
                     .setTrackTotalHits(true)
                     .setSize(30)

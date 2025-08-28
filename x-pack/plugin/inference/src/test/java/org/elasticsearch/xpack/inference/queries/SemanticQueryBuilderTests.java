@@ -87,6 +87,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -387,12 +388,18 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             String fieldName = randomAlphaOfLength(5);
             String query = randomAlphaOfLength(5);
 
-            MapInferenceResultsProvider mapInferenceResultsProvider = new MapInferenceResultsProvider();
-            mapInferenceResultsProvider.addInferenceResults(randomAlphaOfLength(5), inferenceResults);
-            SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(fieldName, query, null, mapInferenceResultsProvider);
-
-            SingleInferenceResultsProvider singleInferenceResultsProvider = new SingleInferenceResultsProvider(inferenceResults);
-            SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(fieldName, query, null, singleInferenceResultsProvider);
+            SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
+                fieldName,
+                query,
+                null,
+                Map.of(randomAlphaOfLength(5), inferenceResults)
+            );
+            SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(
+                fieldName,
+                query,
+                null,
+                SemanticQueryBuilder.buildBwcInferenceResultsMap(inferenceResults)
+            );
 
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 output.setTransportVersion(version);
@@ -422,13 +429,13 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         CheckedBiConsumer<List<InferenceResults>, TransportVersion, IOException> assertMultipleInferenceResults = (
             inferenceResultsList,
             version) -> {
-            MapInferenceResultsProvider mapInferenceResultsProvider = new MapInferenceResultsProvider();
-            inferenceResultsList.forEach(result -> mapInferenceResultsProvider.addInferenceResults(randomAlphaOfLength(5), result));
+            Map<String, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceResultsList.size());
+            inferenceResultsList.forEach(result -> inferenceResultsMap.put(randomAlphaOfLength(5), result));
             SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
                 null,
-                mapInferenceResultsProvider
+                inferenceResultsMap
             );
 
             try (BytesStreamOutput output = new BytesStreamOutput()) {

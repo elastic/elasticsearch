@@ -169,8 +169,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return replaceableIndices;
         }
 
-        public boolean includeResolvedInResponse() {
-            return includeResolvedInResponse;
+        @Override
+        public String getProjectRouting() {
+            return null;
         }
     }
 

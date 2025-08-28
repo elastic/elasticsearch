@@ -137,6 +137,9 @@ public interface IndicesRequest {
     interface CrossProjectReplaceable extends Replaceable {
         Logger logger = LogManager.getLogger(CrossProjectReplaceable.class);
 
+        @Nullable
+        String getProjectRouting();
+
         @Override
         default boolean allowsRemoteIndices() {
             return true;

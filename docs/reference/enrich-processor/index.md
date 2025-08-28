@@ -156,6 +156,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`lowercase` processor](/reference/enrich-processor/lowercase-processor.md) and [`uppercase` processor](/reference/enrich-processor/uppercase-processor.md)
 :   Converts a string field to lowercase or uppercase.
 
+[`remediate` processor](/reference/enrich-processor/remediate-processor.md)
+:   Converts failure store document to its original format.
+
 [`split` processor](/reference/enrich-processor/split-processor.md)
 :   Splits a field into an array of values.
 

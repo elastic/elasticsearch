@@ -34,8 +34,6 @@ import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsWr
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
-
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  * Codec for encoding/decoding binary quantized vectors The binary quantization format used here

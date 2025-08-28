@@ -58,6 +58,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         License.OperationMode.ENTERPRISE
     );
 
+    private static final TransportVersion RERANK_SNIPPETS = TransportVersion.fromName("rerank_snippets");
+
     private final String inferenceId;
     private final String inferenceText;
     private final String field;
@@ -96,7 +98,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         } else {
             this.failuresAllowed = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+        if (in.getTransportVersion().supports(RERANK_SNIPPETS)) {
             this.snippetConfig = in.readOptionalWriteable(SnippetConfig::new);
         } else {
             this.snippetConfig = null;
@@ -124,7 +126,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             || out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+        if (out.getTransportVersion().supports(RERANK_SNIPPETS)) {
             out.writeOptionalWriteable(snippetConfig);
         }
     }

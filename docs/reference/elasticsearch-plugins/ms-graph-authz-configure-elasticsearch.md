@@ -54,7 +54,7 @@ xpack.security.authc.realms.saml.kibana-realm:
   order: 2
   attributes.principal: nameid
   attributes.groups: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
-  idp.metadata.path: "https://login.microsoftonline.com/<Tenant ID>/federationmetadata/2007-06/federationmetadata.xml?appid=<Application_ID>"
+  idp.metadata.path: "https://login.microsoftonline.com/<Tenant_ID>/federationmetadata/2007-06/federationmetadata.xml?appid=<Application_ID>"
   idp.entity_id: "https://sts.windows.net/<Tenant_ID>/"
   sp.entity_id: "<Kibana_Endpoint_URL>"
   sp.acs: "<Kibana_Endpoint_URL>/api/security/saml/callback"

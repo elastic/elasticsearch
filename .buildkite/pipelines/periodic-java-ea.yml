@@ -1,6 +1,6 @@
 # This file is auto-generated. See .buildkite/pipelines/periodic-java-ea.template.yml
 env:
-  JAVA_EA_VERSION: "${JAVA_EA_VERSION:-25-ea}"
+  JAVA_EA_VERSION: "${JAVA_EA_VERSION:-25-pre}"
 
 steps:
   - group: bwc

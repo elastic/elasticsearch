@@ -25,6 +25,12 @@ To check for security updates, go to [Security announcements for the Elastic sta
 stack: coming 9.1.3
 ```
 
+### Highlights [elasticsearch-9.1.3-highlights]
+
+::::{dropdown} Security advisory
+The 9.1.3 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
+
 ### Features and enhancements [elasticsearch-9.1.3-features-enhancements]
 
 Infra/REST API:
@@ -66,9 +72,12 @@ Search:
 
 
 ## 9.0.6 [elasticsearch-9.0.6-release-notes]
-```{applies_to}
-stack: coming 9.0.6
-```
+
+### Highlights [elasticsearch-9.0.6-highlights]
+
+::::{dropdown} Security advisory
+The 9.0.6 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
 
 ### Features and enhancements [elasticsearch-9.0.6-features-enhancements]
 

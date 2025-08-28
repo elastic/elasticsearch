@@ -210,9 +210,9 @@ public class EsqlSession {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
+                new ReferenceAttribute(EMPTY, null, "role", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, null, "type", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, null, "plan", DataType.KEYWORD)
             );
             List<List<Object>> values = new ArrayList<>();
             values.add(List.of("coordinator", "parsedPlan", parsedPlanString));

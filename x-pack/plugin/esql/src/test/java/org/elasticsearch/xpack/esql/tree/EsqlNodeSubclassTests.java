@@ -190,9 +190,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * implementations in the process.
      */
     public void testTransform() throws Exception {
-        if (FieldAttribute.class.equals(subclass)) {
-            assumeTrue("FieldAttribute private constructor", false);
-        }
         Constructor<T> ctor = longestCtor(subclass);
         Object[] nodeCtorArgs = ctorArgs(ctor);
         T node = ctor.newInstance(nodeCtorArgs);

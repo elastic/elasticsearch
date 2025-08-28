@@ -1,8 +1,8 @@
 {
   "indices.get_settings":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-settings.html",
-      "description":"Returns settings for one or more indices."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-settings",
+      "description":"Get index settings"
     },
     "stability":"stable",
     "visibility":"public",

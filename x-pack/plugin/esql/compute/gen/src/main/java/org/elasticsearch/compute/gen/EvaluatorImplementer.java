@@ -105,25 +105,32 @@ public class EvaluatorImplementer {
         processFunction.args.forEach(a -> a.declareField(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
-        builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
+        var hasFixedProcessFunctionArgs = processFunction.args.stream()
+            .anyMatch(x -> x instanceof FixedProcessFunctionArg == false);
+        var usesWarnings = processFunction.warnExceptions.isEmpty() == false || hasFixedProcessFunctionArgs;
 
+        if (usesWarnings) {
+            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
+        }
         builder.addMethod(ctor());
         builder.addMethod(eval());
         builder.addMethod(processFunction.baseRamBytesUsed());
 
         if (processOutputsMultivalued) {
-            if (processFunction.args.stream().anyMatch(x -> x instanceof FixedProcessFunctionArg == false)) {
+            if (hasFixedProcessFunctionArgs) {
                 builder.addMethod(realEval(true));
             }
         } else {
-            if (processFunction.args.stream().anyMatch(x -> x instanceof FixedProcessFunctionArg == false)) {
+            if (hasFixedProcessFunctionArgs) {
                 builder.addMethod(realEval(true));
             }
             builder.addMethod(realEval(false));
         }
         builder.addMethod(processFunction.toStringMethod(implementation));
         builder.addMethod(processFunction.close());
-        builder.addMethod(warnings());
+        if (usesWarnings) {
+            builder.addMethod(warnings());
+        }
         return builder.build();
     }
 

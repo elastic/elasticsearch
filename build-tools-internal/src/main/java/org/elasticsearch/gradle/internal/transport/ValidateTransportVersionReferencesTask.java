@@ -20,6 +20,8 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.VerificationException;
+import org.gradle.api.tasks.VerificationTask;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -28,7 +30,7 @@ import java.nio.file.Path;
  * Validates that each transport version reference has a referable definition.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
+public abstract class ValidateTransportVersionReferencesTask extends DefaultTask implements VerificationTask {
 
     @ServiceReference("transportVersionResources")
     abstract Property<TransportVersionResourcesService> getTransportResources();
@@ -51,7 +53,7 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
 
         for (var tvReference : TransportVersionReference.listFromFile(namesFile)) {
             if (resources.referableDefinitionExists(tvReference.name()) == false) {
-                throw new RuntimeException(
+                throw new VerificationException(
                     "TransportVersion.fromName(\""
                         + tvReference.name()
                         + "\") was used at "

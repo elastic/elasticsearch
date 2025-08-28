@@ -123,6 +123,7 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
         }
 
         valueBuffer.reset();
+        valueBuffer.setSum(rawValuesSum());
         int scale = valueBuffer.scale();
 
         // Buckets must be provided with their indices in ascending order.
@@ -159,6 +160,14 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
 
         resultMerger.add(valueBuffer);
         valueCount = 0;
+    }
+
+    private double rawValuesSum() {
+        double sum = 0;
+        for (int i = 0; i < valueCount; i++) {
+            sum += rawValueBuffer[i];
+        }
+        return sum;
     }
 
     private static long estimateBaseSize(int numBuckets) {

@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.RestChannel;
@@ -33,6 +32,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.rest.FakeHttpBodyStream;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -211,7 +211,10 @@ public class RestBulkActionTests extends ESTestCase {
                 ClusterSettings.createBuiltInClusterSettings(),
                 new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
             ).handleRequest(
-                new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withBody(new HttpBody.NoopStream()).build(),
+                new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                    .withContentLength(0)
+                    .withBody(new FakeHttpBodyStream())
+                    .build(),
                 mock(RestChannel.class),
                 mock(NodeClient.class)
             )
@@ -225,7 +228,7 @@ public class RestBulkActionTests extends ESTestCase {
 
         FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
             .withMethod(RestRequest.Method.POST)
-            .withBody(new HttpBody.NoopStream() {
+            .withBody(new FakeHttpBodyStream() {
                 @Override
                 public void next() {
                     next.set(true);

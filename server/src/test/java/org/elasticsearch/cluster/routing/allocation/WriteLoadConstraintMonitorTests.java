@@ -29,12 +29,14 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -254,6 +256,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final TimeValue minimumInterval = testState.clusterSettings.get(
             WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING
         );
+        assertThat(minimumInterval, greaterThan(TimeValue.ZERO));
         final long nowMillis = System.currentTimeMillis();
         final AtomicLong currentTimeMillis = new AtomicLong(nowMillis);
 
@@ -298,12 +301,15 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     )
     public void testRerouteIsCalledBeforeMinimumIntervalHasPassedIfNewNodesBecomeHotSpotted() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
-        final long currentTime = System.currentTimeMillis();
-        final LongSupplier currentTimeSupplier = () -> currentTime;
+        final AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
+        final TimeValue minimumInterval = testState.clusterSettings.get(
+            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING
+        );
+        assertThat(minimumInterval, greaterThan(TimeValue.ZERO));
 
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
-            currentTimeSupplier,
+            currentTimeMillis::get,
             () -> testState.clusterState,
             testState.mockRerouteService
         );
@@ -343,7 +349,10 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             return stats;
         });
 
-        // We should reroute again despite the clock being the same
+        // Advance the clock by less than the re-route interval
+        currentTimeMillis.addAndGet(randomLongBetween(0, minimumInterval.millis() - 1));
+
+        // We should reroute again despite the minimum interval not having passed
         writeLoadConstraintMonitor.onNewInfo(ClusterInfo.builder().nodeUsageStatsForThreadPools(nodeUsageStatsWithExtraHotSpot).build());
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
     }
@@ -402,6 +411,10 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
                     highUtilizationThresholdPercent + "%"
+                )
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING.getKey(),
+                    randomTimeValue(1, 30, TimeUnit.SECONDS)
                 )
                 .build()
         );

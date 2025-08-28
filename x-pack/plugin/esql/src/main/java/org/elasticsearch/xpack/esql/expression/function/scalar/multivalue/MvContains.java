@@ -209,7 +209,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         final var valueCount = subset.getValueCount(position);
         final var startIndex = subset.getFirstValueIndex(position);
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            if(subset.isNull(valueIndex)) {
+            if (subset.isNull(valueIndex)) {
                 continue;
             }
             appendTo(builder, false);
@@ -286,7 +286,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         final var startIndex = subset.getFirstValueIndex(position);
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
             var value = valueExtractor.extractValue(subset, valueIndex);
-            if(value == null) { // null entries are considered to always be an element in the superset.
+            if (value == null) { // null entries are considered to always be an element in the superset.
                 continue;
             }
             if (hasValue(superset, position, value, valueExtractor) == false) {
@@ -365,10 +365,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         private final EvalOperator.ExpressionEvaluator subsetFieldEvaluator;
         private final DriverContext driverContext;
 
-        public MvContainsNullSupersetEvaluator(
-            EvalOperator.ExpressionEvaluator subsetFieldEvaluator,
-            DriverContext driverContext
-        ) {
+        public MvContainsNullSupersetEvaluator(EvalOperator.ExpressionEvaluator subsetFieldEvaluator, DriverContext driverContext) {
             this.subsetFieldEvaluator = subsetFieldEvaluator;
             this.driverContext = driverContext;
         }
@@ -410,10 +407,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             private final Source source;
             private final EvalOperator.ExpressionEvaluator.Factory subsetFieldEvaluator;
 
-            public Factory(
-                Source source,
-                EvalOperator.ExpressionEvaluator.Factory subsetField
-            ) {
+            public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory subsetField) {
                 this.source = source;
                 this.subsetFieldEvaluator = subsetField;
             }

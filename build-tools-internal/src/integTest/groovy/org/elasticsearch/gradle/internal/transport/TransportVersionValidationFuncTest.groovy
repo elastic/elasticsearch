@@ -223,7 +223,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
 
     def "unreferable definitions can have primary ids that are patches"() {
         given:
-        unreferableTransportVersion("initial_10.0.1", "10000001")
+        unreferableTransportVersion("initial_7.0.1", "7000001")
         when:
         def result = gradleRunner(":myserver:validateTransportVersionResources").build()
         then:

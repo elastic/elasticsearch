@@ -19,7 +19,7 @@ public class DatasetUtilsImpl implements DatasetUtils {
     }
 
     @Override
-    public CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims) {
+    public CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims, CuVSMatrix.DataType dataType) {
         throw new UnsupportedOperationException("should not reach here");
     }
 }

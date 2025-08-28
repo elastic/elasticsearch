@@ -20,5 +20,5 @@ public interface DatasetUtils {
     }
 
     /** Returns a Dataset over the float32 vectors in the input. */
-    CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims) throws IOException;
+    CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims, CuVSMatrix.DataType dataType) throws IOException;
 }

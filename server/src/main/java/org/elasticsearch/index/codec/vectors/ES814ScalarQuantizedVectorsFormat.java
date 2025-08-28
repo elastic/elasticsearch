@@ -132,7 +132,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         );
     }
 
-    static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
+    public static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
         final Lucene99ScalarQuantizedVectorsWriter delegate;
 

@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -35,8 +36,10 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -49,6 +52,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
+import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
@@ -75,6 +79,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
 
     private final List<FieldWriter> fields = new ArrayList<>();
     private boolean finished;
+    private final CuVSMatrix.DataType dataType;
 
     ESGpuHnswVectorsWriter(
         CuVSResourceManager cuVSResourceManager,
@@ -88,6 +93,11 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         this.M = M;
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
+        if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
+            dataType = CuVSMatrix.DataType.BYTE;
+        } else {
+            dataType = CuVSMatrix.DataType.FLOAT;
+        }
         this.segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, LUCENE99_HNSW_META_EXTENSION);
         String indexDataFileName = IndexFileNames.segmentFileName(
@@ -411,13 +421,17 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
-        // save merged vector values to a temp file
         final int numVectors;
         String tempRawVectorsFileName = null;
         boolean success = false;
+        // save merged vector values to a temp file
         try (IndexOutput out = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "vec_", IOContext.DEFAULT)) {
             tempRawVectorsFileName = out.getName();
-            numVectors = writeFloatVectorValues(fieldInfo, out, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+            if (dataType == CuVSMatrix.DataType.BYTE) {
+                numVectors = writeByteVectorValues(out, getMergedByteVectorValues(fieldInfo, mergeState));
+            } else {
+                numVectors = writeFloatVectorValues(fieldInfo, out, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+            }
             CodecUtil.writeFooter(out);
             success = true;
         } finally {
@@ -429,9 +443,11 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             DatasetOrVectors datasetOrVectors;
             var input = FilterIndexInput.unwrapOnlyTest(in);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput && numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                var ds = DatasetUtils.getInstance().fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension());
+                var ds = DatasetUtils.getInstance()
+                    .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
                 datasetOrVectors = DatasetOrVectors.fromDataset(ds);
             } else {
+                // TODO fix for byte vectors
                 var fa = copyVectorsIntoArray(in, fieldInfo, numVectors);
                 datasetOrVectors = DatasetOrVectors.fromArray(fa);
             }
@@ -439,6 +455,31 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         } finally {
             org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
         }
+    }
+
+    private ByteVectorValues getMergedByteVectorValues(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // TODO: expose confidence interval from the format
+        final byte bits = 7;
+        final Float confidenceInterval = null;
+        ScalarQuantizer quantizer = mergeAndRecalculateQuantiles(mergeState, fieldInfo, confidenceInterval, bits);
+        MergedQuantizedVectorValues byteVectorValues = MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(
+            fieldInfo,
+            mergeState,
+            quantizer
+        );
+        return byteVectorValues;
+    }
+
+    private static int writeByteVectorValues(IndexOutput out, ByteVectorValues vectorValues) throws IOException {
+        int numVectors = 0;
+        byte[] vector;
+        final KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
+        for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+            numVectors++;
+            vector = vectorValues.vectorValue(iterator.index());
+            out.writeBytes(vector, vector.length);
+        }
+        return numVectors;
     }
 
     static float[][] copyVectorsIntoArray(IndexInput in, FieldInfo fieldInfo, int numVectors) throws IOException {

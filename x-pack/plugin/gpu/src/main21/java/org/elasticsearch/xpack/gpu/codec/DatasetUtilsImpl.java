@@ -43,16 +43,17 @@ public class DatasetUtilsImpl implements DatasetUtils {
     private DatasetUtilsImpl() {}
 
     @Override
-    public CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims) throws IOException {
+    public CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims, CuVSMatrix.DataType dataType) throws IOException {
         if (numVectors < 0 || dims < 0) {
             throwIllegalArgumentException(numVectors, dims);
         }
         MemorySegment ms = input.segmentSliceOrNull(0L, input.length());
+        final int byteSize = dataType == CuVSMatrix.DataType.FLOAT ? Float.BYTES : Byte.BYTES;
         assert ms != null; // TODO: this can be null if larger than 16GB or ...
-        if (((long) numVectors * dims * Float.BYTES) > ms.byteSize()) {
+        if (((long) numVectors * dims * byteSize) > ms.byteSize()) {
             throwIllegalArgumentException(ms, numVectors, dims);
         }
-        return fromMemorySegment(ms, numVectors, dims, CuVSMatrix.DataType.FLOAT);
+        return fromMemorySegment(ms, numVectors, dims, dataType);
     }
 
     static void throwIllegalArgumentException(MemorySegment ms, int numVectors, int dims) {

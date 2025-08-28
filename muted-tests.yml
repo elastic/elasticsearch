@@ -540,12 +540,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: definitions have primary ids which cannot change
   issue: https://github.com/elastic/elasticsearch/issues/133131
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/133220
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testGroupByNothing
-  issue: https://github.com/elastic/elasticsearch/issues/133225
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: named and unreferenced definitions cannot have the same name
   issue: https://github.com/elastic/elasticsearch/issues/133255
@@ -636,6 +630,9 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testFloatBlock
   issue: https://github.com/elastic/elasticsearch/issues/133621
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:inlinestats.EvalBeforeDoubleInlinestats1}
+  issue: https://github.com/elastic/elasticsearch/issues/133729
 
 # Examples:
 #

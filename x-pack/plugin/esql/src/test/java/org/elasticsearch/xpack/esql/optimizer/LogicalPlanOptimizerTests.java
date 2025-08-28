@@ -8439,7 +8439,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var query = """
             from test
-            | where knn(dense_vector, [0, 1, 2], 10) and integer > 10
+            | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
         var optimized = planTypes(query);
 
@@ -8459,7 +8459,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var query = """
             from test
-            | where knn(dense_vector, [0, 1, 2], 10)
+            | where knn(dense_vector, [0, 1, 2])
             | where integer > 10
             | where keyword == "test"
             """;
@@ -8482,7 +8482,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var query = """
             from test
-            | where knn(dense_vector, [0, 1, 2], 10) or integer > 10
+            | where knn(dense_vector, [0, 1, 2]) or integer > 10
             """;
         var optimized = planTypes(query);
 
@@ -8512,7 +8512,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             from test
             | where
-                 ((knn(dense_vector, [0, 1, 2], 10) or integer > 10) and keyword == "test") and ((short < 5) or (double > 5.0))
+                 ((knn(dense_vector, [0, 1, 2]) or integer > 10) and keyword == "test") and ((short < 5) or (double > 5.0))
             """;
         var optimized = planTypes(query);
 
@@ -8547,7 +8547,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             from test
             | where
-                 ((knn(dense_vector, [0, 1, 2], 10) and integer > 10) or keyword == "test") or ((short < 5) and (double > 5.0))
+                 ((knn(dense_vector, [0, 1, 2]) and integer > 10) or keyword == "test") or ((short < 5) and (double > 5.0))
             """;
         var optimized = planTypes(query);
 
@@ -8575,7 +8575,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
          */
         var query = """
             from test
-            | where ((knn(dense_vector, [0, 1, 2], 10) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6], 10)))
+            | where ((knn(dense_vector, [0, 1, 2]) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
         var optimized = planTypes(query);
 
@@ -8662,18 +8662,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test metadata _score
             | where knn(dense_vector, [0, 1, 2]) and match(keyword, "test")
             | where knn(dense_vector, [1, 2, 3])
-            | limit 30
-            | sort _score desc
+            | sort _score
             | limit 10
             """;
         var optimized = planTypes(query);
 
         var topN = as(optimized, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
-        var limit = as(topN.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var knn = as(filter.condition(), Knn.class);
-        assertThat(knn.k(), equalTo(20));
+        var filter = as(topN.child(), Filter.class);
+        var firstAnd = as(filter.condition(), And.class);
+        var fistKnn = as(firstAnd.right(), Knn.class);
+        assertThat(((Literal) fistKnn.query()).value(), is(List.of(1.0f, 2.0f, 3.0f)));
+        var secondAnd = as(firstAnd.left(), And.class);
+        var secondKnn = as(secondAnd.left(), Knn.class);
+        assertThat(((Literal) secondKnn.query()).value(), is(List.of(0.0f, 1.0f, 2.0f)));
     }
 
     private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(List<RuleExecutor.Batch<LogicalPlan>> batches) {

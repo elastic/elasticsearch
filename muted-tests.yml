@@ -615,6 +615,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:inlinestats.EvalBeforeDoubleInlinestats1}
+  issue: https://github.com/elastic/elasticsearch/issues/133729
 
 # Examples:
 #

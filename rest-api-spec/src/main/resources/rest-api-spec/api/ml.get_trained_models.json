@@ -1,8 +1,8 @@
 {
   "ml.get_trained_models":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models.html",
-      "description":"Retrieves configuration information for a trained inference model."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-trained-models",
+      "description":"Get trained model configuration info"
     },
     "stability":"stable",
     "visibility":"public",

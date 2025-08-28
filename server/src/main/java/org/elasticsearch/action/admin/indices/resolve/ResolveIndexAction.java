@@ -171,13 +171,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public void setReplacedExpressions(Map<String, ReplacedExpression> replacedExpressions) {
             this.replacedExpressions = replacedExpressions;
-            // TODO need to be v careful with "*,-*" here
-            indices(
-                this.replacedExpressions.values()
-                    .stream()
-                    .flatMap(indexExpression -> indexExpression.replacedBy().stream())
-                    .toArray(String[]::new)
-            );
+            // indices(
+            // this.replacedExpressions.values()
+            // .stream()
+            // .flatMap(indexExpression -> indexExpression.replacedBy().stream())
+            // .toArray(String[]::new)
+            // );
         }
 
         @Override

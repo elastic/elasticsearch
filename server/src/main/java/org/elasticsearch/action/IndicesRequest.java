@@ -50,7 +50,7 @@ public interface IndicesRequest {
     default boolean includeDataStreams() {
         return false;
     }
-
+    
     interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.
@@ -94,6 +94,7 @@ public interface IndicesRequest {
             return true;
         }
 
+        // Instead, we could use ThreadContext and header presence
         boolean shouldApplyCrossProjectHandling();
 
         @Override
@@ -154,6 +155,13 @@ public interface IndicesRequest {
             this.replacedBy = replacedBy;
             this.unauthorized = unauthorized;
             this.error = exception;
+        }
+
+        public static String[] toIndices(Map<String, ReplacedExpression> replacedExpressions) {
+            return replacedExpressions.values()
+                .stream()
+                .flatMap(indexExpression -> indexExpression.replacedBy().stream())
+                .toArray(String[]::new);
         }
 
         public ReplacedExpression(String original, List<String> replacedBy) {

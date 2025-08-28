@@ -157,96 +157,111 @@ public class EvalOperator extends AbstractPageMappingOperator {
         long baseRamBytesUsed();
     }
 
-    public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {
+    private record ConstantNullEvaluator(DriverContext context) implements ExpressionEvaluator {
+        private static final String NAME = "ConstantNull";
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullEvaluator.class);
+
         @Override
-        public ExpressionEvaluator get(DriverContext driverContext) {
-            return new ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    return driverContext.blockFactory().newConstantNullBlock(page.getPositionCount());
-                }
-
-                @Override
-                public void close() {}
-
-                @Override
-                public String toString() {
-                    return CONSTANT_NULL_NAME;
-                }
-
-                @Override
-                public long baseRamBytesUsed() {
-                    return 0;
-                }
-            };
+        public Block eval(Page page) {
+            return context.blockFactory().newConstantNullBlock(page.getPositionCount());
         }
+
+        @Override
+        public void close() {}
 
         @Override
         public String toString() {
-            return CONSTANT_NULL_NAME;
+            return NAME;
         }
-    };
-    private static final String CONSTANT_NULL_NAME = "ConstantNull";
 
-    public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ExpressionEvaluator.Factory() {
         @Override
-        public ExpressionEvaluator get(DriverContext driverContext) {
-            return new ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
-                }
-
-                @Override
-                public void close() {}
-
-                @Override
-                public String toString() {
-                    return CONSTANT_TRUE_NAME;
-                }
-
-                @Override
-                public long baseRamBytesUsed() {
-                    return 0;
-                }
-            };
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
         }
+
+        record Factory() implements ExpressionEvaluator.Factory {
+            @Override
+            public ConstantNullEvaluator get(DriverContext context) {
+                return new ConstantNullEvaluator(context);
+            };
+
+            @Override
+            public String toString() {
+                return NAME;
+            }
+        };
+    }
+    public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ConstantNullEvaluator.Factory();
+
+    private record ConstantTrueEvaluator(DriverContext context) implements ExpressionEvaluator {
+        private static final String NAME = "ConstantTrue";
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantTrueEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            return context.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
+        }
+
+        @Override
+        public void close() {}
 
         @Override
         public String toString() {
-            return CONSTANT_TRUE_NAME;
+            return NAME;
         }
-    };
-    private static final String CONSTANT_TRUE_NAME = "ConstantTrue";
 
-    public static final ExpressionEvaluator.Factory CONSTANT_FALSE_FACTORY = new ExpressionEvaluator.Factory() {
         @Override
-        public ExpressionEvaluator get(DriverContext driverContext) {
-            return new ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    return driverContext.blockFactory().newConstantBooleanBlockWith(false, page.getPositionCount());
-                }
-
-                @Override
-                public void close() {}
-
-                @Override
-                public String toString() {
-                    return CONSTANT_FALSE_NAME;
-                }
-
-                @Override
-                public long baseRamBytesUsed() {
-                    return 0;
-                }
-            };
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
         }
+
+        record Factory() implements ExpressionEvaluator.Factory {
+            @Override
+            public ConstantTrueEvaluator get(DriverContext context) {
+                return new ConstantTrueEvaluator(context);
+            };
+
+            @Override
+            public String toString() {
+                return NAME;
+            }
+        };
+    }
+    public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ConstantTrueEvaluator.Factory();
+
+    private record ConstantFalseEvaluator(DriverContext context) implements ExpressionEvaluator {
+        private static final String NAME = "ConstantFalse";
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantFalseEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            return context.blockFactory().newConstantBooleanBlockWith(false, page.getPositionCount());
+        }
+
+        @Override
+        public void close() {}
 
         @Override
         public String toString() {
-            return CONSTANT_FALSE_NAME;
+            return NAME;
         }
-    };
-    private static final String CONSTANT_FALSE_NAME = "ConstantFalse";
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        record Factory() implements ExpressionEvaluator.Factory {
+            @Override
+            public ConstantFalseEvaluator get(DriverContext context) {
+                return new ConstantFalseEvaluator(context);
+            };
+
+            @Override
+            public String toString() {
+                return NAME;
+            }
+        };
+    }
+    public static final ExpressionEvaluator.Factory CONSTANT_FALSE_FACTORY = new ConstantFalseEvaluator.Factory();
 }

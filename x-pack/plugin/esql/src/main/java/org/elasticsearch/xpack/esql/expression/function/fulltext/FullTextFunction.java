@@ -389,7 +389,14 @@ public abstract class FullTextFunction extends Function
         return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
     }
 
+    /**
+     * Returns the query builder to be used when the function cannot be pushed down to Lucene, but uses a
+     * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} instead
+     *
+     * @return the query builder to be used in the {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator}
+     */
     protected QueryBuilder evaluatorQueryBuilder() {
+        // Use the same query builder as for the translation by default
         return queryBuilder();
     }
 

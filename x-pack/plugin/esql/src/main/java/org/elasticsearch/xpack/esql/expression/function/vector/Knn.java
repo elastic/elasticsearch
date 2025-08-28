@@ -292,7 +292,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     protected QueryBuilder evaluatorQueryBuilder() {
-        // Either we couldn't push down due to non-pushable filters, or becauses it's part of a disjuncion. Use exact query.
+        // Either we couldn't push down due to non-pushable filters, or because it's part of a disjuncion.
+        // Uses a nearest neighbors exact query instead of an approximate one
         var fieldAttribute = Match.fieldAsFieldAttribute(field());
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
@@ -359,13 +360,12 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         return Objects.equals(field(), knn.field())
             && Objects.equals(query(), knn.query())
             && Objects.equals(queryBuilder(), knn.queryBuilder())
-            && Objects.equals(k(), knn.k())
             && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder(), k(), filterExpressions());
+        return Objects.hash(field(), query(), queryBuilder(), filterExpressions());
     }
 
 }

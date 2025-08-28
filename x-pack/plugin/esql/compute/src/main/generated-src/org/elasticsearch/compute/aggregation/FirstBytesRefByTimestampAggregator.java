@@ -152,10 +152,12 @@ public class FirstBytesRefByTimestampAggregator {
             }
             if (updated) {
                 values = bigArrays.grow(values, groupId + 1);
-                try(BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "First", value.length)) {
-                    builder.append(value);
-                    values.set(groupId, builder);
+                BreakingBytesRefBuilder builder = values.get(groupId);
+                if (builder == null) {
+                    builder = new BreakingBytesRefBuilder(breaker, "First", value.length);
                 }
+                builder.copyBytes(value);
+                values.set(groupId, builder);
             }
             maxGroupId = Math.max(maxGroupId, groupId);
             trackGroupId(groupId);
@@ -163,6 +165,9 @@ public class FirstBytesRefByTimestampAggregator {
 
         @Override
         public void close() {
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
             Releasables.close(timestamps, values, super::close);
         }
 

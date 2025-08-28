@@ -8,12 +8,10 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
-$if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-$endif$
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.common.util.LongArray;
@@ -185,10 +183,12 @@ public class $Occurrence$$Type$ByTimestampAggregator {
             if (updated) {
                 values = bigArrays.grow(values, groupId + 1);
                 $if(BytesRef)$
-                try(BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "$Occurrence$", value.length)) {
-                    builder.append(value);
-                    values.set(groupId, builder);
+                BreakingBytesRefBuilder builder = values.get(groupId);
+                if (builder == null) {
+                    builder = new BreakingBytesRefBuilder(breaker, "$Occurrence$", value.length);
                 }
+                builder.copyBytes(value);
+                values.set(groupId, builder);
                 $else$
                 values.set(groupId, value);
                 $endif$
@@ -199,6 +199,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
 
         @Override
         public void close() {
+            $if(BytesRef)$
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            $endif$
             Releasables.close(timestamps, values, super::close);
         }
 

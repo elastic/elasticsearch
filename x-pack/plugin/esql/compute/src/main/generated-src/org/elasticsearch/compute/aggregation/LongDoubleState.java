@@ -7,8 +7,11 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
+// end generated imports
 
 /**
  * Aggregator state for a single {@code long} and a single {@code double}.

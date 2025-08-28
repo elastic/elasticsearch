@@ -7,11 +7,11 @@
 
 package org.elasticsearch.compute.aggregation;
 
- $if(v2_BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-$endif$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
+// end generated imports
 
 /**
  * Aggregator state for a single {@code $v1_type$} and a single {@code $v2_type$}.

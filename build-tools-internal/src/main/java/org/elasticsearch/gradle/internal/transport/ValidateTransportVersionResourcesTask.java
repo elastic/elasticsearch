@@ -85,6 +85,8 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         for (var upperBound : upperBounds.values()) {
             validateUpperBound(upperBound, allDefinitions, idsByBase);
         }
+
+        validateLargestIdIsUsed(upperBounds, allDefinitions);
     }
 
     private Map<String, TransportVersionDefinition> collectAllDefinitions(
@@ -253,6 +255,27 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             }
             previous = current;
         }
+    }
+
+    private void validateLargestIdIsUsed(
+        Map<String, TransportVersionUpperBound> upperBounds,
+        Map<String, TransportVersionDefinition> allDefinitions
+    ) {
+        // first id is always the highest within a definition, and validated earlier
+        // note we use min instead of max because the id comparator is in descending order
+        var highestDefinition = allDefinitions.values().stream().min(Comparator.comparing(d -> d.ids().get(0))).get();
+        var highestId = highestDefinition.ids().get(0);
+
+        for (var upperBound : upperBounds.values()) {
+            if (upperBound.id().equals(highestId)) {
+                return;
+            }
+        }
+
+        throwDefinitionFailure(
+            highestDefinition,
+            "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
+        );
     }
 
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {

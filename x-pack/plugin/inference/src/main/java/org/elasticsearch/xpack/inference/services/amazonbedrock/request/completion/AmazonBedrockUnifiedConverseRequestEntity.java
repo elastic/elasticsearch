@@ -12,7 +12,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 
 import java.util.List;
 
-public record AmazonBedrockUnifiedConverseRequestEntity (
+public record AmazonBedrockUnifiedConverseRequestEntity(
     List<UnifiedCompletionRequest.Message> messages,
     @Nullable Double temperature,
     @Nullable Double topP,
@@ -24,8 +24,7 @@ public record AmazonBedrockUnifiedConverseRequestEntity (
         @Nullable Double temperature,
         @Nullable Double topP,
         @Nullable Integer maxTokenCount
-    )  {
+    ) {
         this(messages, temperature, topP, maxTokenCount, null);
     }
 }
-

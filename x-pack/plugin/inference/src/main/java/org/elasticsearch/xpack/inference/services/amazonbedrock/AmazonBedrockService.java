@@ -132,7 +132,10 @@ public class AmazonBedrockService extends SenderService {
     ) {
         if (model instanceof AmazonBedrockChatCompletionModel chatCompletionModel) {
             var requestCreator = new AmazonBedrockChatCompletionRequestManager(
-                chatCompletionModel, getServiceComponents().threadPool(), timeout);
+                chatCompletionModel,
+                getServiceComponents().threadPool(),
+                timeout
+            );
             var errorMessage = constructFailedToSendRequestMessage(errorPrefix);
             var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
             action.execute(inputs, timeout, listener);

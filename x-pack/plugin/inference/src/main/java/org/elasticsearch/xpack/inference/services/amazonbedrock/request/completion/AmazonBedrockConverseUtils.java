@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
-
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.InferenceConfiguration;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,10 +31,12 @@ public final class AmazonBedrockConverseUtils {
 
     public static List<Message> getUnifiedConverseMessageList(List<UnifiedCompletionRequest.Message> messages) {
         return messages.stream()
-            .map(message -> Message.builder().role(message.role())
-                .content(ContentBlock.builder()
-                    .text(message.content().toString())
-                    .build()).build())
+            .map(
+                message -> Message.builder()
+                    .role(message.role())
+                    .content(ContentBlock.builder().text(message.content().toString()).build())
+                    .build()
+            )
             .toList();
     }
 

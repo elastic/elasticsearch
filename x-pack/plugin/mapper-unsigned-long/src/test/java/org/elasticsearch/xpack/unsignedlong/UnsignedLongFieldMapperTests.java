@@ -432,7 +432,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         if (randomBoolean()) {
             return randomDouble();
         }
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
     }
 
@@ -519,7 +518,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected boolean supportsBulkBlockReading() {
+    protected boolean supportsBulkLongBlockReading() {
         return true;
     }
 }

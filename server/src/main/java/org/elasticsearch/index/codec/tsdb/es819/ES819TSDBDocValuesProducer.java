@@ -43,6 +43,7 @@ import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
@@ -1557,6 +1558,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     final int valueCount = lastIndex - firstIndex + 1;
                     if (valueCount != docs.count()) {
                         return null;
+                    }
+                    if (Assertions.ENABLED) {
+                        for (int i = 0; i < docs.count(); i++) {
+                            final int doc = docs.get(i + offset);
+                            assert disi.advanceExact(doc) : "nullsFiltered is true, but doc [" + doc + "] has no value";
+                            assert disi.index() == firstIndex + i : "unexpected disi index " + (firstIndex + i) + "!=" + disi.index();
+                        }
                     }
                     try (var longs = singletonLongs(factory, toDouble, valueCount)) {
                         for (int i = 0; i < valueCount;) {

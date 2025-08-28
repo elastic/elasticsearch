@@ -105,8 +105,8 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
     /**
      * Constructs a named transport version along with its set of compatible patch versions from x-content.
-     * This method takes in the parameter {@code latest} which is the highest valid transport version id
-     * supported by this node. Versions newer than the current transport version id for this node are discarded.
+     * This method takes in the parameter {@code upperBound} which is the highest transport version id
+     * that will be loaded by this node.
      */
     public static TransportVersion fromBufferedReader(
         String component,
@@ -114,7 +114,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         boolean nameInFile,
         boolean isNamed,
         BufferedReader bufferedReader,
-        Integer latest
+        Integer upperBound
     ) {
         try {
             String line = bufferedReader.readLine();
@@ -152,7 +152,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 if (idIndex > 0 && ids.get(idIndex - 1) <= ids.get(idIndex)) {
                     throw new IllegalStateException("invalid transport version file format [" + toComponentPath(component, path) + "]");
                 }
-                if (ids.get(idIndex) > latest) {
+                if (ids.get(idIndex) > upperBound) {
                     break;
                 }
                 transportVersion = new TransportVersion(name, ids.get(idIndex), transportVersion);
@@ -163,22 +163,23 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
     }
 
-    public static List<TransportVersion> collectFromInputStreams(
+    public static List<TransportVersion> collectFromResources(
         String component,
-        Function<String, InputStream> nameToStream,
-        String latestFileName
+        String resourceRoot,
+        Function<String, InputStream> resourceLoader,
+        String upperBoundFileName
     ) {
-        TransportVersion latest = parseFromBufferedReader(
+        TransportVersion upperBound = parseFromBufferedReader(
             component,
-            "/transport/latest/" + latestFileName,
-            nameToStream,
+            resourceRoot + "/upper_bounds/" + upperBoundFileName,
+            resourceLoader,
             (c, p, br) -> fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
         );
-        if (latest != null) {
+        if (upperBound != null) {
             List<String> versionRelativePaths = parseFromBufferedReader(
                 component,
-                "/transport/definitions/manifest.txt",
-                nameToStream,
+                resourceRoot + "/definitions/manifest.txt",
+                resourceLoader,
                 (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
             );
             if (versionRelativePaths != null) {
@@ -186,9 +187,9 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 for (String versionRelativePath : versionRelativePaths) {
                     TransportVersion transportVersion = parseFromBufferedReader(
                         component,
-                        "/transport/definitions/" + versionRelativePath,
-                        nameToStream,
-                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("named/"), br, latest.id())
+                        resourceRoot + "/definitions/" + versionRelativePath,
+                        resourceLoader,
+                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("referable/"), br, upperBound.id())
                     );
                     if (transportVersion != null) {
                         transportVersions.add(transportVersion);
@@ -227,7 +228,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * Finds a {@link TransportVersion} by its name. The parameter {@code name} must be a {@link String}
      * direct value or validation checks will fail. {@code TransportVersion.fromName("direct_value")}.
      * <p>
-     * This will only return the latest known named transport version for a given name and not its
+     * This will only return the latest known referable transport version for a given name and not its
      * patch versions. Patch versions are constructed as a linked list internally and may be found by
      * cycling through them in a loop using {@link TransportVersion#nextPatchVersion()}.
      *
@@ -339,7 +340,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * and all of its patch ids for compatibility. This replaces the pattern
      * of {@code wireTV.onOrAfter(TV_FEATURE) || wireTV.isPatchFrom(TV_FEATURE_BACKPORT) || ...}
      * for unnamed transport versions with {@code wireTV.supports(TV_FEATURE)} for named
-     * transport versions (since named versions know about their own patch versions).
+     * transport versions (since referable versions know about their own patch versions).
      * <p>
      * The recommended use of this method is to declare a static final {@link TransportVersion}
      * as part of the file that it's used in. This constant is then used in conjunction with
@@ -410,10 +411,10 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * This class holds various data structures for looking up known transport versions both
-     * named and unnamed. While we transition to named transport versions, this class will
+     * This class holds various data structures for loading transport versions, both
+     * named file-based definitions and unnamed. While we transition to file-based transport versions, this class will
      * load and merge unnamed transport versions from {@link TransportVersions} along with
-     * named transport versions specified in a manifest file in resources.
+     * transport version definitions specified in a manifest file in resources.
      */
     private static class VersionsHolder {
 
@@ -426,8 +427,9 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         static {
             // collect all the transport versions from server and es modules/plugins (defined in server)
             List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
-            List<TransportVersion> streamVersions = collectFromInputStreams(
+            List<TransportVersion> streamVersions = collectFromResources(
                 "<server>",
+                "/transport",
                 TransportVersion.class::getResourceAsStream,
                 Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv"
             );

@@ -360,12 +360,13 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         return Objects.equals(field(), knn.field())
             && Objects.equals(query(), knn.query())
             && Objects.equals(queryBuilder(), knn.queryBuilder())
+            && Objects.equals(k(), knn.k())
             && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder(), filterExpressions());
+        return Objects.hash(field(), query(), queryBuilder(), k(), filterExpressions());
     }
 
 }

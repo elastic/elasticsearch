@@ -14,7 +14,6 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
@@ -24,9 +23,9 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
+import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,8 +33,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import javax.inject.Inject;
 
 /**
  * This task generates transport version definition files. These files
@@ -45,28 +42,31 @@ import javax.inject.Inject;
  */
 public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask {
 
-    @InputDirectory
-    @Optional
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public Path getResourcesDir() {
-        return getResources().get().getTransportResourcesDir();
-    }
-
+    /**
+     * Files that contain the references to the transport version names.
+     */
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getReferencesFiles();
 
     @ServiceReference("transportVersionResources")
-    abstract Property<TransportVersionResourcesService> getResources();
+    abstract Property<TransportVersionResourcesService> getResourceService();
 
     @Input
     @Optional
-    @Option(option = "name", description = "The name of the Transport Version reference")
+    @Option(
+        option = "name",
+        description = "The name of the Transport Version reference for which to generate a definition, e.g. --name=my_new_tv"
+    )
     public abstract Property<String> getTransportVersionName();
 
     @Optional
     @Input
-    @Option(option = "branches", description = "The release branches for which to generate IDs, e.g. --branches=main,9.1")
+    @Option(
+        option = "branches",
+        description = "The release branches for which to generate IDs, e.g. --branches=main,9.1. " +
+            "Must always include the main release branch, and backport branches must be contiguous from main."
+    )
     public abstract Property<String> getBranches();
 
     @Input
@@ -90,7 +90,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @TaskAction
     public void run() throws IOException {
-        TransportVersionResourcesService resources = getResources().get();
+        TransportVersionResourcesService resources = getResourceService().get();
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
         List<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
         String name = getTransportVersionName().isPresent()

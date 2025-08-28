@@ -236,9 +236,8 @@ public class ExponentialScaleUtils {
         checkIndexAndScaleBounds(bucketIndex, scale);
         double histogramBase = Math.pow(2, Math.scalb(1, -scale));
         if (Double.isFinite(histogramBase)) {
-            double lowerBound = getLowerBucketBoundary(bucketIndex, scale);
-            double factor = histogramBase / (histogramBase + 1);
-            return lowerBound * factor;
+            double upperBound = getUpperBucketBoundary(bucketIndex, scale);
+            return 2 / (histogramBase + 1) * upperBound;
         } else {
             if (bucketIndex >= 0) {
                 // the bucket is (1, +inf), approximate point of least error as inf

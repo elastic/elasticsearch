@@ -15,7 +15,7 @@ In this scenario, we're implementing search for a cooking blog. The blog contain
 
 You need a running {{es}} cluster, together with {{kib}} to use the Dev Tools API Console. Refer to [choose your deployment type](docs-content://deploy-manage/deploy.md#choosing-your-deployment-type) for deployment options.
 
-Want to get started quickly? Run the following command in your terminal to set up a [single-node local cluster in Docker](docs-content://solutions/search/run-elasticsearch-locally.md):
+Want to get started quickly? Run the following command in your terminal to set up a [single-node local cluster in Docker](docs-content://deploy-manage/deploy/self-managed/local-development-installation-quickstart.md):
 
 ```sh
 curl -fsSL https://elastic.co/start-local | sh
@@ -31,7 +31,7 @@ FROM cooking_blog
 | LIMIT 1000
 ```
 
-If you want to run these queries in the [Dev Tools Console](docs-content://explore-analyze/query-filter/languages/esql-rest.md#esql-kibana-console), you need to use the following syntax:
+If you want to run these queries in the [Dev Tools Console](/reference/query-languages/esql/esql-rest.md#esql-kibana-console), you need to use the following syntax:
 
 ```console
 POST /_query?format=txt

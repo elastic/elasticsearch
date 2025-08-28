@@ -240,7 +240,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             if (2 > (pageSize - currentPageOffset)) {
                 super.writeShort((short) i);
             } else {
-                VH_BE_SHORT.set(bytesRefBytes, bytesRefOffset + currentPageOffset, i);
+                VH_BE_SHORT.set(bytesRefBytes, bytesRefOffset + currentPageOffset, (short) i);
                 this.currentPageOffset = currentPageOffset + 2;
             }
         } else {

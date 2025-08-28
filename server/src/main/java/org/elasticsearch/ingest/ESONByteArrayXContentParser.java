@@ -106,6 +106,8 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
                 default -> new ESONEntry.FieldEntry(key, type, offsetOrCount);
             };
         } else {
+            // Skip field count
+            readShortInt();
             byte startType = bytes[offset++];
             assert startType == ESONEntry.TYPE_OBJECT;
             int count = readInt();

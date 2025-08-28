@@ -37,7 +37,7 @@ public record ESONFlat(
 ) {
 
     public ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
-        this(new AtomicReference<>(keys), values, new AtomicReference<>(), new AtomicReference<>());
+        this(new AtomicReference<>(keys), values, new AtomicReference<>(), new AtomicReference<>(new Tuple<>(null, null)));
     }
 
     public ESONXContentParser parser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, XContentType xContentType) {
@@ -63,7 +63,7 @@ public record ESONFlat(
             new AtomicReference<>(),
             new ESONSource.Values(in.readBytesReference()),
             new AtomicReference<>(keys),
-            new AtomicReference<>()
+            new AtomicReference<>(new Tuple<>(null, null))
         );
     }
 

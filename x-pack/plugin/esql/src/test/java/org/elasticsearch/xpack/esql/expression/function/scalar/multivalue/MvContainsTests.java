@@ -341,7 +341,9 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
                                     );
                                     return new TestCaseSupplier.TestCase(
                                         typeDataWithNull,
-                                        "MvContainsNullEvaluator[subsetField=Attribute[channel=1]]",
+                                        nullPosition == 0 ?
+                                            "MvContainsNullSupersetEvaluator[subsetField=Attribute[channel=1]]" :
+                                            "ConstantBooleanTrueEvaluator",
                                         expectedType.expectedType(nullPosition, DataType.BOOLEAN, originalTestCase),
                                         equalTo(nullPosition == 1)
                                     );

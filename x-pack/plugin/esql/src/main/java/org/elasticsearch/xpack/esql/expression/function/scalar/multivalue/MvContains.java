@@ -179,7 +179,12 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var supersetType = PlannerUtils.toElementType(left().dataType());
         var subsetType = PlannerUtils.toElementType(right().dataType());
-        if (supersetType != ElementType.NULL && subsetType != ElementType.NULL && supersetType != subsetType) {
+
+        if (subsetType == ElementType.NULL) {
+            return new ConstantBooleanTrueEvaluator();
+        }
+
+        if (supersetType != ElementType.NULL && supersetType != subsetType) {
             throw new EsqlIllegalArgumentException(
                 "Incompatible data types for MvContains, superset type({}) value({}) and subset type({}) value({}) don't match.",
                 supersetType,
@@ -188,17 +193,29 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 right()
             );
         }
-        if (supersetType == ElementType.NULL || subsetType == ElementType.NULL) {
-            return new MvContainsNullEvaluator(toEvaluator.apply(right()));
-        }
+
         return switch (supersetType) {
             case BOOLEAN -> new MvContainsBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case BYTES_REF -> new MvContainsBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvContainsDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case INT -> new MvContainsIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvContainsLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case NULL -> new MvContainsNullSupersetEvaluator.Factory(source(), toEvaluator.apply(right()));
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
+    }
+
+    static void process(BooleanBlock.Builder builder, int position, Block subset) {
+        final var valueCount = subset.getValueCount(position);
+        final var startIndex = subset.getFirstValueIndex(position);
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            if(subset.isNull(valueIndex)) {
+                continue;
+            }
+            appendTo(builder, false);
+            return;
+        }
+        appendTo(builder, true);
     }
 
     // @Evaluator(extraName = "Int") see end of file.
@@ -265,10 +282,13 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             return true;
         }
 
-        final var subsetCount = subset.getValueCount(position);
+        final var valueCount = subset.getValueCount(position);
         final var startIndex = subset.getFirstValueIndex(position);
-        for (int subsetIndex = startIndex; subsetIndex < startIndex + subsetCount; subsetIndex++) {
-            var value = valueExtractor.extractValue(subset, subsetIndex);
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            var value = valueExtractor.extractValue(subset, valueIndex);
+            if(value == null) { // null entries are considered to always be an element in the superset.
+                continue;
+            }
             if (hasValue(superset, position, value, valueExtractor) == false) {
                 return false;
             }
@@ -303,49 +323,110 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         Type extractValue(BlockType block, int position);
     }
 
-    private static final class MvContainsNullEvaluator implements ExpressionEvaluator.Factory {
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsNullEvaluator.class);
-        private final ExpressionEvaluator.Factory subsetFieldEvaluator;
-
-        private MvContainsNullEvaluator(ExpressionEvaluator.Factory subsetFieldEvaluator) {
-            this.subsetFieldEvaluator = subsetFieldEvaluator;
-        }
-
+    /**
+     * Evaluator that always returns true for all values in the block (~column)
+     */
+    public static final class ConstantBooleanTrueEvaluator implements ExpressionEvaluator.Factory {
         @Override
-        public ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext driverContext) {
             return new ExpressionEvaluator() {
-                final ExpressionEvaluator subsetField = subsetFieldEvaluator.get(context);
-
                 @Override
                 public Block eval(Page page) {
-                    try (Block block = subsetField.eval(page)) {
-                        var position = page.getPositionCount();
-                        return context.blockFactory().newConstantBooleanBlockWith(block.isNull(position), position);
-                    }
+                    return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
+                }
+
+                @Override
+                public void close() {}
+
+                @Override
+                public String toString() {
+                    return "ConstantBooleanTrueEvaluator";
                 }
 
                 @Override
                 public long baseRamBytesUsed() {
-                    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-                    baseRamBytesUsed += subsetField.baseRamBytesUsed();
-                    return baseRamBytesUsed;
-                }
-
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(subsetField);
-                }
-
-                @Override
-                public String toString() {
-                    return "MvContainsNullEvaluator[" + "subsetField=" + subsetFieldEvaluator + "]";
+                    return 0;
                 }
             };
         }
 
         @Override
         public String toString() {
-            return "MvContainsNullEvaluator[" + "subsetField=" + subsetFieldEvaluator + "]";
+            return "ConstantBooleanTrueEvaluator";
+        }
+    }
+
+    /**
+     * Evaluator for when the lhs is null
+     * Like the ones below should be able to autogenerate as well when the generator is more flexible
+     */
+    public static class MvContainsNullSupersetEvaluator implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsNullSupersetEvaluator.class);
+        private final EvalOperator.ExpressionEvaluator subsetFieldEvaluator;
+        private final DriverContext driverContext;
+
+        public MvContainsNullSupersetEvaluator(
+            EvalOperator.ExpressionEvaluator subsetFieldEvaluator,
+            DriverContext driverContext
+        ) {
+            this.subsetFieldEvaluator = subsetFieldEvaluator;
+            this.driverContext = driverContext;
+        }
+
+        @Override
+        public Block eval(Page page) {
+            try (Block block = subsetFieldEvaluator.eval(page)) {
+                return eval(page.getPositionCount(), block);
+            }
+        }
+
+        public BooleanBlock eval(int positionCount, Block subsetBlock) {
+            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    MvContains.process(result, p, subsetBlock);
+                }
+                return result.build();
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            baseRamBytesUsed += subsetFieldEvaluator.baseRamBytesUsed();
+            return baseRamBytesUsed;
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(subsetFieldEvaluator);
+        }
+
+        @Override
+        public String toString() {
+            return "MvContainsNullSupersetEvaluator[" + "subsetField=" + subsetFieldEvaluator + "]";
+        }
+
+        public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+            private final Source source;
+            private final EvalOperator.ExpressionEvaluator.Factory subsetFieldEvaluator;
+
+            public Factory(
+                Source source,
+                EvalOperator.ExpressionEvaluator.Factory subsetField
+            ) {
+                this.source = source;
+                this.subsetFieldEvaluator = subsetField;
+            }
+
+            @Override
+            public MvContainsNullSupersetEvaluator get(DriverContext context) {
+                return new MvContainsNullSupersetEvaluator(subsetFieldEvaluator.get(context), context);
+            }
+
+            @Override
+            public String toString() {
+                return "MvContainsNullSupersetEvaluator[" + "subsetField=" + subsetFieldEvaluator + "]";
+            }
         }
     }
 

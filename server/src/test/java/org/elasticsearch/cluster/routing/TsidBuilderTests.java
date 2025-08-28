@@ -40,26 +40,11 @@ public class TsidBuilderTests extends ESTestCase {
         assertThat(builder.hash().toString(), equalTo("0xd4de1356065d297a2be489781e15d256"));
         BytesRef bytesRef = builder.buildTsid();
         assertThat(bytesRef, notNullValue());
-        // 1 byte for path hash + 1 byte per value (up to 4, only first value for arrays) + 16 bytes for hash
-        assertThat(bytesRef.length, equalTo(21));
+        assertThat(bytesRef.length, equalTo(16));
         assertThat(
             HexFormat.of().formatHex(bytesRef.bytes, bytesRef.offset, bytesRef.length),
-            equalTo("bfa0a8d66356d2151e7889e42b7a295d065613ded4") // _tsid in hex format
+            equalTo("f086151e7889e42b7a295d065613ded4") // _tsid in hex format
         );
-    }
-
-    public void testArray() {
-        TsidBuilder builder = TsidBuilder.newBuilder().addStringDimension("test_non_array", "value");
-
-        int arrayValues = randomIntBetween(32, 64);
-        for (int i = 0; i < arrayValues; i++) {
-            builder.addStringDimension("_test_large_array", "value_" + i);
-        }
-
-        BytesRef bytesRef = builder.buildTsid();
-        assertThat(bytesRef, notNullValue());
-        // 1 byte for path hash + 2 bytes for value hash (1 for the first array value and 1 for the the non-array value) + 16 bytes for hash
-        assertThat(bytesRef.length, equalTo(19));
     }
 
     public void testOrderingOfDifferentFieldsDoesNotMatter() {
@@ -125,23 +110,13 @@ public class TsidBuilderTests extends ESTestCase {
         assertTrue(tsidException.getMessage().contains("Dimensions are empty"));
     }
 
-    public void testTsidMinSize() {
-        BytesRef tsid = TsidBuilder.newBuilder().addIntDimension("test_int", 42).buildTsid();
-
-        // The TSID format should be: 1 bytes for path hash + 1 byte per value (up to 4) + 16 bytes for hash
-        // Since we only added one dimension, we expect: 1 + 1 + 16 = 21 bytes
-        assertEquals(18, tsid.length);
-    }
-
-    public void testTsidMaxSize() {
+    public void testTsidSize() {
         TsidBuilder tsidBuilder = TsidBuilder.newBuilder();
-        int dimensions = randomIntBetween(4, 64);
+        int dimensions = randomIntBetween(1, 64);
         for (int i = 0; i < dimensions; i++) {
             tsidBuilder.addStringDimension("dimension_" + i, "value_" + i);
         }
 
-        // The TSID format should be: 1 bytes for path hash + 1 byte per value (up to 4) + 16 bytes for hash
-        // Since we added at least 32 dimensions, we expect: 1 + 4 + 16 = 21 bytes
-        assertEquals(21, tsidBuilder.buildTsid().length);
+        assertEquals(16, tsidBuilder.buildTsid().length);
     }
 }

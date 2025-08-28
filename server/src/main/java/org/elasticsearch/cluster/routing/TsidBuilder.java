@@ -210,7 +210,7 @@ public class TsidBuilder {
 
     /**
      * Builds a time series identifier (TSID) based on the dimensions added to this builder.
-     * This is a slight adaptation of {@link RoutingPathFields#buildHash()} but creates shorter tsids.
+     * This is an adaptation of {@link RoutingPathFields#buildHash()} but creates shorter TSIDs with a fixed size 16 bytes.
      * The TSID is a hash that includes:
      * <ul>
      *     <li>
@@ -218,11 +218,13 @@ public class TsidBuilder {
      *         This is to cluster time series that are using the same dimensions together, which makes the encodings more effective.
      *     </li>
      *     <li>
-     *         A hash of the dimension field values (1 byte each, up to a maximum of 4 fields).
+     *         A 4 bit hash of the first and second dimension field value (1 byte).
      *         This is to cluster time series with similar values together, also helping with making encodings more effective.
+     *         For OpenTelemetry metrics, this usually uses the _metric_names_hash and the first attributes.* dimension,
+     *         due to the alphabetical sorting of the dimension names.
      *     </li>
      *     <li>
-     *         A hash of all names and values combined (16 bytes).
+     *         A hash of all names and values combined (14 bytes).
      *         This is to avoid hash collisions.
      *     </li>
      * </ul>
@@ -232,59 +234,46 @@ public class TsidBuilder {
      */
     public BytesRef buildTsid() {
         throwIfEmpty();
-        int numberOfValues = Math.min(MAX_TSID_VALUE_SIMILARITY_FIELDS, dimensions.size());
-        byte[] hash = new byte[1 + numberOfValues + 16];
-        int index = 0;
+        byte[] hash = new byte[16];
 
         Collections.sort(dimensions);
 
         MurmurHash3.Hash128 hashBuffer = new MurmurHash3.Hash128();
-        murmur3Hasher.reset();
-        // similarity hash for dimension names
-        for (int i = 0; i < dimensions.size(); i++) {
-            Dimension dim = dimensions.get(i);
-            murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
-        }
-        hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
-
-        // similarity hash for dimension values
-        String previousPath = null;
-        for (int i = 0; index < numberOfValues + 1 && i < dimensions.size(); i++) {
-            Dimension dim = dimensions.get(i);
-            String path = dim.path();
-            if (path.equals(previousPath)) {
-                // only add the first value for array fields
-                continue;
-            }
-            MurmurHash3.Hash128 valueHash = dim.valueHash();
-            murmur3Hasher.reset();
-            murmur3Hasher.addLong(valueHash.h1 ^ valueHash.h2);
-            hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
-            previousPath = path;
-        }
-
         murmur3Hasher.reset();
         // full hash for all dimension names and values for uniqueness
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
             murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
-        index = writeHash128(murmur3Hasher.digestHash(hashBuffer), hash, index);
-        return new BytesRef(hash, 0, index);
+        MurmurHash3.Hash128 hash128 = murmur3Hasher.digestHash(hashBuffer);
+        ByteUtils.writeLongLE(hash128.h1, hash, 0);
+        ByteUtils.writeLongLE(hash128.h2, hash, 8);
+
+        // similarity hash for dimension names
+        murmur3Hasher.reset();
+        for (int i = 0; i < dimensions.size(); i++) {
+            Dimension dim = dimensions.get(i);
+            murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
+        }
+        hash[0] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
+
+        // similarity hash for first two dimensions
+        murmur3Hasher.reset();
+        murmur3Hasher.addLong(dimensions.get(0).valueHash().hashCode());
+        int valueSimilarityHash = (int) murmur3Hasher.digestHash(hashBuffer).h1 & 0x0F;
+        if (dimensions.size() > 1) {
+            murmur3Hasher.reset();
+            murmur3Hasher.addLong(dimensions.get(1).valueHash().hashCode());
+            valueSimilarityHash = (valueSimilarityHash << 4) | (byte) murmur3Hasher.digestHash(hashBuffer).h1 & 0x0F;
+        }
+        hash[1] = (byte) valueSimilarityHash;
+        return new BytesRef(hash);
     }
 
     private void throwIfEmpty() {
         if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("Dimensions are empty");
         }
-    }
-
-    private static int writeHash128(MurmurHash3.Hash128 hash128, byte[] buffer, int index) {
-        ByteUtils.writeLongLE(hash128.h2, buffer, index);
-        index += 8;
-        ByteUtils.writeLongLE(hash128.h1, buffer, index);
-        index += 8;
-        return index;
     }
 
     /**

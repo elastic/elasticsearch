@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -88,7 +87,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-        var searchRunner = createSearchRunner(project, indexAlias);
+        var searchRunner = createSearchRunner(projectId, indexAlias);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
             case EnrichPolicy.RANGE_TYPE:
@@ -133,13 +132,13 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         metadata = state.getMetadata();
     }
 
-    private SearchRunner createSearchRunner(final ProjectMetadata project, final String indexAlias) {
+    private SearchRunner createSearchRunner(final ProjectId projectId, final String indexAlias) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (value, maxMatches, reqSupplier, handler) -> {
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
-                project.id(),
-                getEnrichIndexKey(project, indexAlias),
+                projectId,
+                getEnrichIndexKey(projectId, indexAlias),
                 value,
                 maxMatches,
                 (searchResponseActionListener) -> originClient.execute(
@@ -152,8 +151,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         };
     }
 
-    private String getEnrichIndexKey(final ProjectMetadata project, final String indexAlias) {
-        IndexAbstraction ia = project.getIndicesLookup().get(indexAlias);
+    private String getEnrichIndexKey(final ProjectId projectId, final String indexAlias) {
+        IndexAbstraction ia = metadata.getProject(projectId).getIndicesLookup().get(indexAlias);
         if (ia == null) {
             throw new IndexNotFoundException("no generated enrich index [" + indexAlias + "]");
         }

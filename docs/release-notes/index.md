@@ -72,9 +72,6 @@ Search:
 
 
 ## 9.0.6 [elasticsearch-9.0.6-release-notes]
-```{applies_to}
-stack: coming 9.0.6
-```
 
 ### Highlights [elasticsearch-9.0.6-highlights]
 

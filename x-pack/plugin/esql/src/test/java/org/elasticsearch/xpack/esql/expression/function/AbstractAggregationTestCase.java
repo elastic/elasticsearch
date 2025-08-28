@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import joptsimple.internal.Strings;
-
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;

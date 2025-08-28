@@ -100,12 +100,7 @@ public class CountTests extends AbstractAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             var rowCount = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();
 
-            return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData),
-                "Count",
-                DataType.LONG,
-                equalTo(rowCount)
-            );
+            return new TestCaseSupplier.TestCase(List.of(fieldTypedData), "Count", DataType.LONG, equalTo(rowCount));
         });
     }
 }

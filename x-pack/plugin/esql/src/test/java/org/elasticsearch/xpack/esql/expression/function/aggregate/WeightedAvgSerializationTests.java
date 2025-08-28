@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.elasticsearch.xpack.esql.expression.function.Example;
 
 import java.io.IOException;
 

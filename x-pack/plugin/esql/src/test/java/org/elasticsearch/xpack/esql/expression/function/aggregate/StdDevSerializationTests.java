@@ -19,9 +19,6 @@ public class StdDevSerializationTests extends AbstractExpressionSerializationTes
 
     @Override
     protected StdDev mutateInstance(StdDev instance) throws IOException {
-        return new StdDev(
-            instance.source(),
-            randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)
-        );
+        return new StdDev(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

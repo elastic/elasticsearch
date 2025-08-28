@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.1.3 [elasticsearch-9.1.3-release-notes]
-```{applies_to}
-stack: coming 9.1.3
-```
 
 ### Highlights [elasticsearch-9.1.3-highlights]
 
@@ -72,9 +69,6 @@ Search:
 
 
 ## 9.0.6 [elasticsearch-9.0.6-release-notes]
-```{applies_to}
-stack: coming 9.0.6
-```
 
 ### Highlights [elasticsearch-9.0.6-highlights]
 

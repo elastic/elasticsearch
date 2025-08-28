@@ -424,7 +424,8 @@ public class EsqlSession {
             patternWithRemotes,
             fieldNames,
             null,
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution)),
+            false
         );
     }
 
@@ -638,8 +639,10 @@ public class EsqlSession {
                     result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
                 );
             } else {
+                boolean includeAllDimensions = false;
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
                 if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
+                    includeAllDimensions = true;
                     // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
                     if (requestFilter != null) {
@@ -654,7 +657,8 @@ public class EsqlSession {
                     requestFilter,
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
-                    })
+                    }),
+                    includeAllDimensions
                 );
             }
         } else {

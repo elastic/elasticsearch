@@ -183,10 +183,10 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             if (documents == null) {
                 documents = new ArrayList<>();
             }
-            documents.add(document);
             var indexRequest = client().prepareIndex(DATASTREAM_NAME).setOpType(DocWriteRequest.OpType.CREATE).setSource(document);
             indexRequest.setRefreshPolicy(org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE);
             indexRequest.get();
+            documents.add(document);
         }
     }
 

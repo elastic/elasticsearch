@@ -114,9 +114,10 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 5)
+            | WHERE knn(vector, %s)
             | KEEP id, _score, vector
             | SORT _score DESC
+            | LIMIT 5
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -137,7 +138,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE knn(vector, %s) OR id > 100
             | KEEP id, _score, vector
             | SORT _score DESC
-            | LIMIT 10
+            | LIMIT 5
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {

@@ -45,7 +45,7 @@ public class Last extends AggregateFunction implements ToAggregator {
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double", "keyword", "text" },
+        returnType = { "long", "integer", "double", "keyword" },
         description = "The latest value of a field.",
         appliesTo = @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE),
         examples = @Example(file = "stats_last", tag = "last")
@@ -98,7 +98,7 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return field().dataType().noText();
     }
 
     @Override

@@ -1,0 +1,51 @@
+[[release-notes-8.18.6]]
+== {es} version 8.18.6
+
+Also see <<breaking-changes-8.18,Breaking changes in 8.18>>.
+
+[IMPORTANT]
+====
+The 8.18.6 release contains fixes for potential security vulnerabilities.
+Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
+
+[[bug-8.18.6]]
+[float]
+=== Bug fixes
+
+EQL::
+* Better error message for sequences with only one clause plus UNTIL {es-pull}132638[#132638]
+* Fix sequences with conditions involving keys and non-keys {es-pull}133134[#133134]
+
+Ingest Node::
+* Change GeoIpCache and EnrichCache to LongAdder {es-pull}132922[#132922]
+
+Machine Learning::
+* Disable child span for streaming tasks {es-pull}132945[#132945]
+* Improve EIS auth call logs and fix revocation bug {es-pull}132546[#132546]
+* Preserve lost thread context in node inference action. A lost context causes a memory leak if APM tracing is enabled {es-pull}132973[#132973]
+
+Search::
+* Don't fail search if bottom doc can't be formatted {es-pull}133188[#133188] (issue: {es-issue}125321[#125321])
+
+[[enhancement-8.18.6]]
+[float]
+=== Enhancements
+
+Authorization::
+* [ExtraHop & QualysGAV] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}132387[#132387] (issue: {es-issue}131825[#131825])
+
+Infra/REST API::
+* Limit the depth of a filter {es-pull}133113[#133113]
+
+[[upgrade-8.18.6]]
+[float]
+=== Upgrades
+
+Ingest Node::
+* Upgrading to tika 3.2.2 {es-pull}133410[#133410]
+
+Packaging::
+* Update bundled JDK to Java 24.0.2+12 {es-pull}133119[#133119]
+
+

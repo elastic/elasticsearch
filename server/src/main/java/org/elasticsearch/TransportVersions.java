@@ -370,8 +370,8 @@ public class TransportVersions {
     public static final TransportVersion SCRIPT_RESCORER = def(9_143_0_00);
     public static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = def(9_144_0_00);
     public static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = def(9_145_0_00);
-    public static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = def(9_146_0_00);
-    public static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = def(9_147_0_00);
+    public static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = def(9_146_0_00);
+    public static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = def(9_147_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

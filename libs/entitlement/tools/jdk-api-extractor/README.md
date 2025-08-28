@@ -13,7 +13,7 @@ Usage example:
 diff libs/entitlement/tools/jdk-api-extractor/api-jdk24.tsv libs/entitlement/tools/jdk-api-extractor/api-jdk25.tsv
 ```
 
-To review the diff of deprecations, use `--deprecations-only` as 2nd argument.
+To review the diff of deprecations (by means of `@Deprecated`), use `--deprecations-only` as 2nd argument.
 
 ```bash
 ./gradlew :libs:entitlement:tools:jdk-api-extractor:run -Druntime.java=24 --args="deprecations-jdk24.tsv --deprecations-only"

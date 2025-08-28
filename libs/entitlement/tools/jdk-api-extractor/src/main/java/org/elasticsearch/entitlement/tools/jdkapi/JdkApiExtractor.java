@@ -65,6 +65,10 @@ public class JdkApiExtractor {
                 deprecationsByClass
             );
             for (var classFile : moduleClasses) {
+                // skip if class was already visited earlier due to a dependency on it
+                if (accessibleImplementationsByClass.containsKey(internalClassName(classFile, moduleName))) {
+                    continue;
+                }
                 try {
                     ClassReader cr = new ClassReader(Files.newInputStream(classFile));
                     cr.accept(visitor, 0);
@@ -75,6 +79,12 @@ public class JdkApiExtractor {
         });
 
         writeFile(Path.of(args[0]), deprecationsOnly ? deprecationsByClass : accessibleImplementationsByClass);
+    }
+
+    private static String internalClassName(Path clazz, String moduleName) {
+        Path modulePath = clazz.getFileSystem().getPath("modules", moduleName);
+        String relativePath = modulePath.relativize(clazz).toString();
+        return relativePath.substring(0, relativePath.length() - ".class".length());
     }
 
     @SuppressForbidden(reason = "cli tool printing to standard err/out")
@@ -147,49 +157,51 @@ public class JdkApiExtractor {
             this.deprecationsByClass = deprecationsByClass;
         }
 
-        private Set<AccessibleMethod> getMethods(Map<String, Set<AccessibleMethod>> methods, String clazz) {
-            return methods.computeIfAbsent(clazz, k -> new TreeSet<>(AccessibleMethod.COMPARATOR));
+        private static Set<AccessibleMethod> newSortedSet() {
+            return new TreeSet<>(AccessibleMethod.COMPARATOR);
         }
 
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+            final Set<AccessibleMethod> currentAccessibleForOverrides = newSortedSet();
             if (superName != null) {
                 if (accessibleImplementationsByClass.containsKey(superName) == false) {
                     visitSuperClass(superName);
                 }
-                getMethods(accessibleForOverridesByClass, name).addAll(getMethods(accessibleForOverridesByClass, superName));
+                currentAccessibleForOverrides.addAll(accessibleForOverridesByClass.getOrDefault(superName, Collections.emptySet()));
             }
             if (interfaces != null && interfaces.length > 0) {
                 for (var interfaceName : interfaces) {
                     if (accessibleImplementationsByClass.containsKey(interfaceName) == false) {
                         visitInterface(interfaceName);
                     }
-                    getMethods(accessibleForOverridesByClass, name).addAll(getMethods(accessibleForOverridesByClass, interfaceName));
+                    currentAccessibleForOverrides.addAll(accessibleForOverridesByClass.getOrDefault(interfaceName, Collections.emptySet()));
                 }
             }
+            // only initialize local state AFTER visiting all dependencies above!
             super.visit(version, access, name, signature, superName, interfaces);
             this.isExported = moduleExports.contains(getPackageName(name));
             this.className = name;
             this.isPublicClass = (access & ACC_PUBLIC) != 0;
             this.isFinalClass = (access & ACC_FINAL) != 0;
             this.isDeprecatedClass = (access & ACC_DEPRECATED) != 0;
-            this.accessibleImplementations = getMethods(accessibleImplementationsByClass, name);
-            this.accessibleForOverrides = getMethods(accessibleForOverridesByClass, name);
-            this.deprecations = getMethods(deprecationsByClass, name);
+            this.accessibleForOverrides = currentAccessibleForOverrides;
+            this.accessibleImplementations = newSortedSet();
+            this.deprecations = newSortedSet();
         }
 
         @Override
         public void visitEnd() {
             super.visitEnd();
-            if (accessibleImplementations.isEmpty()) {
-                accessibleImplementationsByClass.replace(className, Collections.emptySet());
+            if (accessibleImplementationsByClass.put(className, unmodifiableSet(accessibleImplementations)) != null
+                || accessibleForOverridesByClass.put(className, unmodifiableSet(accessibleForOverrides)) != null
+                || deprecationsByClass.put(className, unmodifiableSet(deprecations)) != null) {
+                throw new IllegalStateException("Class " + className + " was already visited!");
             }
-            if (accessibleForOverrides.isEmpty()) {
-                accessibleImplementationsByClass.replace(className, Collections.emptySet());
-            }
-            if (deprecations.isEmpty()) {
-                accessibleImplementationsByClass.replace(className, Collections.emptySet());
-            }
+        }
+
+        private static Set<AccessibleMethod> unmodifiableSet(Set<AccessibleMethod> set) {
+            return set.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(set);
         }
 
         @SuppressForbidden(reason = "cli tool printing to standard err/out")
@@ -209,12 +221,7 @@ public class JdkApiExtractor {
                 cr.accept(this, 0);
             } catch (IOException e) {
                 System.out.println("Failed to visit interface [" + interfaceName + "]:" + e.getMessage());
-
             }
-        }
-
-        public String getClassName() {
-            return className;
         }
 
         private static String getPackageName(String className) {

@@ -48,10 +48,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     }
 
     @Override
-    protected QueryBuilder buildInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
-    ) {
+    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();

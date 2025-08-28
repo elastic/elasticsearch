@@ -41,10 +41,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     }
 
     @Override
-    protected QueryBuilder buildInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
-    ) {
+    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
         QueryBuilder finalQueryBuilder;
         if (inferenceIdsIndices.size() == 1) {

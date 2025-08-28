@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -82,10 +81,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      * @param indexInformation {@link InferenceIndexInformationForField}
      * @return {@link QueryBuilder}
      */
-    protected abstract QueryBuilder buildInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
-    );
+    protected abstract QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation);
 
     /**
      * Builds a combined inference and non-inference query,
@@ -103,10 +99,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         fieldBoosts.compute(field, (k, v) -> v == null ? boost : v * boost);
     }
 
-    protected InferenceIndexInformationForField resolveIndicesForFields(
-        QueryBuilder queryBuilder,
-        ResolvedIndices resolvedIndices
-    ) {
+    protected InferenceIndexInformationForField resolveIndicesForFields(QueryBuilder queryBuilder, ResolvedIndices resolvedIndices) {
         Map<String, Float> fieldsWithBoosts = getFieldNamesWithBoosts(queryBuilder);
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
 

@@ -558,7 +558,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private static abstract class ElementTypeBehavior {
+    private abstract static class ElementTypeBehavior {
 
         abstract ElementType elementType();
 
@@ -622,7 +622,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 if (Float.isNaN(value)) {
                     errorBuilder = new StringBuilder(
-                        "element_type [" + this + "] vectors do not support NaN values but found [" + value + "] at dim [" + index + "];"
+                        "element_type ["
+                            + elementType()
+                            + "] vectors do not support NaN values but found ["
+                            + value
+                            + "] at dim ["
+                            + index
+                            + "];"
                     );
                     break;
                 }
@@ -630,7 +636,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (Float.isInfinite(value)) {
                     errorBuilder = new StringBuilder(
                         "element_type ["
-                            + this
+                            + elementType()
                             + "] vectors do not support infinite values but found ["
                             + value
                             + "] at dim ["
@@ -700,7 +706,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (value % 1.0f != 0.0f) {
                     errors = new StringBuilder(
                         "element_type ["
-                            + this
+                            + elementType()
                             + "] vectors only support non-decimal values but found decimal value ["
                             + value
                             + "] at dim ["
@@ -713,7 +719,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
                     errors = new StringBuilder(
                         "element_type ["
-                            + this
+                            + elementType()
                             + "] vectors only support integers between ["
                             + Byte.MIN_VALUE
                             + ", "

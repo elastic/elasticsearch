@@ -60,6 +60,11 @@ public class CompressedExponentialHistogram extends ExponentialHistogram {
     }
 
     @Override
+    public long valueCount() {
+        return valueCount;
+    }
+
+    @Override
     public ExponentialHistogram.Buckets positiveBuckets() {
         return positiveBuckets;
     }

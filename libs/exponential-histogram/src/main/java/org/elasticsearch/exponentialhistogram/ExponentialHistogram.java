@@ -103,6 +103,15 @@ public abstract class ExponentialHistogram implements Accountable {
     public abstract double sum();
 
     /**
+     * Returns the sum of the counts of all values represented by this histogram.
+     *
+     * @return the value count, guaranteed to be zero for empty histograms
+     */
+    public long valueCount() {
+        return zeroBucket().count() + positiveBuckets().valueCount() + negativeBuckets().valueCount();
+    }
+
+    /**
      * Represents a bucket range of an {@link ExponentialHistogram}, either the positive or the negative range.
      */
     public interface Buckets {
@@ -163,8 +172,10 @@ public abstract class ExponentialHistogram implements Accountable {
         int hash = scale();
         hash = 31 * hash + Double.hashCode(sum());
         hash = 31 * hash + zeroBucket().hashCode();
+        hash = 31 * hash + Long.hashCode(valueCount());
         // we intentionally don't include the hash of the buckets here, because that is likely expensive to compute
-        // we assume that the sum is a good enough differentiator for most use cases
+        // instead, we assume that the value count and sum are a good enough approximation in most cases to minimize collisions
+        // the value count is typically available as a cached value and doesn't involve iterating over all buckets
         return hash;
     }
 

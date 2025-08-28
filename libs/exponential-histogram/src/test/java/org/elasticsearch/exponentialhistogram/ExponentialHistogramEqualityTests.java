@@ -68,12 +68,6 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
     }
 
     public void testHashQuality() {
-        switch (modification) {
-            // we intentionally don't include the buckets in the hash, so skip them in tests
-            case POSITIVE_BUCKETS, NEGATIVE_BUCKETS:
-                return;
-        }
-
         ExponentialHistogram histo = randomHistogram();
         // of 10 tries, at least one should produce a different hash code
         for (int i = 0; i < 10; i++) {

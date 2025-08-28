@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -75,13 +74,6 @@ public class SearchCommitPrefetcher {
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
 
-    private static final TimeValue DEFAULT_SEARCH_IDLE_TIME = TimeValue.timeValueMinutes(5);
-    public static final Setting<Boolean> PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING = Setting.boolSetting(
-        "stateless.search.prefetch_commits.enabled",
-        true,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
     public static final Setting<Boolean> BACKGROUND_PREFETCH_ENABLED_SETTING = Setting.boolSetting(
         "stateless.search.prefetch_commits.background_prefetch",
         true,
@@ -92,13 +84,7 @@ public class SearchCommitPrefetcher {
         false,
         Setting.Property.NodeScope
     );
-    public static final Setting<TimeValue> PREFETCH_SEARCH_IDLE_TIME_SETTING = Setting.timeSetting(
-        "stateless.search.prefetch_commits.search_idle_time",
-        DEFAULT_SEARCH_IDLE_TIME,
-        TimeValue.ZERO,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
+
     public static final Setting<ByteSizeValue> PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING = Setting.byteSizeSetting(
         "stateless.search.prefetch_commits.request_size_limit_index_node",
         SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING,
@@ -123,10 +109,9 @@ public class SearchCommitPrefetcher {
     private final long maxBytesToFetchFromIndexingNode;
     private final boolean forcePrefetch;
     private final AtomicLong totalPrefetchedBytes = new AtomicLong();
-    private volatile boolean prefetchEnabled;
-    private volatile long prefetchSearchIdleTimeInMillis;
 
     private final AtomicReference<BCCPreFetchedOffset> maxPrefetchedOffset = new AtomicReference<>(BCCPreFetchedOffset.ZERO);
+    private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
 
     public SearchCommitPrefetcher(
         ShardId shardId,
@@ -134,18 +119,18 @@ public class SearchCommitPrefetcher {
         CacheBlobReaderSupplier cacheBlobReaderSupplier,
         ThreadPool threadPool,
         Executor executor,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
     ) {
         this.shardId = shardId;
         this.cacheService = cacheService;
         this.cacheBlobReaderSupplier = cacheBlobReaderSupplier;
         this.executor = executor;
         this.threadPool = threadPool;
-        clusterSettings.initializeAndWatch(PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING, value -> this.prefetchEnabled = value);
-        clusterSettings.initializeAndWatch(
-            PREFETCH_SEARCH_IDLE_TIME_SETTING,
-            value -> this.prefetchSearchIdleTimeInMillis = value.millis()
-        );
+        // we're using a component that manages the dynamic settings needed for the prefetch component because
+        // we need it to initialize itself earlier in the node lifecycle
+        // see https://github.com/elastic/elasticsearch/issues/133701
+        this.prefetcherDynamicSettings = prefetcherDynamicSettings;
         this.prefetchInBackground = clusterSettings.get(BACKGROUND_PREFETCH_ENABLED_SETTING);
         this.prefetchNonUploadedCommits = clusterSettings.get(PREFETCH_NON_UPLOADED_COMMITS_SETTING);
         this.maxBytesToFetchFromIndexingNode = clusterSettings.get(PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING).getBytes();
@@ -157,17 +142,18 @@ public class SearchCommitPrefetcher {
         long timeSinceLastSearcherWasAcquiredInMillis,
         ActionListener<Void> listener
     ) {
-        if (prefetchEnabled == false
+        boolean enabled = prefetcherDynamicSettings.prefetchingEnabled();
+        if (enabled == false
             // We only want to prefetch commits for shards actively serving searches so skip
             // if no searchers have been acquired for a while.
-            || timeSinceLastSearcherWasAcquiredInMillis > prefetchSearchIdleTimeInMillis) {
+            || timeSinceLastSearcherWasAcquiredInMillis > prefetcherDynamicSettings.searchIdleTimeInMillis()) {
             logger.debug(
                 "{} Skipping prefetch commit notification enabled=[{}], "
                     + "timeSinceLastSearcherWasAcquiredInMillis=[{}], "
                     + "prefetchNonUploadedCommits=[{}], "
                     + "notification=[{}]",
                 shardId,
-                prefetchEnabled,
+                enabled,
                 timeSinceLastSearcherWasAcquiredInMillis,
                 prefetchNonUploadedCommits,
                 notification

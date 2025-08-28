@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,6 +33,7 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
     Void> {
 
     private final HttpClientManager httpClientManager;
+    private final InferenceEndpointRegistry inferenceEndpointRegistry;
 
     @Inject
     public TransportGetInferenceDiagnosticsAction(
@@ -39,7 +41,8 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        HttpClientManager httpClientManager
+        HttpClientManager httpClientManager,
+        InferenceEndpointRegistry inferenceEndpointRegistry
     ) {
         super(
             GetInferenceDiagnosticsAction.NAME,
@@ -51,6 +54,7 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
         );
 
         this.httpClientManager = Objects.requireNonNull(httpClientManager);
+        this.inferenceEndpointRegistry = Objects.requireNonNull(inferenceEndpointRegistry);
     }
 
     @Override
@@ -74,6 +78,10 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
 
     @Override
     protected GetInferenceDiagnosticsAction.NodeResponse nodeOperation(GetInferenceDiagnosticsAction.NodeRequest request, Task task) {
-        return new GetInferenceDiagnosticsAction.NodeResponse(transportService.getLocalNode(), httpClientManager.getPoolStats());
+        return new GetInferenceDiagnosticsAction.NodeResponse(
+            transportService.getLocalNode(),
+            httpClientManager.getPoolStats(),
+            inferenceEndpointRegistry.cacheEnabled() ? inferenceEndpointRegistry.stats() : null
+        );
     }
 }

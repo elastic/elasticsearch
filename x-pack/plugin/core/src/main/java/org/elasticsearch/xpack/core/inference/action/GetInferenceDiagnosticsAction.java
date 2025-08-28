@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -18,10 +19,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.SerializableStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -116,29 +119,42 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
     public static class NodeResponse extends BaseNodeResponse implements ToXContentFragment {
         static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
+        static final String INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME = "inference_endpoint_registry";
 
         private final ConnectionPoolStats connectionPoolStats;
+        @Nullable
+        private final SerializableStats inferenceEndpointRegistryStats;
 
-        public NodeResponse(DiscoveryNode node, PoolStats poolStats) {
+        public NodeResponse(DiscoveryNode node, PoolStats poolStats, SerializableStats inferenceEndpointRegistryStats) {
             super(node);
             connectionPoolStats = ConnectionPoolStats.of(poolStats);
+            this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
 
             connectionPoolStats = new ConnectionPoolStats(in);
+            inferenceEndpointRegistryStats = in.getTransportVersion().onOrAfter(TransportVersion.current())
+                ? in.readOptionalNamedWriteable(SerializableStats.class)
+                : null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             connectionPoolStats.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+                out.writeOptionalNamedWriteable(inferenceEndpointRegistryStats);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(CONNECTION_POOL_STATS_FIELD_NAME, connectionPoolStats, params);
+            if (inferenceEndpointRegistryStats != null) {
+                builder.field(INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME, inferenceEndpointRegistryStats, params);
+            }
             return builder;
         }
 
@@ -147,16 +163,21 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse response = (NodeResponse) o;
-            return Objects.equals(connectionPoolStats, response.connectionPoolStats);
+            return Objects.equals(connectionPoolStats, response.connectionPoolStats)
+                && Objects.equals(inferenceEndpointRegistryStats, response.inferenceEndpointRegistryStats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectionPoolStats);
+            return Objects.hash(connectionPoolStats, inferenceEndpointRegistryStats);
         }
 
         ConnectionPoolStats getConnectionPoolStats() {
             return connectionPoolStats;
+        }
+
+        public SerializableStats getInferenceEndpointRegistryStats() {
+            return inferenceEndpointRegistryStats;
         }
 
         static class ConnectionPoolStats implements ToXContentObject, Writeable {

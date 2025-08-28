@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference;
 
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
-public interface SerializableStats extends ToXContentObject, Writeable {
-
-}
+public interface SerializableStats extends ToXContentObject, NamedWriteable {}

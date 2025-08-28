@@ -100,6 +100,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final XPackLicenseState licenseState;
+    private final CrossClusterApiKeySigner crossClusterApiKeySigner;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -110,7 +111,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        CrossClusterApiKeySigner crossClusterApiKeySigner
     ) {
         this(
             settings,
@@ -122,6 +124,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             destructiveOperations,
             crossClusterAccessAuthcService,
             licenseState,
+            crossClusterApiKeySigner,
             RemoteConnectionManager::resolveRemoteClusterAliasWithCredentials
         );
     }
@@ -136,6 +139,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
         XPackLicenseState licenseState,
+        CrossClusterApiKeySigner crossClusterApiKeySigner,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
     ) {
@@ -147,6 +151,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
         this.licenseState = licenseState;
+        this.crossClusterApiKeySigner = crossClusterApiKeySigner;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
     }

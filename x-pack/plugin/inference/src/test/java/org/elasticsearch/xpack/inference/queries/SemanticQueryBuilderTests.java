@@ -20,6 +20,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -27,10 +29,14 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -46,6 +52,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -55,6 +62,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -86,6 +94,7 @@ import java.util.function.Supplier;
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -358,6 +367,97 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SemanticQueryBuilder("fieldName", null));
             assertThat(e.getMessage(), equalTo("[semantic] requires a query value"));
+        }
+    }
+
+    public void testSerializationBwc() throws IOException {
+        InferenceResults inferenceResults1 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("foo", 1.0f)),
+            false
+        );
+        InferenceResults inferenceResults2 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("bar", 2.0f)),
+            false
+        );
+
+        // Single inference result
+        CheckedBiConsumer<InferenceResults, TransportVersion, IOException> assertSingleInferenceResult = (inferenceResults, version) -> {
+            String fieldName = randomAlphaOfLength(5);
+            String query = randomAlphaOfLength(5);
+
+            MapInferenceResultsProvider mapInferenceResultsProvider = new MapInferenceResultsProvider();
+            mapInferenceResultsProvider.addInferenceResults(randomAlphaOfLength(5), inferenceResults);
+            SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(fieldName, query, null, mapInferenceResultsProvider);
+
+            SingleInferenceResultsProvider singleInferenceResultsProvider = new SingleInferenceResultsProvider(inferenceResults);
+            SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(fieldName, query, null, singleInferenceResultsProvider);
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.setTransportVersion(version);
+                output.writeNamedWriteable(originalQuery);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
+                    in.setTransportVersion(version);
+                    QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
+
+                    SemanticQueryBuilder expectedQuery = version.onOrAfter(TransportVersions.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)
+                        ? originalQuery
+                        : bwcQuery;
+                    assertThat(deserializedQuery, equalTo(expectedQuery));
+                }
+            }
+        };
+
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_8_15_0,
+                TransportVersion.current()
+            );
+            assertSingleInferenceResult.accept(inferenceResults1, transportVersion);
+        }
+
+        // Multiple inference results
+        CheckedBiConsumer<List<InferenceResults>, TransportVersion, IOException> assertMultipleInferenceResults = (
+            inferenceResultsList,
+            version) -> {
+            MapInferenceResultsProvider mapInferenceResultsProvider = new MapInferenceResultsProvider();
+            inferenceResultsList.forEach(result -> mapInferenceResultsProvider.addInferenceResults(randomAlphaOfLength(5), result));
+            SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                null,
+                mapInferenceResultsProvider
+            );
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.setTransportVersion(version);
+
+                if (version.onOrAfter(TransportVersions.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
+                    output.writeNamedWriteable(originalQuery);
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
+                        in.setTransportVersion(version);
+                        QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
+                        assertThat(deserializedQuery, equalTo(originalQuery));
+                    }
+                } else {
+                    IllegalArgumentException e = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> output.writeNamedWriteable(originalQuery)
+                    );
+                    assertThat(e.getMessage(), containsString("Cannot query multiple inference IDs in a mixed-version cluster"));
+                }
+            }
+        };
+
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_8_15_0,
+                TransportVersion.current()
+            );
+            assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
         }
     }
 

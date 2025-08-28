@@ -37,6 +37,8 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -401,13 +403,17 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
 
+                // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+                var indexMetadata = project.index(shardId.getIndexName());
+                int reshardSplitShardCount = indexMetadata.getReshardSplitShardCount(shardId.getId());
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
+                    reshardSplitShardCount,
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0]),
                     bulkRequest.isSimulated()
                 );
-                var indexMetadata = project.index(shardId.getIndexName());
+
                 if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
                     bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
                 }

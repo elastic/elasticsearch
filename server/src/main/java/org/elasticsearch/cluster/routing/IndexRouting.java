@@ -75,6 +75,7 @@ public abstract class IndexRouting {
     protected final String indexName;
     private final int routingNumShards;
     private final int routingFactor;
+    @Nullable
     private final IndexReshardingMetadata indexReshardingMetadata;
 
     private IndexRouting(IndexMetadata metadata) {
@@ -169,6 +170,7 @@ public abstract class IndexRouting {
         }
         return shardId;
     }
+
 
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;

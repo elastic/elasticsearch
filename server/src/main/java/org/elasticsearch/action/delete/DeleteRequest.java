@@ -76,7 +76,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     public DeleteRequest() {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, 0);
     }
 
     /**
@@ -84,7 +84,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * must be set.
      */
     public DeleteRequest(String index) {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, 0);
         this.index = index;
     }
 
@@ -95,7 +95,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * @param id    The id of the document
      */
     public DeleteRequest(String index, String id) {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, 0);
         this.index = index;
         this.id = id;
     }

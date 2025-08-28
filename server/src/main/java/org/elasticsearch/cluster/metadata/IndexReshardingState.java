@@ -375,6 +375,16 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return getTargetShardState(shardNum).ordinal() >= targetShardState.ordinal();
         }
 
+        public boolean allTargetStatesAtLeast(int shardNum, TargetShardState targetShardState) {
+            var targets = getTargetStatesFor(shardNum);
+            for (TargetShardState state : targets) {
+                if (state.ordinal() < targetShardState.ordinal()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /**
          * Check whether this metadata represents an incomplete split
          * @return true if the split is incomplete (not all source shards are DONE)

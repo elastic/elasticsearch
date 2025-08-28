@@ -50,6 +50,19 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     protected String index;
 
     /**
+     * The reshardSplitShardCount has been added to accommodate the Resharding project.
+     * This is populated when the coordinator is deciding which shards a request applies to.
+     * For example, {@link org.elasticsearch.action.bulk.BulkOperation} splits
+     * an incoming bulk request into shard level {@link org.elasticsearch.action.bulk.BulkShardRequest}
+     * based on its' cluster state view of the number of shards that are ready for indexing.
+     * The purpose of this metadata is to reconcile the cluster state visible at the coordinating
+     * node with that visible at the source shard node. (w.r.t resharding).
+     * Note that we are able to get away with a single number, instead of an array of target shard states,
+     * because we only allow splits in increments of 2x.
+     */
+    private final int reshardSplitShardCount;
+
+    /**
      * The number of shard copies that must be active before proceeding with the replication action.
      */
     protected ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -57,11 +70,12 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     private long routedBasedOnClusterVersion = 0;
 
     public ReplicationRequest(StreamInput in) throws IOException {
-        this(null, in);
+        this(null, 0, in);
     }
 
-    public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount, StreamInput in) throws IOException {
         super(in);
+        this.reshardSplitShardCount = reshardSplitShardCount;
         final boolean thinRead = shardId != null;
         if (thinRead) {
             this.shardId = shardId;
@@ -85,10 +99,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     /**
      * Creates a new request with resolved shard id
      */
-    public ReplicationRequest(@Nullable ShardId shardId) {
+    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount) {
         this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;
         this.timeout = DEFAULT_TIMEOUT;
+        this.reshardSplitShardCount = reshardSplitShardCount;
     }
 
     /**

@@ -390,9 +390,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testFromEvalStats
-  issue: https://github.com/elastic/elasticsearch/issues/131503
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
   issue: https://github.com/elastic/elasticsearch/issues/131248
@@ -474,9 +471,6 @@ tests:
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/132892
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetchCoerced
-  issue: https://github.com/elastic/elasticsearch/issues/132893
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: https://github.com/elastic/elasticsearch/issues/132894
@@ -618,12 +612,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
   issue: https://github.com/elastic/elasticsearch/issues/133508
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testTopNPushedToLucene
-  issue: https://github.com/elastic/elasticsearch/issues/133556
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testFilterNestedFields
-  issue: https://github.com/elastic/elasticsearch/issues/133557
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/10_source_filtering/no filtering}
   issue: https://github.com/elastic/elasticsearch/issues/133561
@@ -648,6 +636,9 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testFloatBlock
   issue: https://github.com/elastic/elasticsearch/issues/133621
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:inlinestats.EvalBeforeDoubleInlinestats1}
+  issue: https://github.com/elastic/elasticsearch/issues/133729
 
 # Examples:
 #

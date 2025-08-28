@@ -76,11 +76,7 @@ class TSDataGenerationHelper {
         for (int i = 0; i < numDocs; i++) {
             // Random timestamps within the last 90 days.
             while (true) {
-<<<<<<< HEAD
-                var randomIns = Instant.ofEpochMilli(ESTestCase.randomLongBetween(timeRangeEnd, timeRangeStart));
-=======
                 var randomIns = Instant.ofEpochMilli(ESTestCase.randomLongBetween(timeRangeStart, timeRangeEnd));
->>>>>>> 63bddff1f73 (fixups)
                 if (timestampSet.add(randomIns)) {
                     break;
                 }

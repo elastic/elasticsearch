@@ -187,4 +187,66 @@ public class EvalOperator extends AbstractPageMappingOperator {
         }
     };
     private static final String CONSTANT_NULL_NAME = "ConstantNull";
+
+    public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ExpressionEvaluator.Factory() {
+        @Override
+        public ExpressionEvaluator get(DriverContext driverContext) {
+            return new ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
+                }
+
+                @Override
+                public void close() {}
+
+                @Override
+                public String toString() {
+                    return CONSTANT_TRUE_NAME;
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return 0;
+                }
+            };
+        }
+
+        @Override
+        public String toString() {
+            return CONSTANT_TRUE_NAME;
+        }
+    };
+    private static final String CONSTANT_TRUE_NAME = "ConstantTrue";
+
+    public static final ExpressionEvaluator.Factory CONSTANT_FALSE_FACTORY = new ExpressionEvaluator.Factory() {
+        @Override
+        public ExpressionEvaluator get(DriverContext driverContext) {
+            return new ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    return driverContext.blockFactory().newConstantBooleanBlockWith(false, page.getPositionCount());
+                }
+
+                @Override
+                public void close() {}
+
+                @Override
+                public String toString() {
+                    return CONSTANT_FALSE_NAME;
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return 0;
+                }
+            };
+        }
+
+        @Override
+        public String toString() {
+            return CONSTANT_FALSE_NAME;
+        }
+    };
+    private static final String CONSTANT_FALSE_NAME = "ConstantFalse";
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
@@ -181,7 +182,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         var subsetType = PlannerUtils.toElementType(right().dataType());
 
         if (subsetType == ElementType.NULL) {
-            return new ConstantBooleanTrueEvaluator();
+            return EvalOperator.CONSTANT_TRUE_FACTORY;
         }
 
         if (supersetType != ElementType.NULL && supersetType != subsetType) {
@@ -200,7 +201,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             case DOUBLE -> new MvContainsDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case INT -> new MvContainsIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvContainsLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case NULL -> new MvContainsNullSupersetEvaluator.Factory(source(), toEvaluator.apply(right()));
+            case NULL -> new IsNull.IsNullEvaluatorFactory(toEvaluator.apply(right()));
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
     }
@@ -348,74 +349,6 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         @Override
         public String toString() {
             return "ConstantBooleanTrueEvaluator";
-        }
-    }
-
-    /**
-     * Evaluator for when the lhs is null
-     * Like the ones below should be able to autogenerate as well when the generator is more flexible
-     */
-    public static class MvContainsNullSupersetEvaluator implements EvalOperator.ExpressionEvaluator {
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsNullSupersetEvaluator.class);
-        private final EvalOperator.ExpressionEvaluator subsetFieldEvaluator;
-        private final DriverContext driverContext;
-
-        public MvContainsNullSupersetEvaluator(EvalOperator.ExpressionEvaluator subsetFieldEvaluator, DriverContext driverContext) {
-            this.subsetFieldEvaluator = subsetFieldEvaluator;
-            this.driverContext = driverContext;
-        }
-
-        @Override
-        public Block eval(Page page) {
-            try (Block block = subsetFieldEvaluator.eval(page)) {
-                return eval(page.getPositionCount(), block);
-            }
-        }
-
-        public BooleanBlock eval(int positionCount, Block subsetBlock) {
-            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-                for (int p = 0; p < positionCount; p++) {
-                    MvContains.process(result, p, subsetBlock);
-                }
-                return result.build();
-            }
-        }
-
-        @Override
-        public long baseRamBytesUsed() {
-            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-            baseRamBytesUsed += subsetFieldEvaluator.baseRamBytesUsed();
-            return baseRamBytesUsed;
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(subsetFieldEvaluator);
-        }
-
-        @Override
-        public String toString() {
-            return "MvContainsNullSupersetEvaluator[" + "subsetField=" + subsetFieldEvaluator + "]";
-        }
-
-        public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-            private final Source source;
-            private final EvalOperator.ExpressionEvaluator.Factory subsetFieldEvaluator;
-
-            public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory subsetField) {
-                this.source = source;
-                this.subsetFieldEvaluator = subsetField;
-            }
-
-            @Override
-            public MvContainsNullSupersetEvaluator get(DriverContext context) {
-                return new MvContainsNullSupersetEvaluator(subsetFieldEvaluator.get(context), context);
-            }
-
-            @Override
-            public String toString() {
-                return "MvContainsNullSupersetEvaluator[" + "subsetField=" + subsetFieldEvaluator + "]";
-            }
         }
     }
 

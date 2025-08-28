@@ -36,7 +36,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-        Map<String, Float> fieldsWithBoosts = getFieldNamesWithBoosts(queryBuilder);
         ResolvedIndices resolvedIndices = context.getResolvedIndices();
 
         if (resolvedIndices == null) {
@@ -226,6 +225,5 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         public float getFieldBoost(String fieldName) {
             return fieldBoosts.getOrDefault(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
         }
-
     }
 }

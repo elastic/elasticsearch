@@ -69,7 +69,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
 
     // Only intended for testing, using this in production means an unnecessary reduction of precision
     private ExponentialHistogramMerger(int bucketLimit, int maxScale, ExponentialHistogramCircuitBreaker circuitBreaker) {
-        this.bucketLimit = bucketLimit;
+        // We need at least four buckets to represent any possible distribution
+        this.bucketLimit = Math.max(4, bucketLimit);
         this.maxScale = maxScale;
         this.circuitBreaker = circuitBreaker;
         downscaleStats = new DownscaleStats();

@@ -146,6 +146,28 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         }
     }
 
+    public void testMinimumBucketCountBounded() {
+        FixedCapacityExponentialHistogram a = createAutoReleasedHistogram(2);
+        a.tryAddBucket(-1, 1, false);
+        a.tryAddBucket(0, 1, false);
+
+        FixedCapacityExponentialHistogram b = createAutoReleasedHistogram(2);
+        b.tryAddBucket(-1, 1, true);
+        b.tryAddBucket(0, 1, true);
+
+        // What we try here is not possible: the provided buckets are not mergeable to three buckets
+        try (ReleasableExponentialHistogram merged = ExponentialHistogram.merge(3, breaker(), a, b)) {
+            FixedCapacityExponentialHistogram expectedResult = createAutoReleasedHistogram(4);
+            expectedResult.tryAddBucket(-1, 1, false);
+            expectedResult.tryAddBucket(0, 1, false);
+            expectedResult.tryAddBucket(-1, 1, true);
+            expectedResult.tryAddBucket(0, 1, true);
+
+            assertBucketsEqual(merged.negativeBuckets(), expectedResult.negativeBuckets());
+            assertBucketsEqual(merged.positiveBuckets(), expectedResult.positiveBuckets());
+        }
+    }
+
     /**
      * Verify that the resulting histogram is independent of the order of elements and therefore merges performed.
      */

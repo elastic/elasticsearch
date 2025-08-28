@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedEx
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccessor;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -474,14 +475,22 @@ public class ResolveIndexTests extends ESTestCase {
         boolean frozen,
         IndexMode mode
     ) {
+        IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name);
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden)
             .put("index.frozen", frozen)
             .put("index.mode", mode.toString());
 
-        IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)
-            .settings(settingsBuilder)
+        if (mode == IndexMode.TIME_SERIES) {
+            if (randomBoolean()) {
+                settingsBuilder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dummy");
+            } else {
+                TimeSeriesDimensionsMetadataAccessor.addToCustomMetadata(indexBuilder::putCustom, List.of("dummy"));
+            }
+        }
+
+        indexBuilder.settings(settingsBuilder)
             .state(closed ? IndexMetadata.State.CLOSE : IndexMetadata.State.OPEN)
             .system(system)
             .numberOfShards(1)

@@ -34,7 +34,6 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -236,7 +235,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
 
         expectThrows(
-            InvalidIndexTemplateException.class,
+            IllegalArgumentException.class,
             () -> updateComposableIndexTemplate(
                 client(),
                 "custom-composable-template",

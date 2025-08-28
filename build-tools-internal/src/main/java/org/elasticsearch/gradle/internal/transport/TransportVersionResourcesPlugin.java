@@ -9,10 +9,9 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Copy;
@@ -22,32 +21,33 @@ import java.util.Map;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
+    public static final String TRANSPORT_REFERENCES_TOPIC = "transportReferences";
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
-
-        String resourceRoot = getResourceRoot(project);
+        var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
+        var resourceRoot = getResourceRoot(project);
 
         project.getGradle()
             .getSharedServices()
             .registerIfAbsent("transportVersionResources", TransportVersionResourcesService.class, spec -> {
                 Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/" + resourceRoot);
                 spec.getParameters().getTransportResourcesDirectory().set(transportResources);
-                spec.getParameters().getRootDirectory().set(project.getRootProject().getRootDir());
+                spec.getParameters().getRootDirectory().set(project.getLayout().getSettingsDirectory().getAsFile());
             });
 
-        DependencyHandler depsHandler = project.getDependencies();
-        Configuration tvReferencesConfig = project.getConfigurations().create("globalTvReferences");
-        tvReferencesConfig.setCanBeConsumed(false);
-        tvReferencesConfig.setCanBeResolved(true);
-        tvReferencesConfig.attributes(TransportVersionReference::addArtifactAttribute);
-
-        // iterate through all projects, and if the management plugin is applied, add that project back as a dep to check
-        for (Project subProject : project.getRootProject().getSubprojects()) {
-            subProject.getPlugins().withType(TransportVersionReferencesPlugin.class).configureEach(plugin -> {
-                tvReferencesConfig.getDependencies().add(depsHandler.project(Map.of("path", subProject.getPath())));
-            });
-        }
+        var depsHandler = project.getDependencies();
+        var tvReferencesConfig = project.getConfigurations().create("globalTvReferences", c -> {
+            c.setCanBeConsumed(false);
+            c.setCanBeResolved(true);
+            c.attributes(TransportVersionReference::addArtifactAttribute);
+            c.getDependencies()
+                .addAllLater(
+                    psService.flatMap(t -> t.getProjectsByTopic(TRANSPORT_REFERENCES_TOPIC))
+                        .map(projectPaths -> projectPaths.stream().map(path -> depsHandler.project(Map.of("path", path))).toList())
+                );
+        });
 
         var validateTask = project.getTasks()
             .register("validateTransportVersionResources", ValidateTransportVersionResourcesTask.class, t -> {

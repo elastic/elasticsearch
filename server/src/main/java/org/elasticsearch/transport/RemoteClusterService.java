@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -85,15 +84,14 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final ProjectResolver projectResolver;
     private final boolean canUseSkipUnavailable;
 
-    @FixForMultiProject(description = "Inject the ProjectResolver instance.")
-    RemoteClusterService(Settings settings, TransportService transportService) {
+    RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
         this.isRemoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.isSearchNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.isStateless = DiscoveryNode.isStateless(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
-        this.projectResolver = DefaultProjectResolver.INSTANCE;
+        this.projectResolver = projectResolver;
         this.remoteClusters = projectResolver.supportsMultipleProjects()
             ? ConcurrentCollections.newConcurrentMap()
             : Map.of(ProjectId.DEFAULT, ConcurrentCollections.newConcurrentMap());
@@ -694,9 +692,9 @@ public final class RemoteClusterService extends RemoteClusterAware
     /**
      * Returns the map of connections for the given {@link ProjectId}.
      */
+    @FixForMultiProject(description = "Assert ProjectId.DEFAULT should not be used in multi-project environment")
     private Map<String, RemoteClusterConnection> getConnectionsMapForProject(ProjectId projectId) {
         if (projectResolver.supportsMultipleProjects()) {
-            assert ProjectId.DEFAULT.equals(projectId) == false : "The default project ID should not be used in multi-project environment";
             return remoteClusters.computeIfAbsent(projectId, unused -> ConcurrentCollections.newConcurrentMap());
         }
         assert ProjectId.DEFAULT.equals(projectId) : "Only the default project ID should be used when multiple projects are not supported";

@@ -541,7 +541,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     protected void putReaderContext(ReaderContext context) {
         final ReaderContext previous = activeReaders.put(context.readerContextId(), context);
-        logger.info("--> adding reader context [{}], current [{}]", context.readerContextId(), activeReaders.size());
         assert previous == null;
         // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
@@ -556,8 +555,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (logger.isTraceEnabled()) {
             logger.trace("removing reader context [{}]", id);
         }
-        ReaderContext remove = activeReaders.remove(id);
-        return remove;
+        return activeReaders.remove(id);
     }
 
     @Override
@@ -1261,6 +1259,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (searcherId == null) {
                     throw e;
                 }
+                // TODO this retries on context with same searcher id, currently offered in FrozenEngine and ReadonlyEngine
                 final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 final IndexShard shard = indexService.getShard(request.shardId().id());
                 final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();

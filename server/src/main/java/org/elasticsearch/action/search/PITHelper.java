@@ -26,7 +26,7 @@ public class PITHelper {
         return decodePITId(new BytesArray(Base64.getUrlDecoder().decode(id)));
     }
 
-    public static SearchContextId decodePITId(BytesReference id) throws IOException {
+    public static SearchContextId decodePITId(BytesReference id) {
         try (var in = id.streamInput()) {
             final TransportVersion version = TransportVersion.readVersion(in);
             in.setTransportVersion(version);

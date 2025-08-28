@@ -134,7 +134,7 @@ public class $Occurrence$$Type$ByTimestampAggregator {
         $endif$
         private int maxGroupId = -1;
 
-        GroupingState(BigArrays bigArrays$if(BytesRef)$,CircuitBreaker breaker$endif$) {
+        GroupingState(BigArrays bigArrays$if(BytesRef)$, CircuitBreaker breaker$endif$) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;

@@ -64,6 +64,5 @@ final class LongLongState implements AggregatorState {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 }

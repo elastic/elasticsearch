@@ -64,6 +64,5 @@ final class LongFloatState implements AggregatorState {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 }

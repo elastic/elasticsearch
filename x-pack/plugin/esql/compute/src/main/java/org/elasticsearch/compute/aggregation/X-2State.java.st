@@ -77,9 +77,11 @@ final class $v1_Type$$v2_Type$State implements AggregatorState {
     }
 
     @Override
+    $if(v2_BytesRef)$
     public void close() {
-        $if(v2_BytesRef)$
         Releasables.close(this.v2);
-        $endif$
     }
+    $else$
+    public void close() {}
+    $endif$
 }

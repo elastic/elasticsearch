@@ -114,7 +114,7 @@ public class FirstBytesRefByTimestampAggregator {
         private final CircuitBreaker breaker;
         private int maxGroupId = -1;
 
-        GroupingState(BigArrays bigArrays,CircuitBreaker breaker) {
+        GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;

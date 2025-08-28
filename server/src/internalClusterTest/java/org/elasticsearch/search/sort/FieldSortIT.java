@@ -2160,6 +2160,31 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
+    public void testSortMixedFieldTypesSeveralDocs() {
+        assertAcked(
+            prepareCreate("index_long").setMapping("foo", "type=long"),
+            prepareCreate("index_double").setMapping("foo", "type=double")
+        );
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+
+        for (int i = 0; i < 10; i++) {
+            builders.add(prepareIndex("index_long").setId(String.valueOf(i)).setSource("foo", i));
+            builders.add(prepareIndex("index_double").setId(String.valueOf(i)).setSource("foo", i));
+        }
+        indexRandom(true, false, builders);
+
+        String errMsg = "Can't sort on field [foo]; the field has incompatible sort types";
+
+        { // mixing long and double types is not allowed
+            SearchPhaseExecutionException exc = expectThrows(
+                SearchPhaseExecutionException.class,
+                prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(20)
+            );
+            assertThat(exc.getCause().toString(), containsString(errMsg));
+        }
+    }
+
     public void testSortMixedFieldTypes() throws IOException {
         assertAcked(
             prepareCreate("index_long").setMapping("foo", "type=long"),

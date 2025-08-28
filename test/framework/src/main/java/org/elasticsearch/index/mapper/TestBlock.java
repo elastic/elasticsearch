@@ -264,19 +264,6 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
-                    public BlockLoader.SingletonDoubleBuilder appendDoubles(double[] newValues, int from, int length) {
-                        System.arraycopy(newValues, from, values, count, length);
-                        count += length;
-                        return this;
-                    }
-
-                    @Override
-                    public BlockLoader.SingletonDoubleBuilder appendDouble(double value) {
-                        values[count++] = value;
-                        return this;
-                    }
-
-                    @Override
                     public BlockLoader.SingletonDoubleBuilder appendLongs(
                         BlockDocValuesReader.ToDouble toDouble,
                         long[] longValues,

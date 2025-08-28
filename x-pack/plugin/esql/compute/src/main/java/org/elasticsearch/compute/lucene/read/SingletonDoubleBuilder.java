@@ -73,19 +73,6 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
     }
 
     @Override
-    public BlockLoader.SingletonDoubleBuilder appendDouble(double value) {
-        values[count++] = value;
-        return this;
-    }
-
-    @Override
-    public BlockLoader.SingletonDoubleBuilder appendDoubles(double[] values, int from, int length) {
-        System.arraycopy(values, from, this.values, count, length);
-        count += length;
-        return this;
-    }
-
-    @Override
     public BlockLoader.SingletonDoubleBuilder appendLongs(BlockDocValuesReader.ToDouble toDouble, long[] longValues, int from, int length) {
         for (int i = 0; i < length; i++) {
             values[count + i] = toDouble.convert(longValues[from + i]);

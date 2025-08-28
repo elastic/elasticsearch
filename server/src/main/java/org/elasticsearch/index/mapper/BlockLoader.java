@@ -567,10 +567,6 @@ public interface BlockLoader {
      * Specialized builder for collecting dense arrays of double values.
      */
     interface SingletonDoubleBuilder extends Builder {
-        SingletonDoubleBuilder appendDouble(double value);
-
-        SingletonDoubleBuilder appendDoubles(double[] values, int from, int length);
-
         SingletonDoubleBuilder appendLongs(BlockDocValuesReader.ToDouble toDouble, long[] values, int from, int length);
     }
 

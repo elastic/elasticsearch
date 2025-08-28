@@ -1,8 +1,8 @@
 {
   "search_application.post_behavioral_analytics_event": {
     "documentation": {
-      "url": "http://todo.com/tbd",
-      "description": "Creates a behavioral analytics event for existing collection."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/post-analytics-collection-event.html",
+      "description": "Create a behavioral analytics collection event"
     },
     "stability": "experimental",
     "visibility": "public",

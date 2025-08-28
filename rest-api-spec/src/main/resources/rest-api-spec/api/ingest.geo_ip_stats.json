@@ -1,8 +1,8 @@
 {
   "ingest.geo_ip_stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/geoip-stats-api.html",
-      "description": "Returns statistical information about geoip databases"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/geoip-processor.html",
+      "description": "Get GeoIP statistics"
     },
     "stability": "stable",
     "visibility": "public",

@@ -1,8 +1,8 @@
 {
   "connector.delete": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-connector-api.html",
-      "description": "Deletes a connector."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/delete-connector-api.html",
+      "description": "Delete a connector"
     },
     "stability": "experimental",
     "visibility": "public",

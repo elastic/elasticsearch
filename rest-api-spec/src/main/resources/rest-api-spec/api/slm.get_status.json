@@ -1,8 +1,8 @@
 {
   "slm.get_status":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-get-status.html",
-      "description":"Retrieves the status of snapshot lifecycle management (SLM)."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/slm-api-get-status.html",
+      "description":"Get the snapshot lifecycle management status"
     },
     "stability":"stable",
     "visibility":"public",

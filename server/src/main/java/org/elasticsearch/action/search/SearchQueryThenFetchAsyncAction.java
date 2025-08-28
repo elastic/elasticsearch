@@ -709,7 +709,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             } catch (Exception e) {
                                 setFailure(state, dataNodeLocalIdx, e);
                             } finally {
-                               doneFuture.onResponse(null);
+                                doneFuture.onResponse(null);
                             }
                         }
 

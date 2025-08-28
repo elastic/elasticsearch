@@ -148,8 +148,9 @@ public final class SearchContextId {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         SearchContextId that = (SearchContextId) o;
-        return Objects.equals(shards, that.shards) && Objects.equals(aliasFilter,
-                that.aliasFilter) && Objects.equals(contextIds, that.contextIds);
+        return Objects.equals(shards, that.shards)
+            && Objects.equals(aliasFilter, that.aliasFilter)
+            && Objects.equals(contextIds, that.contextIds);
     }
 
     @Override

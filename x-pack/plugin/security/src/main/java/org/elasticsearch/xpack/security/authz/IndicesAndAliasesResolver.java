@@ -367,7 +367,6 @@ public class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
-                // This could be pluggable behavior
                 if (indicesRequest instanceof IndicesRequest.CrossProjectReplaceable crossProjectReplaceableRequest
                     && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
                     assert crossProjectReplaceableRequest.allowsRemoteIndices();
@@ -377,7 +376,7 @@ public class IndicesAndAliasesResolver {
                         targetProjects,
                         crossProjectReplaceableRequest
                     );
-                    if (replaced != null && crossProjectReplaceableRequest.shouldApplyCrossProjectHandling()) {
+                    if (replaced != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectReplaceableRequest.indices()));
                         // we can re-use resolveIndexAbstractionsMapping() for local indices here
                         Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
@@ -389,7 +388,9 @@ public class IndicesAndAliasesResolver {
                                 authorizedIndices::check,
                                 indicesRequest.includeDataStreams()
                             );
-                        crossProjectReplaceableRequest.setReplacedExpressions(replacedExpressions);
+                        crossProjectReplaceableRequest.replaceableIndices(
+                            new IndicesRequest.CrossProjectReplaceableIndices(replacedExpressions)
+                        );
                         crossProjectReplaceableRequest.indices(IndicesRequest.ReplacedExpression.toIndices(replacedExpressions));
                         // TODO handle empty case by calling
                         // replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
@@ -400,7 +401,7 @@ public class IndicesAndAliasesResolver {
                 logger.info(
                     "Resolving indices for request [{}] and [{}]",
                     Arrays.toString(replaceable.indices()),
-                    replaceable.getReplacedExpressions()
+                    replaceable.getReplaceableIndices()
                 );
 
                 // TODO why on earth would this happen?
@@ -419,36 +420,22 @@ public class IndicesAndAliasesResolver {
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                if (replaceable.storeReplacedExpressions()) {
-                    logger.info("Setting replaced expressions for request [{}] and [{}]", indicesRequest, split.getLocal());
-                    Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
-                        .resolveIndexAbstractionsMapping(
-                            split.getLocal(),
-                            indicesOptions,
-                            projectMetadata,
-                            authorizedIndices::all,
-                            authorizedIndices::check,
-                            indicesRequest.includeDataStreams()
-                        );
-                    logger.info("Replaced with [{}]", replacedExpressions);
-                    replaceable.setReplacedExpressions(replacedExpressions);
-                    resolvedIndicesBuilder.addLocal(IndicesRequest.ReplacedExpression.toIndices(replacedExpressions));
-                    resolvedIndicesBuilder.addRemote(split.getRemote());
-                } else {
-                    List<String> resolved = indexAbstractionResolver.resolveIndexAbstractions(
-                        split.getLocal(),
-                        indicesOptions,
-                        projectMetadata,
-                        authorizedIndices::all,
-                        authorizedIndices::check,
-                        indicesRequest.includeDataStreams()
-                    );
-                    resolvedIndicesBuilder.addLocal(resolved);
-                    resolvedIndicesBuilder.addRemote(split.getRemote());
-                }
+                IndicesRequest.CompleteReplaceableIndices resolved = indexAbstractionResolver.resolveIndexAbstractionsComplete(
+                    split.getLocal(),
+                    indicesOptions,
+                    projectMetadata,
+                    authorizedIndices::all,
+                    authorizedIndices::check,
+                    indicesRequest.includeDataStreams(),
+                    true
+                );
+                replaceable.replaceableIndices(resolved);
+                resolvedIndicesBuilder.addLocal(resolved.indicesAsList());
+                resolvedIndicesBuilder.addRemote(split.getRemote());
             }
 
             if (resolvedIndicesBuilder.isEmpty()) {
+                // Note: this looks suspect, but it isn't since CPS requests will never get to this point
                 if (indicesOptions.allowNoIndices()) {
                     // this is how we tell es core to return an empty response, we can let the request through being sure
                     // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
@@ -457,7 +444,6 @@ public class IndicesAndAliasesResolver {
                     indicesReplacedWithNoIndices = true;
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
-                    // probably need to tweak this also...
                     throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
                 }
             } else {

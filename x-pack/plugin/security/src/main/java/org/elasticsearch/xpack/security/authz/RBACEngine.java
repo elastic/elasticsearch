@@ -459,8 +459,14 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static void maybeAddExceptions(TransportRequest request) {
-        if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.getReplacedExpressions() != null) {
-            for (var replacedExpression : replaceable.getReplacedExpressions().values()) {
+        if (request instanceof IndicesRequest.Replaceable replaceable
+            && replaceable.getReplaceableIndices() instanceof IndicesRequest.CompleteReplaceableIndices(Map<
+                String,
+                IndicesRequest.ReplacedExpression> replacedExpressionMap)) {
+            if (replacedExpressionMap == null) {
+                return;
+            }
+            for (var replacedExpression : replacedExpressionMap.values()) {
                 if (replacedExpression.unauthorized()) {
                     // TODO actual security exception with details here
                     replacedExpression.setError(

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -64,14 +63,18 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        final var project = metadata.getProject(projectId);
-        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexAlias);
-        if (indexAbstraction == null) {
-            throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
+
+        final IndexMetadata imd;
+        {
+            final var project = metadata.getProject(projectId);
+            IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexAlias);
+            if (indexAbstraction == null) {
+                throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
+            }
+            assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
+            assert indexAbstraction.getIndices().size() == 1;
+            imd = project.index(indexAbstraction.getIndices().get(0));
         }
-        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
-        assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = project.index(indexAbstraction.getIndices().get(0));
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(
@@ -88,7 +91,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-        var searchRunner = createSearchRunner(project, indexAlias);
+        var searchRunner = createSearchRunner(projectId, indexAlias);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
             case EnrichPolicy.RANGE_TYPE:
@@ -133,13 +136,13 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         metadata = state.getMetadata();
     }
 
-    private SearchRunner createSearchRunner(final ProjectMetadata project, final String indexAlias) {
+    private SearchRunner createSearchRunner(final ProjectId projectId, final String indexAlias) {
         final Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (value, maxMatches, reqSupplier, handler) -> {
-            final String concreteEnrichIndex = getEnrichIndexKey(project, indexAlias);
+            final String concreteEnrichIndex = getEnrichIndexKey(projectId, indexAlias);
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
-                project.id(),
+                projectId,
                 concreteEnrichIndex,
                 value,
                 maxMatches,
@@ -153,8 +156,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         };
     }
 
-    private String getEnrichIndexKey(ProjectMetadata project, String indexAlias) {
-        IndexAbstraction ia = project.getIndicesLookup().get(indexAlias);
+    private String getEnrichIndexKey(final ProjectId projectId, final String indexAlias) {
+        IndexAbstraction ia = metadata.getProject(projectId).getIndicesLookup().get(indexAlias);
         if (ia == null) {
             throw new IndexNotFoundException("no generated enrich index [" + indexAlias + "]");
         }

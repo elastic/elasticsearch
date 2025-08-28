@@ -46,19 +46,15 @@ restResources {
 tasks.named("yamlRestTest").configure {
   ArrayList<String> blacklist = [
     /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
-    '^cat.recovery/*/*',
     '^cluster.desired_balance/10_basic/*',
     '^cluster.stats/10_basic/snapshot stats reported in get cluster stats',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
-    '^indices.recovery/*/*',
     '^indices.resolve_cluster/*/*',
     '^indices.resolve_cluster/*/*/*',
     '^indices.shard_stores/*/*',
     '^migration/*/*',
-    '^snapshot.restore/*/*',
     '^synonyms/*/*',
-    '^tsdb/30_snapshot/*',
     '^update_by_query/80_scripting/Update all docs with one deletion and one noop using a stored script', // scripting is not project aware yet
 
     // The following tests are muted because the functionality that they are testing is not available in a multi-project setup
@@ -77,6 +73,9 @@ tasks.named("yamlRestTest").configure {
     '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard
     '^reindex/90_remote/*',
     '^reindex/95_parent_join/Reindex from remote*',
+
+    // Linked project configuration via ClusterSettings currently does not support multi-project
+    '^cluster.stats/30_ccs_stats/cross-cluster search stats search',
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [];

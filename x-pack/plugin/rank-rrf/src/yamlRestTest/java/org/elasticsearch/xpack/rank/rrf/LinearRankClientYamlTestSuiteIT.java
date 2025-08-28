@@ -40,7 +40,7 @@ public class LinearRankClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "linear" });
+        return ESClientYamlSuiteTestCase.createParameters("linear");
     }
 
     @Override

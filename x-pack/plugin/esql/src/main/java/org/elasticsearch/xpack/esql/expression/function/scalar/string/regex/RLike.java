@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class RLike extends RegexMatch<RLikePattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
@@ -107,5 +109,17 @@ public class RLike extends RegexMatch<RLikePattern> {
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
         // TODO: see whether escaping is needed
         return new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive());
+    }
+
+    /**
+     * Pushes down string casing optimization for a single pattern using the provided predicate.
+     * Returns a new RLike with case insensitivity or a Literal.FALSE if not matched.
+     */
+    @Override
+    public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
+        if (matchesCaseFn.test(pattern().pattern()) == false) {
+            return Literal.of(this, Boolean.FALSE);
+        }
+        return new RLike(source(), unwrappedField, pattern(), true);
     }
 }

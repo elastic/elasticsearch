@@ -436,33 +436,49 @@ public class BlockFactory {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
-    public final Block newConstantAggregateMetricDoubleBlock(
+    public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
         AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
         int positions
     ) {
         try (AggregateMetricDoubleBlockBuilder builder = newAggregateMetricDoubleBlockBuilder(positions)) {
-            if (value.min() != null) {
-                builder.min().appendDouble(value.min());
-            } else {
-                builder.min().appendNull();
-            }
-            if (value.max() != null) {
-                builder.max().appendDouble(value.max());
-            } else {
-                builder.max().appendNull();
-            }
-            if (value.sum() != null) {
-                builder.sum().appendDouble(value.sum());
-            } else {
-                builder.sum().appendNull();
-            }
-            if (value.count() != null) {
-                builder.count().appendInt(value.count());
-            } else {
-                builder.count().appendNull();
+            for (int i = 0; i < positions; i++) {
+                if (value.min() != null) {
+                    builder.min().appendDouble(value.min());
+                } else {
+                    builder.min().appendNull();
+                }
+                if (value.max() != null) {
+                    builder.max().appendDouble(value.max());
+                } else {
+                    builder.max().appendNull();
+                }
+                if (value.sum() != null) {
+                    builder.sum().appendDouble(value.sum());
+                } else {
+                    builder.sum().appendNull();
+                }
+                if (value.count() != null) {
+                    builder.count().appendInt(value.count());
+                } else {
+                    builder.count().appendNull();
+                }
             }
             return builder.build();
         }
+    }
+
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        double[] minValues,
+        double[] maxValues,
+        double[] sumValues,
+        int[] countValues,
+        int positions
+    ) {
+        DoubleBlock min = newDoubleArrayVector(minValues, positions).asBlock();
+        DoubleBlock max = newDoubleArrayVector(maxValues, positions).asBlock();
+        DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
+        IntBlock count = newIntArrayVector(countValues, positions).asBlock();
+        return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
     }
 
     /**

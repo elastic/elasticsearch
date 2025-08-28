@@ -16,21 +16,19 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
 
-    public void testIterateSmallInput() {
+    public void testIterateSmallInput() throws Exception {
         assertIterate(between(1, 100));
     }
 
-    public void testIterateLargeInput() {
+    public void testIterateLargeInput() throws Exception {
         assertIterate(between(10_000, 100_000));
     }
 
-    private void assertIterate(int size) {
+    private void assertIterate(int size) throws Exception {
         final String inferenceId = randomIdentifier();
+        final BytesRefBlock inputBlock = randomInputBlock(size);
 
-        try (
-            BytesRefBlock inputBlock = randomInputBlock(size);
-            CompletionOperatorRequestIterator requestIterator = new CompletionOperatorRequestIterator(inputBlock, inferenceId)
-        ) {
+        try (CompletionOperatorRequestIterator requestIterator = new CompletionOperatorRequestIterator(inputBlock, inferenceId)) {
             BytesRef scratch = new BytesRef();
 
             for (int currentPos = 0; requestIterator.hasNext(); currentPos++) {
@@ -40,6 +38,8 @@ public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
                 assertThat(request.getInput().getFirst(), equalTo(scratch.utf8ToString()));
             }
         }
+
+        allBreakersEmpty();
     }
 
     private BytesRefBlock randomInputBlock(int size) {

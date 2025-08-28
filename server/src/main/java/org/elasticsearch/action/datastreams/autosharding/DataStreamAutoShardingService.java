@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.shard.IndexingStats;
 
 import java.util.Arrays;
@@ -371,6 +372,7 @@ public class DataStreamAutoShardingService {
      * there'll be no new auto sharding event)
      */
     public AutoShardingResult calculate(ProjectState state, DataStream dataStream, @Nullable IndexStats writeIndexStats) {
+
         if (isAutoShardingEnabled == false) {
             logger.debug("Data stream auto-sharding service is not enabled.");
             return NOT_APPLICABLE_RESULT;
@@ -382,6 +384,11 @@ public class DataStreamAutoShardingService {
                 dataStream.getName(),
                 DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey()
             );
+            return NOT_APPLICABLE_RESULT;
+        }
+
+        if (dataStream.getIndexMode() == IndexMode.LOOKUP) {
+            logger.debug("Data stream [{}] has indexing mode LOOKUP; auto-sharding is not applicable.", dataStream.getName());
             return NOT_APPLICABLE_RESULT;
         }
 

@@ -40,7 +40,7 @@ public class ForkGenerator implements CommandGenerator {
             completeCommand.append(command.commandString());
         }
 
-        final int branchCount = randomIntBetween(2, 3);
+        final int branchCount = randomIntBetween(2, 8);
         final int branchToRetain = randomIntBetween(1, branchCount);
 
         StringBuilder forkCmd = new StringBuilder(" | FORK ");
@@ -61,8 +61,8 @@ public class ForkGenerator implements CommandGenerator {
                     // the same on columns which are present), but given we currently generate independent sub-pipelines, this way we can
                     // generate more valid Fork queries.
                     final EsqlQueryGenerator.QueryExecuted result = previousResult == null
-                        ? GenerativeRestTest.execute(command, 0)
-                        : GenerativeRestTest.execute(previousResult.query() + command, previousResult.depth());
+                        ? GenerativeRestTest.execute(command, 0, null)
+                        : GenerativeRestTest.execute(previousResult.query() + command, previousResult.depth(), null);
                     previousResult = result;
 
                     continueExecuting = result.exception() == null && result.outputSchema().equals(previousOutput);

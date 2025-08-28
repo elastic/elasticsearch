@@ -43,6 +43,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setDescription("Onechat system index")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .setAllowsTemplates()
         .build();
 
     public static final SystemIndexDescriptor APM_AGENT_CONFIG_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()

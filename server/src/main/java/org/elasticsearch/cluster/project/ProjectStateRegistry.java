@@ -54,6 +54,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     // A counter that is incremented each time one or more projects are marked for deletion.
     private final long projectsMarkedForDeletionGeneration;
 
+    public static ProjectStateRegistry get(ClusterState clusterState) {
+        return clusterState.custom(TYPE, EMPTY);
+    }
+
     public ProjectStateRegistry(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
             projectsEntries = in.readMap(ProjectId::readFrom, Entry::readFrom);
@@ -80,6 +84,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         this.projectsMarkedForDeletionGeneration = projectsMarkedForDeletionGeneration;
     }
 
+    public boolean hasProject(ProjectId projectId) {
+        return projectsEntries.containsKey(projectId);
+    }
+
     /**
      * Retrieves the settings for a specific project based on its project ID from the specified cluster state without creating a new object.
      * If you need a full state of the project rather than just its setting, please use {@link ClusterState#projectState(ProjectId)}
@@ -95,6 +103,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
     public Settings getProjectSettings(ProjectId projectId) {
         return projectsEntries.getOrDefault(projectId, EMPTY_ENTRY).settings;
+    }
+
+    public Set<ProjectId> getProjectsMarkedForDeletion() {
+        return projectsMarkedForDeletion;
     }
 
     public boolean isProjectMarkedForDeletion(ProjectId projectId) {
@@ -310,6 +322,12 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             return this;
         }
 
+        public Builder removeProject(ProjectId projectId) {
+            projectsEntries.remove(projectId);
+            projectsMarkedForDeletion.remove(projectId);
+            return this;
+        }
+
         public ProjectStateRegistry build() {
             final var unknownButUnderDeletion = Sets.difference(projectsMarkedForDeletion, projectsEntries.keys());
             if (unknownButUnderDeletion.isEmpty() == false) {
@@ -319,7 +337,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             }
             return new ProjectStateRegistry(
                 projectsEntries.build(),
-                projectsMarkedForDeletion,
+                Collections.unmodifiableSet(projectsMarkedForDeletion),
                 newProjectMarkedForDeletion ? projectsMarkedForDeletionGeneration + 1 : projectsMarkedForDeletionGeneration
             );
         }

@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 public class PatternedTextValueProcessorTests extends ESTestCase {
 
     public void testEmpty() {
@@ -97,5 +101,44 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         assertEquals("[%W] Found %W errors for service [%W]", parts.template());
         assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56", "123", "cheddar1"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
+    }
+
+    public void testTemplateIdIsExpectedShape() {
+        String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
+        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
+        assertEquals("vSr1YMYPups", parts.templateId());
+    }
+
+    public void testTemplateIdHasVeryFewCollisions() {
+        Set<String> templates = new HashSet<>();
+        Set<String> ids = new HashSet<>();
+
+        for (int i = 0; i < 1000; i++) {
+            var template = randomTemplate();
+            var parts = new PatternedTextValueProcessor.Parts(template, List.of());
+            templates.add(template);
+            ids.add(parts.templateId());
+        }
+        // This can technically fail due to hash collision, but it should happen quite rarely.
+        assertEquals(templates.size(), ids.size());
+    }
+
+    private static String randomTemplate() {
+        StringBuilder sb = new StringBuilder();
+        int numTokens = randomIntBetween(1, 20);
+        for (int i = 0; i < numTokens; i++) {
+            var token = randomBoolean() ? randomAlphaOfLength(between(1, 10)) : randomPlaceholder();
+            sb.append(token);
+            sb.append(randomDelimiter());
+        }
+        return sb.toString();
+    }
+
+    private static String randomPlaceholder() {
+        return randomFrom(List.of("%W", "%D", "%I", "%U", "%T"));
+    }
+
+    private static String randomDelimiter() {
+        return randomFrom(List.of(" ", "\n", "\t", "[", "]"));
     }
 }

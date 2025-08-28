@@ -35,7 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -69,6 +69,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -101,7 +102,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         ProjectResolver projectResolver,
         IndicesService indicesService,
         NamedXContentRegistry xContentRegistry,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        FeatureService featureService
     ) {
         super(
             SimulateBulkAction.INSTANCE,
@@ -114,7 +116,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             indexingPressure,
             systemIndices,
             projectResolver,
-            threadPool::relativeTimeInNanos
+            threadPool::relativeTimeInNanos,
+            featureService
         );
         this.indicesService = indicesService;
         this.xContentRegistry = xContentRegistry;
@@ -135,17 +138,18 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
         Map<String, Object> mappingAddition = ((SimulateBulkRequest) bulkRequest).getMappingAddition();
+        MapperService.MergeReason mappingMergeReason = getMergeReason(((SimulateBulkRequest) bulkRequest).getMappingMergeType());
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
-            Tuple<Collection<String>, Exception> validationResult = validateMappings(
+            ValidationResult validationResult = validateMappings(
                 componentTemplateSubstitutions,
                 indexTemplateSubstitutions,
                 mappingAddition,
-                request
+                request,
+                mappingMergeReason
             );
-            Exception mappingValidationException = validationResult.v2();
             responses.set(
                 i,
                 BulkItemResponse.success(
@@ -158,8 +162,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         request.source(),
                         request.getContentType(),
                         request.getExecutedPipelines(),
-                        validationResult.v1(),
-                        mappingValidationException
+                        validationResult.ignoredFields,
+                        validationResult.validationException,
+                        validationResult.effectiveMapping
                     )
                 )
             );
@@ -167,6 +172,16 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         listener.onResponse(
             new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTimeNanos))
         );
+    }
+
+    private MapperService.MergeReason getMergeReason(String mergeType) {
+        return Optional.ofNullable(mergeType).map(type -> switch (type) {
+            case "index" -> MapperService.MergeReason.MAPPING_UPDATE;
+            case "template" -> MapperService.MergeReason.INDEX_TEMPLATE;
+            default -> throw new IllegalArgumentException(
+                "Unsupported merge type '" + mergeType + "'. Valid values are 'index' and 'template'."
+            );
+        }).orElse(MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**
@@ -177,11 +192,12 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
      * @return a Tuple containing: (1) in v1 the names of any fields that would be ignored upon indexing and (2) in v2 the mapping
      * exception if the source does not match the mappings, otherwise null
      */
-    private Tuple<Collection<String>, Exception> validateMappings(
+    private ValidationResult validateMappings(
         Map<String, ComponentTemplate> componentTemplateSubstitutions,
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions,
         Map<String, Object> mappingAddition,
-        IndexRequest request
+        IndexRequest request,
+        MapperService.MergeReason mappingMergeReason
     ) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
@@ -194,36 +210,20 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         );
 
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        CompressedXContent effectiveMapping = null;
         Exception mappingValidationException = null;
         Collection<String> ignoredFields = List.of();
         IndexAbstraction indexAbstraction = project.getIndicesLookup().get(request.index());
         try {
-            if (indexAbstraction != null
-                && componentTemplateSubstitutions.isEmpty()
-                && indexTemplateSubstitutions.isEmpty()
-                && mappingAddition.isEmpty()) {
+            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty() && indexTemplateSubstitutions.isEmpty()) {
                 /*
-                 * In this case the index exists and we don't have any component template overrides. So we can just use withTempIndexService
-                 * to do the mapping validation, using all the existing logic for validation.
+                 * In this case the index exists and we don't have any template overrides. So we can just merge the mappingAddition (which
+                 * might not exist) into the existing index mapping.
                  */
                 IndexMetadata imd = project.getIndexSafe(indexAbstraction.getWriteIndex(request, project));
-                indicesService.withTempIndexService(imd, indexService -> {
-                    indexService.mapperService().updateMapping(null, imd);
-                    return IndexShard.prepareIndex(
-                        indexService.mapperService(),
-                        sourceToParse,
-                        SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        -1,
-                        -1,
-                        VersionType.INTERNAL,
-                        Engine.Operation.Origin.PRIMARY,
-                        Long.MIN_VALUE,
-                        false,
-                        request.ifSeqNo(),
-                        request.ifPrimaryTerm(),
-                        0
-                    );
-                });
+                CompressedXContent mappings = Optional.ofNullable(imd.mapping()).map(MappingMetadata::source).orElse(null);
+                effectiveMapping = mappingAddition == null ? null : mergeMappings(mappings, mappingAddition);
+                ignoredFields = validateUpdatedMappingsFromIndexMetadata(imd, effectiveMapping, request, sourceToParse, mappingMergeReason);
             } else {
                 /*
                  * The index did not exist, or we have component template substitutions, so we put together the mappings from existing
@@ -273,6 +273,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         matchingTemplate,
                         request.index(),
                         simulatedProjectMetadata,
+                        project.dataStreams().get(request.index()),
                         isDataStreamsLifecycleOnlyMode(clusterService.getSettings()),
                         xContentRegistry,
                         indicesService,
@@ -280,8 +281,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         indexSettingProviders
                     );
                     CompressedXContent mappings = template.mappings();
-                    CompressedXContent mergedMappings = mergeMappings(mappings, mappingAddition);
-                    ignoredFields = validateUpdatedMappings(mappings, mergedMappings, request, sourceToParse);
+                    effectiveMapping = mergeMappings(mappings, mappingAddition);
+                    ignoredFields = validateUpdatedMappings(mappings, effectiveMapping, request, sourceToParse, mappingMergeReason);
                 } else {
                     List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedProjectMetadata, request.index(), false);
                     if (matchingTemplates.isEmpty() == false) {
@@ -294,32 +295,27 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                             matchingTemplates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
                             xContentRegistry
                         );
-                        final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
-                        ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
-                    } else if (indexAbstraction != null && mappingAddition.isEmpty() == false) {
-                        /*
-                         * The index matched no templates of any kind, including the substitutions. But it might have a mapping. So we
-                         * merge in the mapping addition if it exists, and validate.
-                         */
-                        MappingMetadata mappingFromIndex = project.index(indexAbstraction.getName()).mapping();
-                        CompressedXContent currentIndexCompressedXContent = mappingFromIndex == null ? null : mappingFromIndex.source();
-                        CompressedXContent combinedMappings = mergeMappings(currentIndexCompressedXContent, mappingAddition);
-                        ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                        effectiveMapping = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
+                        ignoredFields = validateUpdatedMappings(null, effectiveMapping, request, sourceToParse, mappingMergeReason);
                     } else {
                         /*
                          * The index matched no templates and had no mapping of its own. If there were component template substitutions
                          * or index template substitutions, they didn't match anything. So just apply the mapping addition if it exists,
                          * and validate.
                          */
-                        final CompressedXContent combinedMappings = mergeMappings(null, mappingAddition);
-                        ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                        effectiveMapping = mergeMappings(null, mappingAddition);
+                        ignoredFields = validateUpdatedMappings(null, effectiveMapping, request, sourceToParse, mappingMergeReason);
                     }
                 }
             }
         } catch (Exception e) {
             mappingValidationException = e;
         }
-        return Tuple.tuple(ignoredFields, mappingValidationException);
+        return new ValidationResult(effectiveMapping, mappingValidationException, ignoredFields);
+    }
+
+    private record ValidationResult(CompressedXContent effectiveMapping, Exception validationException, Collection<String> ignoredFields) {
+
     }
 
     /*
@@ -330,11 +326,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         @Nullable CompressedXContent originalMappings,
         @Nullable CompressedXContent updatedMappings,
         IndexRequest request,
-        SourceToParse sourceToParse
+        SourceToParse sourceToParse,
+        MapperService.MergeReason mappingMergeReason
     ) throws IOException {
-        if (updatedMappings == null) {
-            return List.of(); // no validation to do
-        }
         Settings dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -346,12 +340,25 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             originalIndexMetadataBuilder.putMapping(new MappingMetadata(originalMappings));
         }
         final IndexMetadata originalIndexMetadata = originalIndexMetadataBuilder.build();
+        return validateUpdatedMappingsFromIndexMetadata(originalIndexMetadata, updatedMappings, request, sourceToParse, mappingMergeReason);
+    }
+
+    private Collection<String> validateUpdatedMappingsFromIndexMetadata(
+        IndexMetadata originalIndexMetadata,
+        @Nullable CompressedXContent updatedMappings,
+        IndexRequest request,
+        SourceToParse sourceToParse,
+        MapperService.MergeReason mappingMergeReason
+    ) throws IOException {
+        if (updatedMappings == null) {
+            return List.of(); // no validation to do
+        }
         final IndexMetadata updatedIndexMetadata = IndexMetadata.builder(request.index())
-            .settings(dummySettings)
+            .settings(originalIndexMetadata.getSettings())
             .putMapping(new MappingMetadata(updatedMappings))
             .build();
         Engine.Index result = indicesService.withTempIndexService(originalIndexMetadata, indexService -> {
-            indexService.mapperService().merge(updatedIndexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+            indexService.mapperService().merge(updatedIndexMetadata, mappingMergeReason);
             return IndexShard.prepareIndex(
                 indexService.mapperService(),
                 sourceToParse,

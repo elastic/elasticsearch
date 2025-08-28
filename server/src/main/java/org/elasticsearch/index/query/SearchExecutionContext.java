@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
@@ -446,7 +447,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return new SourceLoader.Synthetic(
                 filter,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(null),
-                mapperMetrics.sourceFieldMetrics()
+                mapperMetrics.sourceFieldMetrics(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
             );
         }
         return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());

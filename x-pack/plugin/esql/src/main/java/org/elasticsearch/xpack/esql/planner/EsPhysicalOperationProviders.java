@@ -45,9 +45,15 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -78,6 +84,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -169,7 +176,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
         }
-        var fields = extractFields(fieldExtractExec.attributesToExtract(), fieldExtractExec::fieldExtractPreference);
+        var fields = extractFields(fieldExtractExec);
         if (fieldExtractExec instanceof TimeSeriesFieldExtractExec) {
             // TODO: consolidate with ValuesSourceReaderOperator
             return source.with(new TimeSeriesExtractFieldOperator.Factory(fields, shardContexts), layout.build());
@@ -193,7 +200,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
-        BlockLoader blockLoader = shardContext.blockLoader(getFieldName(attr), isUnsupported, fieldExtractPreference);
+        String fieldName = getFieldName(attr);
+        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes != null) {
             // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
@@ -258,6 +266,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return ctx -> List.of(new LuceneSliceQueue.QueryAndTags(shardContexts.get(ctx.index()).toQuery(qb), List.of()));
     }
 
+    public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplier(
+        List<EsQueryExec.QueryBuilderAndTags> queryAndTagsFromEsQueryExec
+    ) {
+        return ctx -> queryAndTagsFromEsQueryExec.stream().map(queryBuilderAndTags -> {
+            QueryBuilder qb = queryBuilderAndTags.query();
+            return new LuceneSliceQueue.QueryAndTags(
+                shardContexts.get(ctx.index()).toQuery(qb == null ? QueryBuilders.matchAllQuery().boost(0.0f) : qb),
+                queryBuilderAndTags.tags()
+            );
+        }).toList();
+    }
+
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
@@ -277,6 +297,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
             }
+            // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
+            // UnsupportedOperationException will be thrown by esQueryExec.query()
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
@@ -290,8 +312,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
-                querySupplier(esQueryExec.query()),
+                querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
+                context.autoPartitioningStrategy().get(),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
@@ -321,19 +344,51 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
-    private List<ValuesSourceReaderOperator.FieldInfo> extractFields(
-        List<Attribute> attributes,
-        Function<Attribute, MappedFieldType.FieldExtractPreference> preference
-    ) {
+    List<ValuesSourceReaderOperator.FieldInfo> extractFields(FieldExtractExec fieldExtractExec) {
+        List<Attribute> attributes = fieldExtractExec.attributesToExtract();
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
+        Set<String> nullsFilteredFields = new HashSet<>();
+        fieldExtractExec.forEachDown(EsQueryExec.class, queryExec -> {
+            QueryBuilder q = queryExec.queryBuilderAndTags().get(0).query();
+            if (q != null) {
+                nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQuery(q));
+            }
+        });
         for (Attribute attr : attributes) {
             DataType dataType = attr.dataType();
-            var fieldExtractPreference = preference.apply(attr);
+            var fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, attr, fieldExtractPreference);
-            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(getFieldName(attr), elementType, loader));
+            String fieldName = getFieldName(attr);
+            boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
+            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, loader));
         }
         return fieldInfos;
+    }
+
+    /**
+     * Returns the set of fields that are guaranteed to be dense after the source query.
+     */
+    static Set<String> nullsFilteredFieldsAfterSourceQuery(QueryBuilder sourceQuery) {
+        return switch (sourceQuery) {
+            case ExistsQueryBuilder q -> Set.of(q.fieldName());
+            case TermQueryBuilder q -> Set.of(q.fieldName());
+            case TermsQueryBuilder q -> Set.of(q.fieldName());
+            case RangeQueryBuilder q -> Set.of(q.fieldName());
+            case ConstantScoreQueryBuilder q -> nullsFilteredFieldsAfterSourceQuery(q.innerQuery());
+            // TODO: support SingleValueQuery
+            case BoolQueryBuilder q -> {
+                final Set<String> fields = new HashSet<>();
+                for (List<QueryBuilder> clauses : List.of(q.must(), q.filter())) {
+                    for (QueryBuilder c : clauses) {
+                        fields.addAll(nullsFilteredFieldsAfterSourceQuery(c));
+                    }
+                }
+                // safe to ignore must_not and should clauses
+                yield fields;
+            }
+            default -> Set.of();
+        };
     }
 
     /**
@@ -345,6 +400,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             querySupplier(queryBuilder),
             context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
+            List.of(),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }
@@ -532,8 +588,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-                    Block block = reader.read(factory, docs, offset);
+                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                    Block block = reader.read(factory, docs, offset, nullsFiltered);
                     return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
                 }
 

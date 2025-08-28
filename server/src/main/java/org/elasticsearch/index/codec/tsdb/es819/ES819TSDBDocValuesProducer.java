@@ -1493,7 +1493,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             );
             return new BaseSparseNumericValues(disi) {
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-                private IndexedDISI jumpDISI;
+                private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
@@ -1534,8 +1534,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         assert false : "nullsFiltered is true, but doc [" + firstDoc + "] has no value";
                         throw new IllegalStateException("nullsFiltered is true, but doc [" + firstDoc + "] has no value");
                     }
-                    if (jumpDISI == null) {
-                        jumpDISI = new IndexedDISI(
+                    if (lookAheadDISI == null) {
+                        lookAheadDISI = new IndexedDISI(
                             data,
                             entry.docsWithFieldOffset,
                             entry.docsWithFieldLength,
@@ -1545,7 +1545,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         );
                     }
                     final int lastDoc = docs.get(docs.count() - 1);
-                    if (jumpDISI.advanceExact(lastDoc) == false) {
+                    if (lookAheadDISI.advanceExact(lastDoc) == false) {
                         assert false : "nullsFiltered is true, but doc [" + lastDoc + "] has no value";
                         throw new IllegalStateException("nullsFiltered is true, but doc [" + lastDoc + "] has no value");
                     }
@@ -1553,7 +1553,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     // and last doc equals the doc count, all values can be read and converted in bulk
                     // TODO: Pass docCount attr for enrich and lookup.
                     final int firstIndex = disi.index();
-                    final int lastIndex = jumpDISI.index();
+                    final int lastIndex = lookAheadDISI.index();
                     final int valueCount = lastIndex - firstIndex + 1;
                     if (valueCount != docs.count()) {
                         return null;

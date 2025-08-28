@@ -129,7 +129,7 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
         }
     }
 
-    public void testMinimumEstimationNegativeInfinityHandling() {
+    public void testMinimumEstimationPositiveInfinityHandling() {
         FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(100);
         histo.resetBuckets(0);
         histo.tryAddBucket(2000, 1, true);
@@ -143,7 +143,7 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
         assertThat(estimate.getAsDouble(), equalTo(Double.POSITIVE_INFINITY));
     }
 
-    public void testMinimumEstimationPositiveInfinityHandling() {
+    public void testMinimumEstimationNegativeInfinityHandling() {
         FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(100);
         histo.resetBuckets(0);
         histo.tryAddBucket(2000, 1, false);

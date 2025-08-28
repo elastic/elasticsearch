@@ -46,6 +46,8 @@ public class QualifierTests extends AbstractStatementParserTests {
      * TODO: LOOKUP JOIN's qualifier will need to make it into the parsed plan node.
      */
     public void testSimpleQualifierInExpression() {
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+
         String query = "ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x | WHERE [qualified].[field]";
 
         LogicalPlan plan = statement(query);

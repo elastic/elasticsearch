@@ -18,4 +18,6 @@ public interface ChunkingSettings extends ToXContentObject, VersionedNamedWritea
     ChunkingStrategy getChunkingStrategy();
 
     Map<String, Object> asMap();
+
+    default void validate() {}
 }

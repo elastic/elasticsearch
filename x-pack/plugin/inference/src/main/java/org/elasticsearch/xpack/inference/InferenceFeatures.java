@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRe
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.RERANK_SNIPPETS;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_SNIPPETS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.RERANK_RESCORE_CHUNKS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RESCORE_CHUNKS;
 
 /**
  * Provides inference features.
@@ -85,8 +85,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT
             )
         );
-        if (RERANK_SNIPPETS.isEnabled()) {
-            testFeatures.add(TEXT_SIMILARITY_RERANKER_SNIPPETS);
+        if (RERANK_RESCORE_CHUNKS.isEnabled()) {
+            testFeatures.add(TEXT_SIMILARITY_RERANKER_RESCORE_CHUNKS);
         }
         return testFeatures;
     }

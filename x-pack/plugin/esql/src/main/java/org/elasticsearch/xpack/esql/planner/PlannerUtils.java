@@ -20,7 +20,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -65,6 +64,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
@@ -155,24 +155,17 @@ public class PlannerUtils {
             return Strings.EMPTY_ARRAY;
         }
         var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(expressions(relation.indexPattern())));
+        forEachRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
         return indices.toArray(String[]::new);
     }
 
-    public static List<String> expressions(String indexPattern) {
-        var result = new ArrayList<String>();
-        for (var expression : Strings.commaDelimitedListToStringArray(indexPattern)) {
-            var clusterAndExpression = RemoteClusterAware.splitIndexName(expression);
-            if (clusterAndExpression[0] == null) {
-                // unqualified, convert to `index`,`*:index`
-                result.add(expression);
-                result.add("*:" + expression);
-            } else {
-                // qualified expression, keep as is
-                result.add(expression);
+    public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
+        return plan.anyMatch(e -> {
+            if (e instanceof FragmentExec f) {
+                return f.fragment().anyMatch(l -> l instanceof EsRelation r && r.indexMode() == IndexMode.TIME_SERIES);
             }
-        }
-        return result;
+            return false;
+        });
     }
 
     private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {

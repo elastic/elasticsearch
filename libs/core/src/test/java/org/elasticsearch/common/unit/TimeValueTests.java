@@ -64,12 +64,6 @@ public class TimeValueTests extends ESTestCase {
 
     public void testMinusOne() {
         assertThat(new TimeValue(-1).nanos(), lessThan(0L));
-        assertThat(TimeValue.timeValueNanos(-1), equalTo(TimeValue.MINUS_ONE));
-        assertThat(TimeValue.timeValueMillis(-1), equalTo(TimeValue.MINUS_ONE));
-        assertThat(TimeValue.timeValueSeconds(-1), equalTo(TimeValue.MINUS_ONE));
-        assertThat(TimeValue.timeValueMinutes(-1), equalTo(TimeValue.MINUS_ONE));
-        assertThat(TimeValue.timeValueHours(-1), equalTo(TimeValue.MINUS_ONE));
-        assertThat(TimeValue.timeValueDays(-1), equalTo(TimeValue.MINUS_ONE));
     }
 
     public void testParseTimeValue() {
@@ -172,7 +166,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testToStringRep() {
-        assertEquals("-1", new TimeValue(-1).getStringRep());
+        assertEquals("-1ms", new TimeValue(-1).getStringRep());
         assertEquals("10ms", new TimeValue(10, TimeUnit.MILLISECONDS).getStringRep());
         assertEquals("1533ms", new TimeValue(1533, TimeUnit.MILLISECONDS).getStringRep());
         assertEquals("90s", new TimeValue(90, TimeUnit.SECONDS).getStringRep());

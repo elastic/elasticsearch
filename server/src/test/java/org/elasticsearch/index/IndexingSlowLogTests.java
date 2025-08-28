@@ -430,18 +430,18 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings.updateIndexMetadata(metadata);
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexWarnThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getIndexTraceThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getIndexDebugThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getIndexInfoThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getIndexWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
         log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
 
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexWarnThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getIndexTraceThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getIndexDebugThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getIndexInfoThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getIndexWarnThreshold());
         try {
             settings.updateIndexMetadata(
                 newIndexMeta(
@@ -500,7 +500,7 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     private void assertTimeValueException(final IllegalArgumentException e, final String key) {
-        final String expected = "illegal value can't update [" + key + "] from [-1] to [NOT A TIME VALUE]";
+        final String expected = "illegal value can't update [" + key + "] from [-1nanos] to [NOT A TIME VALUE]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));

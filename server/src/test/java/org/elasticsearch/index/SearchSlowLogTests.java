@@ -349,18 +349,18 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings.updateIndexMetadata(metadata);
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryWarnThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getQueryTraceThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getQueryDebugThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getQueryInfoThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getQueryWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
         log = new SearchSlowLog(settings, mock(SlowLogFields.class));
 
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryWarnThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getQueryTraceThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getQueryDebugThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getQueryInfoThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getQueryWarnThreshold());
         try {
             settings.updateIndexMetadata(
                 newIndexMeta(
@@ -455,18 +455,18 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings.updateIndexMetadata(metadata);
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchWarnThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getFetchTraceThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getFetchDebugThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getFetchInfoThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getFetchWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
         log = new SearchSlowLog(settings, mock(SlowLogFields.class));
 
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchWarnThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getFetchTraceThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getFetchDebugThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getFetchInfoThreshold());
+        assertEquals(TimeValue.timeValueNanos(-1).nanos(), log.getFetchWarnThreshold());
         try {
             settings.updateIndexMetadata(
                 newIndexMeta(
@@ -525,7 +525,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     }
 
     private void assertTimeValueException(final IllegalArgumentException e, final String key) {
-        final String expected = "illegal value can't update [" + key + "] from [-1] to [NOT A TIME VALUE]";
+        final String expected = "illegal value can't update [" + key + "] from [-1nanos] to [NOT A TIME VALUE]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));

@@ -222,7 +222,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than [" + K_FIELD.getPreferredName() + "]"
             );
         }
-        if( visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
+        if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
             throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0.0 and 100.0");
         }
         if (queryVector == null && queryVectorBuilder == null) {

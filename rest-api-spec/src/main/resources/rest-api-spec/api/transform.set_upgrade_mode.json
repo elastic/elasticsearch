@@ -1,8 +1,8 @@
 {
   "transform.set_upgrade_mode":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-set-upgrade-mode.html",
-      "description":"Sets a cluster wide upgrade_mode setting that prepares transform indices for an upgrade."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-set-upgrade-mode",
+      "description":"Set upgrade_mode for transform indices"
     },
     "stability":"stable",
     "visibility":"public",

@@ -151,7 +151,7 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
         // TODO: Get the real FoldContext here
         var wildcardQuery = "*" + QueryParser.escape(BytesRefs.toString(suffix.fold(FoldContext.small())));
 
-        return new WildcardQuery(source(), fieldName, wildcardQuery);
+        return new WildcardQuery(source(), fieldName, wildcardQuery, false, false);
     }
 
     @Override

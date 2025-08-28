@@ -32,15 +32,15 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
         assertEquals(separators, settings.getSeparators());
     }
 
-    public void testFromMapValidSettingsWithSeparatorSet() {
+    public void testFromMapValidSettingsWithSeparatorGroup() {
         var maxChunkSize = randomIntBetween(10, 300);
-        var separatorSet = randomFrom(SeparatorSet.values());
-        Map<String, Object> validSettings = buildChunkingSettingsMap(maxChunkSize, Optional.of(separatorSet.name()), Optional.empty());
+        var separatorGroup = randomFrom(SeparatorGroup.values());
+        Map<String, Object> validSettings = buildChunkingSettingsMap(maxChunkSize, Optional.of(separatorGroup.name()), Optional.empty());
 
         RecursiveChunkingSettings settings = RecursiveChunkingSettings.fromMap(validSettings);
 
         assertEquals(maxChunkSize, settings.getMaxChunkSize());
-        assertEquals(separatorSet.getSeparators(), settings.getSeparators());
+        assertEquals(separatorGroup.getSeparators(), settings.getSeparators());
     }
 
     public void testFromMapMaxChunkSizeTooSmall() {
@@ -55,7 +55,7 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }
 
-    public void testFromMapInvalidSeparatorSet() {
+    public void testFromMapInvalidSeparatorGroup() {
         Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(10, 300), Optional.of("invalid"), Optional.empty());
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
@@ -68,7 +68,7 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }
 
-    public void testFromMapBothSeparatorsAndSeparatorSet() {
+    public void testFromMapBothSeparatorsAndSeparatorGroup() {
         Map<String, Object> invalidSettings = buildChunkingSettingsMap(
             randomIntBetween(10, 300),
             Optional.of("default"),
@@ -86,13 +86,13 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
 
     private Map<String, Object> buildChunkingSettingsMap(
         int maxChunkSize,
-        Optional<String> separatorSet,
+        Optional<String> separatorGroup,
         Optional<List<String>> separators
     ) {
         Map<String, Object> settingsMap = new HashMap<>();
         settingsMap.put(ChunkingSettingsOptions.STRATEGY.toString(), ChunkingStrategy.RECURSIVE.toString());
         settingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), maxChunkSize);
-        separatorSet.ifPresent(s -> settingsMap.put(ChunkingSettingsOptions.SEPARATOR_SET.toString(), s));
+        separatorGroup.ifPresent(s -> settingsMap.put(ChunkingSettingsOptions.SEPARATOR_GROUP.toString(), s));
         separators.ifPresent(strings -> settingsMap.put(ChunkingSettingsOptions.SEPARATORS.toString(), strings));
         return settingsMap;
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -37,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * Holds execution metadata about ES|QL queries for cross-cluster searches in order to display
@@ -310,6 +312,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return (int) clusterInfo.values().stream().filter(cluster -> cluster.getStatus() == status).count();
     }
 
+    /**
+     * @param status the status you want to access
+     * @return a stream of clusters with that status
+     */
+    public Stream<Cluster> getClusterStates(Cluster.Status status) {
+        assert clusterInfo.isEmpty() == false : "ClusterMap in EsqlExecutionInfo must not be empty";
+        return clusterInfo.values().stream().filter(cluster -> cluster.getStatus() == status);
+    }
+
     @Override
     public String toString() {
         return "EsqlExecutionInfo{"
@@ -545,8 +556,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 return this;
             }
 
-            public Cluster.Builder setFailures(List<ShardSearchFailure> failures) {
-                this.failures = failures;
+            public Cluster.Builder addFailures(List<ShardSearchFailure> failures) {
+                if (failures.isEmpty()) {
+                    return this;
+                }
+                if (this.failures == null) {
+                    this.failures = new ArrayList<>(original.failures);
+                }
+                this.failures.addAll(failures);
                 return this;
             }
 

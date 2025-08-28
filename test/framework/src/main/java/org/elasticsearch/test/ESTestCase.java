@@ -102,7 +102,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -150,6 +150,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
@@ -513,24 +514,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     public @interface WithEntitlementsOnTestCode {
     }
 
-    @BeforeClass
-    public static void setupEntitlementsForClass() {
-        boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
-        boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
-        if (TestEntitlementBootstrap.isEnabledForTest()) {
-            TestEntitlementBootstrap.setActive(false == withoutEntitlements);
-            TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
-        } else if (withEntitlementsOnTestCode) {
-            throw new AssertionError(
-                "Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
-            );
-        }
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface EntitledTestPackages {
+        String[] value();
     }
 
-    @AfterClass
-    public static void resetEntitlements() {
-        TestEntitlementBootstrap.reset();
-    }
+    @ClassRule
+    public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers

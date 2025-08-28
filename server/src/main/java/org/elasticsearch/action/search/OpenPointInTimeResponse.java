@@ -59,7 +59,7 @@ public final class OpenPointInTimeResponse extends ActionResponse implements ToX
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("id", Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pointInTimeId)));
-        buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, failedShards, skippedShards, null);
+        buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
         builder.endObject();
         return builder;
     }

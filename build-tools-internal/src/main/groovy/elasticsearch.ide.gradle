@@ -16,6 +16,8 @@ import org.jetbrains.gradle.ext.JUnit
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import groovy.xml.XmlParser
+import groovy.xml.XmlNodePrinter
 
 allprojects {
   apply plugin: 'idea'

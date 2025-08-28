@@ -3,3 +3,5 @@ okhttp3:
   - manage_threads
 okio:
   - manage_threads
+com.azure.core:
+  - manage_threads

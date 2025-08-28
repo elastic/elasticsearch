@@ -171,7 +171,7 @@ public abstract class DependenciesInfoTask extends ConventionTask {
             output.append(dep.getGroup() + ":" + moduleName + "," + dep.getVersion() + "," + url + "," + licenseType + "\n");
         }
 
-        Files.write(outputFile.toPath(), output.toString().getBytes("UTF-8"), StandardOpenOption.CREATE);
+        Files.writeString(outputFile.toPath(), output.toString(), StandardOpenOption.CREATE);
     }
 
     @Input

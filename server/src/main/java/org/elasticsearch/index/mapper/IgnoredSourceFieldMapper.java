@@ -179,8 +179,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         int encodedSize = ByteUtils.readIntLE(bytes, 0);
         int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
         int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;
-        String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
-        BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
+
+        String decoded = new String(bytes, 4, bytes.length - 4, StandardCharsets.UTF_8);
+        String name = decoded.substring(0, nameSize);
+        int nameByteCount = name.getBytes(StandardCharsets.UTF_8).length;
+
+        BytesRef value = new BytesRef(bytes, 4 + nameByteCount, bytes.length - nameByteCount - 4);
         return new NameValue(name, parentOffset, value, null);
     }
 

@@ -31,6 +31,11 @@ public class LeafQueryTests extends ESTestCase {
         protected String innerToString() {
             return "";
         }
+
+        @Override
+        public boolean containsPlan() {
+            return false;
+        }
     }
 
     public void testEqualsAndHashCode() {

@@ -874,3 +874,16 @@ emp_no:integer |first_name:keyword
 10001          |Georgi
 10055          |Georgy
 ;
+
+rlikeWithLowerTurnedInsensitiveUnicode#[skip:-8.12.99]
+FROM airport_city_boundaries
+| WHERE TO_UPPER(region) RLIKE ".*Л.*" and abbrev == "FRU"
+| KEEP region
+| LIMIT 1
+;
+
+region:text
+Свердлов району
+;
+
+

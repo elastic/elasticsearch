@@ -38,12 +38,12 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 
 [discrete]
 [[esql-kibana-console]]
-==== Kibana Console
+==== Run the {esql} query API in Console
 
-If you are using {kibana-ref}/console-kibana.html[Kibana Console] (which is
-highly recommended), take advantage of the triple quotes `"""` when creating the
-query. This not only automatically escapes double quotes (`"`) inside the query
-string but also supports multi-line requests:
+We recommend using {kibana-ref}/console-kibana.html[Console] to run the {esql} 
+query API. When creating the query, using triple quotes (`"""`) allows you to 
+use special characters like quotes (`"`) without having to escape them. They 
+also make it easier to write multi-line requests:
 
 // tag::esql-query-api[]
 [source,console]
@@ -59,6 +59,10 @@ POST /_query?format=txt
 }
 ----
 // TEST[setup:library]
+
+Inside quotes, Console suggests possible commands and functions to autocomplete your query:
+
+image::images/esql/console-esql-autocomplete.png[align="center"]
 
 [discrete]
 [[esql-rest-format]]

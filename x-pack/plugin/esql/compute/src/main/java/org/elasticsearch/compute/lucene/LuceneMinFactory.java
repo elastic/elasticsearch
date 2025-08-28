@@ -128,7 +128,7 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
             taskConcurrency,
             limit,
             false,
-            ScoreMode.COMPLETE_NO_SCORES
+            shardContext -> ScoreMode.COMPLETE_NO_SCORES
         );
         this.fieldName = fieldName;
         this.numberType = numberType;

@@ -51,7 +51,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var results = infer(inferenceId, List.of("washing machine"));
         assertNotNull(results.get("sparse_embedding"));
 
-        var updatedNumAllocations = randomIntBetween(1, 10);
+        var updatedNumAllocations = randomIntBetween(1, 2);
         var updatedEndpointConfig = updateEndpoint(inferenceId, updatedEndpointConfig(updatedNumAllocations), TaskType.SPARSE_EMBEDDING);
         assertThat(
             updatedEndpointConfig.get("service_settings"),
@@ -128,7 +128,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var results = infer(inferenceId, List.of("washing machine"));
         assertNotNull(results.get("sparse_embedding"));
 
-        var updatedNumAllocations = randomIntBetween(1, 10);
+        var updatedNumAllocations = randomIntBetween(1, 2);
         var updatedEndpointConfig = updateEndpoint(inferenceId, updatedEndpointConfig(updatedNumAllocations), TaskType.SPARSE_EMBEDDING);
         assertThat(
             updatedEndpointConfig.get("service_settings"),

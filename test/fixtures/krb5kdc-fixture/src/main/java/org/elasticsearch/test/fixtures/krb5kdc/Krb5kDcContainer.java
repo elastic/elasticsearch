@@ -158,7 +158,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         }
         try {
             krb5ConfFile = temporaryFolder.newFile("krb5.conf").toPath();
-            Files.write(krb5ConfFile, getConf().getBytes(StandardCharsets.UTF_8));
+            Files.writeString(krb5ConfFile, getConf());
             return krb5ConfFile;
         } catch (IOException e) {
             throw new RuntimeException(e);

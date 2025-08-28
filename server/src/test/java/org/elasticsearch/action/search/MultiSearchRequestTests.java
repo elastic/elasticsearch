@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -592,6 +593,14 @@ public class MultiSearchRequestTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testNullIndex() throws IOException {
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseMultiSearchRequestFromString("""
+            {"index": null}
+            { "query": {"match_all": {}}}
+            """, null));
+        assertThat(e.getMessage(), containsString("Expected a list of strings but got null"));
     }
 
     private static MultiSearchRequest mutate(MultiSearchRequest searchRequest) throws IOException {

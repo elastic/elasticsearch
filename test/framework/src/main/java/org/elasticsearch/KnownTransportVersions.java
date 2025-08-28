@@ -18,5 +18,5 @@ public class KnownTransportVersions {
     /**
      * A sorted list of all known transport versions
      */
-    public static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersions.getAllVersions());
+    public static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
 }

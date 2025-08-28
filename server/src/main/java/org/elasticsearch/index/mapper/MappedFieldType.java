@@ -29,6 +29,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -58,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -333,6 +336,19 @@ public abstract class MappedFieldType {
         return wildcardQuery(value, method, false, context);
     }
 
+    /**
+     * Similar to wildcardQuery, except that we change the behavior for ESQL
+     * to behave like a string LIKE query, where the value is matched as a string
+     */
+    public Query wildcardLikeQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitve,
+        SearchExecutionContext context
+    ) {
+        return wildcardQuery(value, method, caseInsensitve, context);
+    }
+
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
@@ -371,6 +387,23 @@ public abstract class MappedFieldType {
         throw new QueryShardException(
             context,
             "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Returns a Lucine pushable Query for the current field
+     * For now can only be AutomatonQuery or MatchAllDocsQuery() or MatchNoDocsQuery()
+     */
+    public Query automatonQuery(
+        Supplier<Automaton> automatonSupplier,
+        Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context,
+        String description
+    ) {
+        throw new QueryShardException(
+            context,
+            "Can only use automaton queries on keyword fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 

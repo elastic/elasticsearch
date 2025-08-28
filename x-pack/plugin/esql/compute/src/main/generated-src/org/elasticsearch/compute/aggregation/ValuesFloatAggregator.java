@@ -66,10 +66,10 @@ class ValuesFloatAggregator {
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        var sorted = state.sortedForOrdinalMerging(current);
         if (statePosition > state.maxGroupId) {
             return;
         }
+        var sorted = state.sortedForOrdinalMerging(current);
         var start = statePosition > 0 ? sorted.counts[statePosition - 1] : 0;
         var end = sorted.counts[statePosition];
         for (int i = start; i < end; i++) {

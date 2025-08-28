@@ -251,3 +251,111 @@ setup:
   - match: {values.0.1: 800479.0}
   - match: {values.0.2: 4812452.0}
   - match: {values.0.3: 6}
+
+---
+"Sort from multiple indices one with aggregate metric double":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_sorting_fixed]
+      reason: "Fix sorting for rows comprised of docs from multiple indices where agg metric is missing from some"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          mappings:
+            properties:
+              some_field:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-2
+        body:
+          - '{"index": {}}'
+          - '{"some_field": "im a keyword!!!!!"}'
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-* | SORT some_field, @timestamp, k8s.pod.uid | KEEP k8s.pod.network.rx, some_field, @timestamp | LIMIT 10"
+
+  - length: {values: 5}
+  - length: {values.0: 3}
+  - match: {columns.0.name: "k8s.pod.network.rx"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {columns.1.name: "some_field"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "@timestamp"}
+  - match: {columns.2.type: "date"}
+  - match: {values.0.0: null}
+  - match: {values.0.1: "im a keyword!!!!!"}
+  - match: {values.0.2: null}
+  - match: {values.1.0: '{"min":801479.0,"max":802133.0,"sum":1603612.0,"value_count":2}'}
+  - match: {values.1.1: null}
+  - match: {values.1.2: "2021-04-28T18:00:00.000Z"}
+  - match: {values.2.0: '{"min":530575.0,"max":530600.0,"sum":1061175.0,"value_count":2}'}
+  - match: {values.2.1: null}
+  - match: {values.2.2: "2021-04-28T18:00:00.000Z"}
+  - match: {values.3.0: '{"min":530604.0,"max":530605.0,"sum":1061209.0,"value_count":2}'}
+  - match: {values.3.1: null}
+  - match: {values.3.2: "2021-04-28T19:00:00.000Z"}
+  - match: {values.4.0: '{"min":802337.0,"max":803685.0,"sum":1606022.0,"value_count":2}'}
+  - match: {values.4.1: null}
+  - match: {values.4.2: "2021-04-28T20:00:00.000Z"}
+
+---
+"MV_EXPAND on non-MV aggregate metric double":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_mv_expand]
+      reason: "Have MV_EXPAND not error out when applied to aggregate_metric_doubles (is a no-op)"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-downsample | MV_EXPAND k8s.pod.network.rx | SORT @timestamp, k8s.pod.uid | KEEP k8s.pod.network.rx, @timestamp | LIMIT 10"
+
+  - length: {values: 4}
+  - length: {values.0: 2}
+  - match: {columns.0.name: "k8s.pod.network.rx"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {columns.1.name: "@timestamp"}
+  - match: {columns.1.type: "date"}
+  - match: {values.0.0: '{"min":801479.0,"max":802133.0,"sum":1603612.0,"value_count":2}'}
+  - match: {values.0.1: "2021-04-28T18:00:00.000Z"}
+  - match: {values.1.0: '{"min":530575.0,"max":530600.0,"sum":1061175.0,"value_count":2}'}
+  - match: {values.1.1: "2021-04-28T18:00:00.000Z"}
+  - match: {values.2.0: '{"min":530604.0,"max":530605.0,"sum":1061209.0,"value_count":2}'}
+  - match: {values.2.1: "2021-04-28T19:00:00.000Z"}
+  - match: {values.3.0: '{"min":802337.0,"max":803685.0,"sum":1606022.0,"value_count":2}'}
+  - match: {values.3.1: "2021-04-28T20:00:00.000Z"}

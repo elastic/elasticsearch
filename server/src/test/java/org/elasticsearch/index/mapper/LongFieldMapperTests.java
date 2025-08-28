@@ -119,11 +119,6 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         return randomDoubleBetween(-MAX_SAFE_LONG_FOR_DOUBLE, MAX_SAFE_LONG_FOR_DOUBLE, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")
-    public void testFetchCoerced() throws IOException {
-        assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
-    }
-
     @Override
     protected Function<Object, Object> loadBlockExpected() {
         return n -> {

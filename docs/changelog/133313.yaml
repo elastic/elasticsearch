@@ -1,5 +1,0 @@
-pr: 133313
-summary: Do not run on transport thread
-area: ES|QL
-type: enhancement
-issues: []

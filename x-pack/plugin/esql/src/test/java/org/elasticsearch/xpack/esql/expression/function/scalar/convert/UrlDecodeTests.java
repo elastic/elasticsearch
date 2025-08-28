@@ -18,19 +18,19 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class UrlEncodeTests extends AbstractUrlEncodeDecodeTestCase {
+public class UrlDecodeTests extends AbstractUrlEncodeDecodeTestCase {
 
-    public UrlEncodeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public UrlDecodeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return createParameters(true);
+        return createParameters(false);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new UrlEncode(source, args.get(0));
+        return new UrlDecode(source, args.get(0));
     }
 }

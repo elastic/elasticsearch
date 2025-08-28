@@ -615,27 +615,12 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/10_source_filtering/no filtering}
   issue: https://github.com/elastic/elasticsearch/issues/133561
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testIntBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133596
 - class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
   method: testSyntheticSourceMany
   issue: https://github.com/elastic/elasticsearch/issues/133598
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testDoubleBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133606
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testBooleanBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133608
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testLongBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133618
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testFloatBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133621
 
 # Examples:
 #

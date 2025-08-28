@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
@@ -256,8 +255,10 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
     }
 
-
-    private void validateLargestIdIsUsed(Map<String, TransportVersionUpperBound> upperBounds, Map<String, TransportVersionDefinition> allDefinitions) {
+    private void validateLargestIdIsUsed(
+        Map<String, TransportVersionUpperBound> upperBounds,
+        Map<String, TransportVersionDefinition> allDefinitions
+    ) {
         // first id is always the highest within a definition, and validated earlier
         // note we use min instead of max because the id comparator is in descending order
         var highestDefinition = allDefinitions.values().stream().min(Comparator.comparing(d -> d.ids().get(0))).get();
@@ -269,8 +270,10 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             }
         }
 
-        throwDefinitionFailure(highestDefinition, "has the highest transport version id ["
-            + highestId + "] but is not present in any upper bounds files");
+        throwDefinitionFailure(
+            highestDefinition,
+            "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
+        );
     }
 
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {

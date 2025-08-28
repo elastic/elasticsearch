@@ -38,6 +38,11 @@ public class NoneChunkingSettings implements ChunkingSettings {
     }
 
     @Override
+    public Integer maxChunkSize() {
+        return null;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -66,9 +67,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        final Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.getMockPlugins());
-        plugins.add(MockTransportService.TestPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
     }
 
     /**

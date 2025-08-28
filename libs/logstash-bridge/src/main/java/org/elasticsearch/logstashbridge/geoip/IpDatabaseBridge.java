@@ -34,7 +34,7 @@ public interface IpDatabaseBridge extends StableBridgeAPI<IpDatabase> {
      * The {@code IpDatabaseBridge.AbstractExternal} is an abstract base class for implementing
      * the {@link IpDatabaseBridge} externally to the Elasticsearch code-base. It takes care of
      * the details of maintaining a singular internal-form implementation of {@link IpDatabase}
-     * that proxies calls through the external implementation.
+     * that proxies calls to the external implementation.
      */
     abstract class AbstractExternal implements IpDatabaseBridge {
         private ProxyExternal internalDatabase;

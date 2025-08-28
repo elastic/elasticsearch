@@ -189,17 +189,6 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
             return new ProxyInternal(delegate);
         }
 
-        @Override
-        default Processor.Factory toInternal() {
-            final Factory stableAPIFactory = this;
-            return (registry, tag, description, config, projectId) -> stableAPIFactory.create(
-                StableBridgeAPI.fromInternal(registry, Factory::fromInternal),
-                tag,
-                description,
-                config
-            ).toInternal();
-        }
-
         /**
          * An implementation of {@link ProcessorBridge.Factory} that proxies to an internal {@link Processor.Factory}
          */
@@ -216,9 +205,16 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
                 final String description,
                 final Map<String, Object> config
             ) throws Exception {
-                return ProcessorBridge.fromInternal(
-                    this.internalDelegate.create(StableBridgeAPI.toInternal(registry), processorTag, description, config, ProjectId.DEFAULT)
+                final Map<String, Processor.Factory> internalRegistry = StableBridgeAPI.toInternal(registry);
+                final Processor.Factory internalFactory = toInternal();
+                final Processor internalProcessor = internalFactory.create(
+                    internalRegistry,
+                    processorTag,
+                    description,
+                    config,
+                    ProjectId.DEFAULT
                 );
+                return ProcessorBridge.fromInternal(internalProcessor);
             }
 
             @Override

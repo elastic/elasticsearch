@@ -38,6 +38,19 @@ public abstract class RemoteClusterAware {
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
+    public static final List<Setting.AffixSetting<?>> REMOTE_CLUSTER_SETTINGS = List.of(
+        RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
+        RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
+        RemoteClusterSettings.REMOTE_CONNECTION_MODE,
+        SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
+        SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
+        SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
+        ProxyConnectionStrategySettings.PROXY_ADDRESS,
+        ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS,
+        ProxyConnectionStrategySettings.SERVER_NAME
+
+    );
+
     protected final Settings settings;
     private final String nodeName;
     private final boolean isRemoteClusterClientEnabled;
@@ -231,18 +244,7 @@ public abstract class RemoteClusterAware {
      * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
-        List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
-            RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteClusterSettings.REMOTE_CONNECTION_MODE,
-            SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
-            SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
-            SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
-            ProxyConnectionStrategySettings.PROXY_ADDRESS,
-            ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategySettings.SERVER_NAME
-        );
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
+        clusterSettings.addAffixGroupUpdateConsumer(REMOTE_CLUSTER_SETTINGS, this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

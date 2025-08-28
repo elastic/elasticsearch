@@ -133,6 +133,16 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                         + "Defaults to 1.5 * k"
                 ),
                 @MapParam.MapParamEntry(
+                    name = "visit_percentage",
+                    type = "float",
+                    valueHint = { "10.0" },
+                    description = "(Optional, float) The percentage of vectors to explore per shard while doing knn search " +
+                        "with `bbq_disk`.  Must be between 1 and 100.  0 will default to using `num_candidates` for calculating " +
+                        "the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  " +
+                        "If `visit_percentage` is set is set for `bbq_disk`, `num_candidates` is ignored. " +
+                        "Defaults to a reasonable percent per shard of ~1% for every 1 million vectors."
+                ),
+                @MapParam.MapParamEntry(
                     name = "similarity",
                     type = "double",
                     valueHint = { "0.01" },

@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -151,9 +150,7 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
         }
     }
 
-    record IsNullEvaluator(DriverContext driverContext, ExpressionEvaluator field)
-        implements
-            ExpressionEvaluator {
+    record IsNullEvaluator(DriverContext driverContext, ExpressionEvaluator field) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IsNullEvaluator.class);
 
         @Override

@@ -53,6 +53,7 @@ with the correct permissions.
 
    :::{note}
    An Azure Admin must approve these permissions before the credentials can be used.
+   :::
 
    :::{image} ./images/ms-graph-authz/05-configure-api-permissions.png
    :alt: configure api permissions

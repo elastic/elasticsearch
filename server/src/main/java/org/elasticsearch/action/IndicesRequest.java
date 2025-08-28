@@ -50,7 +50,7 @@ public interface IndicesRequest {
     default boolean includeDataStreams() {
         return false;
     }
-    
+
     interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.

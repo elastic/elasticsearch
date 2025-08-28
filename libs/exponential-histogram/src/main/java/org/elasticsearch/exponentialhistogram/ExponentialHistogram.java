@@ -103,7 +103,8 @@ public abstract class ExponentialHistogram implements Accountable {
     public abstract double sum();
 
     /**
-     * Returns the sum of the counts of all values represented by this histogram.
+     * Returns the number of values represented by this histogram.
+     * In other words, this is the sum of the counts of all buckets including the zero bucket.
      *
      * @return the value count, guaranteed to be zero for empty histograms
      */

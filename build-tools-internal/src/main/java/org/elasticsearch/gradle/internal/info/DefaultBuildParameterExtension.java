@@ -69,7 +69,6 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         this.runtimeJavaHome = cache(providers, runtimeJava.getJavahome());
         this.javaToolChainSpec = cache(providers, javaToolChainSpec);
         this.runtimeJavaVersion = cache(providers, runtimeJava.getJavaVersion());
-        // this.runtimeJavaVersion = runtimeJava.getJavaVersion();
         this.runtimeJavaDetails = cache(providers, runtimeJava.getVendorDetails());
         this.javaVersions = javaVersions;
         this.minimumCompilerVersion = minimumCompilerVersion;
@@ -150,6 +149,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     @Override
     public Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
         return javaToolChainSpec;
+    }
+
+    @Override
+    public Provider<String> getRuntimeJavaDetails() {
+        return runtimeJavaDetails;
     }
 
     @Override

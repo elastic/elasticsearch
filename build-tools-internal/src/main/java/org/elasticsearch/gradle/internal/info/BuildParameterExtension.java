@@ -46,6 +46,8 @@ public interface BuildParameterExtension {
 
     Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec();
 
+    Provider<String> getRuntimeJavaDetails();
+
     Provider<String> getGitRevision();
 
     Provider<String> getGitOrigin();

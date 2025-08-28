@@ -435,6 +435,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         private final String leafName;
 
         private TermsEnum termsDocEnum;
+        private boolean hasValue;
 
         private SparseVectorSyntheticFieldLoader(String fullPath, String leafName) {
             this.fullPath = fullPath;
@@ -467,26 +468,28 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     scorer.iterator().advance(docId);
                 }
                 if (scorer.iterator().docID() != docId) {
-                    return false;
+                    termsDocEnum = null;
+                    return hasValue = false;
                 }
                 var terms = leafReader.termVectors().get(docId, fullPath);
-                if (terms != null && (termsDocEnum = terms.iterator()) != null) {
-                    return true;
+                if (terms != null && (termsDocEnum = terms.iterator()).next() != null) {
+                    return hasValue = true;
                 } else {
                     // this is an empty map
                     termsDocEnum = null;
-                    return true;
+                    return hasValue = true;
                 }
             };
         }
 
         @Override
         public boolean hasValue() {
-            return termsDocEnum != null;
+            return hasValue;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
+            assert hasValue;
             b.startObject(leafName);
             if (termsDocEnum != null) {
                 PostingsEnum reuse = null;
@@ -505,7 +508,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
          * @throws IOException if reading fails
          */
         private Map<String, Float> copyAsMap() throws IOException {
-            assert termsDocEnum != null;
+            assert hasValue;
+            if (termsDocEnum == null) {
+                return Map.of();
+            }
             Map<String, Float> tokenMap = new LinkedHashMap<>();
             PostingsEnum reuse = null;
             do {

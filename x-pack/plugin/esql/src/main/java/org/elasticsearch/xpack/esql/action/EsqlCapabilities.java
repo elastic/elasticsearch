@@ -1399,7 +1399,13 @@ public class EsqlCapabilities {
         /**
          * Allow qualifiers in attribute names.
          */
-        NAME_QUALIFIERS(Build.current().isSnapshot());
+        NAME_QUALIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * Fix management of plans with no columns
+         * https://github.com/elastic/elasticsearch/issues/120272
+         */
+        FIX_NO_COLUMNS;
 
         private final boolean enabled;
 

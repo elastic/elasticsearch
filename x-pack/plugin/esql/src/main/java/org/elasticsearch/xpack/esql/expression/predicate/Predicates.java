@@ -145,6 +145,9 @@ public abstract class Predicates {
             }
             splitAnds.add(split);
         }
+        if (common == null) {
+            common = List.of();
+        }
 
         List<Expression> trimmed = new ArrayList<>(expressions.size());
         final List<Expression> finalCommon = common;

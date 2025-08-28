@@ -533,7 +533,15 @@ public class PushTopNToSourceTests extends ESTestCase {
                 }
                 refs.put(
                     alias.name(),
-                    new ReferenceAttribute(Source.EMPTY, alias.name(), alias.dataType(), Nullability.FALSE, alias.id(), alias.synthetic())
+                    new ReferenceAttribute(
+                        Source.EMPTY,
+                        null,
+                        alias.name(),
+                        alias.dataType(),
+                        Nullability.FALSE,
+                        alias.id(),
+                        alias.synthetic()
+                    )
                 );
                 this.aliases.add(alias);
             }

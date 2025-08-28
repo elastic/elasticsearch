@@ -50,6 +50,11 @@ public class FloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(Number::floatValue, ignoreMalformed);
     }

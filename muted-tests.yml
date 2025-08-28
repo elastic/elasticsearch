@@ -471,9 +471,6 @@ tests:
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/132892
-- class: org.elasticsearch.index.mapper.LongFieldMapperTests
-  method: testFetchCoerced
-  issue: https://github.com/elastic/elasticsearch/issues/132893
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: https://github.com/elastic/elasticsearch/issues/132894
@@ -639,6 +636,9 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testFloatBlock
   issue: https://github.com/elastic/elasticsearch/issues/133621
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:inlinestats.EvalBeforeDoubleInlinestats1}
+  issue: https://github.com/elastic/elasticsearch/issues/133729
 
 # Examples:
 #

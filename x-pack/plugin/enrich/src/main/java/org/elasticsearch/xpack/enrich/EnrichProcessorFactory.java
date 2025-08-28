@@ -63,14 +63,18 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        final var project = metadata.getProject(projectId);
-        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexAlias);
-        if (indexAbstraction == null) {
-            throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
+
+        final IndexMetadata imd;
+        {
+            final var project = metadata.getProject(projectId);
+            IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexAlias);
+            if (indexAbstraction == null) {
+                throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
+            }
+            assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
+            assert indexAbstraction.getIndices().size() == 1;
+            imd = project.index(indexAbstraction.getIndices().get(0));
         }
-        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
-        assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = project.index(indexAbstraction.getIndices().get(0));
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(

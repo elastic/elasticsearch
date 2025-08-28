@@ -713,6 +713,30 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
                 : Settings.EMPTY
         );
         var searchNode = startSearchNode();
+        AtomicInteger countNewCommitNotifications = new AtomicInteger();
+        AtomicReference<Set<PrimaryTermAndGeneration>> termAndGensInUse = new AtomicReference<>();
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return "default";
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        countNewCommitNotifications.incrementAndGet();
+                        termAndGensInUse.set(((NewCommitNotificationResponse) response).getPrimaryTermAndGenerationsInUse());
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+                }, task);
+            });
+
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
@@ -762,31 +786,14 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var blobsBeforeReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
         assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
 
-        AtomicInteger countNewCommitNotifications = new AtomicInteger();
-        AtomicReference<Set<PrimaryTermAndGeneration>> termAndGensInUse = new AtomicReference<>();
-        MockTransportService.getInstance(searchNode)
-            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                handler.messageReceived(request, new TransportChannel() {
-                    @Override
-                    public String getProfileName() {
-                        return "default";
-                    }
+        var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var latestUploadedBcc = indexShardCommitService.getLatestUploadedBcc(shardId);
+        assertNotNull(latestUploadedBcc);
+        // Wait for search node to respond to all new commit notifications
+        assertBusy(() -> assertTrue(termAndGensInUse.get().contains(latestUploadedBcc.primaryTermAndGeneration())));
 
-                    @Override
-                    public void sendResponse(TransportResponse response) {
-                        countNewCommitNotifications.incrementAndGet();
-                        termAndGensInUse.set(((NewCommitNotificationResponse) response).getPrimaryTermAndGenerationsInUse());
-                        channel.sendResponse(response);
-                    }
-
-                    @Override
-                    public void sendResponse(Exception exception) {
-                        channel.sendResponse(exception);
-
-                    }
-                }, task);
-            });
-
+        var newCommitNotificationsBeforeReleasingScroll = countNewCommitNotifications.get();
         switch (testCase) {
             case COMMITS_RETAINED_UNTIL_SCROLL_CLOSES:
                 client().prepareClearScroll().addScrollId(currentScrollId.get()).get();
@@ -817,7 +824,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
         });
         // responses from newCommitNotification must be received
-        assertThat(countNewCommitNotifications.get(), greaterThan(0));
+        assertThat(countNewCommitNotifications.get(), greaterThan(newCommitNotificationsBeforeReleasingScroll));
 
         if (testCase == TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY) {
             // The last notification response should no longer contain blobs used for scroll
@@ -833,12 +840,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             );
             // Verify that there is no more new commit notifications sent
             int currentCount = countNewCommitNotifications.get();
-            var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
             indexShardCommitService.updateCommitUseTrackingForInactiveShards(() -> Long.MAX_VALUE);
             assertThat(countNewCommitNotifications.get(), equalTo(currentCount));
         }
 
         // Check that a new search returns all docs
+        refresh(indexName);
         assertThat(
             SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(matchAllQuery())),
             equalTo((long) totalIndexedDocs)

@@ -127,3 +127,15 @@ Sailaja                | 1996-01-01T00:00:00.000Z
 Suzette                | 1997-01-01T00:00:00.000Z
 Lillian                | 1999-01-01T00:00:00.000Z
 ;
+
+first_text_by_system
+required_capability: agg_first_last
+FROM logs
+| STATS message = FIRST(message, @timestamp) BY system
+; 
+
+message:text                        | system:keyword
+Pinging 192.168.86.046              | ping
+Running cats (cycle 1)              | cron
+Doing java stuff for 192.168.86.038 | java
+;

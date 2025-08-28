@@ -92,7 +92,7 @@ LAST(v, @timestamp):integer
 
 
 last_keywords
-required_capability: agg_first_last
+required_capability: agg_first_last_string
 FROM employees
 | STATS
     last_employee = LAST(first_name, hire_date)
@@ -103,7 +103,7 @@ Lillian
 ;
 
 last_keywords_by_year
-required_capability: agg_first_last
+required_capability: agg_first_last_string
 FROM employees
 | EVAL year = date_trunc(1 year, hire_date)
 | STATS
@@ -129,7 +129,7 @@ Lillian                 | 1999-01-01T00:00:00.000Z
 ;
 
 last_text_by_system
-required_capability: agg_first_last
+required_capability: agg_first_last_string
 FROM logs
 | STATS message = LAST(message, @timestamp) BY system
 ; 

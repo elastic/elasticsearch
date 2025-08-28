@@ -92,7 +92,7 @@ FIRST(v, @timestamp):integer
 
 
 first_keywords
-required_capability: agg_first_last
+required_capability: agg_first_last_string
 FROM employees
 | STATS
     first_employee = FIRST(first_name, hire_date)
@@ -103,7 +103,7 @@ Sumant
 ;
 
 first_keywords_by_year
-required_capability: agg_first_last
+required_capability: agg_first_last_string
 FROM employees
 | EVAL year = date_trunc(1 year, hire_date)
 | STATS
@@ -129,7 +129,7 @@ Lillian                | 1999-01-01T00:00:00.000Z
 ;
 
 first_text_by_system
-required_capability: agg_first_last
+required_capability: agg_first_last_string
 FROM logs
 | STATS message = FIRST(message, @timestamp) BY system
 ; 

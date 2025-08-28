@@ -431,15 +431,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: cannot change committed ids to a branch
-  issue: https://github.com/elastic/elasticsearch/issues/133133
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: definitions have primary ids which cannot change
-  issue: https://github.com/elastic/elasticsearch/issues/133234
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: latest files cannot change base id
-  issue: https://github.com/elastic/elasticsearch/issues/133231
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/131412

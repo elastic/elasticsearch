@@ -72,6 +72,8 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
                             double value = Double.longBitsToDouble(docValues.longValue());
                             if (randomBoolean()) {
                                 builder.appendDoubles(new double[] { value }, 0, 1);
+                            } else if (randomBoolean()) {
+                                builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);
                             } else {
                                 builder.appendDouble(value);
                             }

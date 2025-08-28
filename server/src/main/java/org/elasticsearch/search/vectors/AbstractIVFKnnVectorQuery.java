@@ -261,7 +261,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             allowedDocs.add(iterator.docID());
         }
         ScoreDoc[] scoreDocs = Arrays.stream(topDocs.scoreDocs).filter(sd -> allowedDocs.contains(sd.doc)).toArray(ScoreDoc[]::new);
-        if (scoreDocs.length >= k) {
+        if (scoreDocs.length >= k || topDocs.scoreDocs.length < k) {
             return new TopDocs(new TotalHits(topDocs.totalHits.value(), topDocs.totalHits.relation()), scoreDocs);
         }
         // We gathered too few results, research without post filter

@@ -229,4 +229,27 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         then:
         result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
     }
+
+    def "highest id in an referable definition should exist in an upper bounds file"() {
+        given:
+        referableAndReferencedTransportVersion("some_tv", "10000000")
+        when:
+        def result = validateResourcesFails()
+        then:
+        assertValidateResourcesFailure(result, "Transport version definition file " +
+            "[myserver/src/main/resources/transport/definitions/referable/some_tv.csv] " +
+            "has the highest transport version id [10000000] but is not present in any upper bounds files")
+    }
+
+    def "highest id in an unreferable definition should exist in an upper bounds file"() {
+        given:
+        unreferableTransportVersion("initial_10.0.0", "10000000")
+        when:
+        def result = validateResourcesFails()
+        then:
+        // TODO: this should be _unreferable_ in the error message, but will require some rework
+        assertValidateResourcesFailure(result, "Transport version definition file " +
+            "[myserver/src/main/resources/transport/definitions/referable/initial_10.0.0.csv] " +
+            "has the highest transport version id [10000000] but is not present in any upper bounds files")
+    }
 }

@@ -41,7 +41,7 @@ public class EsqlFlags {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
+    public static List<Setting<?>> allEsqlFlagsSettings = List.of(ESQL_STRING_LIKE_ON_INDEX, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
     private final boolean stringLikeOnIndex;
 
     private final int roundToPushdownThreshold;
@@ -84,6 +84,6 @@ public class EsqlFlags {
     }
 
     public static List<Setting<?>> listAll() {
-        return List.of(ESQL_STRING_LIKE_ON_INDEX, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
+        return allEsqlFlagsSettings;
     }
 }

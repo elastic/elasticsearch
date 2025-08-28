@@ -216,7 +216,9 @@ public class PlannerUtils {
 
         var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             if (lookupJoinExecRightChildren.contains(f)) {
-                // do not optimize the right child of a lookup join exec
+                // Do not optimize the right child of a lookup join exec
+                // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
+                // Also we only ship logical plans across the network, so the plan needs to remain logical
                 return f;
             }
             isCoordPlan.set(Boolean.FALSE);

@@ -160,7 +160,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
                 optimizationApplied = true;
             }
             // push the right scoped filter down to the right child
-            // We don't want to execute this rule more than once per join, so we check if we
+            // We check if each AND component of the filter is already part of the right side filter before we add it
+            // In the future, this optimization can apply to other types of joins as well such as InlineJoin
+            // but for now we limit it to LEFT joins only, till filters are supported for other join types
             if (scoped.rightFilters().isEmpty() == false) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters(), foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
@@ -220,6 +222,12 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
     /**
      * Determines if the given expression can be pushed down to the right side of a join.
      * A filter is right pushable if the filter's predicate evaluates to false or null when all fields are set to null
+     * This rule helps us guard against the case where we don't know if a field is null because:
+     * 1. the field is null in the source data or
+     * 2. the field is null because there was no match in the join
+     * If the null could be an issue we just say the filter is not pushable and we avoid this issue
+     * In this context pushable means that we can push the filter down to the right side of a LEFT join
+     * We do not check if the filter is pushable to Lucene or not here
      */
     private static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
         // traverse the filter tree

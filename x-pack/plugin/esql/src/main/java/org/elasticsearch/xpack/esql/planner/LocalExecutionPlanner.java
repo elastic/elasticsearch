@@ -95,7 +95,6 @@ import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -744,7 +743,7 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        EsRelation esRelation = fildEsRelation(join.lookup());
+        EsRelation esRelation = findEsRelation(join.lookup());
         if (esRelation == null || esRelation.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
@@ -809,18 +808,12 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private EsRelation fildEsRelation(PhysicalPlan node) {
+    private static EsRelation findEsRelation(PhysicalPlan node) {
         if (node instanceof FragmentExec fragmentExec) {
-            return fildEsRelation(fragmentExec.fragment());
-        }
-        return null;
-    }
-
-    private EsRelation fildEsRelation(LogicalPlan node) {
-        if (node instanceof EsRelation esRelation) {
-            return esRelation;
-        } else if (node instanceof UnaryPlan unaryPlan) {
-            return fildEsRelation(unaryPlan.child());
+            List<LogicalPlan> esRelations = fragmentExec.fragment().collectFirstChildren(x -> x instanceof EsRelation);
+            if (esRelations.size() == 1) {
+                return (EsRelation) esRelations.get(0);
+            }
         }
         return null;
     }

@@ -228,11 +228,7 @@ public class Mapper {
                 );
             }
             if (right instanceof FragmentExec fragment) {
-                boolean isIndexModeLookup = fragment.fragment() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
-                isIndexModeLookup = isIndexModeLookup
-                    || fragment.fragment() instanceof Filter filter
-                        && filter.child() instanceof EsRelation relation
-                        && relation.indexMode() == IndexMode.LOOKUP;
+                boolean isIndexModeLookup = isIndexModeLookup(fragment);
                 if (isIndexModeLookup) {
                     return new LookupJoinExec(
                         join.source(),
@@ -246,6 +242,18 @@ public class Mapper {
             }
         }
         return MapperUtils.unsupported(bp);
+    }
+
+    private static boolean isIndexModeLookup(FragmentExec fragment) {
+        // we support 2 cases:
+        // EsRelation in index_mode=lookup
+        boolean isIndexModeLookup = fragment.fragment() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
+        // or Filter(EsRelation) in index_mode=lookup
+        isIndexModeLookup = isIndexModeLookup
+            || fragment.fragment() instanceof Filter filter
+                && filter.child() instanceof EsRelation relation
+                && relation.indexMode() == IndexMode.LOOKUP;
+        return isIndexModeLookup;
     }
 
     private PhysicalPlan mapFork(Fork fork) {

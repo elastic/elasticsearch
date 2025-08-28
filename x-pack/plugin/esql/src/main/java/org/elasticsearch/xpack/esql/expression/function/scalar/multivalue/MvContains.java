@@ -206,7 +206,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
     }
 
     static void process(BooleanBlock.Builder builder, int position, Block subset) {
-        if(subset.isNull(position) == false) {
+        if (subset.isNull(position) == false) {
             appendTo(builder, false);
             return;
         }

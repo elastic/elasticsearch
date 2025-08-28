@@ -379,7 +379,7 @@ public class IndicesAndAliasesResolver {
                     );
                     if (replaced != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectReplaceableRequest.indices()));
-                        // we can re-use resolveIndexAbstractionsMapping() for local indices here
+                        // should re-use resolveIndexAbstractions here instead, then reconcile with `replaced`
                         Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsCrossProject(
                                 replaced,
@@ -419,7 +419,7 @@ public class IndicesAndAliasesResolver {
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                IndicesRequest.CompleteReplaceableIndices resolved = indexAbstractionResolver.resolveIndexAbstractionsComplete(
+                IndicesRequest.CompleteReplaceableIndices resolved = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
                     indicesOptions,
                     projectMetadata,

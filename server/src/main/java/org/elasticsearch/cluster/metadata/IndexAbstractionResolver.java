@@ -162,7 +162,7 @@ public class IndexAbstractionResolver {
             );
     }
 
-    public IndicesRequest.CompleteReplaceableIndices resolveIndexAbstractionsComplete(
+    public IndicesRequest.CompleteReplaceableIndices resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
@@ -303,7 +303,7 @@ public class IndexAbstractionResolver {
         BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
-        return resolveIndexAbstractionsComplete(
+        return resolveIndexAbstractions(
             indices,
             indicesOptions,
             projectMetadata,

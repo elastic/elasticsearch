@@ -552,6 +552,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             if (localIndices != null) {
+                // TODO right now, the security interceptor will include concrete expressions (non-wildcard) if the user has access to them
+                // regardless of whether they exist or not
+                // we need to account for that either here or by changing the interceptor to record if a resource actually exists
+                // since that matters for flat-world error handling:
+                // the `request.remoteErrorHandling(fromRemoteResponses(remoteResponses));` further down
                 resolveIndices(
                     localIndices.indices(),
                     // we need lenient mode for resolution under CPS

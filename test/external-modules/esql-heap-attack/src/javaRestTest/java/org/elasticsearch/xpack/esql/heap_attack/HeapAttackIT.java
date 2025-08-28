@@ -774,7 +774,7 @@ public class HeapAttackIT extends ESRestTestCase {
             }
             if (lookupEntries != lookupEntriesToKeep) {
                 // add a filter to reduce the number of matches
-                // we add both a Lucine pushable filter and a non-pushable filter
+                // we add both a Lucene pushable filter and a non-pushable filter
                 // this is to make sure that even if there are non-pushable filters the pushable filters is still applied
                 query.append(" | WHERE ABS(filter_key) > -1 AND filter_key < ").append(lookupEntriesToKeep);
 

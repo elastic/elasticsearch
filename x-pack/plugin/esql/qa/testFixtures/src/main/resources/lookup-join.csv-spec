@@ -5228,6 +5228,69 @@ id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:int
 6              | null             | corge          | iota           | 9000
 ;
 
+lookupJoinWithCoalesceFilterOnRight
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE COALESCE(other1, "zeta") == "zeta"
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+[1, 19, 21]    | null             | zyx            | null           | null
+4              | David            | qux            | zeta           | 6000
+9              | null             | waldo          | null           | null
+10             | null             | fred           | null           | null
+15             | null             | bar2           | null           | null
+[17, 18]       | null             | xyz            | null           | null
+null           | null             | plugh          | null           | null
+;
+
+lookupJoinWithIsNullFilterOnRight
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE other1 IS NULL
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+[1, 19, 21]    | null             | zyx            | null           | null
+9              | null             | waldo          | null           | null
+10             | null             | fred           | null           | null
+15             | null             | bar2           | null           | null
+[17, 18]       | null             | xyz            | null           | null
+null           | null             | plugh          | null           | null
+;
+
+lookupJoinWithIsNullJoinKey
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON name_str
+| WHERE name_str IS NULL
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int
+;
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+null           | null             | corge          | null           | null
+;
+
 lookupJoinWithMixLeftAndRightFilters
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_multiple_fields

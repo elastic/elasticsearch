@@ -257,7 +257,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         boolean beCranky = mainContext.bigArrays().breakerService() instanceof CrankyCircuitBreakerService;
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
         var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.addAll(EsqlFlags.listAll());
+        builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localNode,

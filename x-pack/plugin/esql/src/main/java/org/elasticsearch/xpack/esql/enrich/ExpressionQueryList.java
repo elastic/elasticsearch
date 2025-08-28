@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * A {@link LookupEnrichQueryGenerator} that combines one or more {@link QueryList}s into a single query.
  * Each query in the resulting query will be a conjunction of all queries from the input lists at the same position.
  * In addition, we support an optional pre-join filter that will be applied to all queries if it is pushable.
- * If the pre-join filter cannot be pushed down to Lucine, it will be ignored.
+ * If the pre-join filter cannot be pushed down to Lucene, it will be ignored.
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private static final Logger logger = LogManager.getLogger(ExpressionQueryList.class);
@@ -56,7 +56,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         }
         this.queryLists = queryLists;
         this.context = context;
-        buildPrePostJoinFilter(rightPreJoinPlan, clusterService);
+        buildPreJoinFilter(rightPreJoinPlan, clusterService);
     }
 
     private void addToPreJoinFilters(org.elasticsearch.index.query.QueryBuilder query) {
@@ -70,7 +70,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         }
     }
 
-    private void buildPrePostJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
+    private void buildPreJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
         if (rightPreJoinPlan instanceof EsQueryExec esQueryExec) {
             // this does not happen right now, as we only do local mapping on the lookup node
             // so we have EsSourceExec, not esQueryExec
@@ -79,12 +79,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             }
         } else if (rightPreJoinPlan instanceof FilterExec filterExec) {
             List<Expression> candidateRightHandFilters = Predicates.splitAnd(filterExec.condition());
+            LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
+                SearchContextStats.from(List.of(context)),
+                new EsqlFlags(clusterService.getClusterSettings())
+            );
             for (Expression filter : candidateRightHandFilters) {
                 if (filter instanceof TranslationAware translationAware) {
-                    LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
-                        SearchContextStats.from(List.of(context)),
-                        new EsqlFlags(clusterService.getClusterSettings())
-                    );
                     if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
                         addToPreJoinFilters(translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder());
                     }
@@ -96,10 +96,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             }
             // call recursively to find other filters that might be present
             // either in another FilterExec or in an EsQueryExec
-            buildPrePostJoinFilter(filterExec.child(), clusterService);
+            buildPreJoinFilter(filterExec.child(), clusterService);
         } else if (rightPreJoinPlan instanceof UnaryExec unaryExec) {
             // there can be other nodes in the plan such as FieldExtractExec in the future
-            buildPrePostJoinFilter(unaryExec.child(), clusterService);
+            buildPreJoinFilter(unaryExec.child(), clusterService);
         }
         // else we do nothing, as the filters are optional and we don't want to fail the query if there are any errors
         // this also covers the case of rightPreJoinPlan being null

@@ -123,7 +123,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         PhysicalPlan physicalPlan = request.rightPreJoinPlan;
         physicalPlan = localLookupNodePlanning(physicalPlan);
-        if (queryLists.size() == 1 && (physicalPlan instanceof FilterExec == false)) {
+        if (queryLists.size() == 1 && physicalPlan instanceof FilterExec == false) {
             return queryLists.getFirst();
         }
         return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService);
@@ -135,7 +135,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
      * For now, we will just do mapping of the logical plan to physical plan
      * In the future we can also do local physical and logical optimizations
      */
-    private PhysicalPlan localLookupNodePlanning(PhysicalPlan physicalPlan) {
+    private static PhysicalPlan localLookupNodePlanning(PhysicalPlan physicalPlan) {
         if (physicalPlan instanceof FragmentExec fragmentExec) {
             try {
                 LocalMapper localMapper = new LocalMapper();

@@ -191,6 +191,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
             }
         };
     }
+
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ConstantNullEvaluator.Factory();
 
     private record ConstantTrueEvaluator(DriverContext context) implements ExpressionEvaluator {
@@ -227,6 +228,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
             }
         };
     }
+
     public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ConstantTrueEvaluator.Factory();
 
     private record ConstantFalseEvaluator(DriverContext context) implements ExpressionEvaluator {
@@ -263,5 +265,6 @@ public class EvalOperator extends AbstractPageMappingOperator {
             }
         };
     }
+
     public static final ExpressionEvaluator.Factory CONSTANT_FALSE_FACTORY = new ConstantFalseEvaluator.Factory();
 }

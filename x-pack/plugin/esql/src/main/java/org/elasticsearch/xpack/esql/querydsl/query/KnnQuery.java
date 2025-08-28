@@ -54,6 +54,7 @@ public class KnnQuery extends Query {
         Float vectorSimilarity = (Float) options.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
         Integer minCandidates = (Integer) options.get(Knn.MIN_CANDIDATES_OPTION);
         int adjustedK = Math.max(k, minCandidates == null ? 0 : minCandidates);
+        minCandidates = minCandidates == null ? null : Math.max(minCandidates, adjustedK);
 
         KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(
             field,

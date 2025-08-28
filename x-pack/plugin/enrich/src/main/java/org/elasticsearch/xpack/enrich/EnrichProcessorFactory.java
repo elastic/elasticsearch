@@ -133,7 +133,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         metadata = state.getMetadata();
     }
 
-    private SearchRunner createSearchRunner(ProjectMetadata project, String indexAlias) {
+    private SearchRunner createSearchRunner(final ProjectMetadata project, final String indexAlias) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (value, maxMatches, reqSupplier, handler) -> {
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
@@ -152,7 +152,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         };
     }
 
-    private String getEnrichIndexKey(ProjectMetadata project, String indexAlias) {
+    private String getEnrichIndexKey(final ProjectMetadata project, final String indexAlias) {
         IndexAbstraction ia = project.getIndicesLookup().get(indexAlias);
         if (ia == null) {
             throw new IndexNotFoundException("no generated enrich index [" + indexAlias + "]");

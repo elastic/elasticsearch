@@ -69,7 +69,7 @@ class TSDataGenerationHelper {
 
         // We want to ensure that all documents have different timestamps.
         var timeRangeMs = timeRangeSeconds * 1000;
-        var timeRangeEnd = Instant.now().toEpochMilli() / timeRangeMs * timeRangeMs;
+        var timeRangeEnd = Instant.parse("2025-07-31T10:00:00Z").toEpochMilli();
         var timeRangeStart = timeRangeEnd - timeRangeMs;
         var timestampSet = new HashSet<Instant>();
         var regens = 0;

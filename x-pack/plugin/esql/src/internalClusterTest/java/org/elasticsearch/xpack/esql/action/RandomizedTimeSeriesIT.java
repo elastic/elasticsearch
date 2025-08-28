@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-
     private static final Long NUM_DOCS = 2000L;
     private static final Long TIME_RANGE_SECONDS = 3600L;
     private static final String DATASTREAM_NAME = "tsit_ds";
@@ -272,6 +271,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         // Ensure it will be a TSDB data stream
         settingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+        settingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2025-07-31T00:00:00Z");
+        settingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-07-31T12:00:00Z");
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
             RandomizedTimeSeriesIT.DATASTREAM_NAME
@@ -338,9 +339,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS count(rate(metrics.counter_hdd.bytes.read)),
-                    min(rate(metrics.counter_hdd.bytes.read)),
                     max(rate(metrics.counter_hdd.bytes.read)),
-                    avg(rate(metrics.counter_hdd.bytes.read))
+                    avg(rate(metrics.counter_hdd.bytes.read)),
+                    min(rate(metrics.counter_hdd.bytes.read))
                 BY tbucket=bucket(@timestamp, 1 minute), %s
             | SORT tbucket
             | LIMIT 1000

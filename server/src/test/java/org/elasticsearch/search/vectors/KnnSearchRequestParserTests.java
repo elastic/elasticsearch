@@ -111,6 +111,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage)
             .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
             .endObject();
 
@@ -137,6 +138,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage)
             .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
             .endObject();
 
@@ -195,6 +197,40 @@ public class KnnSearchRequestParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
     }
 
+    public void testVisitPercnetageLessThan0() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
+            .startObject()
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
+            .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
+            .field(KnnSearch.K_FIELD.getPreferredName(), 100)
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 1000)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), -100f)
+            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
+            .endObject()
+            .endObject();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
+        assertThat(e.getMessage(), containsString("[visit_percentage] cannot be less than [0.0f]"));
+    }
+
+    public void testVisitPercnetageGreaterThan100() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
+            .startObject()
+            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
+            .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
+            .field(KnnSearch.K_FIELD.getPreferredName(), 100)
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 1000)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 1000f)
+            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
+            .endObject()
+            .endObject();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
+        assertThat(e.getMessage(), containsString("[visit_percentage] cannot be greater than [100.0f]"));
+    }
+
     public void testInvalidK() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
@@ -238,7 +274,8 @@ public class KnnSearchRequestParserTests extends ESTestCase {
 
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
-        return new KnnSearch(field, vector, k, numCands);
+        float visitPercentage = randomFloatBetween(0.0f, 100.0f, true);
+        return new KnnSearch(field, vector, k, numCands, visitPercentage);
     }
 
     private List<QueryBuilder> randomFilterQueries() {

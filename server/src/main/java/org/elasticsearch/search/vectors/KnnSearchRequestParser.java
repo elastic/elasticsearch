@@ -199,6 +199,7 @@ public class KnnSearchRequestParser {
         static final ParseField FIELD_FIELD = new ParseField("field");
         static final ParseField K_FIELD = new ParseField("k");
         static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
+        static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
         static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
 
         private static final ConstructingObjectParser<KnnSearch, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
@@ -208,7 +209,7 @@ public class KnnSearchRequestParser {
             for (int i = 0; i < vector.size(); i++) {
                 vectorArray[i] = vector.get(i);
             }
-            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3]);
+            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (float) args[4]);
         });
 
         static {
@@ -226,6 +227,7 @@ public class KnnSearchRequestParser {
         final float[] queryVector;
         final int k;
         final int numCands;
+        final float visitPercentage;
 
         /**
          * Defines a kNN search.
@@ -235,11 +237,12 @@ public class KnnSearchRequestParser {
          * @param k the final number of nearest neighbors to return as top hits
          * @param numCands the number of nearest neighbor candidates to consider per shard
          */
-        KnnSearch(String field, float[] queryVector, int k, int numCands) {
+        KnnSearch(String field, float[] queryVector, int k, int numCands, float visitPercentage) {
             this.field = field;
             this.queryVector = queryVector;
             this.k = k;
             this.numCands = numCands;
+            this.visitPercentage = visitPercentage;
         }
 
         public KnnVectorQueryBuilder toQueryBuilder() {
@@ -256,7 +259,10 @@ public class KnnSearchRequestParser {
             if (numCands > NUM_CANDS_LIMIT) {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
-            return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, null, null);
+            if(visitPercentage < 0.0f || visitPercentage > 100.0f) {
+                throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
+            }
+            return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, null, null);
         }
 
         @Override

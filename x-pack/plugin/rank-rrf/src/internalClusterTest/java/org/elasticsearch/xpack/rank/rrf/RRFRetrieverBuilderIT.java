@@ -819,7 +819,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             }
         };
         var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null);
-        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
+        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null));
         var rrf = new RRFRetrieverBuilder(
             List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
             10,

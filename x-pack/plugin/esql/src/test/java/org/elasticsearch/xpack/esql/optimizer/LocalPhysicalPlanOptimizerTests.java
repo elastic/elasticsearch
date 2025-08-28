@@ -1394,6 +1394,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new float[] { 0.1f, 0.2f, 0.3f },
             5,
             10,
+            10f,
             new RescoreVectorBuilder(7),
             0.001f
         ).boost(3.5f);
@@ -1867,6 +1868,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             10,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
         var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
@@ -1903,6 +1905,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             10,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
         var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(integerFilter).must(keywordFilter);
@@ -1936,6 +1939,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             "dense_vector",
             new float[] { 0, 1, 2 },
             10,
+            null,
             null,
             null,
             null
@@ -1975,6 +1979,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             10,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
 
@@ -1999,7 +2004,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var queryExec = as(field.child(), EsQueryExec.class);
 
         // The disjunction should not be pushed down to the KNN query
-        KnnVectorQueryBuilder knnQueryBuilder = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null);
+        KnnVectorQueryBuilder knnQueryBuilder = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10,
+            null, null,null, null);
         QueryBuilder rangeQueryBuilder = wrapWithSingleQuery(
             query,
             unscore(rangeQuery("integer").gt(10)),
@@ -2082,8 +2088,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new Source(2, 46, "NOT integer > 10")
         );
 
-        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null);
-        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10, null, null, null);
+        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null,null);
+        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10, null, null, null,null);
 
         firstKnn.addFilterQuery(notKeywordFilter);
         secondKnn.addFilterQuery(notIntegerGt10);
@@ -2111,7 +2117,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var queryExec = as(field.child(), EsQueryExec.class);
 
-        KnnVectorQueryBuilder firstKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null);
+        KnnVectorQueryBuilder firstKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null,null);
         // Integer range query (right side of first OR)
         QueryBuilder integerRangeQuery = wrapWithSingleQuery(
             query,
@@ -2121,7 +2127,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         );
 
         // Second KNN query (right side of second OR)
-        KnnVectorQueryBuilder secondKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10, null, null, null);
+        KnnVectorQueryBuilder secondKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10,
+            null, null, null,null);
 
         // Keyword term query (left side of second OR)
         QueryBuilder keywordQuery = wrapWithSingleQuery(
@@ -2661,7 +2668,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         @Override
         public QueryBuilder queryBuilder() {
-            return new KnnVectorQueryBuilder(fieldName(), (float[]) queryString(), k, null, null, null);
+            return new KnnVectorQueryBuilder(fieldName(), (float[]) queryString(), k, null,  null,null, null);
         }
 
         @Override

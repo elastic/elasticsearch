@@ -23,6 +23,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
 
 public class KnnQuery extends Query {
 
@@ -46,6 +47,7 @@ public class KnnQuery extends Query {
     protected QueryBuilder asBuilder() {
         Integer k = (Integer) options.get(K_FIELD.getPreferredName());
         Integer numCands = (Integer) options.get(NUM_CANDS_FIELD.getPreferredName());
+        Float visitPercentage = (Float) options.get(VISIT_PERCENTAGE_FIELD.getPreferredName());
         RescoreVectorBuilder rescoreVectorBuilder = null;
         Float oversample = (Float) options.get(RESCORE_OVERSAMPLE_FIELD);
         if (oversample != null) {
@@ -53,7 +55,8 @@ public class KnnQuery extends Query {
         }
         Float vectorSimilarity = (Float) options.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
 
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(field, query, k, numCands, rescoreVectorBuilder, vectorSimilarity);
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(field, query, k, numCands,
+            visitPercentage, rescoreVectorBuilder, vectorSimilarity);
         for (QueryBuilder filter : filterQueries) {
             queryBuilder.addFilterQuery(filter);
         }

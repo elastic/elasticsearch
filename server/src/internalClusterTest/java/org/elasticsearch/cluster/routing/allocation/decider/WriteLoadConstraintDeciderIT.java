@@ -45,9 +45,8 @@ import org.elasticsearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -137,7 +136,6 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             indexName,
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomNumberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        index(indexName, Integer.toString(randomInt(10)), Collections.singletonMap("foo", "bar"));
         ensureGreen(indexName);
 
         logger.info("---> Waiting for all shards to be assigned to node " + firstDataNodeName);
@@ -210,13 +208,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         MockTransportService.getInstance(secondDataNodeName)
             .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, firstDataNodeName);
+                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, secondDataNodeName);
                 channel.sendResponse(instance.new NodeResponse(secondDataNodeId, 0, List.of(), List.of()));
             });
         MockTransportService.getInstance(thirdDataNodeName)
             .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, firstDataNodeName);
+                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, thirdDataNodeName);
                 channel.sendResponse(instance.new NodeResponse(thirdDataNodeId, 0, List.of(), List.of()));
             });
 
@@ -227,9 +225,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          */
 
         logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
-        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster().getInstance(
-            ClusterInfoService.class,
-            masterName
+        final InternalClusterInfoService clusterInfoService = asInstanceOf(
+            InternalClusterInfoService.class,
+            internalCluster().getInstance(ClusterInfoService.class, masterName)
         );
         ClusterInfoServiceUtils.refresh(clusterInfoService);
 
@@ -297,26 +295,24 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         DiscoveryNode discoveryNode,
         int totalWriteThreadPoolThreads,
         float averageWriteThreadPoolUtilization,
-        long averageWriteThreadPoolQueueLatencyMillis
+        long maxWriteThreadPoolQueueLatencyMillis
     ) {
-
-        // Create thread pool usage stats map for node1.
-        var writeThreadPoolUsageStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-            totalWriteThreadPoolThreads,
-            averageWriteThreadPoolUtilization,
-            averageWriteThreadPoolQueueLatencyMillis
+        var threadPoolUsageMap = Map.of(
+            ThreadPool.Names.WRITE,
+            new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
+                totalWriteThreadPoolThreads,
+                averageWriteThreadPoolUtilization,
+                maxWriteThreadPoolQueueLatencyMillis
+            )
         );
-        var threadPoolUsageMap = new HashMap<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats>();
-        threadPoolUsageMap.put(ThreadPool.Names.WRITE, writeThreadPoolUsageStats);
 
-        // Create the node's thread pool usage map
         return new NodeUsageStatsForThreadPools(discoveryNode.getId(), threadPoolUsageMap);
     }
 
     /**
-     * Helper to create a dummy {@link ShardStats} for the given index shard with the supplied {@code peekWriteLoad} value.
+     * Helper to create a dummy {@link ShardStats} for the given index shard with the supplied {@code peakWriteLoad} value.
      */
-    private static ShardStats createShardStats(IndexMetadata indexMeta, int shardIndex, double peekWriteLoad, String assignedShardNodeId) {
+    private static ShardStats createShardStats(IndexMetadata indexMeta, int shardIndex, double peakWriteLoad, String assignedShardNodeId) {
         ShardId shardId = new ShardId(indexMeta.getIndex(), shardIndex);
         Path path = createTempDir().resolve("indices").resolve(indexMeta.getIndexUUID()).resolve(String.valueOf(shardIndex));
         ShardRouting shardRouting = ShardRouting.newUnassigned(
@@ -332,7 +328,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats(
-            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, peekWriteLoad)
+            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, peakWriteLoad)
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }

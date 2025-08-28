@@ -40,7 +40,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -316,7 +316,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             this.projectsMarkedForDeletionGeneration = original.projectsMarkedForDeletionGeneration;
         }
 
-        private void updateEntry(ProjectId projectId, Function<Entry, Entry> modifier) {
+        private void updateEntry(ProjectId projectId, UnaryOperator<Entry> modifier) {
             Entry entry = projectsEntries.get(projectId);
             if (entry == null) {
                 entry = new Entry();

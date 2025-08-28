@@ -2059,7 +2059,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return true;
         }
 
-        @FixForMultiProject(description = "Remove reading reserved_state and settings")
+        @FixForMultiProject(description = "Remove reading reserved_state and settings") // ES-12795
         public static ProjectMetadata fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.currentToken();
             if (token == null) {
@@ -2080,7 +2080,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     switch (currentFieldName) {
-                        // Remove this
+                        // Remove this (ES-12795)
                         case "reserved_state" -> {
                             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                                 ReservedStateMetadata.fromXContent(parser);
@@ -2096,7 +2096,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                                 projectBuilder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
                             }
                         }
-                        // Remove this
+                        // Remove this (ES-12795)
                         case "settings" -> {
                             Settings.fromXContent(parser);
                         }

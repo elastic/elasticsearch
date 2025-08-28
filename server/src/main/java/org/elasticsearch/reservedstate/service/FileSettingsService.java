@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -131,6 +132,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * @param mdBuilder    the current metadata builder for the new cluster state
      * @param projectId    the project associated with the restore
      */
+    @FixForMultiProject(description = "Simplify parameters (ES-12796)")
     public void handleSnapshotRestore(
         ClusterState clusterState,
         ClusterState.Builder builder,

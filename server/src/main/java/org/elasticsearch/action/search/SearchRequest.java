@@ -71,9 +71,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private String[] indices = Strings.EMPTY_ARRAY;
 
     @Nullable
-    private List<ReplacedExpression> rewrittenExpressions;
-
-    @Nullable
     private String routing;
     @Nullable
     private String preference;
@@ -150,6 +147,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         indices(indices);
         this.source = source;
+    }
+
+    @Override
+    public boolean allowsRemoteIndices() {
+        return true;
     }
 
     /**

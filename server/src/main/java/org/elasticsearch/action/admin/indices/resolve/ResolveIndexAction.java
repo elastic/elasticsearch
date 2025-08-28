@@ -11,8 +11,6 @@ package org.elasticsearch.action.admin.indices.resolve;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -45,9 +43,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -71,7 +67,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.IndicesRequest.ReplacedExpression.hasCanonicalExpressionForOrigin;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
@@ -90,30 +85,23 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private String[] names;
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
-        @Nullable
-        private Map<String, ReplacedExpression> replacedExpressions;
-        private boolean shouldApplyCrossProjectHandling = false;
-        private boolean storeReplacedExpressions = false;
+        private ReplaceableIndices replaceableIndices;
+        private boolean includeResolvedInResponse = false;
 
         public Request(String[] names) {
             this.names = names;
         }
 
         public Request(String[] names, IndicesOptions indicesOptions) {
-            this(names, indicesOptions, false, false);
-        }
-
-        public Request(
-            String[] names,
-            IndicesOptions indicesOptions,
-            boolean storeReplacedExpressions,
-            boolean shouldApplyCrossProjectHandling
-        ) {
             this.names = names;
             this.indicesOptions = indicesOptions;
-            this.replacedExpressions = null;
-            this.storeReplacedExpressions = storeReplacedExpressions;
-            this.shouldApplyCrossProjectHandling = shouldApplyCrossProjectHandling;
+            this.replaceableIndices = null;
+        }
+
+        public Request(String[] names, IndicesOptions indicesOptions, boolean includeResolvedInResponse) {
+            this.names = names;
+            this.indicesOptions = indicesOptions;
+            this.includeResolvedInResponse = includeResolvedInResponse;
         }
 
         @Override
@@ -125,9 +113,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             super(in);
             this.names = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            this.replacedExpressions = null;
+            this.replaceableIndices = null;
             // skipping BWC handling here
-            this.storeReplacedExpressions = in.readBoolean();
+            this.includeResolvedInResponse = in.readBoolean();
         }
 
         @Override
@@ -136,7 +124,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             out.writeStringArray(names);
             indicesOptions.writeIndicesOptions(out);
             // skipping BWC handling here
-            out.writeBoolean(storeReplacedExpressions);
+            out.writeBoolean(includeResolvedInResponse);
         }
 
         @Override
@@ -169,29 +157,18 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
-        public void setReplacedExpressions(Map<String, ReplacedExpression> replacedExpressions) {
-            this.replacedExpressions = replacedExpressions;
-            // indices(
-            // this.replacedExpressions.values()
-            // .stream()
-            // .flatMap(indexExpression -> indexExpression.replacedBy().stream())
-            // .toArray(String[]::new)
-            // );
+        public IndicesRequest replaceableIndices(ReplaceableIndices replaceableIndices) {
+            this.replaceableIndices = replaceableIndices;
+            return this;
         }
 
         @Override
-        public Map<String, ReplacedExpression> getReplacedExpressions() {
-            return replacedExpressions;
+        public ReplaceableIndices getReplaceableIndices() {
+            return replaceableIndices;
         }
 
-        @Override
-        public boolean shouldApplyCrossProjectHandling() {
-            return shouldApplyCrossProjectHandling;
-        }
-
-        @Override
-        public boolean storeReplacedExpressions() {
-            return storeReplacedExpressions;
+        public boolean includeResolvedInResponse() {
+            return includeResolvedInResponse;
         }
     }
 
@@ -490,8 +467,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return dataStreams;
         }
 
-        public Map<String, IndicesRequest.ReplacedExpression> getResolved() {
-            return resolved;
+        public IndicesRequest.ReplaceableIndices getResolved() {
+            return new IndicesRequest.CompleteReplaceableIndices(resolved);
         }
 
         @Override
@@ -558,7 +535,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
-            final boolean crossProjectModeEnabled = request.shouldApplyCrossProjectHandling();
+            final boolean crossProjectMode = request.hasCrossProjectExpressions();
 
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
@@ -572,20 +549,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
-            if (crossProjectModeEnabled) {
-                if (localIndices != null) {
-                    resolveIndices(
-                        localIndices.indices(),
-                        lenientIndicesOptions(localIndices.indicesOptions()),
-                        projectState,
-                        indexNameExpressionResolver,
-                        indices,
-                        aliases,
-                        dataStreams
-                    );
-                }
-            } else {
-                resolveIndices(localIndices, projectState, indexNameExpressionResolver, indices, aliases, dataStreams);
+            if (localIndices != null) {
+                resolveIndices(
+                    localIndices.indices(),
+                    // we need lenient mode for resolution under CPS
+                    getIndicesOptions(crossProjectMode, localIndices),
+                    projectState,
+                    indexNameExpressionResolver,
+                    indices,
+                    aliases,
+                    dataStreams
+                );
             }
 
             if (false == remoteClusterIndices.isEmpty()) {
@@ -594,17 +568,15 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
-                        if (crossProjectModeEnabled) {
-                            try {
-                                maybeThrowForFlatWorld(request, remoteResponses);
-                            } catch (Exception ex) {
-                                logger.warn("Failed to resolve indices in flat world mode", ex);
-                                listener.onFailure(ex);
-                                return;
-                            }
+                        try {
+                            request.remoteErrorHandling(fromRemoteResponses(remoteResponses));
+                        } catch (Exception ex) {
+                            logger.warn("Failed to resolve indices in flat world mode", ex);
+                            listener.onFailure(ex);
+                            return;
                         }
                         mergeResults(remoteResponses, indices, aliases, dataStreams);
-                        listener.onResponse(new Response(indices, aliases, dataStreams, request.getReplacedExpressions()));
+                        listener.onResponse(new Response(indices, aliases, dataStreams));
                     }
                 };
 
@@ -612,32 +584,48 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
-                    logger.info("Sending remote request to cluster [{}] for indices [{}]", clusterAlias, originalIndices);
                     var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         clusterAlias,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
-                    Request remoteRequest;
-                    if (crossProjectModeEnabled) {
-                        // we need a lenient request because we can't throw exceptions just yet
-                        remoteRequest = new Request(
-                            originalIndices.indices(),
-                            lenientIndicesOptions(originalIndices.indicesOptions()),
-                            true,
-                            false
-                        );
-                    } else {
-                        remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions(), false, false);
-                    }
+                    Request remoteRequest = new Request(
+                        originalIndices.indices(),
+                        getIndicesOptions(crossProjectMode, originalIndices),
+                        crossProjectMode
+                    );
+                    logger.info(
+                        "Sending remote request to cluster [{}] for indices [{}]",
+                        clusterAlias,
+                        Arrays.toString(originalIndices.indices())
+                    );
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
                     }, failure -> terminalHandler.run()));
                 }
             } else {
-                listener.onResponse(new Response(indices, aliases, dataStreams, request.getReplacedExpressions()));
+                listener.onResponse(
+                    new Response(
+                        indices,
+                        aliases,
+                        dataStreams,
+                        request.includeResolvedInResponse ? request.getReplaceableIndices().replacedExpressionMap() : Map.of()
+                    )
+                );
             }
+        }
+
+        private IndicesOptions getIndicesOptions(boolean crossProjectMode, OriginalIndices localIndices) {
+            return crossProjectMode ? lenientIndicesOptions(localIndices.indicesOptions()) : localIndices.indicesOptions();
+        }
+
+        private static Map<String, IndicesRequest.ReplaceableIndices> fromRemoteResponses(Map<String, Response> remoteResponses) {
+            Map<String, IndicesRequest.ReplaceableIndices> responses = new TreeMap<>();
+            for (Map.Entry<String, Response> entry : remoteResponses.entrySet()) {
+                responses.put(entry.getKey(), entry.getValue().getResolved());
+            }
+            return responses;
         }
 
         private static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
@@ -647,61 +635,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build()
                 )
                 .build();
-        }
-
-        void maybeThrowForFlatWorld(IndicesRequest.CrossProjectReplaceable resolvable, Map<String, Response> remoteResponses) {
-            logger.info("Checking if we should throw in flat world");
-            if (resolvable.indicesOptions().allowNoIndices() && resolvable.indicesOptions().ignoreUnavailable()) {
-                // nothing to do since we're in lenient mode
-                logger.info("Skipping index existence check in lenient mode");
-                return;
-            }
-
-            Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = resolvable.getReplacedExpressions();
-            assert replacedExpressions != null;
-            for (IndicesRequest.ReplacedExpression replacedExpression : replacedExpressions.values()) {
-                // TODO need to handle qualified expressions here, too
-                String original = replacedExpression.original();
-                List<ElasticsearchException> exceptions = new ArrayList<>();
-                boolean exists = hasCanonicalExpressionForOrigin(replacedExpression.replacedBy());
-                if (exists) {
-                    logger.info("Local cluster has canonical expression for [{}], skipping remote existence check", original);
-                    continue;
-                }
-                if (replacedExpression.error() != null) {
-                    exceptions.add(replacedExpression.error());
-                }
-
-                for (Response remoteResponse : remoteResponses.values()) {
-                    logger.info("Remote response resolved: [{}]", remoteResponse.getResolved());
-                    Map<String, IndicesRequest.ReplacedExpression> resolved = remoteResponse.getResolved();
-                    assert resolved != null;
-                    if (resolved.containsKey(original) && resolved.get(original).replacedBy().isEmpty() == false) {
-                        logger.info("Remote cluster has resolved entries for [{}], skipping further remote existence check", original);
-                        exists = true;
-                        break;
-                    } else if (resolved.containsKey(original) && resolved.get(original).error() != null) {
-                        exceptions.add(resolved.get(original).error());
-                    }
-                }
-
-                if (false == exists && false == resolvable.indicesOptions().ignoreUnavailable()) {
-                    if (false == exceptions.isEmpty()) {
-                        // we only ever get exceptions if they are security related
-                        // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
-                        // as 403 or 404
-                        ElasticsearchSecurityException e = new ElasticsearchSecurityException(
-                            "authorization errors while resolving [" + original + "]",
-                            RestStatus.FORBIDDEN
-                        );
-                        exceptions.forEach(e::addSuppressed);
-                        throw e;
-                    } else {
-                        // TODO composite exception based on missing resources
-                        throw new IndexNotFoundException(original);
-                    }
-                }
-            }
         }
 
         /**

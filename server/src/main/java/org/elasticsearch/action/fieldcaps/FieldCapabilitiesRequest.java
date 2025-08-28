@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -66,7 +65,6 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private QueryBuilder indexFilter;
     private Map<String, Object> runtimeFields = Collections.emptyMap();
     private Long nowInMillis;
-    private List<ReplacedExpression> rewrittenExpressions;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
         super(in);
@@ -230,6 +228,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public boolean allowsRemoteIndices() {
+        return true;
     }
 
     @Override

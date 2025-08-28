@@ -9,19 +9,27 @@
 
 package org.elasticsearch.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.action.IndicesRequest.ReplacedExpression.hasCanonicalExpressionForOrigin;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -50,27 +58,64 @@ public interface IndicesRequest {
     default boolean includeDataStreams() {
         return false;
     }
-    
+
+    interface ReplaceableIndices {
+        String[] indices();
+
+        default List<String> indicesAsList() {
+            return List.of(indices());
+        }
+
+        @Nullable
+        default Map<String, ReplacedExpression> replacedExpressionMap() {
+            return null;
+        }
+    }
+
+    record DummyReplaceableIndices(String[] indices) implements ReplaceableIndices {}
+
+    record CompleteReplaceableIndices(Map<String, ReplacedExpression> replacedExpressionMap) implements ReplaceableIndices {
+        @Override
+        public String[] indices() {
+            return ReplacedExpression.toIndices(replacedExpressionMap);
+        }
+
+        @Override
+        public Map<String, ReplacedExpression> replacedExpressionMap() {
+            return replacedExpressionMap;
+        }
+    }
+
+    record CrossProjectReplaceableIndices(Map<String, ReplacedExpression> replacedExpressionMap) implements ReplaceableIndices {
+        private static final Logger logger = LogManager.getLogger(CrossProjectReplaceableIndices.class);
+
+        @Override
+        public String[] indices() {
+            return ReplacedExpression.toIndices(replacedExpressionMap);
+        }
+
+        @Override
+        public Map<String, ReplacedExpression> replacedExpressionMap() {
+            return replacedExpressionMap;
+        }
+    }
+
     interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.
          */
         IndicesRequest indices(String... indices);
 
-        default void setReplacedExpressions(@Nullable Map<String, ReplacedExpression> replacedExpressions) {
-            if (false == storeReplacedExpressions()) {
-                assert false : "setReplacedExpressions should not be called when storeReplacedExpressions is false";
-                throw new IllegalStateException("setReplacedExpressions should not be called when storeReplacedExpressions is false");
-            }
+        default IndicesRequest replaceableIndices(ReplaceableIndices replaceableIndices) {
+            return this;
         }
 
-        @Nullable
-        default Map<String, ReplacedExpression> getReplacedExpressions() {
-            return null;
+        default ReplaceableIndices getReplaceableIndices() {
+            return new DummyReplaceableIndices(indices());
         }
 
-        default boolean storeReplacedExpressions() {
-            return false;
+        default boolean hasCrossProjectExpressions() {
+            return getReplaceableIndices() instanceof CrossProjectReplaceableIndices;
         }
 
         /**
@@ -86,20 +131,79 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return false;
         }
+
+        // TODO probably makes more sense on a service class as opposed to the request itself
+        default void remoteErrorHandling(Map<String, ReplaceableIndices> remoteResults) {}
     }
 
     interface CrossProjectReplaceable extends Replaceable {
+        Logger logger = LogManager.getLogger(CrossProjectReplaceable.class);
+
         @Override
         default boolean allowsRemoteIndices() {
             return true;
         }
 
-        // Instead, we could use ThreadContext and header presence
-        boolean shouldApplyCrossProjectHandling();
-
         @Override
-        default boolean storeReplacedExpressions() {
-            return true;
+        default void remoteErrorHandling(Map<String, ReplaceableIndices> remoteResults) {
+            logger.info("Checking if we should throw in flat world for [{}]", getReplaceableIndices());
+            // No CPS nothing to do
+            if (false == hasCrossProjectExpressions()) {
+                logger.info("Skipping because no cross-project expressions found...");
+                return;
+            }
+            if (indicesOptions().allowNoIndices() && indicesOptions().ignoreUnavailable()) {
+                // nothing to do since we're in lenient mode
+                logger.info("Skipping index existence check in lenient mode");
+                return;
+            }
+
+            Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = getReplaceableIndices().replacedExpressionMap();
+            assert replacedExpressions != null;
+            logger.info("Replaced expressions to check: [{}]", replacedExpressions);
+            for (IndicesRequest.ReplacedExpression replacedExpression : replacedExpressions.values()) {
+                // TODO need to handle qualified expressions here, too
+                String original = replacedExpression.original();
+                List<ElasticsearchException> exceptions = new ArrayList<>();
+                boolean exists = hasCanonicalExpressionForOrigin(replacedExpression.replacedBy());
+                if (exists) {
+                    logger.info("Local cluster has canonical expression for [{}], skipping remote existence check", original);
+                    continue;
+                }
+                if (replacedExpression.error() != null) {
+                    exceptions.add(replacedExpression.error());
+                }
+
+                for (var remoteResponse : remoteResults.values()) {
+                    logger.info("Remote response resolved: [{}]", remoteResponse);
+                    Map<String, IndicesRequest.ReplacedExpression> resolved = remoteResponse.replacedExpressionMap();
+                    assert resolved != null;
+                    if (resolved.containsKey(original) && resolved.get(original).replacedBy().isEmpty() == false) {
+                        logger.info("Remote cluster has resolved entries for [{}], skipping further remote existence check", original);
+                        exists = true;
+                        break;
+                    } else if (resolved.containsKey(original) && resolved.get(original).error() != null) {
+                        exceptions.add(resolved.get(original).error());
+                    }
+                }
+
+                if (false == exists && false == indicesOptions().ignoreUnavailable()) {
+                    if (false == exceptions.isEmpty()) {
+                        // we only ever get exceptions if they are security related
+                        // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
+                        // as 403 or 404
+                        ElasticsearchSecurityException e = new ElasticsearchSecurityException(
+                            "authorization errors while resolving [" + original + "]",
+                            RestStatus.FORBIDDEN
+                        );
+                        exceptions.forEach(e::addSuppressed);
+                        throw e;
+                    } else {
+                        // TODO composite exception based on missing resources
+                        throw new IndexNotFoundException(original);
+                    }
+                }
+            }
         }
     }
 

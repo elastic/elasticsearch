@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,7 +33,7 @@ public record ESONFlat(
     AtomicReference<List<ESONEntry>> keys,
     ESONSource.Values values,
     AtomicReference<BytesReference> serializedKeyBytes,
-    AtomicReference<HashMap<String, byte[]>> sharedKeyBytes
+    AtomicReference<Tuple<HashMap<String, BytesRef>, HashMap<BytesRef, String>>> sharedKeys
 ) {
 
     public ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
@@ -43,7 +44,15 @@ public record ESONFlat(
         if (keys.get() != null) {
             return new ESONFlatXContentParser(keys.get(), values, registry, deprecationHandler, xContentType);
         } else {
-            return new ESONBytesXContentParser(serializedKeyBytes.get(), values, registry, deprecationHandler, xContentType);
+            return ESONByteArrayXContentParser.readFrom(
+                serializedKeyBytes.get(),
+                values,
+                sharedKeys.get().v2(),
+                registry,
+                deprecationHandler,
+                xContentType
+            );
+            // return new ESONBytesXContentParser(serializedKeyBytes.get(), values, registry, deprecationHandler, xContentType);
         }
     }
 
@@ -124,7 +133,7 @@ public record ESONFlat(
 
     public BytesReference getSerializedKeyBytes() {
         if (serializedKeyBytes.get() == null) {
-            HashMap<String, byte[]> sharedKeyBytesMap = sharedKeyBytes.get();
+            Tuple<HashMap<String, BytesRef>, HashMap<BytesRef, String>> sharedKeys = this.sharedKeys.get();
             assert keys.get() != null;
             // TODO: Better estimate
             // for (ESONEntry entry : keys) {

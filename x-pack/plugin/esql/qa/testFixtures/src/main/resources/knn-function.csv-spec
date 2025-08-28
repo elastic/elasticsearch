@@ -275,11 +275,11 @@ gray
 green   
 ;
 
-testKnnWithNonPushableDisjunctionsOnComplexExpressions
+testKnnWithNonPushableDisjunctionsAndMinCandidates
 required_capability: knn_function_v4
 
 from colors metadata _score 
-| where (knn(rgb_vector, [128,128,0], {"similarity": 70}) and length(color) > 10) or (knn(rgb_vector, [128,0,128], {"similarity": 60}) and primary == true) 
+| where (knn(rgb_vector, [128,128,0], {"min_candidates": 2}) and length(color) > 10) or (knn(rgb_vector, [128,0,128], {"min_candidates": 2}) and primary == true) 
 | sort _score desc, color asc
 | keep color, primary
 ;

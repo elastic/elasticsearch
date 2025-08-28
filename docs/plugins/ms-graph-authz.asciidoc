@@ -14,7 +14,7 @@ include::install_remove.asciidoc[]
 To make API calls to Microsoft Graph, Elasticsearch requires Azure credentials with the correct permissions.
 
 [discrete]
-==== Create a custom Azure Application
+==== Create a custom Azure application
 
 . Log in to the https://portal.azure.com[Azure portal] and go to Microsoft Entra ID.
 . To register a new application, click *Enterprise applications* > *New application*.
@@ -39,12 +39,13 @@ image::images/03-get-application-id.png[get your application ID]
 This is needed later, and is only displayed once.
 +
 image::images/04-create-client-secret.png[get your client secret]
-. Under Manage > API permissions
+. Under Manage > API permissions, do the following:
 .. Go to *Add a permission*.
 .. Choose *Microsoft Graph*.
 .. Choose *Application permissions*.
 .. Select `Directory.ReadWrite.All`, `Group.ReadWrite.All`, `User.Read.All`.
-Note that an Azure Admin will need to approve these permissions before the credentials can be used.
++
+NOTE: An Azure Admin must approve these permissions before the credentials can be used.
 +
 image::images/05-configure-api-permissions.png[configure api permissions]
 

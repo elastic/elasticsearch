@@ -1,7 +1,7 @@
 [[authentication]]
-== Authentication Plugins
+== Authentication plugins
 
-Authentication plugins extend the functionality provided by the built-in {ref}/realms.html
+Authentication plugins extend the functionality provided by the built-in {ref}/realms.html[authentication realms].
 
 [discrete]
 === Core authentication plugins

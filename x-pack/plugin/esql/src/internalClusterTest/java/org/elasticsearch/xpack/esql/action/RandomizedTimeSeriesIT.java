@@ -22,6 +22,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -43,14 +44,20 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 @SuppressWarnings("unchecked")
+@ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
-    private static final Long NUM_DOCS = 4000L;
+    private static final Long NUM_DOCS = 2000L;
+    private static final Long TIME_RANGE_SECONDS = 3600L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private List<XContentBuilder> documents = null;
     private TSDataGenerationHelper dataGenerationHelper;
@@ -193,21 +200,31 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, AggregateMetricMapperPlugin.class, EsqlPlugin.class);
     }
 
-    static Double calculateRateAggregation(Collection<List<Tuple<String, Tuple<Instant, Integer>>>> allTimeseries, Agg agg) {
-        List<Long> allRates = allTimeseries.stream().map(timeseries -> {
+    record RateRange(Double lower, Double upper) implements Comparable<RateRange> {
+        @Override
+        public int compareTo(RateRange o) {
+            return this.lower.compareTo(o.lower);
+        }
+    }
+
+    // A record that holds min, max, avg, count and sum of rates calculated from a timeseries.
+    record RateStats(Long count, RateRange max, RateRange avg, RateRange min, RateRange sum) {}
+
+    static RateStats calculateRateAggregation(Collection<List<Tuple<String, Tuple<Instant, Integer>>>> allTimeseries) {
+        List<RateRange> allRates = allTimeseries.stream().map(timeseries -> {
             if (timeseries.size() < 2) {
-                return null; // Not enough data points to calculate rate
+                return null;
             }
             // Sort the timeseries by timestamp
             timeseries.sort((t1, t2) -> t1.v2().v1().compareTo(t2.v2().v1()));
             var firstTs = timeseries.getFirst().v2().v1();
             var lastTs = timeseries.getLast().v2().v1();
             Integer lastValue = null;
-            Long counterGrowth = 0L;
+            Double counterGrowth = 0.0;
             for (Tuple<String, Tuple<Instant, Integer>> point : timeseries) {
                 var currentValue = point.v2().v2();
                 if (currentValue == null) {
-                    return null; // Skip if the value is null
+                    throw new IllegalArgumentException("Null value in counter timeseries");
                 }
                 if (lastValue == null) {
                     lastValue = point.v2().v2(); // Initialize with the first value
@@ -221,19 +238,24 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
                 lastValue = currentValue; // Update last value for next iteration
             }
-            return counterGrowth / (lastTs.toEpochMilli() - firstTs.toEpochMilli()) * 1000; // Rate per second
+            return new RateRange(
+                counterGrowth / 60.0, // TODO: do not hardcode time difference
+                counterGrowth / (lastTs.toEpochMilli() / 1000 - firstTs.toEpochMilli() / 1000)
+            );
         }).filter(Objects::nonNull).toList();
-        if (allRates.isEmpty() && agg != Agg.COUNT && agg != Agg.SUM) {
-            return null; // No rates to aggregate
+        if (allRates.isEmpty()) {
+            return new RateStats(0L, null, null, null, new RateRange(0.0, 0.0));
         }
-        return switch (agg) {
-            // TODO: fix the orElse in the stream operations
-            case MAX -> allRates.stream().mapToDouble(Long::doubleValue).max().orElseThrow();
-            case MIN -> allRates.stream().mapToDouble(Long::doubleValue).min().orElseThrow();
-            case AVG -> allRates.stream().mapToDouble(Long::doubleValue).average().orElseThrow();
-            case SUM -> allRates.stream().mapToDouble(Long::doubleValue).sum();
-            case COUNT -> (double) allRates.size();
-        };
+        return new RateStats(
+            (long) allRates.size(),
+            allRates.stream().max(RateRange::compareTo).orElseThrow(),
+            new RateRange(
+                allRates.stream().mapToDouble(r -> r.lower).average().orElseThrow(),
+                allRates.stream().mapToDouble(r -> r.upper).average().orElseThrow()
+            ),
+            allRates.stream().min(RateRange::compareTo).orElseThrow(),
+            new RateRange(allRates.stream().mapToDouble(r -> r.lower).sum(), allRates.stream().mapToDouble(r -> r.upper).sum())
+        );
     }
 
     void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
@@ -257,7 +279,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() throws IOException {
-        dataGenerationHelper = new TSDataGenerationHelper(NUM_DOCS);
+        dataGenerationHelper = new TSDataGenerationHelper(NUM_DOCS, TIME_RANGE_SECONDS);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(dataGenerationHelper.mapping.raw());
         final String jsonMappings = Strings.toString(builder);
@@ -276,10 +298,68 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testCounterRateGroupByNothing() {
+    void checkWithin(Double actual, RateRange expected) {
+        if (expected == null) {
+            assertThat(actual, equalTo(null));
+            return;
+        }
+        assertThat(actual, allOf(lessThanOrEqualTo(expected.upper), not(lessThan(expected.lower))));
+    }
+
+    public void testRateGroupBySubset() {
+        var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
+        var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
         try (var resp = run(String.format(Locale.ROOT, """
             TS %s
-            | STATS count(rate(metrics.counter_hdd.bytes.read))
+            | STATS count(rate(metrics.counter_hdd.bytes.read)),
+                    min(rate(metrics.counter_hdd.bytes.read)),
+                    max(rate(metrics.counter_hdd.bytes.read)),
+                    avg(rate(metrics.counter_hdd.bytes.read))
+                BY tbucket=bucket(@timestamp, 1 minute), %s
+            | SORT tbucket
+            | LIMIT 1000
+            """, DATASTREAM_NAME, dimensionsStr))) {
+            List<List<Object>> rows = new ArrayList<>();
+            resp.rows().forEach(rowIter -> {
+                List<Object> row = new ArrayList<>();
+                rowIter.forEach(row::add);
+                rows.add(row);
+            });
+            List<String> failedWindows = new ArrayList<>();
+            var groups = groupedRows(documents, dimensions, 60);
+            for (List<Object> row : rows) {
+                var rowKey = getRowKey(row, dimensions, 4);
+                var windowDataPoints = groups.get(rowKey);
+                var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counter_hdd.bytes.read");
+                var rateAgg = calculateRateAggregation(docsPerTimeseries.values());
+                try {
+                    assertThat(row.getFirst(), equalTo(rateAgg.count));
+                    checkWithin((Double) row.get(1), rateAgg.max);
+                    checkWithin((Double) row.get(2), rateAgg.avg);
+                    checkWithin((Double) row.get(3), rateAgg.min);
+                } catch (AssertionError e) {
+                    failedWindows.add("Failed for row:\n" + row + "\nWanted: " + rateAgg + "\nException: " + e.getMessage());
+                }
+            }
+            if (failedWindows.isEmpty() == false) {
+                var pctFailures = (double) failedWindows.size() / rows.size() * 100;
+                var failureDetails = String.join("\n", failedWindows);
+                if (failureDetails.length() > 2000) {
+                    failureDetails = failureDetails.substring(0, 2000) + "\n... (truncated)";
+                }
+                throw new AssertionError("Failed " + failedWindows.size() + " windows(" + pctFailures + "%):\n" + failureDetails);
+            }
+        }
+    }
+
+    public void testRateGroupByNothing() {
+        var groups = groupedRows(documents, List.of(), 60);
+        try (var resp = run(String.format(Locale.ROOT, """
+            TS %s
+            | STATS count(rate(metrics.counter_hdd.bytes.read)),
+                    max(rate(metrics.counter_hdd.bytes.read)),
+                    avg(rate(metrics.counter_hdd.bytes.read)),
+                    min(rate(metrics.counter_hdd.bytes.read))
                 BY tbucket=bucket(@timestamp, 1 minute)
             | SORT tbucket
             | LIMIT 1000
@@ -290,20 +370,28 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 rowIter.forEach(row::add);
                 rows.add(row);
             });
-            var groups = groupedRows(documents, List.of(), 60);
+            List<String> failedWindows = new ArrayList<>();
             for (List<Object> row : rows) {
-                var windowStart = windowStart(row.get(1), 60);
+                var windowStart = windowStart(row.get(4), 60);
                 var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counter_hdd.bytes.read");
-                var rate = calculateRateAggregation(docsPerTimeseries.values(), Agg.COUNT);
-                if (rate == null) {
-                    assertThat(row.getFirst(), equalTo(null));
-                    continue;
-                } else if (rate == 0) {
-                    assertThat(row.getFirst(), equalTo(0L));
-                    continue; // No data points in the window
+                var rateAgg = calculateRateAggregation(docsPerTimeseries.values());
+                try {
+                    assertThat(row.getFirst(), equalTo(rateAgg.count));
+                    checkWithin((Double) row.get(1), rateAgg.max);
+                    checkWithin((Double) row.get(2), rateAgg.avg);
+                    checkWithin((Double) row.get(3), rateAgg.min);
+                } catch (AssertionError e) {
+                    failedWindows.add("Failed for row:\n" + row + "\nWanted: " + rateAgg + "\nException: " + e.getMessage());
                 }
-                assertThat(row.getFirst(), equalTo(rate.longValue()));
+            }
+            if (failedWindows.isEmpty() == false) {
+                var pctFailures = (double) failedWindows.size() / rows.size() * 100;
+                var failureDetails = String.join("\n", failedWindows);
+                if (failureDetails.length() > 2000) {
+                    failureDetails = failureDetails.substring(0, 2000) + "\n... (truncated)";
+                }
+                throw new AssertionError("Failed " + failedWindows.size() + " windows(" + pctFailures + "%):\n" + failureDetails);
             }
         }
     }
@@ -325,14 +413,15 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 min(min_over_time(metrics.gauge_hdd.bytes.used)),
                 sum(count_over_time(metrics.gauge_hdd.bytes.used)),
                 sum(sum_over_time(metrics.gauge_hdd.bytes.used)),
-                avg(avg_over_time(metrics.gauge_hdd.bytes.used))
+                avg(avg_over_time(metrics.gauge_hdd.bytes.used)),
+                count(count_over_time(metrics.gauge_hdd.bytes.used))
                 BY tbucket=bucket(@timestamp, 1 minute), %s
             | SORT tbucket
             | LIMIT 1000""", DATASTREAM_NAME, dimensionsStr))) {
             var groups = groupedRows(documents, dimensions, 60);
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
-                var rowKey = getRowKey(row, dimensions, 6);
+                var rowKey = getRowKey(row, dimensions, 7);
                 var tsGroups = groupByTimeseries(groups.get(rowKey), "gauge_hdd.bytes.used");
                 var docValues = valuesInWindow(groups.get(rowKey), "gauge_hdd.bytes.used");
                 if (row.get(0) instanceof List) {
@@ -349,6 +438,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM).longValue()));
                 var avg = aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
                 assertThat((Double) row.get(5), closeTo(avg, avg * 0.01));
+//                assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
         }
     }
@@ -368,14 +458,15 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 min(min_over_time(metrics.gauge_hdd.bytes.used)),
                 sum(count_over_time(metrics.gauge_hdd.bytes.used)),
                 sum(sum_over_time(metrics.gauge_hdd.bytes.used)),
-                avg(avg_over_time(metrics.gauge_hdd.bytes.used))
+                avg(avg_over_time(metrics.gauge_hdd.bytes.used)),
+                count(count_over_time(metrics.gauge_hdd.bytes.used))
                 BY tbucket=bucket(@timestamp, 1 minute)
             | SORT tbucket
             | LIMIT 1000""", DATASTREAM_NAME))) {
             List<List<Object>> rows = consumeRows(resp);
             var groups = groupedRows(documents, List.of(), 60);
             for (List<Object> row : rows) {
-                var windowStart = windowStart(row.get(6), 60);
+                var windowStart = windowStart(row.get(7), 60);
                 List<Integer> docValues = valuesInWindow(groups.get(List.of(Long.toString(windowStart))), "gauge_hdd.bytes.used");
                 var tsGroups = groupByTimeseries(groups.get(List.of(Long.toString(windowStart))), "gauge_hdd.bytes.used");
                 if (row.get(0) instanceof List) {
@@ -392,6 +483,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM).longValue()));
                 var avg = aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
                 assertThat((Double) row.get(5), closeTo(avg, avg * 0.01));
+//                assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
         }
     }

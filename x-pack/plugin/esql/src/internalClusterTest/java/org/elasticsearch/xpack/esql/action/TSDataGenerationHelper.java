@@ -49,7 +49,7 @@ class TSDataGenerationHelper {
         }
     }
 
-    TSDataGenerationHelper(long numDocs) {
+    TSDataGenerationHelper(long numDocs, long timeRangeSeconds) {
         // Metrics coming into our system have a pre-set group of attributes.
         // Making a list-to-set-to-list to ensure uniqueness.
         this.numDocs = numDocs;
@@ -68,14 +68,15 @@ class TSDataGenerationHelper {
         }).toList();
 
         // We want to ensure that all documents have different timestamps.
-        var now = Instant.now();
+        var timeRangeEnd = Instant.now().toEpochMilli() / 1000 / timeRangeSeconds * timeRangeSeconds;
+        var timeRangeStart = timeRangeEnd - timeRangeSeconds;
         var timestampSet = new HashSet<Instant>();
         var regens = 0;
         for (int i = 0; i < numDocs; i++) {
             // Random timestamps within the last 90 days.
             while (true) {
                 var randomIns = Instant.ofEpochMilli(
-                    ESTestCase.randomLongBetween(now.minusSeconds(60 * 60 * 2).toEpochMilli(), now.toEpochMilli())
+                    ESTestCase.randomLongBetween(timeRangeEnd, timeRangeStart)
                 );
                 if (timestampSet.add(randomIns)) {
                     break;
@@ -116,12 +117,11 @@ class TSDataGenerationHelper {
 
                         (ignored) -> {
                             var res = new HashMap<String, Object>();
+                            res.put("counter_hdd.bytes.read", Randomness.get().nextLong(0, 1000L));
                             // Counter metrics
-                            res.put("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L));
                             switch (ESTestCase.randomIntBetween(0, 2)) {
-                                case 0 -> res.put("counter_hdd.bytes.read", Randomness.get().nextLong(0, 1000000000L));
-                                case 1 -> res.put("counter_kwh.consumed", Randomness.get().nextDouble(0, 1000000));
-                                // case 2 -> res.put("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L));
+                                case 0 -> res.put("counter_kwh.consumed", Randomness.get().nextDouble(0, 1000000));
+                                case 1 -> res.put("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L));
                                 case 2 -> res.put("gauge_cpu.percent", Randomness.get().nextDouble(0, 100));
                             }
                             return res;
@@ -132,6 +132,7 @@ class TSDataGenerationHelper {
             .build();
 
         documentGenerator = new DocumentGenerator(spec);
+
         template = new TemplateGenerator(spec).generate();
         mapping = new MappingGenerator(spec).generate(template);
         var doc = mapping.raw().get("_doc");

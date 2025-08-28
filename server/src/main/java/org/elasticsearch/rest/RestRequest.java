@@ -332,6 +332,8 @@ public class RestRequest implements ToXContent.Params, Traceable {
     public void ensureContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
+        } else if (xContentType.get() == null) {
+            throwValidationException("unknown content type");
         }
     }
 
@@ -341,9 +343,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public ReleasableBytesReference requiredContent() {
         ensureContent();
-        if (xContentType.get() == null) {
-            throwValidationException("unknown content type");
-        }
         return content();
     }
 

@@ -117,26 +117,12 @@ public class FakeRestRequest extends RestRequest {
             return new FakeHttpRequest(method, uri, body, filteredHeaders, inboundException);
         }
 
-        public int contentLength() {
-            return Integer.parseInt(headers.getOrDefault("Content-Length", List.of("0")).getFirst());
-        }
-
-        public void setContentLength(int contentLength) {
-            headers.put("Content-Length", List.of(String.valueOf(contentLength)));
-        }
-
-        public void setContentLength(HttpBody body) {
-            if (body.isFull()) {
-                var len = body.asFull().bytes().length();
-                if (len > 0) {
-                    setContentLength(body.asFull().bytes().length());
-                }
-            }
-        }
-
         @Override
         public boolean hasContent() {
-            return contentLength() > 0;
+            return switch (body) {
+                case HttpBody.Full full -> full.bytes().length() > 0;
+                case HttpBody.Stream stream -> stream instanceof HttpBody.NoopStream == false;
+            };
         }
 
         @Override
@@ -232,7 +218,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public Builder withHeaders(Map<String, List<String>> headers) {
-            this.headers = new HashMap<>(headers);
+            this.headers = headers;
             return this;
         }
 
@@ -276,7 +262,6 @@ public class FakeRestRequest extends RestRequest {
 
         public FakeRestRequest build() {
             FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers, inboundException);
-            fakeHttpRequest.setContentLength(content);
             return new FakeRestRequest(parserConfig, fakeHttpRequest, params, new FakeHttpChannel(address));
         }
     }

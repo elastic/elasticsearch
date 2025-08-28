@@ -224,8 +224,10 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
                 : boolQueryBuilder::should;
             boolClauseConsumer.accept(paresBooleanFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.booleanFieldQueryValue()));
             boolClauseConsumer.accept(paresFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.fieldQueryValue()));
-            
-            return operator.getType() == KqlBaseParser.AND ? rewriteConjunctionQuery(boolQueryBuilder) : rewriteDisjunctionQuery(boolQueryBuilder);
+
+            return operator.getType() == KqlBaseParser.AND
+                ? rewriteConjunctionQuery(boolQueryBuilder)
+                : rewriteDisjunctionQuery(boolQueryBuilder);
         } else if (booleanFieldQueryValueCtx.booleanFieldQueryValue() != null) {
             return paresBooleanFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.booleanFieldQueryValue());
         } else {

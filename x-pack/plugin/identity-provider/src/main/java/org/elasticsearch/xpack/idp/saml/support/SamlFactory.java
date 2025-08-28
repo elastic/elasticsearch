@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.XmlUtils;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;
@@ -217,12 +216,11 @@ public class SamlFactory {
      *
      * @throws ParserConfigurationException if one of the features can't be set on the DocumentBuilderFactory
      */
-    @SuppressForbidden(reason = "This is the only allowed way to construct a DocumentBuilder")
     public static DocumentBuilder getHardenedBuilder(String[] schemaFiles) throws ParserConfigurationException {
         return XmlUtils.getHardenedBuilder(resolveSchemaFilePaths(schemaFiles));
     }
 
-    public static String getJavaAlorithmNameFromUri(String sigAlg) {
+    public static String getJavaAlgorithmNameFromUri(String sigAlg) {
         return switch (sigAlg) {
             case "http://www.w3.org/2000/09/xmldsig#dsa-sha1" -> "SHA1withDSA";
             case "http://www.w3.org/2000/09/xmldsig#dsa-sha256" -> "SHA256withDSA";

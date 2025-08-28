@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class TimestampFormatFinderTests extends TextStructureTestCase {
     private static final boolean ECS_COMPATIBILITY_DISABLED = false;
     private static final boolean ECS_COMPATIBILITY_ENABLED = true;
@@ -1336,7 +1338,6 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
     }
 
     public void testFindFormatGivenYyyyMmDdWithSlashes() {
-
         Consumer<Boolean> testFindFormatGivenYyyyMmDdWithSlashesAndEcsCompatibility = (ecsCompatibility) -> {
             validateTimestampMatch(
                 "2018/05/15 17:14:56",
@@ -1347,8 +1348,21 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
                 ecsCompatibility
             );
         };
-
         ecsCompatibilityModes.forEach(testFindFormatGivenYyyyMmDdWithSlashesAndEcsCompatibility);
+    }
+
+    public void testFindFormatGivenYyyyMmDdWithDashes() {
+        Consumer<Boolean> testFindFormatGivenYyyyMmDdWithDashesAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "2018-05-15 17:14:56",
+                "TIMESTAMP_ISO8601", // TIMESTAMP_ISO8601 should have precedence
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                List.of("yyyy-MM-dd HH:mm:ss"),
+                1526400896000L,
+                ecsCompatibility
+            );
+        };
+        ecsCompatibilityModes.forEach(testFindFormatGivenYyyyMmDdWithDashesAndEcsCompatibility);
     }
 
     public void testFindFormatGivenMmmDCommaYyyy() {
@@ -1611,16 +1625,6 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         };
 
         ecsCompatibilityModes.forEach(testFindFormatWithNonMatchingRequiredFormatGivenEcsCompatibility);
-    }
-
-    public void testAdditionalTimestampFormats() {
-        validateFindInFullMessage(
-            "2023/10/26 14:35:10 INFO [http-nio-8080-exec-5] org.apache.coyote.http11.Http11Processor.service: Request processed in 50ms",
-            "",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
-            List.of("yyyy/MM/dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy.MM.dd HH:mm:ss")
-        );
     }
 
     public void testSelectBestMatchGivenAllSame() {
@@ -1905,6 +1909,8 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
                 } else {
                     assertEquals("CATALINA_DATESTAMP", timestampFormatFinder.getGrokPatternName());
                 }
+            } else {
+                assertThat(timestampFormatFinder.getGrokPatternName(), equalTo(expectedGrokPatternName));
             }
             assertEquals(expectedSimplePattern.pattern(), timestampFormatFinder.getSimplePattern().pattern());
             assertEquals(expectedJavaTimestampFormats, timestampFormatFinder.getJavaTimestampFormats());

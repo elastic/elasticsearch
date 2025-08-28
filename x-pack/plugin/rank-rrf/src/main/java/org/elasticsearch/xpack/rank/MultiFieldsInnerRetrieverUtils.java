@@ -152,7 +152,7 @@ public class MultiFieldsInnerRetrieverUtils {
      *
      * <p>
      * The semantic_text fields are grouped by inference ID. For each (fieldName, inferenceID) pair we generate a match query.
-     * Since we have no to effectively filter on inference IDs, we use filter on index names instead.
+     * Since we have no way to effectively filter on inference IDs, we filter on index names instead.
      * </p>
      *
      * @param fieldsAndWeights The fields to query and their respective weights, in "field^weight" format

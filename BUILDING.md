@@ -186,23 +186,23 @@ dependencies {
 
 To test an unreleased development version of a third party dependency you have several options.
 
-### How do I test against java early access (ea) versions?
+### How do I test against java pre-release versions like early access (ea) or release candidates (rc)?
 
 Currently only openjdk EA builds by oracle are supported.
 To test against an early access version java version you can pass the major
-java version appended with `-ea` as a system property (e.g. -Druntime.java=26-ea) to the Gradle build:
+java version appended with `-pre` as a system property (e.g. -Druntime.java=26-pre) to the Gradle build:
 
 ```
-./gradlew clean test -Druntime.java=26-ea
+./gradlew clean test -Druntime.java=26-pre
 ```
 
-This will run the tests using the JDK 26 EA version and pick the latest available build of the matching JDK EA version we expose
-in our custom jdk catalogue at `https://storage.googleapis.com/elasticsearch-jdk-archive/jdks/openjdk/latest.json`.
+This will run the tests using the JDK 26 pre-release version and pick the latest available build of the matching JDK EA version we expose
+in our custom jdk catalogue at `https://builds.es-jdk-archive.com/jdks/openjdk/recent.json`.
 
 To run against a specific build number of the EA build you can pass a second system property (e.g. `-Druntime.java.build=6`):
 
 ```
-./gradlew clean test -Druntime.java=26-ea -Druntime.java.build=6
+./gradlew clean test -Druntime.java=26-pre -Druntime.java.build=6
 ```
 
 #### How to use a Maven based third party dependency via `mavenlocal`?

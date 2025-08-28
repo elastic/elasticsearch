@@ -357,7 +357,6 @@ public class InferencePlugin extends Plugin
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
         var serviceRegistry = new InferenceServiceRegistry(inferenceServices, factoryContext);
-        serviceRegistry.init(services.client());
         for (var service : serviceRegistry.getServices().values()) {
             service.defaultConfigIds().forEach(modelRegistry.get()::addDefaultIds);
         }

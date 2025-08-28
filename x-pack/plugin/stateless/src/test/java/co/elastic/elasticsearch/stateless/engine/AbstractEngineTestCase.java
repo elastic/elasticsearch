@@ -21,6 +21,7 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
+import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -390,23 +391,25 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected SearchEngine newSearchEngineFromIndexEngine(final EngineConfig searchConfig) {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
+                SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
+                SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
+                SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
+            )
+        );
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
             sharedBlobCacheService,
-            new ClusterSettings(
-                Settings.EMPTY,
-                Sets.addToCopy(
-                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                    SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
-                    SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
-                    SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
-                )
-            ),
-            DIRECT_EXECUTOR_SERVICE
+            clusterSettings,
+            DIRECT_EXECUTOR_SERVICE,
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
         ) {
             @Override
             public void close() throws IOException {
@@ -480,23 +483,25 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             MergeMetrics.NOOP,
             Function.identity()
         );
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
+                SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
+                SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
+                SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
+            )
+        );
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
             sharedBlobCacheService,
-            new ClusterSettings(
-                Settings.EMPTY,
-                Sets.addToCopy(
-                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                    SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
-                    SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
-                    SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
-                )
-            ),
-            DIRECT_EXECUTOR_SERVICE
+            clusterSettings,
+            DIRECT_EXECUTOR_SERVICE,
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
         ) {
             @Override
             public void close() throws IOException {

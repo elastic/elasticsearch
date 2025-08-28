@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
+import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
@@ -107,6 +108,7 @@ public class SearchEngine extends Engine {
     private final SearchDirectory directory;
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
+    private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
@@ -123,7 +125,8 @@ public class SearchEngine extends Engine {
         ClosedShardService closedShardService,
         StatelessSharedBlobCacheService statelessSharedBlobCacheService,
         ClusterSettings clusterSettings,
-        Executor prefetchExecutor
+        Executor prefetchExecutor,
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
@@ -199,13 +202,15 @@ public class SearchEngine extends Engine {
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
+            this.prefetcherDynamicSettings = prefetcherDynamicSettings;
             this.commitPrefetcher = new SearchCommitPrefetcher(
                 directory.getShardId(),
                 statelessSharedBlobCacheService,
                 directory::getCacheBlobReaderForPreFetching,
                 config.getThreadPool(),
                 prefetchExecutor,
-                clusterSettings
+                clusterSettings,
+                prefetcherDynamicSettings
             );
             success = true;
         } catch (Exception e) {
@@ -251,6 +256,11 @@ public class SearchEngine extends Engine {
     // visible for testing
     public SearchCommitPrefetcher.BCCPreFetchedOffset getMaxPrefetchedOffset() {
         return commitPrefetcher.getMaxPrefetchedOffset();
+    }
+
+    // visible for testing
+    public SearchCommitPrefetcherDynamicSettings getPrefetcherDynamicSettings() {
+        return prefetcherDynamicSettings;
     }
 
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {

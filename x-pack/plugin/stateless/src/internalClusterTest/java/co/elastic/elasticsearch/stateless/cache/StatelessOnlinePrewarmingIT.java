@@ -90,7 +90,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), true)
             // prefetching new commits will warm up new data so we want it disabled to avoid racing with prewarming
-            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
+            .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), uploadMaxSize);
     }

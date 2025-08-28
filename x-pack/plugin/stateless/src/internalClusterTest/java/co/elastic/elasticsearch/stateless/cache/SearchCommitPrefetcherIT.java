@@ -122,10 +122,10 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var prefetchingEnabled = skipPrefetchingBecauseSearchIsIdle == false;
         var prefetchNonUploadedCommits = randomBoolean();
         var nodeSettings = Settings.builder()
-            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), prefetchingEnabled)
+            .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), prefetchingEnabled)
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
             .put(
-                SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING.getKey(),
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING.getKey(),
                 skipPrefetchingBecauseSearchIsIdle ? TimeValue.ZERO : TimeValue.THIRTY_SECONDS
             )
             .build();
@@ -189,10 +189,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         // testing that the first commit notification received after the search node started is used as the
         // lower bound of things to prefetch (put another way, we won't donwload files from commits that were created in previous
         // generations)
-        var nodeSettings = Settings.builder()
-            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
-            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
-            .build();
+        var nodeSettings = Settings.builder().put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false).build();
         startMasterAndIndexNode(nodeSettings);
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -250,10 +247,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
     public void testSkipFetchingForSearchIdleIndices() throws Exception {
         var prefetchNonUploadedCommits = randomBoolean();
         var nodeSettings = Settings.builder()
-            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
             // zero idle time means we skip prefetching for all indices, all the time
-            .put(SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING.getKey(), TimeValue.ZERO)
+            .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING.getKey(), TimeValue.ZERO)
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);
@@ -342,7 +338,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
     public void testCommitPrefetching() throws Exception {
         var prefetchNonUploadedCommits = randomBoolean();
         var nodeSettings = Settings.builder()
-            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
@@ -419,10 +414,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testOnNonUploadedCommitNotificationsTryToPrefetchUploadedData() throws Exception {
-        var nodeSettings = Settings.builder()
-            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
-            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
-            .build();
+        var nodeSettings = Settings.builder().put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false).build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);
         var indexName = randomIdentifier();
@@ -509,7 +501,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
 
     public void testCommitPrefetchingInForeground() throws Exception {
         var nodeSettings = Settings.builder()
-            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), true)
             .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), false)
             .build();
@@ -574,7 +565,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
     public void testForceCommitPrefetch() throws Exception {
         var forcePrefetch = randomBoolean();
         var nodeSettings = Settings.builder()
-            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), true)
             .put(SearchCommitPrefetcher.FORCE_PREFETCH_SETTING.getKey(), forcePrefetch)
             // There's a single region in the cache to force evictions (if force = true) in each flush
@@ -624,6 +614,60 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         } else {
             assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(lessThan(bccBlobsTotalSizeInBytes))));
         }
+    }
+
+    public void testUpdateDynamicSettings() throws Exception {
+        var nodeSettings = Settings.builder().put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false).build();
+        startMasterAndIndexNode(nodeSettings);
+        // disable prefetching before the search node starts, and we'll check the functionality is indeed disabled when the search node
+        // starts
+        TimeValue newSearchIdleTime = TimeValue.timeValueDays(7);
+        updateClusterSettings(
+            Settings.builder()
+                .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
+                .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING.getKey(), newSearchIdleTime)
+        );
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        var numberOfCommits = randomIntBetween(5, 10);
+        for (int j = 0; j < numberOfCommits; j++) {
+            // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
+            indexDocs(indexName, 10_000);
+            refresh(indexName);
+        }
+        flush(indexName);
+
+        startSearchNode(nodeSettings);
+        logger.info("-> started search node");
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+        ensureGreen(indexName);
+
+        SearchEngine searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        assertThat(searchEngine.getPrefetcherDynamicSettings().prefetchingEnabled(), is(false));
+        assertThat(searchEngine.getPrefetcherDynamicSettings().searchIdleTimeInMillis(), is(newSearchIdleTime.getMillis()));
+
+        var searchRequest = prepareSearch(indexName);
+        searchRequest.setQuery(new MatchAllQueryBuilder()).setSize(randomIntBetween(100, 10_000));
+        assertNoFailures(searchRequest);
+
+        // no new commits were created since the search node started, so it didn't receive any commit notifications, nothing to prefetch
+        assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
+
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
+        // number of completed tasks in the refresh pool before we start indexing
+        long preIngestTasksRefreshPool = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
+        // create a new commit and upload it
+        indexDocs(indexName, 10_000);
+        refresh(indexName);
+        flush(indexName);
+
+        // wait for the refreshes to complete
+        assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
+
+        // we should have prefetched the latest commit generation only
+        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L)));
     }
 
     private AtomicLong meterIndexingNodeReadsForBCC(String indexNode, ShardId shardId, long vBCCGenToMeter) {

@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -515,7 +516,8 @@ public class EsqlFunctionRegistry {
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming") } };
+                def(Hamming.class, Hamming::new, "v_hamming"),
+                def(UrlEncode.class, UrlEncode::new, "url_encode") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -580,6 +582,10 @@ public class EsqlFunctionRegistry {
 
         public boolean optional() {
             return optional;
+        }
+
+        public boolean variadic() {
+            return variadic;
         }
 
         public DataType targetDataType() {

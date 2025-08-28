@@ -31,12 +31,6 @@ import java.util.List;
  */
 public class TsidBuilder {
 
-    /**
-     * The maximum number of fields to use for the value similarity part of the TSID.
-     * This is a trade-off between clustering similar time series together and the size of the TSID.
-     * More fields improve clustering but also increase the size of the TSID.
-     */
-    private static final int MAX_TSID_VALUE_SIMILARITY_FIELDS = 4;
     private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
 
     private final List<Dimension> dimensions = new ArrayList<>();

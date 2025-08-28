@@ -43,7 +43,7 @@ public class TsidBuilderTests extends ESTestCase {
         assertThat(bytesRef.length, equalTo(16));
         assertThat(
             HexFormat.of().formatHex(bytesRef.bytes, bytesRef.offset, bytesRef.length),
-            equalTo("f086151e7889e42b7a295d065613ded4") // _tsid in hex format
+            equalTo("bfa45d065613ded456d2151e7889e42b") // _tsid in hex format
         );
     }
 

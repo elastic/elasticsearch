@@ -569,6 +569,36 @@ public class RequestExecutorServiceTests extends ESTestCase {
         verifyNoInteractions(requestSender);
     }
 
+    public void testDoesNotExecuteTask_WhenCannotReserveTokens() {
+        var mockRateLimiter = mock(RateLimiter.class);
+        RequestExecutorService.RateLimiterCreator rateLimiterCreator = (a, b, c) -> mockRateLimiter;
+
+        var requestSender = mock(RetryingHttpSender.class);
+        var settings = createRequestExecutorServiceSettings(1);
+        var service = new RequestExecutorService(
+            threadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            null,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            rateLimiterCreator
+        );
+        var requestManager = RequestManagerTests.createMock(requestSender);
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        service.execute(requestManager, new EmbeddingsInput(List.of(), null), null, listener);
+
+        doAnswer(invocation -> {
+            service.shutdown();
+            return TimeValue.timeValueDays(1);
+        }).when(mockRateLimiter).timeToReserve(anyInt());
+
+        service.start();
+
+        verifyNoInteractions(requestSender);
+    }
+
     public void testDoesNotExecuteTask_WhenCannotReserveTokens_AndThenCanReserve_AndExecutesTask() {
         var mockRateLimiter = mock(RateLimiter.class);
         when(mockRateLimiter.reserve(anyInt())).thenReturn(TimeValue.timeValueDays(0));

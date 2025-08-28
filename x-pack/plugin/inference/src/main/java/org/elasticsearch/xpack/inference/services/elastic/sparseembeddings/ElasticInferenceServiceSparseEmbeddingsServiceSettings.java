@@ -17,7 +17,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -54,13 +53,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             validationException
         );
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            ElasticInferenceService.NAME,
-            context
-        );
+        RateLimitSettings rateLimitSettings = RateLimitSettings.disabledRateLimiting(map);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

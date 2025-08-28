@@ -252,20 +252,16 @@ public class RequestExecutorService implements RequestExecutor {
 
     private void handleTasks() {
         try {
-            TimeValue timeToWait;
+            if (shutdown.get()) {
+                logger.debug("Shutdown requested while handling tasks, cleaning up");
+                cleanup();
+                return;
+            }
 
-            do {
-                if (shutdown.get()) {
-                    logger.debug("Shutdown requested while handling tasks, cleaning up");
-                    cleanup();
-                    return;
-                }
-
-                timeToWait = settings.getTaskPollFrequency();
-                for (var endpoint : rateLimitGroupings.values()) {
-                    timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
-                }
-            } while (timeToWait.compareTo(TimeValue.ZERO) <= 0);
+            var timeToWait = settings.getTaskPollFrequency();
+            for (var endpoint : rateLimitGroupings.values()) {
+                timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
+            }
 
             scheduleNextHandleTasks(timeToWait);
         } catch (Exception e) {
@@ -453,9 +449,11 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         private TimeValue executeEnqueuedTaskInternal() {
-            var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
-            if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
-                return timeBeforeAvailableToken;
+            if (rateLimitSettings.isEnabled()) {
+                var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
+                if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
+                    return timeBeforeAvailableToken;
+                }
             }
 
             var task = queue.poll();
@@ -467,9 +465,11 @@ public class RequestExecutorService implements RequestExecutor {
                 return NO_TASKS_AVAILABLE;
             }
 
-            // We should never have to wait because we checked above
-            var reserveRes = rateLimiter.reserve(1);
-            assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
+            if (rateLimitSettings.isEnabled()) {
+                // We should never have to wait because we checked above
+                var reserveRes = rateLimiter.reserve(1);
+                assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
+            }
 
             task.getRequestManager()
                 .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());

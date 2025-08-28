@@ -340,6 +340,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_2 = def(9_112_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_3 = def(9_112_0_06);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_4 = def(9_112_0_07);
 
     /*
      * STOP! READ THIS FIRST! No, really,

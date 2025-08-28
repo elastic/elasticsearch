@@ -123,6 +123,13 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
     }
 
+    public void testEmptyAggregateMetricDoubleBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newAggregateMetricDoubleBlockBuilder(0).build());
+        try (AggregateMetricDoubleBlock toFilter = blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
+        }
+    }
+
     private void assertEmptyBlock(Block origBlock) throws IOException {
         assertThat(origBlock.getPositionCount(), is(0));
         try (origBlock; Block deserBlock = serializeDeserializeBlock(origBlock)) {
@@ -218,6 +225,35 @@ public class BlockSerializationTests extends SerializationTestCase {
                 .build()
         ) {
             assertFilterBlock(toFilter.asBlock().filter(randomIntBetween(0, 1)));
+        }
+    }
+
+    public void testFilterAggregateMetricDoubleBlock() throws IOException {
+        {
+            var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            try (AggregateMetricDoubleBlock toFilter = builder.build()) {
+                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            }
+        }
+
+        {
+            var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            builder.appendNull();
+            try (AggregateMetricDoubleBlock toFilter = builder.build()) {
+                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            }
         }
     }
 

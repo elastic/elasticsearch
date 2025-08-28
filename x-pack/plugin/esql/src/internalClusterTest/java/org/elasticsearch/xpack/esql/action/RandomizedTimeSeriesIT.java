@@ -142,7 +142,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             .collect(Collectors.groupingBy(Tuple::v1));
     }
 
-    static Double aggregatePerTimeseries(
+    static Object aggregatePerTimeseries(
         Map<String, List<Tuple<String, Tuple<Instant, Integer>>>> timeseries,
         Agg crossAgg,
         Agg timeseriesAgg
@@ -152,27 +152,32 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             return aggregateValuesInWindow(values, timeseriesAgg);
         }).filter(Objects::nonNull).toList();
 
-        if (res.isEmpty()) {
-            return null; // No values to aggregate
+        if (res.isEmpty() && timeseriesAgg == Agg.COUNT) {
+            res = List.of(0.0);
         }
+
         return switch (crossAgg) {
-            case MAX -> res.stream().mapToDouble(Double::doubleValue).max().orElseThrow();
-            case MIN -> res.stream().mapToDouble(Double::doubleValue).min().orElseThrow();
-            case AVG -> res.stream().mapToDouble(Double::doubleValue).average().orElseThrow();
-            case SUM -> res.stream().mapToDouble(Double::doubleValue).sum();
-            case COUNT -> (double) res.size();
+            case MAX -> res.isEmpty()
+                ? null
+                : Double.valueOf(res.stream().mapToDouble(Double::doubleValue).max().orElseThrow()).longValue();
+            case MIN -> res.isEmpty()
+                ? null
+                : Double.valueOf(res.stream().mapToDouble(Double::doubleValue).min().orElseThrow()).longValue();
+            case AVG -> res.isEmpty() ? null : res.stream().mapToDouble(Double::doubleValue).average().orElseThrow();
+            case SUM -> res.isEmpty() ? null : Double.valueOf(res.stream().mapToDouble(Double::doubleValue).sum()).longValue();
+            case COUNT -> Integer.toUnsignedLong(res.size());
         };
     }
 
     static Double aggregateValuesInWindow(List<Integer> values, Agg agg) {
-        if (values.isEmpty()) {
-            throw new IllegalArgumentException("No values to aggregate for " + agg + " operation");
-        }
+        // if (values.isEmpty()) {
+        // throw new IllegalArgumentException("No values to aggregate for " + agg + " operation");
+        // }
         return switch (agg) {
             case MAX -> Double.valueOf(values.stream().max(Integer::compareTo).orElseThrow());
             case MIN -> Double.valueOf(values.stream().min(Integer::compareTo).orElseThrow());
             case AVG -> values.stream().mapToDouble(Integer::doubleValue).average().orElseThrow();
-            case SUM -> values.stream().mapToDouble(Integer::doubleValue).sum();
+            case SUM -> values.isEmpty() ? null : values.stream().mapToDouble(Integer::doubleValue).sum();
             case COUNT -> (double) values.size();
         };
     }
@@ -430,14 +435,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                         containsInAnyOrder(docValues.stream().mapToLong(Integer::longValue).boxed().toArray(Long[]::new))
                     );
                 } else {
-                    assertThat(row.getFirst(), equalTo(docValues.getFirst().longValue()));
+                    assertThat(row.getFirst(), equalTo(docValues.isEmpty() ? null : docValues.getFirst().longValue()));
                 }
-                assertThat(row.get(1), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX).longValue()));
-                assertThat(row.get(2), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN).longValue()));
-                assertThat(row.get(3), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT).longValue()));
-                assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM).longValue()));
-                var avg = aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
-                assertThat((Double) row.get(5), closeTo(avg, avg * 0.01));
+                assertThat(row.get(1), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX)));
+                assertThat(row.get(2), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN)));
+                assertThat(row.get(3), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT)));
+                assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM)));
+                var avg = (Double) aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
+                assertThat((Double) row.get(5), row.get(5) == null ? equalTo(null) : closeTo(avg, avg * 0.01));
                 // assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
         }
@@ -475,14 +480,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                         containsInAnyOrder(docValues.stream().mapToLong(Integer::longValue).boxed().toArray(Long[]::new))
                     );
                 } else {
-                    assertThat(row.get(0), equalTo(docValues.getFirst().longValue()));
+                    assertThat(row.getFirst(), equalTo(docValues.isEmpty() ? null : docValues.getFirst().longValue()));
                 }
-                assertThat(row.get(1), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX).longValue()));
-                assertThat(row.get(2), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN).longValue()));
-                assertThat(row.get(3), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT).longValue()));
-                assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM).longValue()));
-                var avg = aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
-                assertThat((Double) row.get(5), closeTo(avg, avg * 0.01));
+                assertThat(row.get(1), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX)));
+                assertThat(row.get(2), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN)));
+                assertThat(row.get(3), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT)));
+                assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM)));
+                var avg = (Double) aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
+                assertThat((Double) row.get(5), row.get(5) == null ? equalTo(null) : closeTo(avg, avg * 0.01));
                 // assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
         }

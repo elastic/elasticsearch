@@ -68,14 +68,19 @@ class TSDataGenerationHelper {
         }).toList();
 
         // We want to ensure that all documents have different timestamps.
-        var timeRangeEnd = Instant.now().toEpochMilli() / 1000 / timeRangeSeconds * timeRangeSeconds;
-        var timeRangeStart = timeRangeEnd - timeRangeSeconds;
+        var timeRangeMs = timeRangeSeconds * 1000;
+        var timeRangeEnd = Instant.now().toEpochMilli() / timeRangeMs * timeRangeMs;
+        var timeRangeStart = timeRangeEnd - timeRangeMs;
         var timestampSet = new HashSet<Instant>();
         var regens = 0;
         for (int i = 0; i < numDocs; i++) {
             // Random timestamps within the last 90 days.
             while (true) {
+<<<<<<< HEAD
                 var randomIns = Instant.ofEpochMilli(ESTestCase.randomLongBetween(timeRangeEnd, timeRangeStart));
+=======
+                var randomIns = Instant.ofEpochMilli(ESTestCase.randomLongBetween(timeRangeStart, timeRangeEnd));
+>>>>>>> 63bddff1f73 (fixups)
                 if (timestampSet.add(randomIns)) {
                     break;
                 }

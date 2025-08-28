@@ -212,6 +212,7 @@ public class RRFRankBuilder extends RankBuilder {
                 knnSearchBuilder.getQueryVectorBuilder(),
                 knnSearchBuilder.k(),
                 knnSearchBuilder.getNumCands(),
+                knnSearchBuilder.getVisitPercentage(),
                 knnSearchBuilder.getRescoreVectorBuilder(),
                 knnSearchBuilder.getSimilarity()
             );

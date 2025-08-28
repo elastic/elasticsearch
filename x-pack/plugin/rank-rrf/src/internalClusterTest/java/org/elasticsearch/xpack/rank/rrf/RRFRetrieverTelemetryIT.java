@@ -104,7 +104,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
             performSearch(
-                new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null, null))
+                new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, 10f,null, null))
             );
         }
 
@@ -138,7 +138,7 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
                     new RRFRetrieverBuilder(
                         Arrays.asList(
                             new CompoundRetrieverBuilder.RetrieverSource(
-                                new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null, null),
+                                new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, 10f, null, null),
                                 null
                             ),
                             new CompoundRetrieverBuilder.RetrieverSource(

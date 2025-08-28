@@ -96,6 +96,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         );
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY_FIELD);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
@@ -221,6 +222,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than [" + K_FIELD.getPreferredName() + "]"
             );
         }
+        if( visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
+            throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0.0 and 100.0");
+        }
         if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
                 format(
@@ -263,7 +267,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             this.numCands = in.readVInt();
         }
         // FIXME: validate transport version changes
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_9_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
             this.visitPercentage = in.readFloat();
@@ -377,6 +381,21 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeVInt(numCands);
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
+            out.writeOptionalFloat(visitPercentage);
+        } else {
+            if (visitPercentage == null) {
+                throw new IllegalArgumentException(
+                    "["
+                        + VISIT_PERCENTAGE_FIELD.getPreferredName()
+                        + "] field was mandatory in previous releases "
+                        + "and is required to be non-null by some nodes. "
+                        + "Please make sure to provide the parameter as part of the request."
+                );
+            } else {
+                out.writeFloat(visitPercentage);
+            }
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {
@@ -427,6 +446,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (numCands != null) {
             builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
+        }
+        if (visitPercentage != null) {
+            builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
         }
         if (vectorSimilarity != null) {
             builder.field(VECTOR_SIMILARITY_FIELD.getPreferredName(), vectorSimilarity);

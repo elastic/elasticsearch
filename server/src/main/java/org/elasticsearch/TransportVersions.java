@@ -224,7 +224,6 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_4 = def(9_000_0_13);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_6 = def(9_000_0_15);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_7 = def(9_000_0_16);
-    public static final TransportVersion V_9_1_0 = def(9_001_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);
@@ -358,6 +357,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = def(9_145_0_00);
     public static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = def(9_146_0_00);
+    public static final TransportVersion VISIT_PERCENTAGE = def(9_147_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

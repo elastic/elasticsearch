@@ -199,6 +199,8 @@ public class KnnSearchRequestParser {
         static final ParseField FIELD_FIELD = new ParseField("field");
         static final ParseField K_FIELD = new ParseField("k");
         static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
+        // FIXME: update docs to reflect the new optional field
+        // FIXME: add more tests around this field
         static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
         static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
 
@@ -217,6 +219,7 @@ public class KnnSearchRequestParser {
             PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
             PARSER.declareInt(constructorArg(), K_FIELD);
             PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
+            PARSER.declareFloat(constructorArg(), VISIT_PERCENTAGE_FIELD);
         }
 
         public static KnnSearch parse(XContentParser parser) throws IOException {
@@ -272,6 +275,7 @@ public class KnnSearchRequestParser {
             KnnSearch that = (KnnSearch) o;
             return k == that.k
                 && numCands == that.numCands
+                && visitPercentage == that.visitPercentage
                 && Objects.equals(field, that.field)
                 && Arrays.equals(queryVector, that.queryVector);
         }

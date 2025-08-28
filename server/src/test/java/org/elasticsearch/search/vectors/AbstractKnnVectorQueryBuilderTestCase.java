@@ -477,12 +477,12 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_9_0_0,
-            TransportVersions.V_9_1_0
+            TransportVersions.VISIT_PERCENTAGE
         );
         VectorData vectorData = version.onOrAfter(TransportVersions.V_9_0_0)
             ? query.queryVector()
             : VectorData.fromFloats(query.queryVector().asFloatVector());
-        Float visitPercentage = version.before(TransportVersions.V_9_1_0) ? null : query.visitPercentage();
+        Float visitPercentage = version.before(TransportVersions.VISIT_PERCENTAGE) ? null : query.visitPercentage();
         KnnVectorQueryBuilder queryVisitPercentage = new KnnVectorQueryBuilder(
             query.getFieldName(),
             vectorData,

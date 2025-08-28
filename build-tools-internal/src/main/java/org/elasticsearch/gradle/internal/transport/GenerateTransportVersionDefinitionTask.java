@@ -23,7 +23,6 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
-import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +32,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 /**
  * This task generates transport version definition files. These files
@@ -64,8 +65,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @Input
     @Option(
         option = "branches",
-        description = "The release branches for which to generate IDs, e.g. --branches=main,9.1. " +
-            "Must always include the main release branch, and backport branches must be contiguous from main."
+        description = "The release branches for which to generate IDs, e.g. --branches=main,9.1. "
+            + "Must always include the main release branch, and backport branches must be contiguous from main."
     )
     public abstract Property<String> getBranches();
 

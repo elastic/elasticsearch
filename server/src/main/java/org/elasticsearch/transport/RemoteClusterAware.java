@@ -135,7 +135,7 @@ public abstract class RemoteClusterAware {
      *
      * @return a map of grouped remote and local indices
      */
-    protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
+    public Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         Set<String> clustersToRemove = new HashSet<>();
         for (String index : requestIndices) {

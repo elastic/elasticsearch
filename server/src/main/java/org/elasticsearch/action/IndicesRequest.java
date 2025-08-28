@@ -10,9 +10,13 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -62,6 +66,37 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return false;
         }
+
+        default void setCanonicalExpressions(@Nullable Map<String, CanonicalExpression> canonicalExpressions) {
+            if (false == storeCanonicalExpressions()) {
+                assert false : "setCanonicalExpressions should not be called when storeCanonicalExpressions is false";
+                throw new IllegalStateException("setCanonicalExpressions should not be called when storeCanonicalExpressions is false");
+            }
+        }
+
+        default Map<String, CanonicalExpression> getCanonicalExpressions() {
+            if (false == storeCanonicalExpressions()) {
+                assert false : "getCanonicalExpressions should not be called when storeCanonicalExpressions is false";
+                throw new IllegalStateException("getCanonicalExpressions should not be called when storeCanonicalExpressions is false");
+            }
+            return new LinkedHashMap<>();
+        }
+
+        default boolean storeCanonicalExpressions() {
+            return false;
+        }
+    }
+
+    interface CrossProjectReplaceable extends Replaceable {
+        @Override
+        default boolean allowsRemoteIndices() {
+            return true;
+        }
+
+        @Override
+        default boolean storeCanonicalExpressions() {
+            return true;
+        }
     }
 
     /**
@@ -91,4 +126,6 @@ public interface IndicesRequest {
          */
         Collection<ShardId> shards();
     }
+
+    record CanonicalExpression(String originalExpression, List<String> canonicalExpressions) {}
 }

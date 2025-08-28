@@ -1,8 +1,6 @@
 [[release-notes-8.19.3]]
 == {es} version 8.19.3
 
-coming[8.19.3]
-
 Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
 
 [IMPORTANT]

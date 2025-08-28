@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
-import com.google.protobuf.MessageLite;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+
+import com.google.protobuf.MessageLite;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -151,10 +153,12 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
 
         } catch (Exception e) {
             logger.error("failed to execute otlp metrics request", e);
-            listener.onResponse(new MetricsResponse(
+            listener.onResponse(
+                new MetricsResponse(
                     RestStatus.INTERNAL_SERVER_ERROR,
                     responseWithRejectedDataPoints(context.totalDataPoints(), e.getMessage())
-            ));
+                )
+            );
         }
     }
 
@@ -178,7 +182,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
                     // TODO explicitly set _tsid once https://github.com/elastic/elasticsearch/pull/132566 is merged
-                    //.tsid(DataPointGroupTsidFunnel.forDataPointGroup(dataPointGroup).buildTsid())
+                    // .tsid(DataPointGroupTsidFunnel.forDataPointGroup(dataPointGroup).buildTsid())
                     .setDynamicTemplates(dynamicTemplates)
             );
         }

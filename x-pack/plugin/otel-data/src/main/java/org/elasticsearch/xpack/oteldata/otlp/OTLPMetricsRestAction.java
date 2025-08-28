@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.oteldata.otlp;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;

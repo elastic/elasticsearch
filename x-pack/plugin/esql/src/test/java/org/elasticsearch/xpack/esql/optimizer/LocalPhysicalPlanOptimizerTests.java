@@ -1415,14 +1415,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder(
-            "dense_vector",
-            new float[] { 0.1f, 0.2f, 0.3f },
-            10,
-            null,
-            null,
-            null
-        );
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1441,14 +1434,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder(
-            "dense_vector",
-            new float[] { 0.1f, 0.2f, 0.3f },
-            50,
-            50,
-            null,
-            null
-        );
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1467,14 +1453,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder(
-            "dense_vector",
-            new float[] { 0.1f, 0.2f, 0.3f },
-            50,
-            50,
-            null,
-            null
-        );
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 

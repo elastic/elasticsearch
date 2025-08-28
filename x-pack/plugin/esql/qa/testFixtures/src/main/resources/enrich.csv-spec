@@ -590,7 +590,7 @@ warningRegex:evaluation of \[LENGTH\(TO_STRING\(city_boundary\)\)\] failed, trea
 warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
-POINT(1.396561 24.127649)  |  872         |  88               |  1044
+POINT(1.396561 24.127649)  |  872         |  88               |  947
 ;
 
 

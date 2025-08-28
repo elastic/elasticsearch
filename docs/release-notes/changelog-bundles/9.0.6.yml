@@ -70,3 +70,10 @@ changelogs:
     area: Ingest Node
     type: upgrade
     issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        The 9.0.6 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 133410
+

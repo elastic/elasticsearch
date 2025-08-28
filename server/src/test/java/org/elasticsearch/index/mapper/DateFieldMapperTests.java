@@ -804,7 +804,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     }
 
-    protected boolean supportsBulkBlockReading() {
+    protected boolean supportsBulkLongBlockReading() {
         return true;
     }
 

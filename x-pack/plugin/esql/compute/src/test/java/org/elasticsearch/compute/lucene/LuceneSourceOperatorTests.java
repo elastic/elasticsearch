@@ -98,6 +98,22 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 return numDocs;
             }
         },
+        MATCH_0 {
+            @Override
+            List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
+                return List.of(new LuceneSliceQueue.QueryAndTags(SortedNumericDocValuesField.newSlowExactQuery("s", 0), List.of()));
+            }
+
+            @Override
+            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+                assertThat(results, hasSize(both(greaterThanOrEqualTo(0)).and(lessThanOrEqualTo(1))));
+            }
+
+            @Override
+            int numResults(int numDocs) {
+                return Math.min(numDocs, 1);
+            }
+        },
         MATCH_0_AND_1 {
             @Override
             List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {

@@ -5750,7 +5750,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    private static boolean releaseBuildForInlinestats(String query) {
+    public static boolean releaseBuildForInlinestats(String query) {
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("mismatched input 'INLINESTATS' expecting"));

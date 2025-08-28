@@ -627,7 +627,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         private final String disallowed;
         private final String errorMessage;
 
-        public TestRootObjectMapperNamespaceValidator(String disallowedNamespace, String errorMessage) {
+        TestRootObjectMapperNamespaceValidator(String disallowedNamespace, String errorMessage) {
             this.disallowed = disallowedNamespace;
             this.errorMessage = errorMessage;
         }

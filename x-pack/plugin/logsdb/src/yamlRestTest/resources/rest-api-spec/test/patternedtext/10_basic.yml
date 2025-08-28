@@ -11,7 +11,7 @@ setup:
             properties:
               foo:
                 type: patterned_text
-                # default to index_options: positions
+                # defaults to index_options: docs
   - do:
       index:
         index: test
@@ -181,14 +181,15 @@ Fuzzy query:
 
 ---
 Span query:
+# With index_options=docs span queries are not supported
   - do:
+      catch: bad_request
       search:
         index: test
         body:
           query:
             span_term:
               foo: errors
-  - match: { "hits.total.value": 3 }
 
 ---
 Term intervals query:

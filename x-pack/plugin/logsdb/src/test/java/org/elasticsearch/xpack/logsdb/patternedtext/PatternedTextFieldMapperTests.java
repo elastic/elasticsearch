@@ -140,7 +140,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
             assertThat(fieldType.omitNorms(), equalTo(true));
             assertTrue(fieldType.tokenized());
             assertFalse(fieldType.stored());
-            assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
+            assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
             assertThat(fieldType.storeTermVectors(), equalTo(false));
             assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
             assertThat(fieldType.storeTermVectorPositions(), equalTo(false));

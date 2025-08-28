@@ -114,11 +114,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         private static FieldType buildLuceneFieldType(Supplier<String> indexOptionSupplier) {
             var indexOptions = TextParams.toIndexOptions(true, indexOptionSupplier.get());
-            return indexOptions == IndexOptions.DOCS ? Defaults.FIELD_TYPE_DOCS : Defaults.FIELD_TYPE_POSITIONS;
+            return indexOptions == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS ? Defaults.FIELD_TYPE_POSITIONS : Defaults.FIELD_TYPE_DOCS;
         }
 
         private static Parameter<String> patternedTextIndexOptions(Function<FieldMapper, String> initializer) {
-            return Parameter.stringParam("index_options", false, initializer, "positions").addValidator(v -> {
+            return Parameter.stringParam("index_options", false, initializer, "docs").addValidator(v -> {
                 switch (v) {
                     case "positions":
                     case "docs":

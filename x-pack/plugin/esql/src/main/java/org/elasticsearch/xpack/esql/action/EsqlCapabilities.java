@@ -1396,10 +1396,16 @@ public class EsqlCapabilities {
          * Support for vector Hamming distance.
          */
         HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
         /**
          * Support for tbucket function
          */
-        TBUCKET;
+        TBUCKET,
+
+        /**
+         * Allow qualifiers in attribute names.
+         */
+        NAME_QUALIFIERS(Build.current().isSnapshot());
 
         private final boolean enabled;
 

@@ -372,22 +372,9 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testWithRootObjectMapperNamespaceValidator() throws Exception {
-        final String errorMessage = "error 1234";
-        final String disallowed = "_project";
-
-        RootObjectMapperNamespaceValidator validator = new RootObjectMapperNamespaceValidator() {
-            @Override
-            public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
-                if (name.equals(disallowed)) {
-                    throw new IllegalArgumentException(errorMessage);
-                } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
-                    // name here will be something like _project.my_field, rather than just _project
-                    if (name.startsWith(disallowed + ".")) {
-                        throw new IllegalArgumentException(errorMessage);
-                    }
-                }
-            }
-        };
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
 
         String notNested = """
             {
@@ -450,36 +437,19 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
 
         String nested = """
             {
-                "_doc": {
+              "_doc": {
+                "properties": {
+                  "<FIELD_NAME1>": {
+                    "type": "object",
                     "properties": {
-                        "<FIELD_NAME1>": {
-                            "type": "object",
-                            "properties": {
-                                "<FIELD_NAME1>": {
-                                    "type": "keyword"
-                                }
-                            }
-                        }
+                      "<FIELD_NAME1>": {
+                        "type": "keyword"
+                      }
                     }
+                  }
                 }
+              }
             }""";
-
-        // TODO: this also works - what is the difference?
-        // String nested = """
-        // {
-        // "mappings": {
-        // "properties": {
-        // "<FIELD_NAME1>": {
-        // "type": "object",
-        // "properties": {
-        // "<FIELD_NAME1>": {
-        // "type": "keyword"
-        // }
-        // }
-        // }
-        // }
-        // }
-        // }""";
 
         // nested _project { my_field } should fail
         {
@@ -501,8 +471,13 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
             assertNotNull(mapperService);
         }
+    }
 
-        // TODO: I'm not allowed to change the subobjects setting for some reason
+    public void testSubobjectsWithRootObjectMapperNamespaceValidator() throws Exception {
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
+
         // test with subobjects setting
         String withSubobjects = """
             {
@@ -520,58 +495,34 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     }
                 }
             }""";
-
-        // String withSubobjects = """
-        // {
-        // "mappings": {
-        // "subobjects": "<SUBOBJECTS_SETTING>",
-        // "properties": {
-        // "<FIELD_NAME>": {
-        // "type": "object",
-        // "properties": {
-        // "my_field": {
-        // "type": "keyword"
-        // }
-        // }
-        // }
-        // }
-        // }
-        // }""";
-        //
-        // {
-        // String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false")//randomFrom("true", "false", "auto"))
-        // .replace("<FIELD_NAME>", "abc");
-        // MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
-        // assertNotNull(mapperService);
-        // }
-
-        // {
-        // String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false")
-        // .replace("<FIELD_NAME>", "_project");
-        // // TODO: fails with org.elasticsearch.index.mapper.MapperException: the [subobjects] parameter can't be updated for the object
-        // mapping [_doc]
-        // MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
-        // assertNotNull(mapperService);
-        // }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false").replace("<FIELD_NAME>", "_project");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom("true", "auto")).replace("<FIELD_NAME>", "_project");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom("false", "true", "auto"))
+                .replace("<FIELD_NAME>", "_project.foo");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom("false", "true", "auto"))
+                .replace("<FIELD_NAME>", "project.foo");
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
     }
 
     public void testRuntimeFieldInMappingWithNamespaceValidator() throws IOException {
-        final String errorMessage = "error 1234";
-        final String disallowed = "_project";
-
-        RootObjectMapperNamespaceValidator validator = new RootObjectMapperNamespaceValidator() {
-            @Override
-            public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
-                if (name.equals(disallowed)) {
-                    throw new IllegalArgumentException(errorMessage);
-                } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
-                    // name here will be something like _project.my_field, rather than just _project
-                    if (name.startsWith(disallowed + ".")) {
-                        throw new IllegalArgumentException(errorMessage);
-                    }
-                }
-            }
-        };
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
 
         // ensure that things close to the disallowed fields that are allowed
         {
@@ -672,4 +623,25 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         return mapper.mapping().getRoot();
     }
 
+    static class TestRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
+        private final String disallowed;
+        private final String errorMessage;
+
+        public TestRootObjectMapperNamespaceValidator(String disallowedNamespace, String errorMessage) {
+            this.disallowed = disallowedNamespace;
+            this.errorMessage = errorMessage;
+        }
+
+        @Override
+        public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
+            if (name.equals(disallowed)) {
+                throw new IllegalArgumentException(errorMessage);
+            } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+                // name here will be something like _project.my_field, rather than just _project
+                if (name.startsWith(disallowed + ".")) {
+                    throw new IllegalArgumentException(errorMessage);
+                }
+            }
+        }
+    }
 }

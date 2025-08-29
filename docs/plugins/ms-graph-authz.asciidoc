@@ -34,7 +34,7 @@ the `.zip` file, use the
 For all other deployment types, refer to <<plugin-management,plugin management>>.
 
 [discrete]
-[id="{plugin_name}-remove"]
+[id="microsoft-graph-authz-remove"]
 ==== Removal
 
 The plugin can be removed with the following command:

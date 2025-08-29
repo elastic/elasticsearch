@@ -160,10 +160,7 @@ public interface ExponentialHistogram extends Accountable {
     }
 
     private static boolean equalsIncludingNaN(double a, double b) {
-        if (Double.isNaN(a)) {
-            return Double.isNaN(b);
-        }
-        return a == b;
+        return (a == b) || (Double.isNaN(a) && Double.isNaN(b));
     }
 
     private static boolean bucketIteratorsEqual(BucketIterator a, BucketIterator b) {

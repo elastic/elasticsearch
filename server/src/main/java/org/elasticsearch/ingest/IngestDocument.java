@@ -1620,49 +1620,47 @@ public final class IngestDocument {
          * @return An array of Elements
          */
         private static Element[] parseFlexibleFields(String fullPath, String[] pathParts) {
-            return Arrays.stream(pathParts)
-                .flatMap(pathPart -> {
-                    int openBracket = pathPart.indexOf('[');
-                    if (openBracket == -1) {
-                        // Ensure there are no end bracket characters as they are also reserved
-                        if (pathPart.indexOf(']') >= 0) {
+            return Arrays.stream(pathParts).flatMap(pathPart -> {
+                int openBracket = pathPart.indexOf('[');
+                if (openBracket == -1) {
+                    // Ensure there are no end bracket characters as they are also reserved
+                    if (pathPart.indexOf(']') >= 0) {
+                        throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                    }
+                    return Stream.of(Element.field(pathPart));
+                } else if (openBracket == 0) {
+                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                } else {
+                    List<Element> resultElements = new ArrayList<>();
+                    String rootField = pathPart.substring(0, openBracket);
+                    resultElements.add(Element.field(rootField));
+
+                    boolean elementsRemain = true;
+                    while (elementsRemain) {
+                        int closeBracket = pathPart.indexOf(']', openBracket);
+                        if (closeBracket <= openBracket) {
                             throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
                         }
-                        return Stream.of(Element.field(pathPart));
-                    } else if (openBracket == 0) {
-                        throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
-                    } else {
-                        List<Element> resultElements = new ArrayList<>();
-                        String rootField = pathPart.substring(0, openBracket);
-                        resultElements.add(Element.field(rootField));
 
-                        boolean elementsRemain = true;
-                        while (elementsRemain) {
-                            int closeBracket = pathPart.indexOf(']', openBracket);
-                            if (closeBracket <= openBracket) {
+                        String rawIndex = pathPart.substring(openBracket + 1, closeBracket);
+                        try {
+                            resultElements.add(Element.index(Integer.parseInt(rawIndex)));
+                        } catch (NumberFormatException numberFormatException) {
+                            throw new IllegalArgumentException(Errors.notInteger(fullPath, rawIndex));
+                        }
+
+                        if (closeBracket == pathPart.length() - 1) {
+                            elementsRemain = false;
+                        } else {
+                            if (pathPart.charAt(closeBracket + 1) != '[') {
                                 throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
                             }
-
-                            String rawIndex = pathPart.substring(openBracket + 1, closeBracket);
-                            try {
-                                resultElements.add(Element.index(Integer.parseInt(rawIndex)));
-                            } catch (NumberFormatException numberFormatException) {
-                                throw new IllegalArgumentException(Errors.notInteger(fullPath, rawIndex));
-                            }
-
-                            if (closeBracket == pathPart.length() - 1) {
-                                elementsRemain = false;
-                            } else {
-                                if (pathPart.charAt(closeBracket + 1) != '[') {
-                                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
-                                }
-                                openBracket = closeBracket + 1;
-                            }
+                            openBracket = closeBracket + 1;
                         }
-                        return resultElements.stream();
                     }
-                })
-                .toArray(Element[]::new);
+                    return resultElements.stream();
+                }
+            }).toArray(Element[]::new);
         }
 
         public Object initialContext(IngestDocument document) {

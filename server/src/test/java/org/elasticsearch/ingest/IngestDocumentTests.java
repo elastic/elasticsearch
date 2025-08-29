@@ -475,10 +475,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("list[test].field", String.class));
         } catch (IllegalArgumentException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test].field]")
-            );
+            assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test].field]"));
         }
         try {
             doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("dots.arrays.dotted.strings[test].field", String.class));
@@ -885,10 +882,7 @@ public class IngestDocumentTests extends ESTestCase {
             doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("dotted.array[0].new", "bar"));
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("field [dotted.array] not present as part of path [dotted.array[0].new]")
-            );
+            assertThat(e.getMessage(), equalTo("field [dotted.array] not present as part of path [dotted.array[0].new]"));
         }
     }
 
@@ -1704,19 +1698,13 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list[test]", "value"));
         } catch (IllegalArgumentException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test]]")
-            );
+            assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test]]"));
         }
 
         try {
             doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list[test].field", "new_value"));
         } catch (IllegalArgumentException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test].field]")
-            );
+            assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test].field]"));
         }
     }
 

@@ -250,7 +250,7 @@ public class SamlAuthnRequestValidator {
     }
 
     private boolean validateSignature(ParsedQueryString queryString, Collection<X509Credential> credentials) {
-        final String javaSigAlgorithm = SamlFactory.getJavaAlorithmNameFromUri(queryString.sigAlg);
+        final String javaSigAlgorithm = SamlFactory.getJavaAlgorithmNameFromUri(queryString.sigAlg);
         final byte[] contentBytes = queryString.reconstructQueryParameters().getBytes(StandardCharsets.UTF_8);
         final byte[] signatureBytes = Base64.getDecoder().decode(queryString.signature);
         return credentials.stream().anyMatch(credential -> {

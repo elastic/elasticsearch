@@ -4,7 +4,7 @@
 
 ```esql
 from colors metadata _score
-| where knn(rgb_vector, [0, 120, 0], 10)
+| where knn(rgb_vector, [0, 120, 0])
 | sort _score desc, color asc
 ```
 

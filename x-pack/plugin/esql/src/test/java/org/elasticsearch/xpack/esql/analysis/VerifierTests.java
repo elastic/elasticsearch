@@ -2303,30 +2303,33 @@ public class VerifierTests extends ESTestCase {
 
         // First arg cannot be null
         assertEquals(
-            "2:23: first argument of [decay(null, origin, scale, 0, 0.5, \"linear\")] cannot be null, received [null]",
-            error("row origin = 10, scale = 10\n" + "| eval decay_result = decay(null, origin, scale, 0, 0.5, \"linear\")")
+            "2:23: first argument of [decay(null, origin, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row origin = 10, scale = 10\n"
+                    + "| eval decay_result = decay(null, origin, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
         );
 
         // Second arg cannot be null
         assertEquals(
-            "2:23: second argument of [decay(value, null, scale, 0, 0.5, \"linear\")] cannot be null, received [null]",
-            error("row value = 10, scale = 10\n" + "| eval decay_result = decay(value, null, scale, 0, 0.5, \"linear\")")
+            "2:23: second argument of [decay(value, null, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row value = 10, scale = 10\n"
+                    + "| eval decay_result = decay(value, null, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
         );
 
         // Third arg cannot be null
         assertEquals(
-            "2:23: third argument of [decay(value, origin, null, 0, 0.5, \"linear\")] cannot be null, received [null]",
-            error("row value = 10, origin = 10\n" + "| eval decay_result = decay(value, origin, null, 0, 0.5, \"linear\")")
+            "2:23: third argument of [decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row value = 10, origin = 10\n"
+                    + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
         );
 
-        // Fourth arg can be null
-        query("row value = 10, origin = 10, scale = 10\n" + "| eval decay_result = decay(value, origin, scale, null, 0.5, \"linear\")");
-
-        // Fifth arg can be null
-        query("row value = 10, origin = 10, scale = 10\n" + "| eval decay_result = decay(value, origin, scale, 0, null, \"linear\")");
-
-        // Sixth arg can be null
-        query("row value = 10, origin = 10, scale = 10\n" + "| eval decay_result = decay(value, origin, scale, 0, 0.5, null)");
+        // Fourth arg (options) can be ommitted
+        query("row value = 10, origin = 10, scale = 10\n" + "| eval decay_result = decay(value, origin, scale)");
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

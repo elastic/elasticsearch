@@ -145,7 +145,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
                     name = TYPE,
                     type = { "keyword" },
                     description = "Decay function to use: linear, exponential or gaussian."
-                ) }
+                ) },
+            optional = true
         ) Expression options
     ) {
         super(source, options != null ? List.of(value, origin, scale, options) : List.of(value, origin, scale));

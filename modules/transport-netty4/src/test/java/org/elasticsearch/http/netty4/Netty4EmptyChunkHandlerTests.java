@@ -28,6 +28,7 @@ public class Netty4EmptyChunkHandlerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         channel = new EmbeddedChannel(new Netty4EmptyChunkHandler());
+        channel.config().setAutoRead(false);
     }
 
     public void testNonChunkedPassthrough() {

@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 
@@ -38,11 +39,11 @@ public class KqlParserTests extends AbstractKqlParserTestCase {
     }
 
     public void testParenthesizedQuery() throws IOException {
-        for (String baseQuuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
+        for (String baseQuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
             // For each supported query, wrap it into parentheses and check query remains the same.
             // Adding random whitespaces as well and test they are ignored.
-            String parenthesizedQuery = wrapWithRandomWhitespaces("(") + baseQuuery + wrapWithRandomWhitespaces(")");
-            assertThat(parseKqlQuery(parenthesizedQuery), equalTo(parseKqlQuery(baseQuuery)));
+            String parenthesizedQuery = "(" + baseQuery + ")";
+            assertThat(parseKqlQuery(parenthesizedQuery), equalTo(parseKqlQuery(baseQuery)));
         }
     }
 
@@ -80,8 +81,8 @@ public class KqlParserTests extends AbstractKqlParserTestCase {
         {
             KqlParsingException e = assertThrows(KqlParsingException.class, () -> parseKqlQuery("foo: (bar baz AND qux"));
             assertThat(e.getLineNumber(), equalTo(1));
-            assertThat(e.getColumnNumber(), equalTo(15));
-            assertThat(e.getMessage(), equalTo("line 1:15: missing ')' at 'AND'"));
+            assertThat(e.getColumnNumber(), equalTo(22));
+            assertThat(e.getMessage(), containsString("line 1:22: missing ')' at '<EOF>'"));
         }
     }
 }

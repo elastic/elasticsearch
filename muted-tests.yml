@@ -543,15 +543,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/133077
-- class: org.elasticsearch.compute.aggregation.LossySumDoubleGroupingAggregatorFunctionTests
-  method: testManyInitialManyPartialFinalRunner
-  issue: https://github.com/elastic/elasticsearch/issues/133809
-- class: org.elasticsearch.compute.aggregation.LossySumDoubleGroupingAggregatorFunctionTests
-  method: testInitialIntermediateFinal
-  issue: https://github.com/elastic/elasticsearch/issues/133822
-- class: org.elasticsearch.compute.aggregation.LossySumDoubleGroupingAggregatorFunctionTests
-  method: testInitialFinal
-  issue: https://github.com/elastic/elasticsearch/issues/133829
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220

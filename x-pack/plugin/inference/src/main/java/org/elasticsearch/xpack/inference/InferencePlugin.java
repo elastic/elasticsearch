@@ -203,6 +203,7 @@ public class InferencePlugin extends Plugin
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+    public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
 
     private static final Logger log = LogManager.getLogger(InferencePlugin.class);
 
@@ -374,7 +375,10 @@ public class InferencePlugin extends Plugin
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
-        components.add(httpClientManager);
+        components.add(new TransportGetInferenceDiagnosticsAction.ClientManagers(
+            httpClientManager,
+            elasticInferenceServiceHttpClientManager
+        ));
         components.add(inferenceStatsBinding);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
@@ -497,10 +501,10 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(inferenceUtilityExecutor(settings));
+        return List.of(inferenceUtilityExecutor(settings), inferenceResponseExecutor());
     }
 
-    public static ExecutorBuilder<?> inferenceUtilityExecutor(Settings settings) {
+    private static ExecutorBuilder<?> inferenceUtilityExecutor(Settings settings) {
         return new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
             0,
@@ -508,6 +512,17 @@ public class InferencePlugin extends Plugin
             TimeValue.timeValueMinutes(10),
             false,
             "xpack.inference.utility_thread_pool"
+        );
+    }
+
+    private static ExecutorBuilder<?> inferenceResponseExecutor() {
+        return new ScalingExecutorBuilder(
+            INFERENCE_RESPONSE_THREAD_POOL_NAME,
+            0,
+            10,
+            TimeValue.timeValueMinutes(10),
+            false,
+            "xpack.inference.inference_response_thread_pool"
         );
     }
 

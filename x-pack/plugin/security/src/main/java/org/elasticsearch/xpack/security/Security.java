@@ -88,6 +88,7 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.NodeStatsPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
@@ -475,7 +476,8 @@ public class Security extends Plugin
         SearchPlugin,
         RestServerActionPlugin,
         ReloadablePlugin,
-        PersistentTaskPlugin {
+        PersistentTaskPlugin,
+        NodeStatsPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -2502,6 +2504,29 @@ public class Security extends Plugin
     // visible for testing
     OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
         return operatorPrivilegesService.get();
+    }
+
+    @Override
+    public String getNodeStatsPluginName() {
+        return "security";
+    }
+
+    @Override
+    public Stats getPluginNodeStats() {
+        // todo(sz): can we hit node stats before we create a bitset cache/do security setup?
+        final DocumentSubsetBitsetCache cache = dlsBitsetCache.get();
+        return new SecurityNodeStatsPluginStats(cache == null ? Map.of() : cache.usageStats());
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(
+                NodeStatsPlugin.Stats.class,
+                SecurityNodeStatsPluginStats.WRITEABLE_NAME,
+                SecurityNodeStatsPluginStats::new
+            )
+        );
     }
 
     @Override

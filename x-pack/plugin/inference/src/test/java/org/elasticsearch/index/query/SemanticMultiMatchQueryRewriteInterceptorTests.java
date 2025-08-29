@@ -79,13 +79,13 @@ public class SemanticMultiMatchQueryRewriteInterceptorTests extends ESTestCase {
 
     public void testMultiMatchQueryOnMultipleInferenceFieldsIsRewrittenToDisMaxQuery() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
-            FIELD_NAME_1, new InferenceFieldMetadata(index.getName(), "inferenceId1", new String[] { FIELD_NAME_1 }, null),
-            FIELD_NAME_2, new InferenceFieldMetadata(index.getName(), "inferenceId2", new String[] { FIELD_NAME_2 }, null)
+            FIELD_NAME_1,
+            new InferenceFieldMetadata(index.getName(), "inferenceId1", new String[] { FIELD_NAME_1 }, null),
+            FIELD_NAME_2,
+            new InferenceFieldMetadata(index.getName(), "inferenceId2", new String[] { FIELD_NAME_2 }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        MultiMatchQueryBuilder original = createTestQueryBuilder().fields(
-            Map.of(FIELD_NAME_1, FIELD_BOOST_1, FIELD_NAME_2, FIELD_BOOST_2)
-        );
+        MultiMatchQueryBuilder original = createTestQueryBuilder().fields(Map.of(FIELD_NAME_1, FIELD_BOOST_1, FIELD_NAME_2, FIELD_BOOST_2));
         QueryBuilder rewritten = original.rewrite(context);
 
         assertTrue(
@@ -125,18 +125,15 @@ public class SemanticMultiMatchQueryRewriteInterceptorTests extends ESTestCase {
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
 
         {
-            MultiMatchQueryBuilder original = createTestQueryBuilder()
-                .fields(Map.of(FIELD_NAME_1, 1.0f))
+            MultiMatchQueryBuilder original = createTestQueryBuilder().fields(Map.of(FIELD_NAME_1, 1.0f))
                 .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS);
-
 
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> original.rewrite(context));
             assertThat(exception.getMessage(), containsString("multi_match query with type [cross_fields] is not supported"));
         }
 
         {
-            MultiMatchQueryBuilder original = createTestQueryBuilder()
-                .fields(Map.of(FIELD_NAME_1, 1.0f))
+            MultiMatchQueryBuilder original = createTestQueryBuilder().fields(Map.of(FIELD_NAME_1, 1.0f))
                 .type(MultiMatchQueryBuilder.Type.BOOL_PREFIX);
 
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> original.rewrite(context));
@@ -144,8 +141,7 @@ public class SemanticMultiMatchQueryRewriteInterceptorTests extends ESTestCase {
         }
 
         {
-            MultiMatchQueryBuilder original = createTestQueryBuilder()
-                .fields(Map.of(FIELD_NAME_1, 1.0f))
+            MultiMatchQueryBuilder original = createTestQueryBuilder().fields(Map.of(FIELD_NAME_1, 1.0f))
                 .type(MultiMatchQueryBuilder.Type.PHRASE);
 
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> original.rewrite(context));
@@ -153,8 +149,7 @@ public class SemanticMultiMatchQueryRewriteInterceptorTests extends ESTestCase {
         }
 
         {
-            MultiMatchQueryBuilder original = createTestQueryBuilder()
-                .fields(Map.of(FIELD_NAME_1, 1.0f))
+            MultiMatchQueryBuilder original = createTestQueryBuilder().fields(Map.of(FIELD_NAME_1, 1.0f))
                 .type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX);
 
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> original.rewrite(context));
@@ -168,8 +163,7 @@ public class SemanticMultiMatchQueryRewriteInterceptorTests extends ESTestCase {
             new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME_1 }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        MultiMatchQueryBuilder original = createTestQueryBuilder()
-            .fields(Map.of(FIELD_NAME_1, 1.0f))
+        MultiMatchQueryBuilder original = createTestQueryBuilder().fields(Map.of(FIELD_NAME_1, 1.0f))
             .type(MultiMatchQueryBuilder.Type.BEST_FIELDS);
         QueryBuilder rewritten = original.rewrite(context);
 
@@ -184,8 +178,7 @@ public class SemanticMultiMatchQueryRewriteInterceptorTests extends ESTestCase {
             new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME_1 }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        MultiMatchQueryBuilder original = createTestQueryBuilder()
-            .fields(Map.of(FIELD_NAME_1, 1.0f))
+        MultiMatchQueryBuilder original = createTestQueryBuilder().fields(Map.of(FIELD_NAME_1, 1.0f))
             .type(MultiMatchQueryBuilder.Type.MOST_FIELDS);
         QueryBuilder rewritten = original.rewrite(context);
 
@@ -196,12 +189,13 @@ public class SemanticMultiMatchQueryRewriteInterceptorTests extends ESTestCase {
 
     public void testBoostsAndQueryNameAppliedCorrectly() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
-            FIELD_NAME_1, new InferenceFieldMetadata(index.getName(), "inferenceId1", new String[] { FIELD_NAME_1 }, null),
-            FIELD_NAME_2, new InferenceFieldMetadata(index.getName(), "inferenceId2", new String[] { FIELD_NAME_2 }, null)
+            FIELD_NAME_1,
+            new InferenceFieldMetadata(index.getName(), "inferenceId1", new String[] { FIELD_NAME_1 }, null),
+            FIELD_NAME_2,
+            new InferenceFieldMetadata(index.getName(), "inferenceId2", new String[] { FIELD_NAME_2 }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        MultiMatchQueryBuilder original = createTestQueryBuilder()
-            .fields(Map.of(FIELD_NAME_1, FIELD_BOOST_1, FIELD_NAME_2, FIELD_BOOST_2))
+        MultiMatchQueryBuilder original = createTestQueryBuilder().fields(Map.of(FIELD_NAME_1, FIELD_BOOST_1, FIELD_NAME_2, FIELD_BOOST_2))
             .boost(BOOST)
             .queryName(QUERY_NAME);
         QueryBuilder rewritten = original.rewrite(context);

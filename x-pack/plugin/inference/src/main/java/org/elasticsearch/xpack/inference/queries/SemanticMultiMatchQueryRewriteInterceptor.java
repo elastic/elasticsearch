@@ -64,7 +64,10 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     }
 
     @Override
-    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation
+    ) {
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder originalQuery = (MultiMatchQueryBuilder) queryBuilder;
         String queryValue = getQuery(queryBuilder);
@@ -139,7 +142,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         disMaxQuery.queryName(originalQuery.queryName());
         return disMaxQuery;
     }
-
 
     private SemanticQueryBuilder createSemanticQuery(String fieldName, String queryValue, InferenceIndexInformationForField inferenceInfo) {
         SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);

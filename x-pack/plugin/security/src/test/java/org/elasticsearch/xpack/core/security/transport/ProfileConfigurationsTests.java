@@ -92,14 +92,14 @@ public class ProfileConfigurationsTests extends ESTestCase {
                 Matchers.equalTo(SslVerificationMode.CERTIFICATE)
             );
             assertThat(
-                profileConfigurations.get("default"),
+                profileConfigurations.get("default").configuration(),
                 Matchers.sameInstance(sslService.getSSLConfiguration("xpack.security.transport.ssl"))
             );
         } else if (transportSslEnabled) {
             assertThat(profileConfigurations.size(), Matchers.equalTo(1));
             assertThat(profileConfigurations.keySet(), contains("default"));
             assertThat(
-                profileConfigurations.get("default"),
+                profileConfigurations.get("default").configuration(),
                 Matchers.sameInstance(sslService.getSSLConfiguration("xpack.security.transport.ssl"))
             );
         } else if (remoteClusterServerSslEnabled) {

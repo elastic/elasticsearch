@@ -78,6 +78,16 @@ class EmptyExponentialHistogram implements ReleasableExponentialHistogram {
     }
 
     @Override
+    public double sum() {
+        return 0;
+    }
+
+    @Override
+    public double min() {
+        return Double.NaN;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return 0;
     }

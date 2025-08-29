@@ -53,6 +53,9 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
 
     private final Buckets positiveBuckets = new Buckets(true);
 
+    private double sum;
+    private double min;
+
     private final ExponentialHistogramCircuitBreaker circuitBreaker;
     private boolean closed = false;
 
@@ -78,6 +81,8 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
      * Resets this histogram to the same state as a newly constructed one with the same capacity.
      */
     void reset() {
+        sum = 0;
+        min = Double.NaN;
         setZeroBucket(ZeroBucket.minimalEmpty());
         resetBuckets(MAX_SCALE);
     }
@@ -108,6 +113,24 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
      */
     void setZeroBucket(ZeroBucket zeroBucket) {
         this.zeroBucket = zeroBucket;
+    }
+
+    @Override
+    public double sum() {
+        return sum;
+    }
+
+    void setSum(double sum) {
+        this.sum = sum;
+    }
+
+    @Override
+    public double min() {
+        return min;
+    }
+
+    void setMin(double min) {
+        this.min = min;
     }
 
     /**

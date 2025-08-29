@@ -36,6 +36,7 @@ import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.provider.ValueSource;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.jvm.inspection.JavaInstallationRegistry;
 import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
@@ -321,7 +322,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
     }
 
-    private static String getTestSeed() {
+    private Provider<String> getTestSeed() {
+//        return project.getProviders().of(TestSeedValueSource.class, spec -> {});
+        return project.provider(() -> obtain());
+    }
+
+    public String obtain() {
         String testSeedProperty = System.getProperty("tests.seed");
         final String testSeed;
         if (testSeedProperty == null) {

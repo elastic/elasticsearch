@@ -108,4 +108,48 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(':test').outcome == TaskOutcome.UP_TO_DATE
     }
+
+    def "uses new test seed for every invocation"() {
+        given:
+        file("src/test/java/acme/SomeTests.java").text = """
+
+        public class SomeTests {
+            @org.junit.Test
+            public void printTestSeed() {
+                System.out.println("TESTSEED=" + System.getProperty("tests.seed"));
+            }
+        }
+
+        """
+        buildFile.text = """
+            plugins {
+             id 'java'
+             id 'elasticsearch.test-base'
+            }
+
+            tasks.named('test').configure {
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                testImplementation 'junit:junit:4.12'
+            }
+
+        """
+
+        when:
+        def result1 = gradleRunner("cleanTest", "test").build()
+        def result2 = gradleRunner("cleanTest", "test").build()
+        println result1.output
+        println result2.output
+        then:
+        result1.output == result2.output
+
+    }
 }

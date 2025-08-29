@@ -39,7 +39,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final Provider<String> gitRevision;
 
     private transient AtomicReference<ZonedDateTime> buildDate = new AtomicReference<>();
-    private final String testSeed;
+    private final Provider<String> testSeed;
     private final Boolean isCi;
     private final Integer defaultParallel;
     private final Boolean snapshotBuild;
@@ -58,7 +58,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         JavaVersion gradleJavaVersion,
         Provider<String> gitRevision,
         Provider<String> gitOrigin,
-        String testSeed,
+        Provider<String> testSeed,
         boolean isCi,
         int defaultParallel,
         final boolean isSnapshotBuild,
@@ -181,7 +181,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     @Override
     public String getTestSeed() {
-        return testSeed;
+        return testSeed.get();
     }
 
     @Override
@@ -206,7 +206,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     @Override
     public Random getRandom() {
-        return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));
+        return new Random(Long.parseUnsignedLong(getTestSeed().split(":")[0], 16));
     }
 
     @Override

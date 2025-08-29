@@ -95,7 +95,8 @@ public class NodesStatsRequestParameters implements Writeable {
         SCRIPT_CACHE("script_cache"),
         INDEXING_PRESSURE("indexing_pressure"),
         REPOSITORIES("repositories"),
-        ALLOCATIONS("allocations");
+        ALLOCATIONS("allocations"),
+        PLUGINS("plugins");
 
         public static final Set<Metric> ALL = Collections.unmodifiableSet(EnumSet.allOf(Metric.class));
         public static final Set<String> ALL_NAMES = ALL.stream().map(Metric::metricName).collect(toUnmodifiableSet());

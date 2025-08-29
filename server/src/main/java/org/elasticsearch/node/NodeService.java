@@ -14,11 +14,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.PluginNodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,6 +34,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.plugins.NodeStatsPlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -41,7 +44,12 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -66,6 +74,7 @@ public class NodeService implements Closeable {
     private final RepositoriesService repositoriesService;
     private final Map<String, Integer> componentVersions;
     private final CompatibilityVersions compatibilityVersions;
+    private final List<NodeStatsPlugin> nodeStatsPlugins;
 
     NodeService(
         Settings settings,
@@ -107,6 +116,7 @@ public class NodeService implements Closeable {
         this.repositoriesService = repositoriesService;
         this.componentVersions = findComponentVersions(pluginService);
         this.compatibilityVersions = compatibilityVersions;
+        this.nodeStatsPlugins = getNodeStatsPlugins(pluginService);
         clusterService.addStateApplier(ingestService);
     }
 
@@ -178,7 +188,8 @@ public class NodeService implements Closeable {
         boolean adaptiveSelection,
         boolean scriptCache,
         boolean indexingPressure,
-        boolean repositoriesStats
+        boolean repositoriesStats,
+        boolean pluginStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -201,7 +212,8 @@ public class NodeService implements Closeable {
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null,
-            null
+            null,
+            pluginStats ? getPluginStats().orElse(null) : null
         );
     }
 
@@ -226,4 +238,27 @@ public class NodeService implements Closeable {
         return indicesService.awaitClose(timeout, timeUnit);
     }
 
+    private List<NodeStatsPlugin> getNodeStatsPlugins(final PluginsService pluginsService) {
+        return pluginsService.filterPlugins(NodeStatsPlugin.class).toList();
+    }
+
+    private Optional<PluginNodeStats> getPluginStats() {
+        if (nodeStatsPlugins.isEmpty()) {
+            return Optional.empty();
+        }
+
+        final Map<String, NodeStatsPlugin.Stats> pluginNameToStats = new LinkedHashMap<>();
+        for (final NodeStatsPlugin plugin : nodeStatsPlugins) {
+            final String name = Objects.requireNonNull(plugin.getNodeStatsPluginName());
+            final NodeStatsPlugin.Stats stats = Objects.requireNonNull(plugin.getPluginNodeStats());
+
+            if (pluginNameToStats.containsKey(name)) {
+                throw new IllegalArgumentException(
+                    Strings.format("Duplicate node stats plugin name: %s. Plugins: %s", name, pluginNameToStats.keySet())
+                );
+            }
+            pluginNameToStats.put(name, stats);
+        }
+        return Optional.of(new PluginNodeStats(Collections.unmodifiableMap(pluginNameToStats)));
+    }
 }

@@ -368,6 +368,7 @@ public class TransportVersions {
     public static final TransportVersion DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS = def(9_142_0_00);
     public static final TransportVersion SCRIPT_RESCORER = def(9_143_0_00);
     public static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = def(9_144_0_00);
+    public static final TransportVersion PLUGGABLE_NODE_STATS = def(9_145_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

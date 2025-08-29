@@ -2639,7 +2639,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             contains(
                 new Order(
                     EMPTY,
-                    new ReferenceAttribute(EMPTY, "e", INTEGER, Nullability.TRUE, null, false),
+                    new ReferenceAttribute(EMPTY, null, "e", INTEGER, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
@@ -2682,7 +2682,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             contains(
                 new Order(
                     EMPTY,
-                    new ReferenceAttribute(EMPTY, "e", INTEGER, Nullability.TRUE, null, false),
+                    new ReferenceAttribute(EMPTY, null, "e", INTEGER, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),

@@ -1,6 +1,6 @@
 version: 9.1.3
-released: false
-generated: 2025-08-25T12:09:52.381758857Z
+released: true
+generated: 2025-08-28T15:34:50.901192133Z
 changelogs:
   - pr: 130336
     summary: "[EIS] Rename the elser 2 default model and the default inference endpoint"
@@ -92,3 +92,9 @@ changelogs:
     area: Ingest Node
     type: upgrade
     issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        The 9.1.3 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 133410

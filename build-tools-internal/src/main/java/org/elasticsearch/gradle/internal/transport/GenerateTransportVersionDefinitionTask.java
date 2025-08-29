@@ -48,10 +48,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @Input
     @Optional
-    @Option(
-        option = "name",
-        description = "The name of the Transport Version definition, e.g. --name=my_new_tv"
-    )
+    @Option(option = "name", description = "The name of the Transport Version definition, e.g. --name=my_new_tv")
     public abstract Property<String> getTransportVersionName();
 
     @Optional
@@ -108,12 +105,18 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         if (missingBranches.isEmpty() == false) {
             List<String> sortedMissing = missingBranches.stream().sorted().toList();
             List<String> sortedKnown = knownReleaseBranches.stream().sorted().toList();
-            throw new IllegalArgumentException("Missing upper bounds files for branches " + sortedMissing +
-                    ", known branches are " + sortedKnown);
+            throw new IllegalArgumentException(
+                "Missing upper bounds files for branches " + sortedMissing + ", known branches are " + sortedKnown
+            );
         }
     }
 
-    private List<TransportVersionId> updateUpperBoundsFiles(TransportVersionResourcesService resources, List<TransportVersionUpperBound> existingUpperBounds, Set<String> targetReleaseBranches, String name) throws IOException {
+    private List<TransportVersionId> updateUpperBoundsFiles(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> existingUpperBounds,
+        Set<String> targetReleaseBranches,
+        String name
+    ) throws IOException {
         String mainReleaseBranch = getMainReleaseBranch().get();
         int primaryIncrement = getPrimaryIncrement().get();
         if (primaryIncrement <= 0) {

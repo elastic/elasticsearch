@@ -26,6 +26,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDE
 
 public class CPSExpressionRewriter {
     private static final Logger logger = LogManager.getLogger(CPSExpressionRewriter.class);
+    private static final String WILDCARD = "*";
 
     public static void maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
@@ -46,7 +47,6 @@ public class CPSExpressionRewriter {
             throw new ResourceNotFoundException("no target projects for cross-project search request");
         }
 
-        List<String> projects = targetProjects.projects();
         String[] indices = request.indices();
         logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
 
@@ -56,7 +56,7 @@ public class CPSExpressionRewriter {
             boolean isQualified = isQualifiedIndexExpression(indexExpression);
             if (isQualified) {
                 // TODO handle empty case here -- empty means "search all" in ES which is _not_ what we want
-                List<String> canonicalExpressions = rewriteQualified(indexExpression, projects, remoteClusterAware);
+                List<String> canonicalExpressions = rewriteQualified(indexExpression, targetProjects, remoteClusterAware);
                 // could fail early here in ignore_unavailable and allow_no_indices strict mode if things are empty
                 canonicalExpressionsMap.put(indexExpression, canonicalExpressions);
                 logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
@@ -80,9 +80,18 @@ public class CPSExpressionRewriter {
         return canonicalExpressions;
     }
 
-    private static List<String> rewriteQualified(String indicesExpressions, List<String> projects, RemoteClusterAware remoteClusterAware) {
+    private static List<String> rewriteQualified(
+        String indicesExpressions,
+        AuthorizedProjectsSupplier.AuthorizedProjects targetProjects,
+        RemoteClusterAware remoteClusterAware
+    ) {
+        String[] splitExpression = RemoteClusterAware.splitIndexName(indicesExpressions);
+        if (targetProjects.origin() != null && targetProjects.origin().equals(splitExpression[0])) {
+            // handling special case where we have a qualified expression like: _origin:indexName
+            return List.of(splitExpression[1]);
+        }
         final Map<String, List<String>> map = remoteClusterAware.groupClusterIndices(
-            Set.copyOf(projects),
+            Set.copyOf(targetProjects.projects()),
             new String[] { indicesExpressions }
         );
         final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
@@ -91,6 +100,14 @@ public class CPSExpressionRewriter {
             .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
             .toList();
         assert local == null || local.isEmpty() : "local indices should not be present in the map, but were: " + local;
+        if (WILDCARD.equals(splitExpression[0])) {
+            // handing of special case where the original expression was: *:indexName that is a
+            // qualified expression that includes the origin cluster and all linked projects.
+            List<String> remoteIncludingOrigin = new ArrayList<>(remote.size() + 1);
+            remoteIncludingOrigin.addAll(remote);
+            remoteIncludingOrigin.add(splitExpression[1]);
+            return remoteIncludingOrigin;
+        }
         return remote;
     }
 

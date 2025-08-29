@@ -24,7 +24,6 @@ public abstract class TestSeedValueSource implements ValueSource<String, ValueSo
 
     @Override
     public String obtain() {
-        // throw new UnsupportedOperationException("Not implemented");
         String testSeedProperty = System.getProperty("tests.seed");
         final String testSeed;
         if (testSeedProperty == null) {

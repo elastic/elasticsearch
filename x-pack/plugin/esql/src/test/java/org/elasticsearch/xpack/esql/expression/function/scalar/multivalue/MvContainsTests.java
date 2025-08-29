@@ -35,7 +35,6 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.MULTI_ROW_NULL;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.NULL;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvContainsTests extends AbstractScalarFunctionTestCase {

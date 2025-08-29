@@ -19,12 +19,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createDoubleDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createGaugeMetric;
-import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createKeyValue;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createMetricsRequest;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 
 public class DataPointGroupingContextTests extends ESTestCase {
 
@@ -76,7 +76,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
 
     public void testGroupingDifferentResource() throws Exception {
         ResourceMetrics resource1 = createResourceMetrics(
-            List.of(createKeyValue("service.name", "test-service_1")),
+            List.of(keyValue("service.name", "test-service_1")),
             List.of(
                 createScopeMetrics(
                     "test",
@@ -86,7 +86,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
             )
         );
         ResourceMetrics resource2 = createResourceMetrics(
-            List.of(createKeyValue("service.name", "test-service_2")),
+            List.of(keyValue("service.name", "test-service_2")),
             List.of(
                 createScopeMetrics(
                     "test",
@@ -108,7 +108,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
 
     public void testGroupingDifferentScope() throws Exception {
         ResourceMetrics resource1 = createResourceMetrics(
-            List.of(createKeyValue("service.name", "test-service")),
+            List.of(keyValue("service.name", "test-service")),
             List.of(
                 createScopeMetrics(
                     "test_scope_1",
@@ -118,7 +118,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
             )
         );
         ResourceMetrics resource2 = createResourceMetrics(
-            List.of(createKeyValue("service.name", "test-service")),
+            List.of(keyValue("service.name", "test-service")),
             List.of(
                 createScopeMetrics(
                     "test_scope_2",
@@ -163,7 +163,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
                 createGaugeMetric(
                     "system.cpu.usage",
                     "",
-                    List.of(createDoubleDataPoint(nowUnixNanos, List.of(createKeyValue("core", "cpu0")), 0.42))
+                    List.of(createDoubleDataPoint(nowUnixNanos, List.of(keyValue("core", "cpu0")), 0.42))
                 ),
                 createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos, List.of(), 42L)))
             )

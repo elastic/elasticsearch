@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.oteldata.otlp;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.AnyValue;
+import io.opentelemetry.proto.common.v1.ArrayValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.Gauge;
 import io.opentelemetry.proto.metrics.v1.Metric;
@@ -20,11 +22,48 @@ import io.opentelemetry.proto.metrics.v1.Sum;
 import io.opentelemetry.proto.resource.v1.Resource;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class OtlpUtils {
-    public static KeyValue createKeyValue(String key, String value) {
+
+    public static KeyValueList keyValueList(KeyValue... values) {
+        return KeyValueList.newBuilder().addAllValues(List.of(values)).build();
+    }
+
+    public static KeyValue keyValue(String key, String value) {
         return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setStringValue(value).build()).build();
+    }
+
+    public static KeyValue keyValue(String key, String... values) {
+        return KeyValue.newBuilder()
+            .setKey(key)
+            .setValue(
+                AnyValue.newBuilder()
+                    .setArrayValue(
+                        ArrayValue.newBuilder()
+                            .addAllValues(Arrays.stream(values).map(v -> AnyValue.newBuilder().setStringValue(v).build()).toList())
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+    }
+
+    public static KeyValue keyValue(String key, long value) {
+        return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setIntValue(value).build()).build();
+    }
+
+    public static KeyValue keyValue(String key, double value) {
+        return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setDoubleValue(value).build()).build();
+    }
+
+    public static KeyValue keyValue(String key, boolean value) {
+        return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setBoolValue(value).build()).build();
+    }
+
+    public static KeyValue keyValue(String key, KeyValueList keyValueList) {
+        return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setKvlistValue(keyValueList).build()).build();
     }
 
     private static Resource createResource(List<KeyValue> attributes) {
@@ -87,7 +126,7 @@ public class OtlpUtils {
         for (Metric metric : metrics) {
             resourceMetrics.add(
                 createResourceMetrics(
-                    List.of(createKeyValue("service.name", "test-service")),
+                    List.of(keyValue("service.name", "test-service")),
                     List.of(createScopeMetrics("test", "1.0.0", List.of(metric)))
                 )
             );

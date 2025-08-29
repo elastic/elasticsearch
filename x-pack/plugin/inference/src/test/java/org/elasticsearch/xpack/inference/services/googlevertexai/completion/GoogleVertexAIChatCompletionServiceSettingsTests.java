@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
@@ -36,13 +35,5 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
             randomString(),
             new RateLimitSettings(randomIntBetween(1, 1000))
         );
-    }
-
-    @Override
-    protected GoogleVertexAiChatCompletionServiceSettings mutateInstanceForVersion(
-        GoogleVertexAiChatCompletionServiceSettings instance,
-        TransportVersion version
-    ) {
-        return instance;
     }
 }

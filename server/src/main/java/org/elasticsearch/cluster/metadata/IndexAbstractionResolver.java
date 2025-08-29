@@ -237,7 +237,13 @@ public class IndexAbstractionResolver {
                     resolvedForThisInput.addAll(resolvedIndices);
                     replaced.put(
                         originalIndexExpression,
-                        new IndicesRequest.ReplacedExpression(originalIndexExpression, new ArrayList<>(resolvedForThisInput), false, null)
+                        new IndicesRequest.ReplacedExpression(
+                            originalIndexExpression,
+                            new ArrayList<>(resolvedForThisInput),
+                            true,
+                            true,
+                            null
+                        )
                     );
                 }
             } else {
@@ -254,40 +260,23 @@ public class IndexAbstractionResolver {
                         }
                     }
                 } else {
-                    // TODO this is technically wrong
-                    if (indicesOptions.ignoreUnavailable() == false) {
+                    // We should consider if this needs to be optimized to avoid checking authorization and existence here
+                    final boolean authorized = isAuthorized.test(indexAbstraction, selector);
+                    final boolean existsAndVisible = authorized
+                        && existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
+                    if (indicesOptions.ignoreUnavailable() == false || authorized) {
                         resolvedForThisInput.addAll(resolvedIndices);
-                        replaced.put(
-                            originalIndexExpression,
-                            new IndicesRequest.ReplacedExpression(
-                                originalIndexExpression,
-                                new ArrayList<>(resolvedForThisInput),
-                                false, // wrong
-                                null
-                            )
-                        );
-                    } else {
-                        final boolean authorized = isAuthorized.test(indexAbstraction, selector);
-                        if (authorized) {
-                            boolean includeInResult = ignoreUnavailableBwcBehavior
-                                || existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
-                            resolvedForThisInput.addAll(resolvedIndices);
-                            replaced.put(
-                                originalIndexExpression,
-                                new IndicesRequest.ReplacedExpression(
-                                    originalIndexExpression,
-                                    includeInResult ? new ArrayList<>(resolvedForThisInput) : List.of(),
-                                    false,
-                                    null
-                                )
-                            );
-                        } else {
-                            replaced.put(
-                                originalIndexExpression,
-                                new IndicesRequest.ReplacedExpression(originalIndexExpression, List.of(), true, null)
-                            );
-                        }
                     }
+                    replaced.put(
+                        originalIndexExpression,
+                        new IndicesRequest.ReplacedExpression(
+                            originalIndexExpression,
+                            new ArrayList<>(resolvedForThisInput),
+                            authorized,
+                            existsAndVisible,
+                            null
+                        )
+                    );
                 }
             }
         }

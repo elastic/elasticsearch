@@ -157,7 +157,7 @@ public class IndicesAndAliasesResolver {
             return true;
         }
         // CrossProjectResolvable requests always require wildcard expansion
-        if (indicesRequest instanceof IndicesRequest.CrossProjectReplaceable) {
+        if (indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable) {
             return true;
         }
         // Replaceable requests always require wildcard expansion
@@ -169,7 +169,7 @@ public class IndicesAndAliasesResolver {
 
     ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
-        assert false == indicesRequest instanceof IndicesRequest.CrossProjectReplaceable;
+        assert false == indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable;
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
             throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");
@@ -368,17 +368,17 @@ public class IndicesAndAliasesResolver {
                 // we honour allow_no_indices like es core does.
             } else {
                 // TODO this behavior could be pluggable
-                if (indicesRequest instanceof IndicesRequest.CrossProjectReplaceable crossProjectReplaceableRequest
+                if (indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable crossProjectSearchCapableRequest
                     && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
-                    assert crossProjectReplaceableRequest.allowsRemoteIndices();
+                    assert crossProjectSearchCapableRequest.allowsRemoteIndices();
                     // TODO ideally, we'd consolidate this with `resolveIndexAbstractionsCrossProject`
                     var replaced = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
                         remoteClusterResolver,
                         targetProjects,
-                        crossProjectReplaceableRequest
+                        crossProjectSearchCapableRequest
                     );
                     if (replaced != null) {
-                        logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectReplaceableRequest.indices()));
+                        logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
                         // should re-use resolveIndexAbstractions here instead, then reconcile with `replaced`
                         Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsCrossProject(
@@ -389,13 +389,13 @@ public class IndicesAndAliasesResolver {
                                 authorizedIndices::check,
                                 indicesRequest.includeDataStreams()
                             );
-                        crossProjectReplaceableRequest.replaceableIndices(
+                        crossProjectSearchCapableRequest.replaceableIndices(
                             new IndicesRequest.CrossProjectReplaceableIndices(replacedExpressions)
                         );
-                        crossProjectReplaceableRequest.indices(IndicesRequest.ReplacedExpression.toIndices(replacedExpressions));
+                        crossProjectSearchCapableRequest.indices(IndicesRequest.ReplacedExpression.toIndices(replacedExpressions));
                         // TODO handle empty case by calling
                         // replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
-                        return remoteClusterResolver.splitLocalAndRemoteIndexNames(crossProjectReplaceableRequest.indices());
+                        return remoteClusterResolver.splitLocalAndRemoteIndexNames(crossProjectSearchCapableRequest.indices());
                     }
                 }
 
@@ -405,7 +405,7 @@ public class IndicesAndAliasesResolver {
                     replaceable.getReplaceableIndices()
                 );
 
-                // TODO this is hack and should not be needed in the final implementation
+                // TODO this is a hack and should not be needed in the final implementation
                 if (IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
                     logger.info("Request has a none expression, short-circuit");
                     replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
@@ -458,7 +458,7 @@ public class IndicesAndAliasesResolver {
         }
 
         if (indicesRequest instanceof AliasesRequest aliasesRequest) {
-            assert false == indicesRequest instanceof IndicesRequest.CrossProjectReplaceable
+            assert false == indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable
                 : "CrossProjectResolvableRequest should not be an AliasesRequest, but was: " + indicesRequest.getClass().getName();
             ;
             // special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.

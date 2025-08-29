@@ -490,7 +490,7 @@ public class AuthorizationService {
             }));
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-            final AuthorizedProjectsSupplier.AuthorizedProjects targetProjects = request instanceof IndicesRequest.CrossProjectReplaceable
+            final AuthorizedProjectsSupplier.AuthorizedProjects targetProjects = request instanceof IndicesRequest.CrossProjectSearchCapable
                 ? authorizedProjectsSupplier.get()
                 : AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT;
             assert projectMetadata != null;

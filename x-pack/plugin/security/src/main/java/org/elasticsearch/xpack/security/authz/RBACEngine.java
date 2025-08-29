@@ -467,9 +467,9 @@ public class RBACEngine implements AuthorizationEngine {
                 return;
             }
             for (var replacedExpression : replacedExpressionMap.values()) {
-                if (replacedExpression.unauthorized()) {
+                if (false == replacedExpression.authorized()) {
                     // TODO actual security exception with details here
-                    replacedExpression.setError(
+                    replacedExpression.setAuthorizationError(
                         new ElasticsearchSecurityException(
                             "unauthorized to access [" + replacedExpression.original() + "]",
                             RestStatus.FORBIDDEN

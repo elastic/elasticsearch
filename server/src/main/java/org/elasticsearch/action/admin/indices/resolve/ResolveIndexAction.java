@@ -82,7 +82,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements IndicesRequest.CrossProjectReplaceable {
+    public static class Request extends LegacyActionRequest implements IndicesRequest.CrossProjectSearchCapable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
@@ -555,10 +555,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
+            final boolean crossProjectMode = request.crossProjectMode();
+
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
-            final boolean crossProjectMode = request.hasCrossProjectExpressions();
 
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
@@ -612,7 +613,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
-                    Request remoteRequest = buildRemoteFanoutRequest(crossProjectMode, originalIndices);
+                    Request remoteRequest = buildFanoutRequest(crossProjectMode, originalIndices);
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
@@ -630,7 +631,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        private Request buildRemoteFanoutRequest(boolean crossProjectMode, OriginalIndices originalIndices) {
+        private Request buildFanoutRequest(boolean crossProjectMode, OriginalIndices originalIndices) {
             return new Request(originalIndices.indices(), getIndicesOptions(crossProjectMode, originalIndices), crossProjectMode);
         }
 

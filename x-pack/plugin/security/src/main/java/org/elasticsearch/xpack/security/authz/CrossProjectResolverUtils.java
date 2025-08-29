@@ -32,7 +32,7 @@ public class CrossProjectResolverUtils {
     public static Map<String, IndicesRequest.ReplacedExpression> maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
         AuthorizedProjectsSupplier.AuthorizedProjects targetProjects,
-        IndicesRequest.CrossProjectReplaceable request
+        IndicesRequest.CrossProjectSearchCapable request
     ) {
         if (targetProjects == AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
             logger.info("Cross-project search is disabled or not applicable, skipping request [{}]...", request);

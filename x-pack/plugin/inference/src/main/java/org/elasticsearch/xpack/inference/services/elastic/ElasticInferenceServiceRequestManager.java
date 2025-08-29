@@ -20,7 +20,7 @@ public abstract class ElasticInferenceServiceRequestManager extends BaseRequestM
     private final ElasticInferenceServiceRequestMetadata requestMetadata;
 
     protected ElasticInferenceServiceRequestManager(ThreadPool threadPool, ElasticInferenceServiceModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitSettings());
         this.requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
     }
 
@@ -32,7 +32,7 @@ public abstract class ElasticInferenceServiceRequestManager extends BaseRequestM
         public static RateLimitGrouping of(ElasticInferenceServiceModel model) {
             Objects.requireNonNull(model);
 
-            return new RateLimitGrouping(model.rateLimitServiceSettings().modelId().hashCode());
+            return new RateLimitGrouping(model.rateLimitGroupingHash());
         }
     }
 }

@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -70,14 +69,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         var aggregates = aggregateExec.aggregates();
 
         var sourceLayout = source.layout;
-
-        if (aggregatorMode != AggregatorMode.INITIAL && aggregatorMode != AggregatorMode.FINAL) {
-            assert false : "Invalid aggregator mode [" + aggregatorMode + "]";
-        }
-        if (aggregatorMode == AggregatorMode.INITIAL && aggregateExec.child() instanceof ExchangeSourceExec) {
-            // the reducer step at data node (local) level
-            aggregatorMode = AggregatorMode.INTERMEDIATE;
-        }
 
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping
@@ -181,16 +172,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     aggregatorMode,
                     aggregatorFactories,
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
-                    context
-                );
-                // ordinal grouping
-            } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
-                operatorFactory = ordinalGroupingOperatorFactory(
-                    source,
-                    aggregateExec,
-                    aggregatorFactories,
-                    groupSpecs.get(0).attribute,
-                    groupSpecs.get(0).elementType(),
                     context
                 );
             } else {
@@ -362,26 +343,18 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-
-            return new BlockHash.GroupSpec(channel, elementType(), Alias.unwrap(expression) instanceof Categorize);
+            return new BlockHash.GroupSpec(
+                channel,
+                elementType(),
+                Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
+                null
+            );
         }
 
         ElementType elementType() {
             return PlannerUtils.toElementType(attribute.dataType());
         }
     }
-
-    /**
-     * Build a grouping operator that operates on ordinals if possible.
-     */
-    public abstract Operator.OperatorFactory ordinalGroupingOperatorFactory(
-        PhysicalOperation source,
-        AggregateExec aggregateExec,
-        List<GroupingAggregator.Factory> aggregatorFactories,
-        Attribute attrSource,
-        ElementType groupType,
-        LocalExecutionPlannerContext context
-    );
 
     public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
         TimeSeriesAggregateExec ts,

@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver
 
 pluginManagement {
   repositories {
@@ -79,6 +80,8 @@ List projects = [
   'distribution:bwc:bugfix',
   'distribution:bwc:bugfix2',
   'distribution:bwc:bugfix3',
+  'distribution:bwc:bugfix4',
+  'distribution:bwc:bugfix5',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',
@@ -155,6 +158,7 @@ addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
 
@@ -171,3 +175,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+include 'qa:vector'

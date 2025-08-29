@@ -12,6 +12,7 @@ import org.apache.lucene.geo.XYEncodingUtils;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -31,6 +32,11 @@ public enum SpatialCoordinateTypes {
             int latitudeEncoded = encodeLatitude(y);
             int longitudeEncoded = encodeLongitude(x);
             return (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
+        }
+
+        public GeometryValidator validator() {
+            // We validate the lat/lon values, and ignore any z values
+            return GeographyValidator.instance(true);
         }
     },
     CARTESIAN {
@@ -67,6 +73,10 @@ public enum SpatialCoordinateTypes {
         }
     };
 
+    protected GeometryValidator validator() {
+        return GeometryValidator.NOOP;
+    }
+
     public abstract Point longAsPoint(long encoded);
 
     public abstract long pointAsLong(double x, double y);
@@ -77,7 +87,7 @@ public enum SpatialCoordinateTypes {
     }
 
     public Point wkbAsPoint(BytesRef wkb) {
-        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+        Geometry geometry = WellKnownBinary.fromWKB(validator(), false, wkb.bytes, wkb.offset, wkb.length);
         if (geometry instanceof Point point) {
             return point;
         } else {
@@ -101,16 +111,8 @@ public enum SpatialCoordinateTypes {
         // TODO: we should be able to transform WKT to WKB without building the geometry
         // we should as well use different validator for cartesian and geo?
         try {
-            Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+            Geometry geometry = WellKnownText.fromWKT(validator(), false, wkt);
             return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
-        }
-    }
-
-    public Geometry wktToGeometry(String wkt) {
-        try {
-            return WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
         }
@@ -121,6 +123,6 @@ public enum SpatialCoordinateTypes {
     }
 
     public Geometry wkbToGeometry(BytesRef wkb) {
-        return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+        return WellKnownBinary.fromWKB(validator(), false, wkb.bytes, wkb.offset, wkb.length);
     }
 }

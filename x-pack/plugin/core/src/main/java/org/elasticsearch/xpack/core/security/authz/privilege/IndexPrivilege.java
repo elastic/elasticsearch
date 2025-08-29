@@ -396,7 +396,7 @@ public final class IndexPrivilege extends Privilege {
                         + part
                         + "]. a privilege must be either "
                         + "one of the predefined fixed indices privileges ["
-                        + Strings.collectionToCommaDelimitedString(VALUES.entrySet())
+                        + Strings.collectionToCommaDelimitedString(names().stream().sorted().collect(Collectors.toList()))
                         + "] or a pattern over one of the available index"
                         + " actions";
                     logger.debug(errorMessage);

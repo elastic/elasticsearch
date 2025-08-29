@@ -125,7 +125,7 @@ public final class Alias extends NamedExpression {
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
             lazyAttribute = resolved()
-                ? new ReferenceAttribute(source(), name(), dataType(), nullable(), id(), synthetic())
+                ? new ReferenceAttribute(source(), null, name(), dataType(), nullable(), id(), synthetic())
                 : new UnresolvedAttribute(source(), name());
         }
         return lazyAttribute;
@@ -138,7 +138,7 @@ public final class Alias extends NamedExpression {
 
     @Override
     public String nodeString() {
-        return child.nodeString() + " AS " + name();
+        return child.nodeString() + " AS " + name() + "#" + id();
     }
 
     /**

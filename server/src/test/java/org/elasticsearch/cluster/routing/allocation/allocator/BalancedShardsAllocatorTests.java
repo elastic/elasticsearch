@@ -597,19 +597,16 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         var allocationService = createAllocationService(
             Settings.EMPTY,
-            () -> new ClusterInfo(
-                Map.of(),
-                Map.of(),
-                Map.of(
-                    ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 0), true),
-                    0L,
-                    ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 1), true),
-                    ByteSizeUnit.GB.toBytes(500)
-                ),
-                Map.of(),
-                Map.of(),
-                Map.of()
-            )
+            () -> ClusterInfo.builder()
+                .shardSizes(
+                    Map.of(
+                        ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 0), true),
+                        0L,
+                        ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 1), true),
+                        ByteSizeUnit.GB.toBytes(500)
+                    )
+                )
+                .build()
         );
 
         assertSame(clusterState, reroute(allocationService, clusterState));
@@ -704,7 +701,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static ClusterInfo createClusterInfo(Map<String, Long> indexSizes) {
-        return new ClusterInfo(Map.of(), Map.of(), indexSizes, Map.of(), Map.of(), Map.of());
+        return ClusterInfo.builder().shardSizes(indexSizes).build();
     }
 
     private static IndexMetadata.Builder anIndex(String name) {

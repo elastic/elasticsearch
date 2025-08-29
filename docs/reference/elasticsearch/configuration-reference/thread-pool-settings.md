@@ -33,7 +33,15 @@ $$$search-throttled$$$`search_throttled`
 :   For analyze requests. Thread pool type is `fixed` with a size of `1`, queue size of `16`.
 
 `write`
-:   For single-document index/delete/update, ingest processors, and bulk requests. Thread pool type is `fixed` with a size of [`# of allocated processors`](#node.processors), queue_size of `10000`. The maximum size for this pool is `1 + `[`# of allocated processors`](#node.processors).
+:   For write operations and ingest processors. Thread pool type is `fixed` with a size of [`# of allocated processors`](#node.processors), queue_size of `max(10000, (`[`# of allocated processors`](#node.processors)`* 750))`. The maximum size for this pool is `1 + `[`# of allocated processors`](#node.processors).
+
+    :::{note}
+    In {{stack}} 9.0 and earlier, the `write` thread pool was also used for bulk requests.
+    In {{stack}} 9.1 and earlier, the queue_size was 10000.
+    :::
+
+`write_coordination` {applies_to}`stack: ga 9.1`
+:   For bulk request coordination operations. Thread pool type is `fixed` with a size of [`# of allocated processors`](#node.processors), queue_size of `10000`. The maximum size for this pool is `1 + `[`# of allocated processors`](#node.processors).
 
 `snapshot`
 :   For snapshot/restore operations. Thread pool type is `scaling` with a keep-alive of `5m`. On nodes with at least 750MB of heap the maximum size of this pool is `10` by default. On nodes with less than 750MB of heap the maximum size of this pool is `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)` by default.
@@ -56,8 +64,11 @@ $$$search-throttled$$$`search_throttled`
 `flush`
 :   For [flush](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-flush) and [translog](/reference/elasticsearch/index-settings/translog.md) `fsync` operations. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
 
+`merge`
+:   For [merge](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-merge.html) operations of all the shards on the node. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of [`# of allocated processors`](#node.processors).
+
 `force_merge`
-:   For [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) operations. Thread pool type is `fixed` with a size of `max(1, (`[`# of allocated processors`](#node.processors)`) / 8)` and an unbounded queue size.
+:   For waiting on blocking [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) operations. Thread pool type is `fixed` with a size of `max(1, (`[`# of allocated processors`](#node.processors)`) / 8)` and an unbounded queue size.
 
 `management`
 :   For cluster management. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of `5`.
@@ -67,6 +78,9 @@ $$$search-throttled$$$`search_throttled`
 
 `system_write`
 :   For write operations on system indices. Thread pool type is `fixed` with a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
+
+`system_write_coordination` {applies_to}`stack: ga 9.1`
+:   For bulk request coordination operations on system indices. Thread pool type is `fixed` with a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
 
 `system_critical_read`
 :   For critical read operations on system indices. Thread pool type is `fixed` with a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
@@ -78,9 +92,9 @@ $$$search-throttled$$$`search_throttled`
 :   For [watch executions](docs-content://explore-analyze/alerts-cases/watcher.md). Thread pool type is `fixed` with a default maximum size of `min(5 * (`[`# of allocated processors`](#node.processors)`), 50)` and queue_size of `1000`.
 
 $$$modules-threadpool-esql$$$`esql_worker`
-:   Executes [{{esql}}](docs-content://explore-analyze/query-filter/languages/esql.md) operations. Thread pool type is `fixed` with a size of `int((`[`# of allocated processors`](#node.processors) ` * 3) / 2) + 1`, and queue_size of `1000`.
+:   Executes [{{esql}}](/reference/query-languages/esql.md) operations. Thread pool type is `fixed` with a size of `int((`[`# of allocated processors`](#node.processors) ` * 3) / 2) + 1`, and queue_size of `1000`.
 
-Thread pool settings are [static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting) and can be changed by editing `elasticsearch.yml`. Changing a specific thread pool can be done by setting its type-specific parameters; for example, changing the number of threads in the `write` thread pool:
+Thread pool settings are [Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting) and can be changed by editing `elasticsearch.yml`. Changing a specific thread pool can be done by setting its type-specific parameters; for example, changing the number of threads in the `write` thread pool:
 
 ```yaml
 thread_pool:

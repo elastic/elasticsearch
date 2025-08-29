@@ -1,0 +1,6 @@
+pr: 130544
+summary: Sync Inference with Trained Model stats
+area: Machine Learning
+type: bug
+issues:
+ - 130339

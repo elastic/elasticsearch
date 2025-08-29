@@ -22,11 +22,10 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.Collections;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
@@ -75,7 +74,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
             } else if (event.hasData()) {
                 try {
                     var delta = parse(parserConfig, event);
-                    delta.forEachRemaining(results::offer);
+                    delta.forEach(results::offer);
                 } catch (Exception e) {
                     logger.warn("Failed to parse event from inference provider: {}", event);
                     throw errorParser.apply(event.data(), e);
@@ -90,15 +89,22 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         }
     }
 
-    private static Iterator<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
         XContentParserConfiguration parserConfig,
         ServerSentEvent event
     ) throws IOException {
         if (DONE_MESSAGE.equalsIgnoreCase(event.data())) {
-            return Collections.emptyIterator();
+            return Stream.empty();
         }
 
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
+        return parse(parserConfig, event.data());
+    }
+
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
+        XContentParserConfiguration parserConfig,
+        String data
+    ) throws IOException {
+        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
@@ -106,7 +112,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
 
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = ChatCompletionChunkParser.parse(jsonParser);
 
-            return Collections.singleton(chunk).iterator();
+            return Stream.of(chunk);
         }
     }
 
@@ -132,8 +138,8 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 (p, c) -> ChatCompletionChunkParser.ChoiceParser.parse(p),
                 new ParseField(CHOICES_FIELD)
             );
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(MODEL_FIELD));
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(OBJECT_FIELD));
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MODEL_FIELD));
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(OBJECT_FIELD));
             PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ChatCompletionChunkParser.UsageParser.parse(p),
@@ -192,7 +198,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONTENT_FIELD));
                 PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(REFUSAL_FIELD));
                 PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ROLE_FIELD));
-                PARSER.declareObjectArray(
+                PARSER.declareObjectArrayOrNull(
                     ConstructingObjectParser.optionalConstructorArg(),
                     (p, c) -> ChatCompletionChunkParser.ToolCallParser.parse(p),
                     new ParseField(TOOL_CALLS_FIELD)

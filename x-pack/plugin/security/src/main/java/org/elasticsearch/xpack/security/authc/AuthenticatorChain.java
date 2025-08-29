@@ -54,6 +54,7 @@ class AuthenticatorChain {
         AuthenticationContextSerializer authenticationSerializer,
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
+        PluggableApiKeyAuthenticator pluggableApiKeyAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
         RealmsAuthenticator realmsAuthenticator
     ) {
@@ -64,7 +65,13 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
+        this.allAuthenticators = List.of(
+            serviceAccountAuthenticator,
+            oAuth2TokenAuthenticator,
+            pluggableApiKeyAuthenticator,
+            apiKeyAuthenticator,
+            realmsAuthenticator
+        );
     }
 
     void authenticate(Authenticator.Context context, ActionListener<Authentication> originalListener) {
@@ -288,7 +295,7 @@ class AuthenticatorChain {
                     ese.status(),
                     ese.getCause()
                 );
-                ese.getHeaderKeys().forEach(k -> eseWithPreviousCredentials.addHeader(k, ese.getHeader(k)));
+                ese.getBodyHeaderKeys().forEach(k -> eseWithPreviousCredentials.addBodyHeader(k, ese.getBodyHeader(k)));
                 addMetadata(context, eseWithPreviousCredentials);
                 listener.onFailure(eseWithPreviousCredentials);
             } else {

@@ -28,19 +28,19 @@ public class TestBuildInfoParserTests extends ESTestCase {
                 "component": "lang-painless",
                 "locations": [
                     {
-                        "representativeClass": "Location.class",
+                        "representative_class": "Location.class",
                         "module": "org.elasticsearch.painless"
                     },
                     {
-                        "representativeClass": "org/objectweb/asm/AnnotationVisitor.class",
+                        "representative_class": "org/objectweb/asm/AnnotationVisitor.class",
                         "module": "org.objectweb.asm"
                     },
                     {
-                        "representativeClass": "org/antlr/v4/runtime/ANTLRErrorListener.class",
+                        "representative_class": "org/antlr/v4/runtime/ANTLRErrorListener.class",
                         "module": "org.antlr.antlr4.runtime"
                     },
                     {
-                        "representativeClass": "org/objectweb/asm/commons/AdviceAdapter.class",
+                        "representative_class": "org/objectweb/asm/commons/AdviceAdapter.class",
                         "module": "org.objectweb.asm.commons"
                     }
                 ]

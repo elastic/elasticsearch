@@ -47,6 +47,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -130,6 +131,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogOperationsUtils;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -169,6 +171,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
@@ -2531,11 +2534,11 @@ public class InternalEngineTests extends EngineTestCase {
         MockAppender mockAppender = new MockAppender("testIndexWriterInfoStream");
         mockAppender.start();
 
-        Logger rootLogger = LogManager.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.DEBUG);
-        rootLogger = LogManager.getRootLogger();
+        Logger theLogger = LogManager.getLogger("org.elasticsearch.index");
+        Level savedLevel = theLogger.getLevel();
+        Loggers.addAppender(theLogger, mockAppender);
+        Loggers.setLevel(theLogger, Level.DEBUG);
+        theLogger = LogManager.getLogger("org.elasticsearch.index");
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
@@ -2545,15 +2548,15 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
-            Loggers.setLevel(rootLogger, Level.TRACE);
+            Loggers.setLevel(theLogger, Level.TRACE);
             engine.index(indexForDoc(doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
             engine.close();
         } finally {
-            Loggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(theLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
+            Loggers.setLevel(theLogger, savedLevel);
         }
     }
 
@@ -2593,10 +2596,10 @@ public class InternalEngineTests extends EngineTestCase {
         final MockMergeThreadAppender mockAppender = new MockMergeThreadAppender("testMergeThreadLogging");
         mockAppender.start();
 
-        Logger rootLogger = LogManager.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.TRACE);
+        Logger theLogger = LogManager.getLogger("org.elasticsearch.index");
+        Level savedLevel = theLogger.getLevel();
+        Loggers.addAppender(theLogger, mockAppender);
+        Loggers.setLevel(theLogger, Level.TRACE);
         try {
             LogMergePolicy lmp = newLogMergePolicy();
             lmp.setMergeFactor(2);
@@ -2629,12 +2632,12 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(mockAppender.mergeCompleted(), is(true));
                 });
 
-                Loggers.setLevel(rootLogger, savedLevel);
+                Loggers.setLevel(theLogger, savedLevel);
                 engine.close();
             }
         } finally {
-            Loggers.setLevel(rootLogger, savedLevel);
-            Loggers.removeAppender(rootLogger, mockAppender);
+            Loggers.setLevel(theLogger, savedLevel);
+            Loggers.removeAppender(theLogger, mockAppender);
             mockAppender.stop();
         }
     }
@@ -2907,14 +2910,33 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private static Long getHighestSeqNo(final IndexReader reader) throws IOException {
-        final String fieldName = SeqNoFieldMapper.NAME;
-        long size = PointValues.size(reader, fieldName);
-        if (size == 0) {
-            return null;
+    private Long getHighestSeqNo(final IndexReader reader) throws IOException {
+        boolean usePoints = switch (defaultSettings.seqNoIndexOptions()) {
+            case POINTS_AND_DOC_VALUES -> randomBoolean();
+            case DOC_VALUES_ONLY -> false;
+        };
+        if (usePoints) {
+            final String fieldName = SeqNoFieldMapper.NAME;
+            long size = PointValues.size(reader, fieldName);
+            if (size == 0) {
+                return null;
+            }
+            byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
+            return LongPoint.decodeDimension(max, 0);
+        } else {
+            Long value = null;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                NumericDocValues dv = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                while (dv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (value == null) {
+                        value = dv.longValue();
+                    } else {
+                        value = Math.max(value, dv.longValue());
+                    }
+                }
+            }
+            return value;
         }
-        byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-        return LongPoint.decodeDimension(max, 0);
     }
 
     private static FixedBitSet getSeqNosSet(final IndexReader reader, final long highestSeqNo) throws IOException {
@@ -3613,7 +3635,9 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             true,
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            Function.identity()
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -5498,7 +5522,7 @@ public class InternalEngineTests extends EngineTestCase {
             final String id = "id";
             final Field uidField = new StringField("_id", id, Field.Store.YES);
             final Field versionField = new NumericDocValuesField("_version", 0);
-            final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+            final var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions);
             final LuceneDocument document = new LuceneDocument();
             document.add(uidField);
             document.add(versionField);
@@ -7015,6 +7039,50 @@ public class InternalEngineTests extends EngineTestCase {
         verify(indexWithoutThrottlingCheck, atLeastOnce()).startTime();
     }
 
+    /* Test that indexing is paused during throttling using the PAUSE_INDEXING_ON_THROTTLE setting is on.
+     * The test tries to index a document into a shard for which indexing is throttled. It is unable to
+     * do so until throttling is disabled.
+     * Indexing proceeds as usual once the shard throttle is deactivated.
+     */
+    public void testIndexThrottlingWithPause() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))
+        ) {
+            final List<DocIdSeqNoAndSource> prevDocs;
+            final Engine.Index indexWithThrottlingCheck = indexForDoc(createParsedDoc("1", null));
+            final Engine.Index indexWithoutThrottlingCheck = indexForDoc(createParsedDoc("2", null));
+            prevDocs = getDocIds(engine, true);
+            assertThat(prevDocs.size(), equalTo(0));
+            Thread indexWithThrottle = new Thread(() -> {
+                try {
+                    engine.index(indexWithThrottlingCheck);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+            // Activate throttling (this will pause indexing)
+            engine.activateThrottling();
+            assertTrue(engine.isThrottled());
+            indexWithThrottle.start();
+            // Wait for the thread to complete, it will not complete because of the pause
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(500));
+            assertThat(getDocIds(engine, true).size(), equalTo(0));
+            // Deactivate to allow the indexing thread to proceed
+            engine.deactivateThrottling();
+            indexWithThrottle.join();
+            assertThat(getDocIds(engine, true).size(), equalTo(1));
+            engine.index(indexWithoutThrottlingCheck);
+            assertThat(getDocIds(engine, true).size(), equalTo(2));
+        }
+    }
+
     public void testRealtimeGetOnlyRefreshIfNeeded() throws Exception {
         MapperService mapperService = createMapperService();
         final AtomicInteger refreshCount = new AtomicInteger();
@@ -7177,7 +7245,9 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
-                config.getEngineResetLock()
+                config.getEngineResetLock(),
+                config.getMergeMetrics(),
+                config.getIndexDeletionPolicyWrapper()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
@@ -7457,7 +7527,8 @@ public class InternalEngineTests extends EngineTestCase {
                     globalCheckpoint::get,
                     () -> RetentionLeases.EMPTY,
                     new NoneCircuitBreakerService(),
-                    indexCommitListener
+                    indexCommitListener,
+                    Function.identity()
                 )
             )
         ) {

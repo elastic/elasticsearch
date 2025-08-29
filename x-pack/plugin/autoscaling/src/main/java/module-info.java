@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
+
 module org.elasticsearch.autoscaling {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
@@ -18,7 +20,5 @@ module org.elasticsearch.autoscaling {
     exports org.elasticsearch.xpack.autoscaling.capacity;
     exports org.elasticsearch.xpack.autoscaling;
 
-    provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
-        with
-            org.elasticsearch.xpack.autoscaling.ReservedAutoscalingStateHandlerProvider;
+    provides ReservedStateHandlerProvider with org.elasticsearch.xpack.autoscaling.ReservedAutoscalingStateHandlerProvider;
 }

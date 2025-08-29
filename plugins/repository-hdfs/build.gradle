@@ -7,15 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description = 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname ='org.elasticsearch.repositories.hdfs.HdfsPlugin'
+  classname = 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [
@@ -23,10 +24,19 @@ versions << [
 ]
 
 def patched = Attribute.of('patched', Boolean)
+def hdfsVersionAttr = Attribute.of('hdfs.major.version', Integer)
 
 configurations {
-  hdfsFixture2
-  hdfsFixture3
+  hdfsFixture2 {
+    attributes {
+      attribute(hdfsVersionAttr, 2)
+    }
+  }
+  hdfsFixture3 {
+    attributes {
+      attribute(hdfsVersionAttr, 3)
+    }
+  }
   compileClasspath {
     attributes {
       attribute(patched, true)
@@ -82,8 +92,8 @@ dependencies {
   yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
   yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
-  hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
-  hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
+  hdfsFixture2 project(':test:fixtures:hdfs-fixture')
+  hdfsFixture3 project(':test:fixtures:hdfs-fixture')
 
   attributesSchema {
     attribute(patched)

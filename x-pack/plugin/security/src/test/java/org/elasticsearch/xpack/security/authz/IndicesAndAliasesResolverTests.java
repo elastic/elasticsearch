@@ -61,7 +61,6 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportRequest;
@@ -247,6 +246,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         rolesStore = Mockito.spy(
             new CompositeRolesStore(
                 settings,
+                mock(ClusterService.class),
                 mock(RoleProviders.class),
                 mock(NativePrivilegeStore.class),
                 new ThreadContext(settings),
@@ -255,7 +255,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 mock(ApiKeyService.class),
                 mock(ServiceAccountService.class),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class)),
+                new DocumentSubsetBitsetCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 rds -> {}
@@ -2500,9 +2500,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), not(hasItem("logs-foobar")));
         assertThat(authorizedIndices.check("logs-foobar", IndexComponentSelector.DATA), is(false));
 
-        String expectedIndex = failureStore
-            ? DataStream.getDefaultFailureStoreName("logs-foobar", 1, System.currentTimeMillis())
-            : DataStream.getDefaultBackingIndexName("logs-foobar", 1);
+        String expectedIndex = projectMetadata.dataStreams()
+            .get("logs-foobar")
+            .getDataStreamIndices(failureStore)
+            .getIndices()
+            .getFirst()
+            .getName();
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), hasItem(expectedIndex));
         assertThat(authorizedIndices.check(expectedIndex, IndexComponentSelector.DATA), is(true));
 
@@ -2568,9 +2571,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // data streams should _not_ be in the authorized list but a single backing index that matched the requested pattern
         // and the authorized name should be in the list
-        String expectedIndex = failureStore
-            ? DataStream.getDefaultFailureStoreName("logs-foobar", 1, System.currentTimeMillis())
-            : DataStream.getDefaultBackingIndexName("logs-foobar", 1);
+        String expectedIndex = projectMetadata.dataStreams()
+            .get("logs-foobar")
+            .getDataStreamIndices(failureStore)
+            .getIndices()
+            .getFirst()
+            .getName();
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), not(hasItem("logs-foobar")));
         assertThat(authorizedIndices.check("logs-foobar", IndexComponentSelector.DATA), is(false));

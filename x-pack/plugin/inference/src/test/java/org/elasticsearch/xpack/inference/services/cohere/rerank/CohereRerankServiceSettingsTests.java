@@ -36,7 +36,8 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
         return new CohereRerankServiceSettings(
             randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
             randomFrom(new String[] { null, randomAlphaOfLength(10) }),
-            rateLimitSettings
+            rateLimitSettings,
+            CohereServiceSettings.CohereApiVersion.V2
         );
     }
 
@@ -44,7 +45,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
         var url = "http://www.abc.com";
         var model = "model";
 
-        var serviceSettings = new CohereRerankServiceSettings(url, model, null);
+        var serviceSettings = new CohereRerankServiceSettings(url, model, null, CohereServiceSettings.CohereApiVersion.V2);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -56,7 +57,8 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
                 "model_id":"model",
                 "rate_limit": {
                     "requests_per_minute": 10000
-                }
+                },
+                "api_version": "V2"
             }
             """));
     }
@@ -80,8 +82,21 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
     protected CohereRerankServiceSettings mutateInstanceForVersion(CohereRerankServiceSettings instance, TransportVersion version) {
         if (version.before(TransportVersions.V_8_15_0)) {
             // We always default to the same rate limit settings, if a node is on a version before rate limits were introduced
-            return new CohereRerankServiceSettings(instance.uri(), instance.modelId(), CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS);
-        }
+            return new CohereRerankServiceSettings(
+                instance.uri(),
+                instance.modelId(),
+                CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
+                CohereServiceSettings.CohereApiVersion.V1
+            );
+        } else if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
+            && version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false) {
+                return new CohereRerankServiceSettings(
+                    instance.uri(),
+                    instance.modelId(),
+                    instance.rateLimitSettings(),
+                    CohereServiceSettings.CohereApiVersion.V1
+                );
+            }
         return instance;
     }
 

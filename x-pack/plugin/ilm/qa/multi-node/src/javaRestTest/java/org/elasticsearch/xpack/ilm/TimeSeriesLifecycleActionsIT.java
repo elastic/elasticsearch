@@ -766,6 +766,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             String status = (String) statusResponseMap.get("operation_mode");
             assertEquals("STOPPED", status);
         });
+        // Wait for cluster state to be published to all nodes.
+        waitForClusterUpdates();
 
         // Re-start ILM so that subsequent tests don't fail
         Request startILMRequest = new Request("POST", "_ilm/start");

@@ -58,6 +58,9 @@
             }
           }
         },
+        "last_known_status": {
+          "type": "keyword"
+        },
         "unhealthy_reason": {
           "type": "keyword"
         },
@@ -94,6 +97,9 @@
                       "type": "keyword"
                     },
                     "snapshot": {
+                      "type": "boolean"
+                    },
+                    "complete": {
                       "type": "boolean"
                     },
                     "upgradeable": {

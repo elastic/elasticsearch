@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -94,7 +93,6 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final ConcurrentMap<ProjectId, ConcurrentHashMap<String, AtomicBoolean>> pipelineCreationsInProgress =
         new ConcurrentHashMap<>();
     protected final List<LifecyclePolicy> lifecyclePolicies;
-    protected final ProjectResolver projectResolver;
 
     @SuppressWarnings("this-escape")
     public IndexTemplateRegistry(
@@ -102,15 +100,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
         this.settings = nodeSettings;
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.clusterService = clusterService;
-        this.projectResolver = projectResolver;
         if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false) {
             this.lifecyclePolicies = getLifecycleConfigs().stream()
                 .map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
@@ -507,7 +503,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                projectResolver.projectClient(client, projectId).admin().indices()::putTemplate
+                client.projectClient(projectId).admin().indices()::putTemplate
             );
         });
     }
@@ -545,8 +541,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                (req, listener) -> projectResolver.projectClient(client, projectId)
-                    .execute(PutComponentTemplateAction.INSTANCE, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(PutComponentTemplateAction.INSTANCE, req, listener)
             );
         });
     }
@@ -591,8 +586,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                (req, listener) -> projectResolver.projectClient(client, project.id())
-                    .execute(TransportPutComposableIndexTemplateAction.TYPE, req, listener)
+                (req, listener) -> client.projectClient(project.id()).execute(TransportPutComposableIndexTemplateAction.TYPE, req, listener)
             );
         });
     }
@@ -662,7 +656,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutPolicyFailure(policy, e);
                     }
                 },
-                (req, listener) -> projectResolver.projectClient(client, projectId).execute(ILMActions.PUT, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(ILMActions.PUT, req, listener)
             );
         });
     }
@@ -776,7 +770,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutPipelineFailure(pipelineConfig.getId(), e);
                     }
                 },
-                (req, listener) -> projectResolver.projectClient(client, projectId).execute(PutPipelineTransportAction.TYPE, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(PutPipelineTransportAction.TYPE, req, listener)
             );
         });
     }
@@ -851,7 +845,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     getOrigin(),
                     request,
                     groupedActionListener,
-                    (req, listener) -> projectResolver.projectClient(client, project.id()).execute(RolloverAction.INSTANCE, req, listener)
+                    (req, listener) -> client.projectClient(project.id()).execute(RolloverAction.INSTANCE, req, listener)
                 );
             }
         });

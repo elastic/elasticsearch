@@ -51,7 +51,12 @@ public class ValidatingSubstitutor {
         Matcher matcher = VARIABLE_PLACEHOLDER_PATTERN.matcher(substitutedString);
         if (matcher.find()) {
             throw new IllegalStateException(
-                Strings.format("Found placeholder [%s] in field [%s] after replacement call", matcher.group(), field)
+                Strings.format(
+                    "Found placeholder [%s] in field [%s] after replacement call, "
+                        + "please check that all templates have a corresponding field definition.",
+                    matcher.group(),
+                    field
+                )
             );
         }
     }

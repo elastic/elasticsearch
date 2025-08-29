@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -20,15 +21,18 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
@@ -37,6 +41,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
@@ -44,21 +49,37 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 
-public class SageMakerService implements InferenceService {
-    public static final String NAME = "sagemaker";
+public class SageMakerService implements InferenceService, RerankingInferenceService {
+    public static final String NAME = "amazon_sagemaker";
+    private static final String DISPLAY_NAME = "Amazon SageMaker";
+    private static final List<String> ALIASES = List.of("sagemaker", "amazonsagemaker");
     private static final int DEFAULT_BATCH_SIZE = 256;
+    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.THIRTY_SECONDS;
     private final SageMakerModelBuilder modelBuilder;
     private final SageMakerClient client;
     private final SageMakerSchemas schemas;
     private final ThreadPool threadPool;
     private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
+    private final ClusterService clusterService;
 
     public SageMakerService(
         SageMakerModelBuilder modelBuilder,
         SageMakerClient client,
         SageMakerSchemas schemas,
         ThreadPool threadPool,
-        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap
+        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(modelBuilder, client, schemas, threadPool, configurationMap, context.clusterService());
+    }
+
+    public SageMakerService(
+        SageMakerModelBuilder modelBuilder,
+        SageMakerClient client,
+        SageMakerSchemas schemas,
+        ThreadPool threadPool,
+        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap,
+        ClusterService clusterService
     ) {
         this.modelBuilder = modelBuilder;
         this.client = client;
@@ -66,16 +87,22 @@ public class SageMakerService implements InferenceService {
         this.threadPool = threadPool;
         this.configuration = new LazyInitializable<>(
             () -> new InferenceServiceConfiguration.Builder().setService(NAME)
-                .setName("Amazon SageMaker")
+                .setName(DISPLAY_NAME)
                 .setTaskTypes(supportedTaskTypes())
                 .setConfigurations(configurationMap.get())
                 .build()
         );
+        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public List<String> aliases() {
+        return ALIASES;
     }
 
     @Override
@@ -128,14 +155,14 @@ public class SageMakerService implements InferenceService {
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof SageMakerModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
-
+        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
         var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);
 
         try {
@@ -201,7 +228,7 @@ public class SageMakerService implements InferenceService {
     public void unifiedCompletionInfer(
         Model model,
         UnifiedCompletionRequest request,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof SageMakerModel == false) {
@@ -217,7 +244,7 @@ public class SageMakerService implements InferenceService {
             client.invokeStream(
                 regionAndSecrets,
                 sagemakerRequest,
-                timeout,
+                timeout != null ? timeout : DEFAULT_TIMEOUT,
                 ActionListener.wrap(
                     response -> listener.onResponse(schema.chatCompletionStreamResponse(sageMakerModel, response)),
                     e -> listener.onFailure(schema.chatCompletionError(sageMakerModel, e))
@@ -235,7 +262,7 @@ public class SageMakerService implements InferenceService {
         List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
         if (model instanceof SageMakerModel == false) {
@@ -301,5 +328,12 @@ public class SageMakerService implements InferenceService {
     @Override
     public void close() throws IOException {
         client.close();
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // Assume a small window size as the true value is not known.
+        // TODO make the rerank window size configurable
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 }

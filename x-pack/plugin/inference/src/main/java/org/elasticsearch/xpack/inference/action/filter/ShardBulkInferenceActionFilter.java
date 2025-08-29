@@ -46,6 +46,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -75,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
@@ -112,6 +114,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final ModelRegistry modelRegistry;
     private final XPackLicenseState licenseState;
     private final IndexingPressure indexingPressure;
+    private final InferenceStats inferenceStats;
     private volatile long batchSizeInBytes;
 
     public ShardBulkInferenceActionFilter(
@@ -119,13 +122,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         InferenceServiceRegistry inferenceServiceRegistry,
         ModelRegistry modelRegistry,
         XPackLicenseState licenseState,
-        IndexingPressure indexingPressure
+        IndexingPressure indexingPressure,
+        InferenceStats inferenceStats
     ) {
         this.clusterService = clusterService;
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
         this.licenseState = licenseState;
         this.indexingPressure = indexingPressure;
+        this.inferenceStats = inferenceStats;
         this.batchSizeInBytes = INDICES_INFERENCE_BATCH_SIZE.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BATCH_SIZE, this::setBatchSize);
     }
@@ -386,10 +391,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 public void onResponse(List<ChunkedInference> results) {
                     try (onFinish) {
                         var requestsIterator = requests.iterator();
+                        int success = 0;
                         for (ChunkedInference result : results) {
                             var request = requestsIterator.next();
                             var acc = inferenceResults.get(request.bulkItemIndex);
                             if (result instanceof ChunkedInferenceError error) {
+                                recordRequestCountMetrics(inferenceProvider.model, 1, error.exception());
                                 acc.addFailure(
                                     new InferenceException(
                                         "Exception when running inference id [{}] on field [{}]",
@@ -399,6 +406,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     )
                                 );
                             } else {
+                                success++;
                                 acc.addOrUpdateResponse(
                                     new FieldInferenceResponse(
                                         request.field(),
@@ -412,12 +420,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 );
                             }
                         }
+                        if (success > 0) {
+                            recordRequestCountMetrics(inferenceProvider.model, success, null);
+                        }
                     }
                 }
 
                 @Override
                 public void onFailure(Exception exc) {
                     try (onFinish) {
+                        recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
                         for (FieldInferenceRequest request : requests) {
                             addInferenceResponseFailure(
                                 request.bulkItemIndex,
@@ -442,6 +454,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     TimeValue.MAX_VALUE,
                     completionListener
                 );
+        }
+
+        private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
+            Map<String, Object> requestCountAttributes = new HashMap<>();
+            requestCountAttributes.putAll(modelAndResponseAttributes(model, throwable));
+            requestCountAttributes.put("inference_source", "semantic_text_bulk");
+            inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
         }
 
         /**
@@ -610,13 +629,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().ramBytesUsed());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().length());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
                         itemIndex,
                         new InferenceException(
-                            "Insufficient memory available to update source on document [" + indexRequest.getIndexRequest().id() + "]",
+                            "Unable to insert inference results into document ["
+                                + indexRequest.getIndexRequest().id()
+                                + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                             e
                         )
                     );
@@ -707,7 +728,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (useLegacyFormat) {
                 var newDocMap = indexRequest.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
-                    SemanticTextUtils.insertValue(entry.getKey(), newDocMap, entry.getValue());
+                    XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
                 indexRequest.source(newDocMap, indexRequest.getContentType());
             } else {
@@ -716,19 +737,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     indexRequest.source(builder);
                 }
             }
-            long modifiedSourceSize = indexRequest.source().ramBytesUsed();
+            long modifiedSourceSize = indexRequest.source().length();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those
             // in addFieldInferenceRequests.
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.ramBytesUsed());
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
             } catch (EsRejectedExecutionException e) {
                 indexRequest.source(originalSource, indexRequest.getContentType());
                 item.abort(
                     item.index(),
                     new InferenceException(
-                        "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
+                        "Unable to insert inference results into document ["
+                            + indexRequest.id()
+                            + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                         e
                     )
                 );

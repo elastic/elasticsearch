@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -35,7 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -59,6 +61,7 @@ public class MetadataDataStreamsService {
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
     private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
     private final MasterServiceTaskQueue<UpdateSettingsTask> updateSettingsTaskQueue;
+    private final MasterServiceTaskQueue<UpdateMappingsTask> updateMappingsTaskQueue;
 
     public MetadataDataStreamsService(
         ClusterService clusterService,
@@ -126,7 +129,7 @@ public class MetadataDataStreamsService {
                     ClusterState.builder(clusterState)
                         .putProjectMetadata(
                             updateDataStreamOptions(
-                                clusterState.projectState(modifyOptionsTask.projectId).metadata(),
+                                clusterState.metadata().getProject(modifyOptionsTask.projectId),
                                 modifyOptionsTask.getDataStreamNames(),
                                 modifyOptionsTask.getOptions()
                             )
@@ -144,31 +147,17 @@ public class MetadataDataStreamsService {
                 UpdateSettingsTask updateSettingsTask,
                 ClusterState clusterState
             ) throws Exception {
-
+                DataStream dataStream = createDataStreamForUpdatedDataStreamSettings(
+                    updateSettingsTask.projectId,
+                    updateSettingsTask.dataStreamName,
+                    updateSettingsTask.settingsOverrides,
+                    clusterState
+                );
                 ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSettingsTask.projectId);
                 ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
-                Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
-                DataStream dataStream = dataStreamMap.get(updateSettingsTask.dataStreamName);
-                Settings existingSettings = dataStream.getSettings();
-
-                Template.Builder templateBuilder = Template.builder();
-                Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(updateSettingsTask.settingsOverrides);
-                Settings mergedSettings = mergedSettingsBuilder.build();
-
-                final ComposableIndexTemplate template = lookupTemplateForDataStream(updateSettingsTask.dataStreamName, projectMetadata);
-                ComposableIndexTemplate mergedTemplate = template.mergeSettings(mergedSettings);
-                MetadataIndexTemplateService.validateTemplate(
-                    mergedTemplate.template().settings(),
-                    mergedTemplate.template().mappings(),
-                    indicesService
-                );
-
-                templateBuilder.settings(mergedSettingsBuilder);
-                DataStream.Builder dataStreamBuilder = dataStream.copy().setSettings(mergedSettings);
                 projectMetadataBuilder.removeDataStream(updateSettingsTask.dataStreamName);
-                projectMetadataBuilder.put(dataStreamBuilder.build());
+                projectMetadataBuilder.put(dataStream);
                 ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
-
                 return new Tuple<>(updatedClusterState, updateSettingsTask);
             }
         };
@@ -176,6 +165,32 @@ public class MetadataDataStreamsService {
             "update-data-stream-settings",
             Priority.NORMAL,
             updateSettingsExecutor
+        );
+        ClusterStateTaskExecutor<UpdateMappingsTask> updateMappingsExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                UpdateMappingsTask updateMappingsTask,
+                ClusterState clusterState
+            ) throws Exception {
+                DataStream dataStream = createDataStreamForUpdatedDataStreamMappings(
+                    updateMappingsTask.projectId,
+                    updateMappingsTask.dataStreamName,
+                    updateMappingsTask.mappingsOverrides,
+                    clusterState
+                );
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateMappingsTask.projectId);
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                projectMetadataBuilder.removeDataStream(updateMappingsTask.dataStreamName);
+                projectMetadataBuilder.put(dataStream);
+                ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+                return new Tuple<>(updatedClusterState, updateMappingsTask);
+            }
+        };
+        this.updateMappingsTaskQueue = clusterService.createTaskQueue(
+            "update-data-stream-mappings",
+            Priority.NORMAL,
+            updateMappingsExecutor
         );
     }
 
@@ -420,13 +435,131 @@ public class MetadataDataStreamsService {
         TimeValue ackTimeout,
         String dataStreamName,
         Settings settingsOverrides,
-        ActionListener<AcknowledgedResponse> listener
+        boolean dryRun,
+        ActionListener<DataStream> listener
     ) {
-        updateSettingsTaskQueue.submitTask(
-            "updating settings on data stream",
-            new UpdateSettingsTask(projectId, dataStreamName, settingsOverrides, ackTimeout, listener),
-            masterNodeTimeout
+        if (dryRun) {
+            /*
+             * If this is a dry run, we'll do the settings validation and apply the changes to the data stream locally, but we won't run
+             * the task that actually updates the cluster state.
+             */
+            try {
+                DataStream updatedDataStream = createDataStreamForUpdatedDataStreamSettings(
+                    projectId,
+                    dataStreamName,
+                    settingsOverrides,
+                    clusterService.state()
+                );
+                listener.onResponse(updatedDataStream);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        } else {
+            UpdateSettingsTask updateSettingsTask = new UpdateSettingsTask(
+                projectId,
+                dataStreamName,
+                settingsOverrides,
+                clusterService,
+                ackTimeout,
+                listener
+            );
+            updateSettingsTaskQueue.submitTask("updating settings on data stream", updateSettingsTask, masterNodeTimeout);
+        }
+    }
+
+    /*
+     * This method validates that the settings won't cause any validation problems with existing templates. If successful, a copy of the
+     * data stream is returned with the new settings applied.
+     */
+    private DataStream createDataStreamForUpdatedDataStreamSettings(
+        ProjectId projectId,
+        String dataStreamName,
+        Settings settingsOverrides,
+        ClusterState clusterState
+    ) throws Exception {
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
+        Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
+        DataStream dataStream = dataStreamMap.get(dataStreamName);
+        Settings existingDataStreamSettings = dataStream.getSettings();
+
+        Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingDataStreamSettings).put(settingsOverrides);
+        /*
+         * A null value for a setting override means that we remove it from the data stream, and let the value from the template (if any)
+         * be used.
+         */
+        settingsOverrides.keySet().forEach(key -> {
+            if (mergedSettingsBuilder.get(key) == null) {
+                mergedSettingsBuilder.remove(key);
+            }
+        });
+        Settings mergedDataStreamSettings = mergedSettingsBuilder.build();
+
+        final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
+        Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
+        MetadataIndexTemplateService.validateTemplate(
+            mergedEffectiveSettings,
+            dataStream.getEffectiveMappings(projectMetadata, indicesService),
+            indicesService
         );
+
+        return dataStream.copy().setSettings(mergedDataStreamSettings).build();
+    }
+
+    private DataStream createDataStreamForUpdatedDataStreamMappings(
+        ProjectId projectId,
+        String dataStreamName,
+        CompressedXContent mappingsOverrides,
+        ClusterState clusterState
+    ) throws Exception {
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
+        Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
+        DataStream dataStream = dataStreamMap.get(dataStreamName);
+
+        final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
+        CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
+            projectMetadata,
+            template,
+            mappingsOverrides,
+            dataStream.getWriteIndex(),
+            indicesService
+        );
+        MetadataIndexTemplateService.validateTemplate(dataStream.getEffectiveSettings(projectMetadata), effectiveMappings, indicesService);
+        return dataStream.copy().setMappings(mappingsOverrides).build();
+    }
+
+    public void updateMappings(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String dataStreamName,
+        CompressedXContent mappingsOverrides,
+        boolean dryRun,
+        ActionListener<DataStream> listener
+    ) {
+        if (dryRun) {
+            /*
+             * If this is a dry run, we'll do the settings validation and apply the changes to the data stream locally, but we won't run
+             * the task that actually updates the cluster state.
+             */
+            try {
+                DataStream updatedDataStream = createDataStreamForUpdatedDataStreamMappings(
+                    projectId,
+                    dataStreamName,
+                    mappingsOverrides,
+                    clusterService.state()
+                );
+                listener.onResponse(updatedDataStream);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        } else {
+            updateMappingsTaskQueue.submitTask(
+                "updating mappings on data stream",
+                new UpdateMappingsTask(projectId, dataStreamName, mappingsOverrides, clusterService, ackTimeout, listener),
+                masterNodeTimeout
+            );
+        }
     }
 
     private static void addBackingIndex(
@@ -531,7 +664,7 @@ public class MetadataDataStreamsService {
         }
 
         Set<String> dataStreamNames = dataStreams.stream().map(DataStream::getName).collect(Collectors.toSet());
-        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(projectState, dataStreamNames);
+        Set<String> snapshottingDataStreams = SnapshotsServiceUtils.snapshottingDataStreams(projectState, dataStreamNames);
         if (snapshottingDataStreams.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot delete data streams that are being snapshotted: ["
@@ -683,13 +816,46 @@ public class MetadataDataStreamsService {
             ProjectId projectId,
             String dataStreamName,
             Settings settingsOverrides,
+            ClusterService clusterService,
             TimeValue ackTimeout,
-            ActionListener<AcknowledgedResponse> listener
+            ActionListener<DataStream> listener
         ) {
-            super(ackTimeout, listener);
+            super(ackTimeout, listener.safeMap(response -> {
+                if (response.isAcknowledged()) {
+                    return clusterService.state().metadata().getProject(projectId).dataStreams().get(dataStreamName);
+                } else {
+                    throw new ElasticsearchException("Updating settings not accepted for unknown reasons");
+                }
+            }));
             this.projectId = projectId;
             this.dataStreamName = dataStreamName;
             this.settingsOverrides = settingsOverrides;
+        }
+    }
+
+    static class UpdateMappingsTask extends AckedBatchedClusterStateUpdateTask {
+        final ProjectId projectId;
+        private final String dataStreamName;
+        private final CompressedXContent mappingsOverrides;
+
+        UpdateMappingsTask(
+            ProjectId projectId,
+            String dataStreamName,
+            CompressedXContent mappingsOverrides,
+            ClusterService clusterService,
+            TimeValue ackTimeout,
+            ActionListener<DataStream> listener
+        ) {
+            super(ackTimeout, listener.safeMap(response -> {
+                if (response.isAcknowledged()) {
+                    return clusterService.state().projectState(projectId).metadata().dataStreams().get(dataStreamName);
+                } else {
+                    throw new ElasticsearchException("Updating mappings not accepted for unknown reasons");
+                }
+            }));
+            this.projectId = projectId;
+            this.dataStreamName = dataStreamName;
+            this.mappingsOverrides = mappingsOverrides;
         }
     }
 }

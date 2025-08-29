@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.slm;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 import java.util.Collection;
 
 /**
- * SLM Provider implementation for the {@link ReservedClusterStateHandlerProvider} service interface
+ * SLM Provider implementation for the {@link ReservedStateHandlerProvider} service interface
  */
-public class ReservedLifecycleStateHandlerProvider implements ReservedClusterStateHandlerProvider {
+public class ReservedLifecycleStateHandlerProvider implements ReservedStateHandlerProvider {
     private final SnapshotLifecycle plugin;
 
     public ReservedLifecycleStateHandlerProvider() {
@@ -28,7 +27,7 @@ public class ReservedLifecycleStateHandlerProvider implements ReservedClusterSta
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<ClusterState, ?>> clusterHandlers() {
+    public Collection<ReservedClusterStateHandler<?>> clusterHandlers() {
         return plugin.reservedClusterStateHandlers();
     }
 }

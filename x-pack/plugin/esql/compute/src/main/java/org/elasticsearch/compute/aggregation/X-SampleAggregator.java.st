@@ -84,20 +84,18 @@ class Sample$Type$Aggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int groupId, GroupingState state, int statePosition) {
-        current.merge(groupId, state, statePosition);
-    }
-
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return stripWeights(driverContext, state.toBlock(driverContext.blockFactory(), selected));
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return stripWeights(ctx.driverContext(), state.toBlock(ctx.blockFactory(), selected));
     }
 
     private static Block stripWeights(DriverContext driverContext, Block block) {
         if (block.areAllValuesNull()) {
             return block;
         }
-        BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-        try ($Type$Block.Builder $type$Block = driverContext.blockFactory().new$Type$BlockBuilder(bytesRefBlock.getPositionCount())) {
+        try (
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+            $Type$Block.Builder $type$Block = driverContext.blockFactory().new$Type$BlockBuilder(bytesRefBlock.getPositionCount())
+        ) {
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
@@ -119,7 +117,6 @@ class Sample$Type$Aggregator {
                     }
                 }
             }
-            block.close();
             return $type$Block.build();
         }
     }
@@ -147,10 +144,6 @@ class Sample$Type$Aggregator {
             ENCODER.encode$Type$(value, bytesRefBuilder);
             sort.collect(bytesRefBuilder.bytesRefView(), groupId);
             bytesRefBuilder.clear();
-        }
-
-        public void merge(int groupId, GroupingState other, int otherGroupId) {
-            sort.merge(groupId, other.sort, otherGroupId);
         }
 
         @Override
@@ -182,10 +175,6 @@ class Sample$Type$Aggregator {
 
         public void add($type$ value) {
             internalState.add(0, value);
-        }
-
-        public void merge(GroupingState other) {
-            internalState.merge(0, other, 0);
         }
 
         @Override

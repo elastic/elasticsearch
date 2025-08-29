@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -92,6 +93,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     private final XPackLicenseState licenseState;
     private final NamedXContentRegistry xContentRegistry;
     private final OriginSettingClient client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutTrainedModelAction(
@@ -102,7 +104,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ActionFilters actionFilters,
         Client client,
         TrainedModelProvider trainedModelProvider,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             PutTrainedModelAction.NAME,
@@ -118,6 +121,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         this.trainedModelProvider = trainedModelProvider;
         this.xContentRegistry = xContentRegistry;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -533,7 +537,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

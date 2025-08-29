@@ -29,16 +29,18 @@ import static org.hamcrest.Matchers.containsString;
 
 public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
-    static final String MODELS_RENAMED_TO_ENDPOINTS = "8.15.0";
+    static final String MODELS_RENAMED_TO_ENDPOINTS_FEATURE = "gte_v8.15.0";
 
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
+    // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
+    // builder uses to lookup a particular distribution
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(OLD_CLUSTER_VERSION)
         .nodes(NODE_NUM)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

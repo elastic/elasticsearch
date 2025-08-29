@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 
@@ -59,11 +58,9 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .numberOfReplicas(randomIntBetween(0, 5));
 
         final IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(sourceIndexMetadata, false).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(sourceIndexMetadata, false));
 
-        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
+        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), state));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
@@ -83,21 +80,16 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(sourceIndexMetadata, true)
-                    .put(failureSourceIndexMetadata, true)
-                    .put(
-                        newInstance(dataStreamName, List.of(sourceIndexMetadata.getIndex()), List.of(failureSourceIndexMetadata.getIndex()))
-                    )
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(sourceIndexMetadata, true)
+                .put(failureSourceIndexMetadata, true)
+                .put(newInstance(dataStreamName, List.of(sourceIndexMetadata.getIndex()), List.of(failureSourceIndexMetadata.getIndex())))
+        );
 
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
-        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(indexToOperateOn.getIndex(), clusterState));
+        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(indexToOperateOn.getIndex(), state));
     }
 
     public void testPerformActionThrowsExceptionIfTargetIndexIsMissing() {
@@ -132,28 +124,25 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
         List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
         List<Index> failureIndices = List.of(failureSourceIndexMetadata.getIndex(), failureWriteIndexMetadata.getIndex());
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(sourceIndexMetadata, true)
-                    .put(writeIndexMetadata, true)
-                    .put(failureSourceIndexMetadata, true)
-                    .put(failureWriteIndexMetadata, true)
-                    .put(newInstance(dataStreamName, backingIndices, failureIndices))
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(sourceIndexMetadata, true)
+                .put(writeIndexMetadata, true)
+                .put(failureSourceIndexMetadata, true)
+                .put(failureWriteIndexMetadata, true)
+                .put(newInstance(dataStreamName, backingIndices, failureIndices))
+        );
 
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
-        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(indexToOperateOn.getIndex(), clusterState));
+        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(indexToOperateOn.getIndex(), state));
     }
 
     public void testPerformActionIsNoOpIfIndexIsMissing() {
-        ClusterState initialState = ClusterState.builder(ClusterName.DEFAULT).build();
+        ProjectState initialState = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()));
         Index missingIndex = new Index("missing", UUID.randomUUID().toString());
         ReplaceDataStreamBackingIndexStep replaceSourceIndexStep = createRandomInstance();
-        ClusterState newState = replaceSourceIndexStep.performAction(missingIndex, initialState);
+        ProjectState newState = replaceSourceIndexStep.performAction(missingIndex, initialState);
         assertThat(newState, is(initialState));
     }
 
@@ -201,27 +190,24 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
         List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
         List<Index> failureIndices = List.of(failureSourceIndexMetadata.getIndex(), failureWriteIndexMetadata.getIndex());
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(sourceIndexMetadata, true)
-                    .put(writeIndexMetadata, true)
-                    .put(failureSourceIndexMetadata, true)
-                    .put(failureWriteIndexMetadata, true)
-                    .put(newInstance(dataStreamName, backingIndices, failureIndices))
-                    .put(targetIndexMetadata, true)
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(sourceIndexMetadata, true)
+                .put(writeIndexMetadata, true)
+                .put(failureSourceIndexMetadata, true)
+                .put(failureWriteIndexMetadata, true)
+                .put(newInstance(dataStreamName, backingIndices, failureIndices))
+                .put(targetIndexMetadata, true)
+        );
 
         ReplaceDataStreamBackingIndexStep replaceSourceIndexStep = new ReplaceDataStreamBackingIndexStep(
             randomStepKey(),
             randomStepKey(),
-            (index, state) -> indexPrefix + indexNameToUse
+            (index, s) -> indexPrefix + indexNameToUse
         );
         IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
-        ClusterState newState = replaceSourceIndexStep.performAction(indexToOperateOn.getIndex(), clusterState);
-        DataStream updatedDataStream = newState.metadata().getProject().dataStreams().get(dataStreamName);
+        ProjectState newState = replaceSourceIndexStep.performAction(indexToOperateOn.getIndex(), state);
+        DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStreamName);
         DataStream.DataStreamIndices resultIndices = updatedDataStream.getDataStreamIndices(useFailureStore);
         assertThat(resultIndices.getIndices().size(), is(2));
         assertThat(resultIndices.getIndices().get(0), is(targetIndexMetadata.getIndex()));
@@ -273,28 +259,25 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
         List<Index> backingIndices = List.of(writeIndexMetadata.getIndex());
         List<Index> failureIndices = List.of(failureWriteIndexMetadata.getIndex());
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(sourceIndexMetadata, true)
-                    .put(writeIndexMetadata, true)
-                    .put(failureSourceIndexMetadata, true)
-                    .put(failureWriteIndexMetadata, true)
-                    .put(newInstance(dataStreamName, backingIndices, failureIndices))
-                    .put(targetIndexMetadata, true)
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomUniqueProjectId())
+                .put(sourceIndexMetadata, true)
+                .put(writeIndexMetadata, true)
+                .put(failureSourceIndexMetadata, true)
+                .put(failureWriteIndexMetadata, true)
+                .put(newInstance(dataStreamName, backingIndices, failureIndices))
+                .put(targetIndexMetadata, true)
+        );
 
         ReplaceDataStreamBackingIndexStep replaceSourceIndexStep = new ReplaceDataStreamBackingIndexStep(
             randomStepKey(),
             randomStepKey(),
-            (index, state) -> indexPrefix + index
+            (index, s) -> indexPrefix + index
         );
         IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            () -> replaceSourceIndexStep.performAction(indexToOperateOn.getIndex(), clusterState)
+            () -> replaceSourceIndexStep.performAction(indexToOperateOn.getIndex(), state)
         );
         assertEquals(
             "index ["

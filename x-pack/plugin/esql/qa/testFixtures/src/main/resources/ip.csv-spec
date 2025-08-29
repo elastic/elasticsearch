@@ -301,23 +301,23 @@ convertFromStringFancy
 required_capability: to_ip_leading_zeros
 FROM logs
 | KEEP @timestamp, system, message
+| SORT @timestamp
+| LIMIT 4
 | EVAL client = CASE(
     system == "ping",
         TO_IP(REPLACE(message, "Pinging ", ""), {"leading_zeros": "octal"}),
     system == "java" AND STARTS_WITH(message, "Doing java stuff for "),
         TO_IP(REPLACE(message, "Doing java stuff for ", ""), {"leading_zeros": "decimal"}))
-| SORT @timestamp
-| LIMIT 4
 ;
 
-@timestamp:date         |system:keyword|message:keyword                    |client:ip
-2023-10-23T13:55:01.543Z|          ping|Pinging 192.168.86.046             |192.168.86.38
-2023-10-23T13:55:01.544Z|          cron|Running cats                       |null
-2023-10-23T13:55:01.545Z|          java|Doing java stuff for 192.168.86.038|192.168.86.38
-2023-10-23T13:55:01.546Z|          java|More java stuff                    |null
+@timestamp:datetime      | system:keyword | message:text                        | client:ip
+2023-10-23T13:55:01.543Z | ping           | Pinging 192.168.86.046              | 192.168.86.38
+2023-10-23T13:55:01.544Z | cron           | Running cats (cycle 1)              | null
+2023-10-23T13:55:01.545Z | java           | Doing java stuff for 192.168.86.038 | 192.168.86.38
+2023-10-23T13:55:01.546Z | java           | More java stuff                     | null
 ;
 
-toIpInAgg
+toIpInAgg#[skip:-8.12.99,reason:StatsNestedExp introduced in v8.13.0]
 ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
 ;
 
@@ -325,7 +325,7 @@ COUNT(*):long | ip:ip
             1 | 1.1.1.1
 ;
 
-toIpInSort
+toIpInSort#[skip:-8.13.99,reason:SortByExpression introduced in 8.14]
 ROW s = "1.1.1.1" | SORT TO_IP(s)
 ;
 
@@ -398,7 +398,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9                       
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                         |fe81::cae2:65ff:fece:feb9
 ;
 
-cdirMatchEqualsInsOrsIPs
+cidrMatchEqualsInsOrsIPs
 required_capability: combine_disjunctive_cidrmatches
 
 FROM hosts

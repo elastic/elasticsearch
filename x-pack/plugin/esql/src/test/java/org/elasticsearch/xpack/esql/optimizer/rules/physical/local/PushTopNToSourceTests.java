@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
@@ -193,7 +194,6 @@ public class PushTopNToSourceTests extends ESTestCase {
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114515")
     public void testPartiallyPushableSort() {
         // FROM index | EVAL sum = 1 + integer | SORT integer, sum, field | LIMIT 10
         var query = from("index").eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("integer").sort("sum").sort("field").limit(10);
@@ -417,7 +417,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
         var configuration = EsqlTestUtils.configuration("from test");
-        var ctx = new LocalPhysicalOptimizerContext(configuration, FoldContext.small(), SearchStats.EMPTY);
+        var ctx = new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, FoldContext.small(), SearchStats.EMPTY);
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);
     }
@@ -452,7 +452,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             String name = ((Attribute) expectedSorts.get(i).child()).name();
             EsQueryExec.Sort sort = sorts.get(i);
             if (sort.field() != null) {
-                String fieldName = sort.field().fieldName();
+                String fieldName = sort.field().fieldName().string();
                 assertThat("Expect sort[" + i + "] name to match", fieldName, is(sortName(name, fieldMap)));
             }
             assertThat("Expect sort[" + i + "] direction to match", sort.direction(), is(expectedSorts.get(i).direction()));
@@ -505,7 +505,10 @@ public class PushTopNToSourceTests extends ESTestCase {
         }
 
         private static void addFieldAttribute(Map<String, FieldAttribute> fields, String name, DataType type) {
-            fields.put(name, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), true)));
+            fields.put(
+                name,
+                new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), true, EsField.TimeSeriesFieldType.NONE))
+            );
         }
 
         static TestPhysicalPlanBuilder from(String index) {
@@ -530,7 +533,15 @@ public class PushTopNToSourceTests extends ESTestCase {
                 }
                 refs.put(
                     alias.name(),
-                    new ReferenceAttribute(Source.EMPTY, alias.name(), alias.dataType(), Nullability.FALSE, alias.id(), alias.synthetic())
+                    new ReferenceAttribute(
+                        Source.EMPTY,
+                        null,
+                        alias.name(),
+                        alias.dataType(),
+                        Nullability.FALSE,
+                        alias.id(),
+                        alias.synthetic()
+                    )
                 );
                 this.aliases.add(alias);
             }
@@ -582,7 +593,17 @@ public class PushTopNToSourceTests extends ESTestCase {
 
         public TopNExec build() {
             List<Attribute> attributes = new ArrayList<>(fields.values());
-            PhysicalPlan child = new EsQueryExec(Source.EMPTY, this.index, indexMode, Map.of(), attributes, null, null, List.of(), 0);
+            PhysicalPlan child = new EsQueryExec(
+                Source.EMPTY,
+                this.index,
+                indexMode,
+                Map.of(),
+                attributes,
+                null,
+                List.of(),
+                0,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+            );
             if (aliases.isEmpty() == false) {
                 child = new EvalExec(Source.EMPTY, child, aliases);
             }

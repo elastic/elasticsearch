@@ -41,6 +41,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
@@ -592,7 +593,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     repositorySettings.build()
                 );
 
+                final ProjectId projectId = randomProjectIdOrDefault();
                 final BlobStoreRepository repository = new FsRepository(
+                    projectId,
                     repositoryMetadata,
                     new Environment(
                         Settings.builder()
@@ -603,7 +606,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         null
                     ),
                     NamedXContentRegistry.EMPTY,
-                    BlobStoreTestUtil.mockClusterService(repositoryMetadata),
+                    BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata),
                     MockBigArrays.NON_RECYCLING_INSTANCE,
                     new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
                 );

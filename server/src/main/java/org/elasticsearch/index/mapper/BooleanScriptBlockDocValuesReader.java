@@ -49,10 +49,11 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+        throws IOException {
         // Note that we don't emit falses before trues so we conform to the doc values contract and can use booleansFromDocValues
-        try (BlockLoader.BooleanBuilder builder = factory.booleans(docs.count())) {
-            for (int i = 0; i < docs.count(); i++) {
+        try (BlockLoader.BooleanBuilder builder = factory.booleans(docs.count() - offset)) {
+            for (int i = offset; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }
             return builder.build();

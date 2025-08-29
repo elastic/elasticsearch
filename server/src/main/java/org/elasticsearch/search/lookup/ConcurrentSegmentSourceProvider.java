@@ -29,11 +29,13 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
     private final SourceLoader sourceLoader;
     private final StoredFieldLoader storedFieldLoader;
     private final Map<Object, Leaf> leaves = ConcurrentCollections.newConcurrentMap();
+    private final boolean isStoredSource;
 
-    ConcurrentSegmentSourceProvider(SourceLoader loader, boolean loadSource) {
+    ConcurrentSegmentSourceProvider(SourceLoader loader, boolean isStoredSource) {
         this.sourceLoader = loader;
         // we force a sequential reader here since it is used during query execution where documents are scanned sequentially
-        this.storedFieldLoader = StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields(), true);
+        this.storedFieldLoader = StoredFieldLoader.create(isStoredSource, sourceLoader.requiredStoredFields(), true);
+        this.isStoredSource = isStoredSource;
     }
 
     @Override
@@ -44,6 +46,14 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
             leaf = new Leaf(sourceLoader.leaf(ctx.reader(), null), storedFieldLoader.getLoader(ctx, null));
             var existing = leaves.put(id, leaf);
             assert existing == null : "unexpected source provider [" + existing + "]";
+        } else if (isStoredSource == false && doc < leaf.doc) {
+            // When queries reference the same runtime field in multiple clauses, each clause re-reads the values from the source in
+            // increasing docId order. So the last docId accessed by the first clause is higher than the first docId read by the second
+            // clause. This is okay for stored source, as stored fields do not restrict the order that docIds that can be accessed.
+            // But with synthetic source, field values may come from doc values, which require than docIds only be read in increasing order.
+            // To handle this, we detect lower docIds and create a new doc value reader for each clause.
+            leaf = new Leaf(sourceLoader.leaf(ctx.reader(), null), storedFieldLoader.getLoader(ctx, null));
+            leaves.put(id, leaf);
         }
         return leaf.getSource(ctx, doc);
     }

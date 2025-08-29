@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -81,13 +81,10 @@ public class WaitForIndexColorStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        LifecycleExecutionState lifecycleExecutionState = clusterState.metadata()
-            .getProject()
-            .index(index.getName())
-            .getLifecycleExecutionState();
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        LifecycleExecutionState lifecycleExecutionState = currentState.metadata().index(index.getName()).getLifecycleExecutionState();
         String indexName = indexNameSupplier.apply(index.getName(), lifecycleExecutionState);
-        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
+        IndexMetadata indexMetadata = currentState.metadata().index(indexName);
         // check if the (potentially) derived index exists
         if (indexMetadata == null) {
             String errorMessage = Strings.format(
@@ -100,7 +97,7 @@ public class WaitForIndexColorStep extends ClusterStateWaitStep {
             return new Result(false, new SingleMessageFieldInfo(errorMessage));
         }
 
-        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexMetadata.getIndex());
+        IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexMetadata.getIndex());
         Result result = switch (this.color) {
             case GREEN -> waitForGreen(indexRoutingTable);
             case YELLOW -> waitForYellow(indexRoutingTable);

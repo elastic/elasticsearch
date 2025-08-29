@@ -71,6 +71,7 @@ echo --- Building release artifacts
   buildReleaseArtifacts \
   exportCompressedDockerImages \
   exportDockerContexts \
+  :zipAggregation \
   :distribution:generateDependenciesReport
 
 PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script

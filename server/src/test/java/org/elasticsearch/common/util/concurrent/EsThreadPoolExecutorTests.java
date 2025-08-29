@@ -32,6 +32,8 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put("node.name", "es-thread-pool-executor-tests")
+            .put("thread_pool.write_coordination.size", 1)
+            .put("thread_pool.write_coordination.queue_size", 0)
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 0)
             .put("thread_pool.search.size", 1)
@@ -41,7 +43,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
 
     public void testRejectedExecutionExceptionContainsNodeName() {
         // we test a fixed and an auto-queue executor but not scaling since it does not reject
-        runThreadPoolExecutorTest(1, ThreadPool.Names.WRITE);
+        runThreadPoolExecutorTest(1, randomFrom(ThreadPool.Names.WRITE_COORDINATION, ThreadPool.Names.WRITE));
         runThreadPoolExecutorTest(2, ThreadPool.Names.SEARCH);
 
     }

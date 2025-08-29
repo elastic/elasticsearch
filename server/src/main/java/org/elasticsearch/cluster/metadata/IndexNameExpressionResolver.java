@@ -215,7 +215,7 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case; if a remote index is requested.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        return concreteIndexNames(state.metadata().getProject(projectResolver.getProjectId()), options, indexExpressions);
+        return concreteIndexNames(projectResolver.getProjectMetadata(state), options, indexExpressions);
     }
 
     /**
@@ -243,12 +243,7 @@ public class IndexNameExpressionResolver {
     }
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
-        return concreteIndexNames(
-            state.metadata().getProject(projectResolver.getProjectId()),
-            options,
-            includeDataStreams,
-            indexExpressions
-        );
+        return concreteIndexNames(projectResolver.getProjectMetadata(state), options, includeDataStreams, indexExpressions);
     }
 
     public String[] concreteIndexNames(
@@ -271,7 +266,7 @@ public class IndexNameExpressionResolver {
     }
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
-        return concreteIndexNames(state.metadata().getProject(projectResolver.getProjectId()), options, request);
+        return concreteIndexNames(projectResolver.getProjectMetadata(state), options, request);
     }
 
     public String[] concreteIndexNames(ProjectMetadata project, IndicesOptions options, IndicesRequest request) {
@@ -1433,7 +1428,7 @@ public class IndexNameExpressionResolver {
     /**
      * Identifies if this expression list is *,-* which effectively means a request that requests no indices.
      */
-    static boolean isNoneExpression(String[] expressions) {
+    public static boolean isNoneExpression(String[] expressions) {
         return expressions.length == 2 && "*".equals(expressions[0]) && "-*".equals(expressions[1]);
     }
 

@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,13 +21,19 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.ExpressionQueryList;
+import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,10 +41,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static java.lang.System.in;
+import java.util.stream.Collectors;
 
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
@@ -47,20 +56,26 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public LookupFromIndexService(
         ClusterService clusterService,
+        IndicesService indicesService,
         LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        ProjectResolver projectResolver
     ) {
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
+            indicesService,
             lookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactory,
             false,
-            TransportRequest::readFrom
+            TransportRequest::readFrom,
+            projectResolver
         );
     }
 
@@ -69,27 +84,39 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         return new TransportRequest(
             request.sessionId,
             shardId,
-            request.inputDataType,
+            request.indexPattern,
             request.inputPage,
             null,
             request.extractFields,
-            request.matchField,
+            request.matchFields,
             request.source
         );
     }
 
     @Override
-    protected QueryList queryList(
+    protected LookupEnrichQueryGenerator queryList(
         TransportRequest request,
         SearchExecutionContext context,
+        AliasFilter aliasFilter,
         Block inputBlock,
-        DataType inputDataType,
         Warnings warnings
     ) {
-        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues(
-            warnings,
-            "LOOKUP JOIN encountered multi-value"
-        );
+        List<QueryList> queryLists = new ArrayList<>();
+        for (int i = 0; i < request.matchFields.size(); i++) {
+            MatchConfig matchField = request.matchFields.get(i);
+            QueryList q = termQueryList(
+                context.getFieldType(matchField.fieldName().string()),
+                context,
+                aliasFilter,
+                request.inputPage.getBlock(matchField.channel()),
+                matchField.type()
+            ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+            queryLists.add(q);
+        }
+        if (queryLists.size() == 1) {
+            return queryLists.getFirst();
+        }
+        return new ExpressionQueryList(queryLists);
     }
 
     @Override
@@ -103,51 +130,79 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     public static class Request extends AbstractLookupService.Request {
-        private final String matchField;
+        private final List<MatchConfig> matchFields;
 
         Request(
             String sessionId,
             String index,
-            DataType inputDataType,
-            String matchField,
+            String indexPattern,
+            List<MatchConfig> matchFields,
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields, source);
-            this.matchField = matchField;
+            super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
+            this.matchFields = matchFields;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
-        private final String matchField;
 
+        private static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = TransportVersion.fromName(
+            "esql_lookup_join_on_many_fields"
+        );
+
+        private final List<MatchConfig> matchFields;
+
+        // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
+        // The channel information inside the MatchConfig, should say the same thing
         TransportRequest(
             String sessionId,
             ShardId shardId,
-            DataType inputDataType,
+            String indexPattern,
             Page inputPage,
             Page toRelease,
             List<NamedExpression> extractFields,
-            String matchField,
+            List<MatchConfig> matchFields,
             Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
-            this.matchField = matchField;
+            super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
+            this.matchFields = matchFields;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
-            DataType inputDataType = DataType.fromTypeName(in.readString());
+
+            String indexPattern;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+                indexPattern = in.readString();
+            } else {
+                indexPattern = shardId.getIndexName();
+            }
+
+            DataType inputDataType = null;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
+                inputDataType = DataType.fromTypeName(in.readString());
+            }
+
             Page inputPage;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 inputPage = new Page(bsi);
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
-            String matchField = in.readString();
+            List<MatchConfig> matchFields = null;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+                matchFields = planIn.readCollectionAsList(MatchConfig::new);
+            } else {
+                String matchField = in.readString();
+                // For older versions, we only support a single match field.
+                matchFields = new ArrayList<>(1);
+                matchFields.add(new MatchConfig(new FieldAttribute.FieldName(matchField), 0, inputDataType));
+            }
             var source = Source.EMPTY;
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source = Source.readFrom(planIn);
@@ -161,11 +216,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
-                inputDataType,
+                indexPattern,
                 inputPage,
                 inputPage,
                 extractFields,
-                matchField,
+                matchFields,
                 source
             );
             result.setParentTask(parentTaskId);
@@ -177,11 +232,32 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
-            out.writeString(inputDataType.typeName());
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+                out.writeString(indexPattern);
+            } else if (indexPattern.equals(shardId.getIndexName()) == false) {
+                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
+                // only write this for old versions
+                // older versions only support a single match field
+                if (matchFields.size() > 1) {
+                    throw new EsqlIllegalArgumentException("LOOKUP JOIN on multiple fields is not supported on remote node");
+                }
+                out.writeString(matchFields.get(0).type().typeName());
+            }
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
-            out.writeString(matchField);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+                // serialize all match fields for new versions
+                planOut.writeCollection(matchFields, (o, matchConfig) -> matchConfig.writeTo(o));
+            } else {
+                // older versions only support a single match field, we already checked this above when writing the datatype
+                // send the field name of the first and only match field here
+                out.writeString(matchFields.get(0).fieldName().string());
+            }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source.writeTo(planOut);
             }
@@ -192,7 +268,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         @Override
         protected String extraDescription() {
-            return " ,match_field=" + matchField;
+            return " ,match_fields=" + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "));
         }
     }
 

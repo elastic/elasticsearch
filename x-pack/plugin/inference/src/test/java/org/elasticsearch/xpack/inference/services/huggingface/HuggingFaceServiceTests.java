@@ -23,16 +23,17 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettingsTests;
@@ -66,6 +68,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -96,7 +99,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class HuggingFaceServiceTests extends ESTestCase {
+public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private final MockWebServer webServer = new MockWebServer();
@@ -257,7 +260,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.CHAT_COMPLETION);
 
-        try (var service = new HuggingFaceService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -327,7 +330,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = HuggingFaceChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -356,7 +359,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = HuggingFaceChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model");
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
@@ -377,15 +380,14 @@ public class HuggingFaceServiceTests extends ESTestCase {
                             }
                         });
                         var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
-
-                        assertThat(json, is("""
+                        assertThat(json, is(String.format(Locale.ROOT, """
                             {\
                             "error":{\
                             "code":"not_found",\
-                            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
+                            "message":"Resource not found at [%s] for request from inference entity id [id] status \
                             [404]. Error message: [Model not found.]",\
                             "type":"hugging_face_error"\
-                            }}"""));
+                            }}""", getUrl(webServer))));
                     } catch (IOException ex) {
                         throw new RuntimeException(ex);
                     }
@@ -486,7 +488,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     private void testStreamError(String expectedResponse) throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = HuggingFaceChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -548,7 +550,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = HuggingFaceChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -621,7 +623,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new HuggingFaceService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new HuggingFaceService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -638,7 +640,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -660,7 +662,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -682,7 +684,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -1009,7 +1011,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1060,7 +1062,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
         var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
 
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 ValidationException.class,
@@ -1087,7 +1089,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testInfer_SendsElserRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 [
@@ -1139,7 +1141,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = HuggingFaceElserModelTests.createModel(randomAlphaOfLength(10), randomAlphaOfLength(10));
             assertThrows(
                 ElasticsearchStatusException.class,
@@ -1158,7 +1160,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var embeddingSize = randomNonNegativeInt();
             var model = HuggingFaceEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
@@ -1179,7 +1181,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testChunkedInfer_CallsInfer_TextEmbedding_ConvertsFloatResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1233,7 +1235,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testChunkedInfer() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 [
@@ -1292,7 +1294,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 {
                        "service": "hugging_face",
                        "name": "Hugging Face",
-                       "task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"],
+                       "task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"],
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",
@@ -1301,7 +1303,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": true,
                                "updatable": true,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",
@@ -1310,7 +1312,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "url": {
                                "description": "The URL endpoint to use for the requests.",
@@ -1319,7 +1321,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"]
                            }
                        }
                    }
@@ -1340,7 +1342,24 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     private HuggingFaceService createHuggingFaceService() {
-        return new HuggingFaceService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new HuggingFaceService(
+            mock(HttpRequestSender.Factory.class),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createHuggingFaceService();
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("any model"),
+            is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
     }
 
     private Map<String, Object> getRequestConfigMap(

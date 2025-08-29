@@ -35,12 +35,14 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -767,16 +769,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("request_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -789,6 +793,57 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("overrule_value"));
         assertThat(aggregatedIndexSettings.get("other_setting"), equalTo("other_value"));
+    }
+
+    /**
+     * When a failure store index is created, we must filter out any unsupported settings from the create request or from the template that
+     * may have been provided by users in the create request or from the original data stream template. An exception to this is any settings
+     * that have been provided by index setting providers which should be considered default values on indices.
+     */
+    public void testAggregateSettingsProviderIsNotFilteredOnFailureStore() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("template_setting", "value1"));
+        });
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+        var request = new CreateIndexClusterStateUpdateRequest("create index", projectId, "test", "test").settings(
+            Settings.builder().put("request_setting", "value2").build()
+        ).isFailureIndex(true);
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Set.of(new IndexSettingProvider() {
+                @Override
+                public void provideAdditionalMetadata(
+                    String indexName,
+                    String dataStreamName,
+                    IndexMode templateIndexMode,
+                    ProjectMetadata projectMetadata,
+                    Instant resolvedAt,
+                    Settings indexTemplateAndCreateRequestSettings,
+                    List<CompressedXContent> combinedTemplateMappings,
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                ) {
+                    additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "override");
+                }
+
+                @Override
+                public boolean overrulesTemplateAndRequestSettings() {
+                    return true;
+                }
+            })
+        );
+
+        assertThat(aggregatedIndexSettings.get("template_setting"), nullValue());
+        assertThat(aggregatedIndexSettings.get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()), equalTo("override"));
     }
 
     public void testAggregateSettingsProviderOverrulesNullFromRequest() {
@@ -810,16 +865,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("request_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -852,17 +909,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
-                @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -896,16 +954,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalMetadata(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    Settings.Builder additionalSettings,
+                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
                 ) {
-                    return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -1333,7 +1393,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
+        IndexMetadata indexMetadata = buildIndexMetadata(
+            "test",
+            aliases,
+            () -> null,
+            indexSettings,
+            4,
+            sourceIndexMetadata,
+            false,
+            Map.of()
+        );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
@@ -1761,7 +1830,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            ImmutableOpenMap.builder()
         );
     }
 }

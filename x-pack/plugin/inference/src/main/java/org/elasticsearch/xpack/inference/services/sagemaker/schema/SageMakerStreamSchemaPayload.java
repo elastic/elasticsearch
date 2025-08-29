@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
 import software.amazon.awssdk.core.SdkBytes;
 
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 
@@ -38,9 +39,9 @@ public interface SageMakerStreamSchemaPayload extends SageMakerSchemaPayload {
      * This API would only be called for Completion task types. {@link #requestBytes(SageMakerModel, SageMakerInferenceRequest)} would
      * handle the request translation for both streaming and non-streaming.
      */
-    InferenceServiceResults.Result streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
+    StreamingChatCompletionResults.Results streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
 
     SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception;
 
-    InferenceServiceResults.Result chatCompletionResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
+    StreamingUnifiedChatCompletionResults.Results chatCompletionResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
 }

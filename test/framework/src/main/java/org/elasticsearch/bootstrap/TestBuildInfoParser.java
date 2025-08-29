@@ -23,7 +23,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-class TestBuildInfoParser {
+public class TestBuildInfoParser {
 
     private static final String PLUGIN_TEST_BUILD_INFO_RESOURCES = "META-INF/plugin-test-build-info.json";
     private static final String SERVER_TEST_BUILD_INFO_RESOURCE = "META-INF/server-test-build-info.json";
@@ -31,7 +31,7 @@ class TestBuildInfoParser {
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("test_build_info", Builder::new);
     private static final ObjectParser<Location, Void> LOCATION_PARSER = new ObjectParser<>("location", Location::new);
     static {
-        LOCATION_PARSER.declareString(Location::representativeClass, new ParseField("representativeClass"));
+        LOCATION_PARSER.declareString(Location::representativeClass, new ParseField("representative_class"));
         LOCATION_PARSER.declareString(Location::module, new ParseField("module"));
 
         PARSER.declareString(Builder::component, new ParseField("component"));
@@ -75,20 +75,22 @@ class TestBuildInfoParser {
         return PARSER.parse(parser, null).build();
     }
 
-    static List<TestBuildInfo> parseAllPluginTestBuildInfo() throws IOException {
+    public static List<TestBuildInfo> parseAllPluginTestBuildInfo() throws IOException {
         var xContent = XContentFactory.xContent(XContentType.JSON);
         List<TestBuildInfo> pluginsTestBuildInfos = new ArrayList<>();
         var resources = TestBuildInfoParser.class.getClassLoader().getResources(PLUGIN_TEST_BUILD_INFO_RESOURCES);
-        URL resource;
-        while ((resource = resources.nextElement()) != null) {
-            try (var stream = getStream(resource); var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
+        while (resources.hasMoreElements()) {
+            try (
+                var stream = getStream(resources.nextElement());
+                var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)
+            ) {
                 pluginsTestBuildInfos.add(fromXContent(parser));
             }
         }
         return pluginsTestBuildInfos;
     }
 
-    static TestBuildInfo parseServerTestBuildInfo() throws IOException {
+    public static TestBuildInfo parseServerTestBuildInfo() throws IOException {
         var xContent = XContentFactory.xContent(XContentType.JSON);
         var resource = TestBuildInfoParser.class.getClassLoader().getResource(SERVER_TEST_BUILD_INFO_RESOURCE);
         // No test-build-info for server: this might be a non-gradle build. Proceed without TestBuildInfo

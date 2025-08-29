@@ -69,13 +69,22 @@ public class RoundingTests extends ESTestCase {
         assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-01T00:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2013-01-01T00:00:00.000Z"), tz));
 
-        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MINUTES_OF_HOUR).build();
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MINUTE_OF_HOUR).build();
         assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-10T01:01:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-09T00:01:00.000Z"), tz));
 
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.SECOND_OF_MINUTE).build();
         assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-10T01:01:01.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-09T00:00:01.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY).build();
+        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-01T00:00:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2013-01-01T00:00:00.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR).build();
+        tz = ZoneOffset.UTC;
+        assertThat(tzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-01T00:00:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2009-02-01T00:00:00.000Z")), isDate(time("2009-03-01T00:00:00.000Z"), tz));
     }
 
     public void testUTCIntervalRounding() {
@@ -133,6 +142,9 @@ public class RoundingTests extends ESTestCase {
         assertThat(tzRounding.round(time("2012-04-01T04:15:30Z")), isDate(time("2012-03-31T08:00:00Z"), tz));
 
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).timeZone(tz).build();
+        assertThat(tzRounding.round(time("2012-04-01T04:15:30Z")), equalTo(time("2012-03-01T08:00:00Z")));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR).timeZone(tz).build();
         assertThat(tzRounding.round(time("2012-04-01T04:15:30Z")), equalTo(time("2012-03-01T08:00:00Z")));
 
         // date in Feb-3rd, but still in Feb-2nd in -02:00 timezone
@@ -645,6 +657,21 @@ public class RoundingTests extends ESTestCase {
         // Two timestamps in same year and different timezone offset ("Double buckets" issue - #9491)
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).timeZone(tz).build();
         assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(tzRounding.round(time("2014-08-11T17:00:00", tz)), tz));
+
+        // Month interval
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR).timeZone(tz).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(time("2014-11-01T00:00:00", tz), tz));
+        // DST on
+        assertThat(tzRounding.round(time("2014-10-10T17:00:00", tz)), isDate(time("2014-10-01T00:00:00", tz), tz));
+
+        // Year interval
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY).timeZone(tz).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(time("2014-01-01T00:00:00", tz), tz));
+
+        // Two timestamps in same year and different timezone offset ("Double buckets" issue - #9491)
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY).timeZone(tz).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(tzRounding.round(time("2014-08-11T17:00:00", tz)), tz));
+
     }
 
     /**
@@ -656,7 +683,7 @@ public class RoundingTests extends ESTestCase {
 
         long start = time("2014-10-18T20:50:00.000", tz);
         long end = time("2014-10-19T01:00:00.000", tz);
-        Rounding tzRounding = new Rounding.TimeUnitRounding(Rounding.DateTimeUnit.MINUTES_OF_HOUR, tz);
+        Rounding tzRounding = new Rounding.TimeUnitRounding(Rounding.DateTimeUnit.MINUTE_OF_HOUR, tz);
         Rounding dayTzRounding = new Rounding.TimeIntervalRounding(60000, tz);
         for (long time = start; time < end; time = time + 60000) {
             assertThat(tzRounding.nextRoundingValue(time), greaterThan(time));
@@ -1045,10 +1072,7 @@ public class RoundingTests extends ESTestCase {
             prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.SECOND_OF_MINUTE),
             closeTo(36000.0, 0.000001)
         );
-        assertThat(
-            prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-            closeTo(600.0, 0.000001)
-        );
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTE_OF_HOUR), closeTo(600.0, 0.000001));
         assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(10.0, 0.000001));
         assertThat(
             prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.DAY_OF_MONTH),
@@ -1091,6 +1115,30 @@ public class RoundingTests extends ESTestCase {
                     + "only week, day, hour, minute and second are supported for this histogram"
             )
         );
+
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MONTHS_OF_YEAR)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "Cannot use month-based rate unit [months] with fixed interval based histogram, "
+                    + "only week, day, hour, minute and second are supported for this histogram"
+            )
+        );
+
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.YEARS_OF_CENTURY)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "Cannot use month-based rate unit [years] with fixed interval based histogram, "
+                    + "only week, day, hour, minute and second are supported for this histogram"
+            )
+        );
     }
 
     public void testMillisecondsBasedUnitCalendarRoundingSize() {
@@ -1101,8 +1149,8 @@ public class RoundingTests extends ESTestCase {
             closeTo(3600.0, 0.000001)
         );
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE), closeTo(3600.0, 0.000001));
-        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(60.0, 0.000001));
-        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(60.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTE_OF_HOUR), closeTo(60.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MINUTE_OF_HOUR), closeTo(60.0, 0.000001));
         assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(1.0, 0.000001));
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(1.0, 0.000001));
         assertThat(
@@ -1180,14 +1228,17 @@ public class RoundingTests extends ESTestCase {
         long firstQuarter = prepared.round(time("2015-01-01T00:00:00.000Z"));
         // Ratio based
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MONTH_OF_YEAR), closeTo(3.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MONTHS_OF_YEAR), closeTo(3.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.QUARTER_OF_YEAR), closeTo(1.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.YEAR_OF_CENTURY), closeTo(0.25, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.YEARS_OF_CENTURY), closeTo(0.25, 0.000001));
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR), closeTo(3.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MONTHS_OF_YEAR), closeTo(3.0, 0.000001));
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR), closeTo(1.0, 0.000001));
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), closeTo(0.25, 0.000001));
         // Real interval based
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.SECOND_OF_MINUTE), closeTo(7776000.0, 0.000001));
-        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(129600.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MINUTE_OF_HOUR), closeTo(129600.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2160.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.DAY_OF_MONTH), closeTo(90.0, 0.000001));
         long thirdQuarter = prepared.round(time("2015-07-01T00:00:00.000Z"));

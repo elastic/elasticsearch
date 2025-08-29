@@ -84,20 +84,18 @@ class SampleBooleanAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int groupId, GroupingState state, int statePosition) {
-        current.merge(groupId, state, statePosition);
-    }
-
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return stripWeights(driverContext, state.toBlock(driverContext.blockFactory(), selected));
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return stripWeights(ctx.driverContext(), state.toBlock(ctx.blockFactory(), selected));
     }
 
     private static Block stripWeights(DriverContext driverContext, Block block) {
         if (block.areAllValuesNull()) {
             return block;
         }
-        BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-        try (BooleanBlock.Builder booleanBlock = driverContext.blockFactory().newBooleanBlockBuilder(bytesRefBlock.getPositionCount())) {
+        try (
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+            BooleanBlock.Builder booleanBlock = driverContext.blockFactory().newBooleanBlockBuilder(bytesRefBlock.getPositionCount())
+        ) {
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
@@ -119,7 +117,6 @@ class SampleBooleanAggregator {
                     }
                 }
             }
-            block.close();
             return booleanBlock.build();
         }
     }
@@ -147,10 +144,6 @@ class SampleBooleanAggregator {
             ENCODER.encodeBoolean(value, bytesRefBuilder);
             sort.collect(bytesRefBuilder.bytesRefView(), groupId);
             bytesRefBuilder.clear();
-        }
-
-        public void merge(int groupId, GroupingState other, int otherGroupId) {
-            sort.merge(groupId, other.sort, otherGroupId);
         }
 
         @Override
@@ -182,10 +175,6 @@ class SampleBooleanAggregator {
 
         public void add(boolean value) {
             internalState.add(0, value);
-        }
-
-        public void merge(GroupingState other) {
-            internalState.merge(0, other, 0);
         }
 
         @Override

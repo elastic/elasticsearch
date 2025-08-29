@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,10 +38,19 @@ import java.util.Stack;
 public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader {
     private final Reader<?> reader;
     private final String fieldName;
+    private final Set<String> fieldPaths;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-    protected FallbackSyntheticSourceBlockLoader(Reader<?> reader, String fieldName) {
+    protected FallbackSyntheticSourceBlockLoader(
+        Reader<?> reader,
+        String fieldName,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+    ) {
+        assert ignoredSourceFormat != IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
         this.reader = reader;
         this.fieldName = fieldName;
+        this.ignoredSourceFormat = ignoredSourceFormat;
+        this.fieldPaths = splitIntoFieldPaths(fieldName);
     }
 
     @Override
@@ -52,12 +60,12 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new IgnoredSourceRowStrideReader<>(fieldName, reader);
+        return new IgnoredSourceRowStrideReader<>(fieldName, fieldPaths, reader, ignoredSourceFormat);
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(false, false, Set.of(IgnoredSourceFieldMapper.NAME));
+        return new StoredFieldsSpec(false, false, Set.of(), new IgnoredFieldsSpec(Set.of(fieldName), ignoredSourceFormat));
     }
 
     @Override
@@ -70,37 +78,49 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
-    private record IgnoredSourceRowStrideReader<T>(String fieldName, Reader<T> reader) implements RowStrideReader {
+    public static Set<String> splitIntoFieldPaths(String fieldName) {
+        var paths = new HashSet<String>();
+        paths.add("_doc");
+        var current = new StringBuilder();
+        for (var part : fieldName.split("\\.")) {
+            if (current.isEmpty() == false) {
+                current.append('.');
+            }
+            current.append(part);
+            paths.add(current.toString());
+        }
+        return paths;
+    }
+
+    private static class IgnoredSourceRowStrideReader<T> implements RowStrideReader {
+        private final String fieldName;
+        // Contains name of the field and all its parents
+        private final Set<String> fieldPaths;
+        private final Reader<T> reader;
+        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+
+        IgnoredSourceRowStrideReader(
+            String fieldName,
+            Set<String> fieldPaths,
+            Reader<T> reader,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            this.fieldName = fieldName;
+            this.fieldPaths = fieldPaths;
+            this.reader = reader;
+            this.ignoredSourceFormat = ignoredSourceFormat;
+        }
+
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
-            if (ignoredSource == null) {
+            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = ignoredSourceFormat.loadSingleIgnoredField(
+                fieldPaths,
+                storedFields.storedFields()
+            );
+
+            if (valuesForFieldAndParents.isEmpty()) {
+                builder.appendNull();
                 return;
-            }
-
-            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
-
-            // Contains name of the field and all its parents
-            Set<String> fieldNames = new HashSet<>() {
-                {
-                    add("_doc");
-                }
-            };
-
-            var current = new StringBuilder();
-            for (String part : fieldName.split("\\.")) {
-                if (current.isEmpty() == false) {
-                    current.append('.');
-                }
-                current.append(part);
-                fieldNames.add(current.toString());
-            }
-
-            for (Object value : ignoredSource) {
-                IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
-                if (fieldNames.contains(nameValue.name())) {
-                    valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
-                }
             }
 
             // TODO figure out how to handle XContentDataHelper#voidValue()

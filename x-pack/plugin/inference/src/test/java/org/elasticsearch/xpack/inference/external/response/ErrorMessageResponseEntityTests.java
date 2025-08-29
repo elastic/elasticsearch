@@ -32,7 +32,7 @@ public class ErrorMessageResponseEntityTests extends ESTestCase {
 
         var error = ErrorMessageResponseEntity.fromResponse(result);
         assertNotNull(error);
-        assertThat(error.getErrorMessage(), is("test_error_message"));
+        assertThat(error, is(new ErrorMessageResponseEntity("test_error_message")));
     }
 
     public void testFromResponse_WithOtherFieldsPresent() {
@@ -50,7 +50,7 @@ public class ErrorMessageResponseEntityTests extends ESTestCase {
         ErrorResponse errorMessage = ErrorMessageResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertEquals("You didn't provide an API key", errorMessage.getErrorMessage());
+        assertThat(errorMessage, is(new ErrorMessageResponseEntity("You didn't provide an API key")));
     }
 
     public void testFromResponse_noMessage() {
@@ -65,7 +65,7 @@ public class ErrorMessageResponseEntityTests extends ESTestCase {
         var errorMessage = ErrorMessageResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertThat(errorMessage.getErrorMessage(), is(""));
+        assertThat(errorMessage, is(new ErrorMessageResponseEntity("")));
         assertTrue(errorMessage.errorStructureFound());
     }
 

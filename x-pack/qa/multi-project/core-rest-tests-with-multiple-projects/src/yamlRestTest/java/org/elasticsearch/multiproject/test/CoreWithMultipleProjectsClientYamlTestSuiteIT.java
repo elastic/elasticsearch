@@ -18,7 +18,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 45 * TimeUnits.MINUTE)
 public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
 
     @ClassRule
@@ -37,12 +37,15 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .module("test-multi-project")
         .module("lang-mustache")
         .module("parent-join")
+        .module("streams")
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.autoconfiguration.enabled", "false")
+        // disable ILM history, since it disturbs tests using _all
+        .setting("indices.lifecycle.history_index_enabled", "false")
         .user(USER, PASS)
         .systemProperty("es.queryable_built_in_roles_enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)

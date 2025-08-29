@@ -29,6 +29,7 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
@@ -385,29 +386,28 @@ public abstract class StreamInput extends InputStream {
         return new BigInteger(readString());
     }
 
+    private Text readText(int length) throws IOException {
+        byte[] bytes = new byte[length];
+        if (length > 0) {
+            readBytes(bytes, 0, length);
+        }
+        var encoded = new XContentString.UTF8Bytes(bytes);
+        return new Text(encoded);
+    }
+
     @Nullable
     public Text readOptionalText() throws IOException {
         int length = readInt();
         if (length == -1) {
             return null;
         }
-        byte[] bytes = new byte[length];
-        if (length > 0) {
-            readBytes(bytes, 0, length);
-        }
-        var byteBuff = ByteBuffer.wrap(bytes);
-        return new Text(byteBuff);
+        return readText(length);
     }
 
     public Text readText() throws IOException {
         // use Text so we can cache the string if it's ever converted to it
         int length = readInt();
-        byte[] bytes = new byte[length];
-        if (length > 0) {
-            readBytes(bytes, 0, length);
-        }
-        var byteBuff = ByteBuffer.wrap(bytes);
-        return new Text(byteBuff);
+        return readText(length);
     }
 
     @Nullable
@@ -795,6 +795,28 @@ public abstract class StreamInput extends InputStream {
             return Map.of();
         }
         final Map<K, V> map = Maps.newMapWithExpectedSize(size);
+        for (int i = 0; i < size; i++) {
+            V value = valueReader.read(this);
+            map.put(keyMapper.apply(value), value);
+        }
+        return map;
+    }
+
+    /**
+     * Reads a multiple {@code V}-values and then converts them to a {@code Map} using keyMapper.
+     *
+     * @param valueReader The value reader
+     * @param keyMapper function to create a key from a value
+     * @param constructor map constructor
+     * @return Never {@code null}.
+     */
+    public <K, V, M extends Map<K, V>> M readMapValues(
+        final Writeable.Reader<V> valueReader,
+        final Function<V, K> keyMapper,
+        final IntFunction<M> constructor
+    ) throws IOException {
+        final int size = readArraySize();
+        final M map = constructor.apply(size);
         for (int i = 0; i < size; i++) {
             V value = valueReader.read(this);
             map.put(keyMapper.apply(value), value);

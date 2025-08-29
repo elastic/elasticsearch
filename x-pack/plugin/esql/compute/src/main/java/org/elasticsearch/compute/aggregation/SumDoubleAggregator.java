@@ -69,12 +69,6 @@ class SumDoubleAggregator {
         current.add(v, groupId);
     }
 
-    public static void combineStates(GroupingSumState current, int groupId, GroupingSumState state, int statePosition) {
-        if (state.hasValue(statePosition)) {
-            current.add(state.values.get(statePosition), state.deltas.get(statePosition), groupId);
-        }
-    }
-
     public static void combineIntermediate(GroupingSumState current, int groupId, double inValue, double inDelta, boolean seen) {
         if (seen) {
             current.add(inValue, inDelta, groupId);
@@ -111,8 +105,8 @@ class SumDoubleAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingSumState state, IntVector selected, DriverContext driverContext) {
-        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
+    public static Block evaluateFinal(GroupingSumState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (DoubleBlock.Builder builder = ctx.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.values.size()) {

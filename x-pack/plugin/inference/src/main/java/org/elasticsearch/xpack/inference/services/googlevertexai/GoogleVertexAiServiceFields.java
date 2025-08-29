@@ -14,11 +14,8 @@ public class GoogleVertexAiServiceFields {
     public static final String PROJECT_ID = "project_id";
 
     /**
-     * In `us-central-1` the max input size is `250`, but in every other region it's `5` according
-     * to these docs: https://cloud.google.com/vertex-ai/generative-ai/docs/embeddings/get-text-embeddings.
-     *
-     * Therefore, being conservative and setting it to `5`.
+     * According to https://cloud.google.com/vertex-ai/docs/quotas#text-embedding-limits the limit is `250`.
      */
-    static final int EMBEDDING_MAX_BATCH_SIZE = 5;
+    static final int EMBEDDING_MAX_BATCH_SIZE = 250;
 
 }

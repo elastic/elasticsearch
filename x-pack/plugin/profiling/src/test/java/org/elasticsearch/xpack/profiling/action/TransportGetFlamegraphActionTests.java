@@ -62,19 +62,21 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
         assertEquals(List.of(1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L), response.getCountInclusive());
         assertEquals(List.of(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 1L), response.getCountExclusive());
+        // {145245218=3}, {145245218=4}, {145245218=5}, {145245218=6}, {145245218=7}, {145245218=8}, {145245218=9}, {145245218=10},
+        // {145245218=11}
         assertEquals(
             List.of(
                 Map.of("1220", 1),
                 Map.of("1219", 2),
-                Map.of("174640828", 3),
-                Map.of("181190529", 4),
-                Map.of("181192637", 5),
-                Map.of("180652335", 6),
-                Map.of("180479184", 7),
-                Map.of("180475689", 8),
-                Map.of("174846197", 9),
-                Map.of("175515318", 10),
-                Map.of("178196121", 11),
+                Map.of("145245218", 3),
+                Map.of("145245218", 4),
+                Map.of("145245218", 5),
+                Map.of("145245218", 6),
+                Map.of("145245218", 7),
+                Map.of("145245218", 8),
+                Map.of("145245218", 9),
+                Map.of("145245218", 10),
+                Map.of("145245218", 11),
                 Map.of()
             ),
             response.getEdges()

@@ -23,6 +23,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -45,6 +46,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -235,8 +237,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService(boolean isServerless) {
-            return new GoogleCloudStorageService() {
+        protected GoogleCloudStorageService createStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+            return new GoogleCloudStorageService(clusterService, projectResolver) {
                 @Override
                 StorageOptions createStorageOptions(
                     final GoogleCloudStorageClientSettings gcsClientSettings,
@@ -272,26 +274,30 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 GoogleCloudStorageRepository.TYPE,
-                metadata -> new GoogleCloudStorageRepository(
+                (projectId, metadata) -> new GoogleCloudStorageRepository(
+                    projectId,
                     metadata,
                     registry,
-                    this.storageService,
+                    this.storageService.get(),
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    new GcsRepositoryStatsCollector()
+                    new GcsRepositoryStatsCollector(),
+                    snapshotMetrics
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
+                            getProjectId(),
                             metadata.settings().get("bucket"),
                             "test",
                             metadata.name(),
-                            storageService,
+                            storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
                             BackoffPolicy.noBackoff(),

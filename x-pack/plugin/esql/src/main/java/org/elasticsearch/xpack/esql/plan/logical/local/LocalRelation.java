@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,14 +41,26 @@ public class LocalRelation extends LeafPlan {
     public LocalRelation(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
-        this.supplier = LocalSupplier.readFrom((PlanStreamInput) in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+            this.supplier = in.readNamedWriteable(LocalSupplier.class);
+        } else {
+            this.supplier = LocalSourceExec.readLegacyLocalSupplierFrom((PlanStreamInput) in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(output);
-        supplier.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+            out.writeNamedWriteable(supplier);
+        } else {
+            if (hasEmptySupplier()) {
+                out.writeVInt(0);
+            } else {// here we can only have an ImmediateLocalSupplier as this was the only implementation apart from EMPTY
+                ((ImmediateLocalSupplier) supplier).writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -61,6 +75,10 @@ public class LocalRelation extends LeafPlan {
 
     public LocalSupplier supplier() {
         return supplier;
+    }
+
+    public boolean hasEmptySupplier() {
+        return supplier == EmptyLocalSupplier.EMPTY;
     }
 
     @Override

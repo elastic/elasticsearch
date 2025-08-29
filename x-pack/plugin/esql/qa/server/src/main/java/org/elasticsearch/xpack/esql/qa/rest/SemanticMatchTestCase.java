@@ -11,17 +11,26 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
 public abstract class SemanticMatchTestCase extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     public void testWithMultipleInferenceIds() throws IOException {
         assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
 
@@ -47,6 +56,27 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
         assertThat(re.getMessage(), containsString("Inference endpoint not found"));
         assertEquals(404, re.getResponse().getStatusLine().getStatusCode());
+    }
+
+    public void testCopyToWithSemanticText() throws IOException {
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
+
+        var request = new Request("POST", "/test-semantic4/_doc/id-1");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"text_field\": \"inference test\"}");
+        assertEquals(201, adminClient().performRequest(request).getStatusLine().getStatusCode());
+
+        String query = """
+            from test-semantic4
+            """;
+        Map<String, Object> result = runEsqlQuery(query);
+
+        assertResultMap(
+            result,
+            matchesList().item(matchesMap().entry("name", "semantic_text_field").entry("type", "text"))
+                .item(matchesMap().entry("name", "text_field").entry("type", "text")),
+            List.of(List.of("inference test", "inference test"))
+        );
     }
 
     @Before
@@ -82,6 +112,20 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                  }
             """;
         createIndex(adminClient(), "test-semantic3", settings, mapping3);
+
+        String mapping4 = """
+                "properties": {
+                  "semantic_text_field": {
+                   "type": "semantic_text",
+                   "inference_id": "test_dense_inference"
+                  },
+                  "text_field": {
+                   "type": "text",
+                   "copy_to": "semantic_text_field"
+                  }
+                }
+            """;
+        createIndex(adminClient(), "test-semantic4", settings, mapping4);
     }
 
     @Before
@@ -123,6 +167,6 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsqlQuery(String query) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query);
-        return RestEsqlTestCase.runEsqlSync(builder);
+        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
     }
 }

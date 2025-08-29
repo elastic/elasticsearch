@@ -10,10 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -201,12 +200,11 @@ public class PolicyStepsRegistry {
      * Return all ordered steps for the current policy for the index. Does not
      * resolve steps using the phase caching, but only for the currently existing policy.
      */
-    private List<Step> getAllStepsForIndex(ClusterState state, Index index) {
-        final Metadata metadata = state.metadata();
-        if (metadata.getProject().hasIndex(index) == false) {
+    private List<Step> getAllStepsForIndex(ProjectMetadata project, Index index) {
+        if (project.hasIndex(index) == false) {
             throw new IllegalArgumentException("index " + index + " does not exist in the current cluster state");
         }
-        final IndexMetadata indexMetadata = metadata.getProject().index(index);
+        final IndexMetadata indexMetadata = project.index(index);
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
         if (policyMetadata == null) {
@@ -225,8 +223,8 @@ public class PolicyStepsRegistry {
      * first step in that phase, if it exists, or null otherwise.
      */
     @Nullable
-    public Step.StepKey getFirstStepForPhase(ClusterState state, Index index, String phase) {
-        return getAllStepsForIndex(state, index).stream()
+    public Step.StepKey getFirstStepForPhase(ProjectMetadata project, Index index, String phase) {
+        return getAllStepsForIndex(project, index).stream()
             .map(Step::getKey)
             .filter(stepKey -> phase.equals(stepKey.phase()))
             .findFirst()
@@ -238,8 +236,8 @@ public class PolicyStepsRegistry {
      * for the first step in that phase, if it exists, or null otherwise.
      */
     @Nullable
-    public Step.StepKey getFirstStepForPhaseAndAction(ClusterState state, Index index, String phase, String action) {
-        return getAllStepsForIndex(state, index).stream()
+    public Step.StepKey getFirstStepForPhaseAndAction(ProjectMetadata project, Index index, String phase, String action) {
+        return getAllStepsForIndex(project, index).stream()
             .map(Step::getKey)
             .filter(stepKey -> phase.equals(stepKey.phase()))
             .filter(stepKey -> action.equals(stepKey.action()))

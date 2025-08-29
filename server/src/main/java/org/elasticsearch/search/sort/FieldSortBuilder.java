@@ -371,7 +371,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
             isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
-            field = fieldData.sortField(missing, localSortMode(), nested, reverse);
+            field = fieldData.sortField(context.indexVersionCreated(), missing, localSortMode(), nested, reverse);
             if (fieldData instanceof IndexNumericFieldData) {
                 isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
             }

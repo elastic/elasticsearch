@@ -112,7 +112,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         if (randomBoolean()) {
             request.allowPartialResults(randomBoolean());
         }

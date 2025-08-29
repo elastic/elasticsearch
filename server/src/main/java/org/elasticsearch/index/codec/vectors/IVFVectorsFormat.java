@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 
@@ -45,7 +44,6 @@ import java.io.IOException;
  */
 public class IVFVectorsFormat extends KnnVectorsFormat {
 
-    public static final String IVF_VECTOR_COMPONENT = "IVF";
     public static final String NAME = "IVFVectorsFormat";
     // centroid ordinals -> centroid values, offsets
     public static final String CENTROID_EXTENSION = "cenivf";
@@ -61,26 +59,53 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    private static final int DEFAULT_VECTORS_PER_CLUSTER = 1000;
+    // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
+    // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
+    public static final float DYNAMIC_VISIT_RATIO = 0.0f;
+    public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
+    public static final int MIN_VECTORS_PER_CLUSTER = 64;
+    public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
+    public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
+    public static final int MIN_CENTROIDS_PER_PARENT_CLUSTER = 2;
+    public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = 1 << 8; // 256
 
     private final int vectorPerCluster;
+    private final int centroidsPerParentCluster;
 
-    public IVFVectorsFormat(int vectorPerCluster) {
+    public IVFVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         super(NAME);
-        if (vectorPerCluster <= 0) {
-            throw new IllegalArgumentException("vectorPerCluster must be > 0");
+        if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
+            throw new IllegalArgumentException(
+                "vectorsPerCluster must be between "
+                    + MIN_VECTORS_PER_CLUSTER
+                    + " and "
+                    + MAX_VECTORS_PER_CLUSTER
+                    + ", got: "
+                    + vectorPerCluster
+            );
+        }
+        if (centroidsPerParentCluster < MIN_CENTROIDS_PER_PARENT_CLUSTER || centroidsPerParentCluster > MAX_CENTROIDS_PER_PARENT_CLUSTER) {
+            throw new IllegalArgumentException(
+                "centroidsPerParentCluster must be between "
+                    + MIN_CENTROIDS_PER_PARENT_CLUSTER
+                    + " and "
+                    + MAX_CENTROIDS_PER_PARENT_CLUSTER
+                    + ", got: "
+                    + centroidsPerParentCluster
+            );
         }
         this.vectorPerCluster = vectorPerCluster;
+        this.centroidsPerParentCluster = centroidsPerParentCluster;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public IVFVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER);
+        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new DefaultIVFVectorsWriter(state, rawVectorFormat.fieldsWriter(state), vectorPerCluster);
+        return new DefaultIVFVectorsWriter(state, rawVectorFormat.fieldsWriter(state), vectorPerCluster, centroidsPerParentCluster);
     }
 
     @Override
@@ -90,21 +115,12 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public int getMaxDimensions(String fieldName) {
-        return 1024;
+        return 4096;
     }
 
     @Override
     public String toString() {
-        return "IVFVectorFormat";
+        return "IVFVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ')';
     }
 
-    static IVFVectorsReader getIVFReader(KnnVectorsReader vectorsReader, String fieldName) {
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
-            vectorsReader = candidateReader.getFieldReader(fieldName);
-        }
-        if (vectorsReader instanceof IVFVectorsReader reader) {
-            return reader;
-        }
-        return null;
-    }
 }

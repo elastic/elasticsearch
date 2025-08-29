@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -104,6 +105,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class EsqlDataTypeConverter {
@@ -233,6 +235,9 @@ public class EsqlDataTypeConverter {
             }
             if (to == DataType.BOOLEAN) {
                 return EsqlConverter.STRING_TO_BOOLEAN;
+            }
+            if (DataType.isSpatialGeo(to)) {
+                return EsqlConverter.STRING_TO_GEO;
             }
             if (DataType.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
@@ -540,6 +545,10 @@ public class EsqlDataTypeConverter {
         return UNSPECIFIED.wkbToWkt(field);
     }
 
+    public static BytesRef stringToGeo(String field) {
+        return GEO.wktToWkb(field);
+    }
+
     public static BytesRef stringToSpatial(String field) {
         return UNSPECIFIED.wktToWkb(field);
     }
@@ -592,7 +601,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static boolean stringToBoolean(String field) {
-        return Boolean.parseBoolean(field);
+        return Booleans.parseBooleanLenient(field, false);
     }
 
     public static int stringToInt(String field) {
@@ -764,15 +773,16 @@ public class EsqlDataTypeConverter {
         STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.DATE_PERIOD)),
         STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.TIME_DURATION)),
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
-        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
-        STRING_TO_DATE_NANOS(x -> EsqlDataTypeConverter.dateNanosToLong((String) x)),
-        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),
-        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion((String) x)),
-        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble((String) x)),
-        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong((String) x)),
-        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt((String) x)),
-        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean((String) x)),
-        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial((String) x));
+        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong(BytesRefs.toString(x))),
+        STRING_TO_DATE_NANOS(x -> EsqlDataTypeConverter.dateNanosToLong(BytesRefs.toString(x))),
+        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP(BytesRefs.toString(x))),
+        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion(BytesRefs.toString(x))),
+        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble(BytesRefs.toString(x))),
+        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong(BytesRefs.toString(x))),
+        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt(BytesRefs.toString(x))),
+        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean(BytesRefs.toString(x))),
+        STRING_TO_GEO(x -> EsqlDataTypeConverter.stringToGeo(BytesRefs.toString(x))),
+        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(x)));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.plan.logical.SampleSerializationTests;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.plan.logical.SampleSerializationTests.randomProbability;
-import static org.elasticsearch.xpack.esql.plan.logical.SampleSerializationTests.randomSeed;
 
 public class SampleExecSerializationTests extends AbstractPhysicalPlanSerializationTests<SampleExec> {
     /**
@@ -22,7 +21,7 @@ public class SampleExecSerializationTests extends AbstractPhysicalPlanSerializat
      */
     @Override
     protected SampleExec createTestInstance() {
-        return new SampleExec(randomSource(), randomChild(0), randomProbability(), randomSeed());
+        return new SampleExec(randomSource(), randomChild(0), randomProbability());
     }
 
     /**
@@ -34,15 +33,13 @@ public class SampleExecSerializationTests extends AbstractPhysicalPlanSerializat
     @Override
     protected SampleExec mutateInstance(SampleExec instance) throws IOException {
         var probability = instance.probability();
-        var seed = instance.seed();
         var child = instance.child();
-        int updateSelector = randomIntBetween(0, 2);
+        int updateSelector = randomIntBetween(0, 1);
         switch (updateSelector) {
             case 0 -> probability = randomValueOtherThan(probability, SampleSerializationTests::randomProbability);
-            case 1 -> seed = randomValueOtherThan(seed, SampleSerializationTests::randomSeed);
-            case 2 -> child = randomValueOtherThan(child, () -> randomChild(0));
+            case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
             default -> throw new IllegalArgumentException("Invalid selector: " + updateSelector);
         }
-        return new SampleExec(instance.source(), child, probability, seed);
+        return new SampleExec(instance.source(), child, probability);
     }
 }

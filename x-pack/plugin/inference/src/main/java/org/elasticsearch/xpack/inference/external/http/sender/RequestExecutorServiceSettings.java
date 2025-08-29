@@ -40,7 +40,6 @@ public class RequestExecutorServiceSettings {
     static final Setting<TimeValue> TASK_POLL_FREQUENCY_SETTING = Setting.timeSetting(
         "xpack.inference.http.request_executor.task_poll_frequency",
         DEFAULT_TASK_POLL_FREQUENCY_TIME,
-        TimeValue.timeValueNanos(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -52,7 +51,6 @@ public class RequestExecutorServiceSettings {
     static final Setting<TimeValue> RATE_LIMIT_GROUP_CLEANUP_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.inference.http.request_executor.rate_limit_group_cleanup_interval",
         DEFAULT_RATE_LIMIT_GROUP_CLEANUP_INTERVAL,
-        TimeValue.timeValueNanos(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -65,7 +63,6 @@ public class RequestExecutorServiceSettings {
     static final Setting<TimeValue> RATE_LIMIT_GROUP_STALE_DURATION_SETTING = Setting.timeSetting(
         "xpack.inference.http.request_executor.rate_limit_group_stale_duration",
         DEFAULT_RATE_LIMIT_GROUP_STALE_DURATION,
-        TimeValue.timeValueNanos(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

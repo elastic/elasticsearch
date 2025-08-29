@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
@@ -111,7 +111,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
@@ -717,9 +716,8 @@ public final class SamlRealm extends Realm implements Releasable {
         HttpClientBuilder builder = HttpClientBuilder.create();
         // ssl setup
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-        final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
+        final SslProfile sslProfile = sslService.profile(sslKey);
+        final SSLConnectionSocketFactory factory = sslProfile.connectionSocketFactory();
         builder.setSSLSocketFactory(factory);
 
         TimeValue maxRefresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);

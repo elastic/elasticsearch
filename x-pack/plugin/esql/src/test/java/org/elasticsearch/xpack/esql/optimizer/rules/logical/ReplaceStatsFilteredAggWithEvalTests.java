@@ -393,8 +393,8 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalSingleAgg() {
         var query = """
-            from test
-            | inlinestats sum(salary) where false
+            FROM test
+            | INLINESTATS sum(salary) where false
             """;
         if (releaseBuildForInlinestats(query)) {
             return;
@@ -436,8 +436,8 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalSingleAggWithExpression() {
         var query = """
-            from test
-            | inlinestats sum(salary) + 1 where false
+            FROM test
+            | INLINESTATS sum(salary) + 1 where false
             """;
         if (releaseBuildForInlinestats(query)) {
             return;
@@ -483,11 +483,11 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalMixedFilterAndNoFilter() {
         var query = """
-            from test
-            | keep salary, emp_no
-            | inlinestats sum(salary) + 1 where false,
+            FROM test
+            | KEEP salary, emp_no
+            | INLINESTATS sum(salary) + 1 where false,
                     sum(salary) + 2
-              by emp_no
+              BY emp_no
             """;
         if (releaseBuildForInlinestats(query)) {
             return;
@@ -539,9 +539,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalFilterFalseAndNull() {
         var query = """
-            from test
-            | keep salary
-            | inlinestats sum(salary) + 1 where false,
+            FROM test
+            | KEEP salary
+            | INLINESTATS sum(salary) + 1 where false,
                     sum(salary) + 3,
                     sum(salary) + 2 where null,
                     sum(salary) + 4 where not true
@@ -593,9 +593,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalNotTrue() {
         var query = """
-            from test
-            | keep emp_no, salary
-            | inlinestats count(salary) where not true
+            FROM test
+            | KEEP emp_no, salary
+            | INLINESTATS count(salary) where not true
             """;
         if (releaseBuildForInlinestats(query)) {
             return;
@@ -626,9 +626,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalNotFalse() {
         var query = """
-            from test
-            | keep emp_no, salary, gender
-            | inlinestats m1 = count(salary) where not false
+            FROM test
+            | KEEP emp_no, salary, gender
+            | INLINESTATS m1 = count(salary) WHERE not false
             """;
         if (releaseBuildForInlinestats(query)) {
             return;
@@ -660,9 +660,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalCount() {
         var query = """
-            from test
-            | keep salary
-            | inlinestats count(salary) where false
+            FROM test
+            | KEEP salary
+            | INLINESTATS count(salary) where false
             """;
         if (releaseBuildForInlinestats(query)) {
             return;
@@ -690,9 +690,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalCountDistinctInExpression() {
         var query = """
-            from test
-            | keep salary
-            | inlinestats count_distinct(salary + 2) + 3 where false
+            FROM test
+            | KEEP salary
+            | INLINESTATS count_distinct(salary + 2) + 3 where false
             """;
         if (releaseBuildForInlinestats(query)) {
             return;
@@ -725,12 +725,12 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceInlinestatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
         var query = """
-            from test
-            | keep emp_no, salary
-            | inlinestats max = max(salary), max_a = max(salary) where null,
+            FROM test
+            | KEEP emp_no, salary
+            | INLINESTATS max = max(salary), max_a = max(salary) WHERE null,
                     min = min(salary),
-                    min_a = min(salary) where to_string(null) == "abc"
-              by emp_no
+                    min_a = min(salary) WHERE to_string(null) == "abc"
+              BY emp_no
             """;
         if (releaseBuildForInlinestats(query)) {
             return;
@@ -777,12 +777,12 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      */
     public void testReplaceTwoConsecutiveInlinestats_WithFalseFilters() {
         var query = """
-            from test
-                | keep emp_no
-                | sort emp_no
-                | limit 3
-                | inlinestats count = count(*) where false
-                | inlinestats cc = count_distinct(emp_no) where false
+            FROM test
+                | KEEP emp_no
+                | SORT emp_no
+                | LIMIT 3
+                | INLINESTATS count = count(*) WHERE false
+                | INLINESTATS cc = count_distinct(emp_no) WHERE false
             """;
         if (releaseBuildForInlinestats(query)) {
             return;

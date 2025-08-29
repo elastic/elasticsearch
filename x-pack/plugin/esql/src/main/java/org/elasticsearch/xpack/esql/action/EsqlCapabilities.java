@@ -972,7 +972,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V10(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results

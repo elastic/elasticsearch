@@ -28,6 +28,7 @@ public class CrossProjectResolverUtils {
     private static final Logger logger = LogManager.getLogger(CrossProjectResolverUtils.class);
     private static final String WILDCARD = "*";
     private static final String MATCH_ALL = "_ALL";
+    private static final String EXCLUSION = "-";
 
     public static void maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
@@ -55,24 +56,37 @@ public class CrossProjectResolverUtils {
             // handling of match all cases
             indices = new String[] { WILDCARD };
         }
+        boolean atLeastOneResourceWasFound = true;
         Map<String, List<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
         for (String indexExpression : indices) {
-            // TODO we need to handle exclusions here already
+            // TODO We will need to handle exclusions here. For now we are throwing instead if we see an exclusion.
+            if (EXCLUSION.equals(indexExpression)) {
+                throw new IllegalArgumentException(
+                    "Exclusions are not currently supported but was found in the expression [" + indexExpression + "]"
+                );
+            }
             boolean isQualified = isQualifiedIndexExpression(indexExpression);
             if (isQualified) {
                 // TODO handle empty case here -- empty means "search all" in ES which is _not_ what we want
                 List<String> canonicalExpressions = rewriteQualified(indexExpression, targetProjects, remoteClusterAware);
                 // could fail early here in ignore_unavailable and allow_no_indices strict mode if things are empty
                 canonicalExpressionsMap.put(indexExpression, canonicalExpressions);
+                if (canonicalExpressions.isEmpty() == false) {
+                    atLeastOneResourceWasFound = false;
+                }
                 logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             } else {
+                atLeastOneResourceWasFound = false;
                 // un-qualified expression, i.e. flat-world
                 List<String> canonicalExpressions = rewriteUnqualified(indexExpression, targetProjects.projects());
                 canonicalExpressionsMap.put(indexExpression, canonicalExpressions);
                 logger.info("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             }
         }
-
+        if (atLeastOneResourceWasFound) {
+            // Do we want to throw in this case?
+            throw new ResourceNotFoundException("no target projects for cross-project search request");
+        }
         request.setCanonicalExpressions(canonicalExpressionsMap);
     }
 

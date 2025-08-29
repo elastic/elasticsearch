@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -148,6 +149,51 @@ public class CrossProjectResolverUtilsTests extends ESTestCase {
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("*1:metrics*"));
         assertThat(crossProjectRequest.getCanonicalExpressions().get("*1:metrics*"), containsInAnyOrder("P1:metrics*", "Q1:metrics*"));
+    }
+
+    public void testProjectWildcardNotMatchingAnythingShouldThrow() {
+        AuthorizedProjectsSupplier.AuthorizedProjects authorizedProjects = new AuthorizedProjectsSupplier.AuthorizedProjects(
+            "_origin",
+            List.of("P1", "P2", "Q1", "Q2")
+        );
+        CrossProjectReplaceableTest crossProjectRequest = new CrossProjectReplaceableTest(
+            new String[] { "S*:metrics*" },
+            IndicesOptions.DEFAULT
+        );
+
+        // In this case we are throwing because no resource was found. Do we want to throw or should we continue with a list of empty
+        // "canonical" indices and perhaps throw later on based on IndicesOptions?
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
+                remoteClusterAware,
+                authorizedProjects,
+                crossProjectRequest
+            )
+        );
+    }
+
+    public void testRewritingShouldThrowOnIndexExclusions() {
+        // TODO Implement index exclusion.
+        AuthorizedProjectsSupplier.AuthorizedProjects authorizedProjects = new AuthorizedProjectsSupplier.AuthorizedProjects(
+            "_origin",
+            List.of("P1", "P2", "Q1", "Q2")
+        );
+        CrossProjectReplaceableTest crossProjectRequest = new CrossProjectReplaceableTest(
+            new String[] { "P*:metrics*", "-P1:metrics*" },
+            IndicesOptions.DEFAULT
+        );
+
+        // In this case we are throwing because no resource was found. Do we want to throw or should we continue with a list of empty
+        // "canonical" indices and perhaps throw later on based on IndicesOptions?
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
+                remoteClusterAware,
+                authorizedProjects,
+                crossProjectRequest
+            )
+        );
     }
 
     public void testWildcardOnlyProjectRewrite() {

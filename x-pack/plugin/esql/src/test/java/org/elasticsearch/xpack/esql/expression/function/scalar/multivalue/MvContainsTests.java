@@ -364,9 +364,9 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
         return typesWithNull.stream().map(Objects::toString).collect(Collectors.joining(" "));
     }
 
-    // We always return a boolean.
+    // When all arguments are null: the 2nd arg (subset) will be `null` and the 1st is invariant (null,null) => true.
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return anyOf(equalTo(false), equalTo(true));
+        return equalTo(true);
     }
 }

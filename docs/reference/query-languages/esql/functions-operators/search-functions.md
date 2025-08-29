@@ -13,7 +13,7 @@ our [hands-on tutorial](/reference/query-languages/esql/esql-search-tutorial.md)
 For a high-level overview of search functionalities in {{esql}}, and to learn about relevance scoring, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring).
 :::
 
-{{esql}} provides a set of functions for performing searching on text fields. 
+{{esql}} provides a set of functions for performing searching on text fields.
 
 Use these functions
 for [full-text search](docs-content://solutions/search/full-text.md)
@@ -36,6 +36,7 @@ for information on the limitations of full text search.
 :::{include} ../_snippets/lists/search-functions.md
 :::
 
+
 :::{include} ../_snippets/functions/layout/kql.md
 :::
 
@@ -54,3 +55,8 @@ lists/search-functions.md
 % :::{include} ../_snippets/functions/layout/term.md
 % :::
 
+% DECAY is currently a hidden feature
+% To make it visible again, uncomment this and the line in
+lists/search-functions.md
+% :::{include} ../_snippets/functions/layout/decay.md
+% :::

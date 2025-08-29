@@ -1362,6 +1362,12 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
+         * Decay function for custom scoring
+         */
+        // TODO: correct?
+        DECAY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * FIRST and LAST aggregate functions.
          */
         AGG_FIRST_LAST(Build.current().isSnapshot()),

@@ -46,6 +46,26 @@ public class CPSExpressionRewriterTests extends ESTestCase {
         );
     }
 
+    public void testFlatAndQualifiedProjectRewrite() {
+        AuthorizedProjectsSupplier.AuthorizedProjects authorizedProjects = new AuthorizedProjectsSupplier.AuthorizedProjects(
+            "_origin",
+            List.of("P1", "P2", "P3")
+        );
+        CrossProjectReplaceableTest crossProjectRequest = new CrossProjectReplaceableTest(
+            new String[] { "P1:logs*", "metrics*" },
+            IndicesOptions.DEFAULT
+        );
+
+        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+
+        assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("P1:logs*", "metrics*"));
+        assertThat(crossProjectRequest.getCanonicalExpressions().get("P1:logs*"), containsInAnyOrder("P1:logs*"));
+        assertThat(
+            crossProjectRequest.getCanonicalExpressions().get("metrics*"),
+            containsInAnyOrder("metrics*", "P1:metrics*", "P2:metrics*", "P3:metrics*")
+        );
+    }
+
     public void testQualifiedOnlyLinkedProjectsRewrite() {
         AuthorizedProjectsSupplier.AuthorizedProjects authorizedProjects = new AuthorizedProjectsSupplier.AuthorizedProjects(
             "_origin",

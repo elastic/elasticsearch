@@ -360,12 +360,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             | SORT tbucket
             | LIMIT 1000
             """, DATASTREAM_NAME, dimensionsStr))) {
-            List<List<Object>> rows = new ArrayList<>();
-            resp.rows().forEach(rowIter -> {
-                List<Object> row = new ArrayList<>();
-                rowIter.forEach(row::add);
-                rows.add(row);
-            });
+            List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
             var groups = groupedRows(documents, dimensions, SECONDS_IN_WINDOW);
             for (List<Object> row : rows) {
@@ -404,12 +399,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             | SORT tbucket
             | LIMIT 1000
             """, DATASTREAM_NAME))) {
-            List<List<Object>> rows = new ArrayList<>();
-            resp.rows().forEach(rowIter -> {
-                List<Object> row = new ArrayList<>();
-                rowIter.forEach(row::add);
-                rows.add(row);
-            });
+            List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
             for (List<Object> row : rows) {
                 var windowStart = windowStart(row.get(4), SECONDS_IN_WINDOW);

@@ -208,10 +208,10 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitFieldQuery(KqlBaseParser.FieldQueryContext ctx) {
-        return paresFieldQuery(ctx.fieldName(), ctx.fieldQueryValue());
+        return parseFieldQuery(ctx.fieldName(), ctx.fieldQueryValue());
     }
 
-    public QueryBuilder paresBooleanFieldQuery(
+    public QueryBuilder parseBooleanFieldQuery(
         KqlBaseParser.FieldNameContext fieldNameCtx,
         KqlBaseParser.BooleanFieldQueryValueContext booleanFieldQueryValueCtx
     ) {
@@ -222,29 +222,29 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             Consumer<QueryBuilder> boolClauseConsumer = operator.getType() == KqlBaseParser.AND
                 ? boolQueryBuilder::must
                 : boolQueryBuilder::should;
-            boolClauseConsumer.accept(paresBooleanFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.booleanFieldQueryValue()));
-            boolClauseConsumer.accept(paresFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.fieldQueryValue()));
+            boolClauseConsumer.accept(parseBooleanFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.booleanFieldQueryValue()));
+            boolClauseConsumer.accept(parseFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.fieldQueryValue()));
 
             return operator.getType() == KqlBaseParser.AND
                 ? rewriteConjunctionQuery(boolQueryBuilder)
                 : rewriteDisjunctionQuery(boolQueryBuilder);
         } else if (booleanFieldQueryValueCtx.booleanFieldQueryValue() != null) {
-            return paresBooleanFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.booleanFieldQueryValue());
+            return parseBooleanFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.booleanFieldQueryValue());
         } else {
             assert booleanFieldQueryValueCtx.fieldQueryValue() != null;
-            return paresFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.fieldQueryValue());
+            return parseFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.fieldQueryValue());
         }
     }
 
-    public QueryBuilder paresFieldQuery(
+    public QueryBuilder parseFieldQuery(
         KqlBaseParser.FieldNameContext fieldNameCtx,
         KqlBaseParser.FieldQueryValueContext fieldQueryValueCtx
     ) {
         if (fieldQueryValueCtx.operator != null) {
             assert fieldQueryValueCtx.fieldQueryValue() != null;
-            return QueryBuilders.boolQuery().mustNot(paresFieldQuery(fieldNameCtx, fieldQueryValueCtx.fieldQueryValue()));
+            return QueryBuilders.boolQuery().mustNot(parseFieldQuery(fieldNameCtx, fieldQueryValueCtx.fieldQueryValue()));
         } else if (fieldQueryValueCtx.booleanFieldQueryValue() != null) {
-            return paresBooleanFieldQuery(fieldNameCtx, fieldQueryValueCtx.booleanFieldQueryValue());
+            return parseBooleanFieldQuery(fieldNameCtx, fieldQueryValueCtx.booleanFieldQueryValue());
         } else {
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
             String queryText = extractText(fieldQueryValueCtx);

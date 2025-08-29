@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.logging.LogManager;
 
 import java.io.IOException;
 
@@ -40,13 +39,11 @@ public class KqlParserTests extends AbstractKqlParserTestCase {
     }
 
     public void testParenthesizedQuery() throws IOException {
-        for (String baseQuuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
+        for (String baseQuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
             // For each supported query, wrap it into parentheses and check query remains the same.
             // Adding random whitespaces as well and test they are ignored.
-            String parenthesizedQuery = "(" + baseQuuery + ")";
-
-            LogManager.getLogger(KqlParserTests.class).info(parenthesizedQuery);
-            assertThat(parseKqlQuery(parenthesizedQuery), equalTo(parseKqlQuery(baseQuuery)));
+            String parenthesizedQuery = "(" + baseQuery + ")";
+            assertThat(parseKqlQuery(parenthesizedQuery), equalTo(parseKqlQuery(baseQuery)));
         }
     }
 

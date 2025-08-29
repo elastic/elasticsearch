@@ -15,6 +15,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.spi.SymbolTable;
+import org.elasticsearch.xcontent.spi.XContentProvider;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -30,8 +32,7 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
     private static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle VH_BE_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
 
-    @Nullable
-    private final HashMap<BytesRef, String> stringCache;
+    private final SymbolTable symbolTable;
 
     private final int lenth;
     private final byte[] bytes;
@@ -41,7 +42,7 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
     public ESONByteArrayXContentParser(
         BytesRef keyBytes,
         ESONSource.Values values,
-        @Nullable HashMap<BytesRef, String> stringCache,
+        @Nullable SymbolTable stringCache,
         NamedXContentRegistry registry,
         DeprecationHandler deprecationHandler,
         XContentType xContentType
@@ -50,7 +51,7 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
         this.bytes = keyBytes.bytes;
         this.lenth = keyBytes.length;
         this.offset = keyBytes.offset;
-        this.stringCache = stringCache;
+        this.symbolTable = XContentProvider.provider().newSymbolTable();
     }
 
     public static ESONByteArrayXContentParser readFrom(
@@ -64,7 +65,7 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
         return new ESONByteArrayXContentParser(
             bytesReference.slice(4, keysLength).toBytesRef(),
             new ESONSource.Values(bytesReference.slice(keysLength + 4 + 4, bytesReference.length() - (keysLength + 4 + 4))),
-            stringCache,
+            null,
             registry,
             deprecationHandler,
             xContentType
@@ -79,7 +80,7 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
         DeprecationHandler deprecationHandler,
         XContentType xContentType
     ) {
-        return new ESONByteArrayXContentParser(keysReference.toBytesRef(), values, stringCache, registry, deprecationHandler, xContentType);
+        return new ESONByteArrayXContentParser(keysReference.toBytesRef(), values, null, registry, deprecationHandler, xContentType);
     }
 
     @Override
@@ -117,14 +118,44 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
     }
 
     private String getString(int stringLength) {
-        if (stringCache != null) {
-            return stringCache.computeIfAbsent(
-                new BytesRef(bytes, offset, stringLength),
-                ignored -> new String(bytes, offset, stringLength, StandardCharsets.UTF_8)
-            );
+        if (symbolTable != null) {
+            int[] quads = bytesToQuads(bytes, offset, stringLength);
+            int qlen = (stringLength + 3) / 4;
+
+            // Try to find existing string first
+            String cached = symbolTable.findName(quads, qlen);
+            if (cached != null) {
+                return cached;
+            }
+
+            // Not found, create new string and add to cache
+            String newString = new String(bytes, offset, stringLength, StandardCharsets.UTF_8);
+            return symbolTable.addName(newString, quads, qlen);
         } else {
             return new String(bytes, offset, stringLength, StandardCharsets.UTF_8);
         }
+    }
+
+    private int[] bytesToQuads(byte[] bytes, int offset, int length) {
+        int quadCount = (length + 3) / 4; // Round up
+        int[] quads = new int[quadCount];
+
+        for (int i = 0; i < quadCount; i++) {
+            int quad = 0;
+            int baseOffset = offset + (i * 4);
+
+            for (int j = 0; j < 4; j++) {
+                int byteIndex = baseOffset + j;
+                if (byteIndex < offset + length) {
+                    quad = (quad << 8) | (bytes[byteIndex] & 0xFF);
+                } else {
+                    quad = quad << 8;
+                }
+            }
+            quads[i] = quad;
+        }
+
+        return quads;
     }
 
     private int readInt() {
@@ -175,5 +206,6 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
     @Override
     public void close() {
         super.close();
+        symbolTable.close();
     }
 }

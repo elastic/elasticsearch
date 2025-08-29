@@ -11,11 +11,12 @@ applies_to:
 
 This section provides detailed **reference information** for Elasticsearch privileges.
 
-Refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) in the **Deploy and manage** section for more information on how role-based access control works.
+If you're using a stack-versioned deployment such as a self-managed cluster, {{ech}}, {{eck}}, or {{ece}}, then refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) for more information on how role-based access control works.
 
+If you're using {{serverless-full}}, then refer to [Serverless project custom roles](docs-content://deploy-manage/users-roles/serverless-custom-roles.md) to learn how to build roles using these privileges.
 
 :::{note}
-In {{serverless-full}}, Elastic manages the underlying infrastructure for you. Because of this, privileges related to cluster administration, scaling, snapshots, and availability are not available. Learn more about the [project custom roles managed by {{serverless-full}}](docs-content://deploy-manage/users-roles/serverless-custom-roles.md).
+In {{serverless-full}}, Elastic manages the underlying infrastructure for you. Because of this, privileges related to cluster administration, scaling, snapshots, and availability are not available. [Learn more about the features managed by {{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md).
 :::
 
 Roles are governed by a set of configurable privileges grouped into these categories:

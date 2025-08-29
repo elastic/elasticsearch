@@ -10,8 +10,9 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
@@ -19,22 +20,27 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.VerificationException;
+import org.gradle.api.tasks.VerificationTask;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Predicate;
 
 /**
- * Validates that each transport version named reference has a constant definition.
+ * Validates that each transport version reference has a referable definition.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
+public abstract class ValidateTransportVersionReferencesTask extends DefaultTask implements VerificationTask {
+
+    @ServiceReference("transportVersionResources")
+    abstract Property<TransportVersionResourcesService> getTransportResources();
 
     @InputDirectory
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract DirectoryProperty getDefinitionsDirectory();
+    public Path getDefinitionsDir() {
+        return getTransportResources().get().getDefinitionsDir();
+    }
 
     @InputFile
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -42,18 +48,12 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        final Predicate<String> referenceChecker;
-        if (getDefinitionsDirectory().isPresent()) {
-            Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
-            referenceChecker = (name) -> Files.exists(definitionsDir.resolve(name + ".csv"));
-        } else {
-            referenceChecker = (name) -> false;
-        }
         Path namesFile = getReferencesFile().get().getAsFile().toPath();
+        TransportVersionResourcesService resources = getTransportResources().get();
 
-        for (var tvReference : TransportVersionUtils.readReferencesFile(namesFile)) {
-            if (referenceChecker.test(tvReference.name()) == false) {
-                throw new RuntimeException(
+        for (var tvReference : TransportVersionReference.listFromFile(namesFile)) {
+            if (resources.referableDefinitionExists(tvReference.name()) == false) {
+                throw new VerificationException(
                     "TransportVersion.fromName(\""
                         + tvReference.name()
                         + "\") was used at "

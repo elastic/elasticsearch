@@ -31,7 +31,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.tsdb.es819.BulkNumericDocValues;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.script.DateFieldScript;
@@ -805,7 +804,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     }
 
-    protected boolean supportsBulkBlockReading() {
+    protected boolean supportsBulkLongBlockReading() {
         return true;
     }
 
@@ -849,9 +848,9 @@ public class DateFieldMapperTests extends MapperTestCase {
                 {
                     // One big doc block
                     var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues, instanceOf(BulkNumericDocValues.class));
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(to - from));
                     for (int i = 0; i < block.size(); i++) {
                         assertThat(block.get(i), equalTo(to - i - 1L));
@@ -861,10 +860,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                     // Smaller doc blocks
                     int docBlockSize = 1000;
                     var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues, instanceOf(BulkNumericDocValues.class));
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
-                        var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                        var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                         assertThat(block.size(), equalTo(docBlockSize));
                         for (int j = 0; j < block.size(); j++) {
                             long expected = to - ((long) docBlockSize * (i / docBlockSize)) - j - 1L;
@@ -875,9 +874,9 @@ public class DateFieldMapperTests extends MapperTestCase {
                 {
                     // One smaller doc block:
                     var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues, instanceOf(BulkNumericDocValues.class));
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(1010));
                     for (int i = 0; i < block.size(); i++) {
                         long expected = 8990 - i - 1L;
@@ -887,9 +886,9 @@ public class DateFieldMapperTests extends MapperTestCase {
                 {
                     // Read two tiny blocks:
                     var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues, instanceOf(BulkNumericDocValues.class));
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(32));
                     for (int i = 0; i < block.size(); i++) {
                         long expected = 9968 - i - 1L;
@@ -897,7 +896,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     }
 
                     docBlock = TestBlock.docs(IntStream.range(64, 96).toArray());
-                    block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
+                    block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(32));
                     for (int i = 0; i < block.size(); i++) {
                         long expected = 9936 - i - 1L;

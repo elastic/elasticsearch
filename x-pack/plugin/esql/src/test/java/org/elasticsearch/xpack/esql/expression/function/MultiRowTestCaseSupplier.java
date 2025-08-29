@@ -48,6 +48,7 @@ public final class MultiRowTestCaseSupplier {
             case LONG -> longCases(minRows, maxRows, Long.MIN_VALUE, Long.MAX_VALUE, true);
             case UNSIGNED_LONG -> ulongCases(minRows, maxRows, BigInteger.ZERO, UNSIGNED_LONG_MAX, true);
             case DOUBLE -> doubleCases(minRows, maxRows, -Double.MAX_VALUE, Double.MAX_VALUE, true);
+            case KEYWORD, TEXT -> stringCases(minRows, maxRows, type);
             // If a type is missing here it's safe to them as you need them
             default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
         };
@@ -506,12 +507,19 @@ public final class MultiRowTestCaseSupplier {
         Supplier<T> valueSupplier
     ) {
         if (minRows <= 1 && maxRows >= 1) {
-            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true));
+            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true, List.of()));
         }
 
         if (maxRows > 1) {
             cases.add(
-                new TypedDataSupplier("<" + name + "s>", () -> randomList(Math.max(2, minRows), maxRows, valueSupplier), type, false, true)
+                new TypedDataSupplier(
+                    "<" + name + "s>",
+                    () -> randomList(Math.max(2, minRows), maxRows, valueSupplier),
+                    type,
+                    false,
+                    true,
+                    List.of()
+                )
             );
         }
     }

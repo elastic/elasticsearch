@@ -160,11 +160,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
         // Group data points
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
-                createGaugeMetric(
-                    "system.cpu.usage",
-                    "",
-                    List.of(createDoubleDataPoint(nowUnixNanos, List.of(keyValue("core", "cpu0"))))
-                ),
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of(keyValue("core", "cpu0"))))),
                 createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos, List.of())))
             )
         );

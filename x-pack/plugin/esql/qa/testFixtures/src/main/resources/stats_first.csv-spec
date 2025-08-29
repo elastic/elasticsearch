@@ -89,3 +89,54 @@ ROW v = ["null", "3", "2"]
 FIRST(v, @timestamp):integer
             2
 ;
+
+
+first_keywords
+required_capability: agg_first_last_string
+FROM employees
+| STATS
+    first_employee = FIRST(first_name, hire_date)
+; 
+
+first_employee:keyword   
+Sumant 
+;
+
+first_keywords_by_year
+required_capability: agg_first_last_string
+FROM employees
+| EVAL year = date_trunc(1 year, hire_date)
+| STATS
+    first_employee = FIRST(first_name, hire_date) BY year
+| SORT year ASC
+; 
+
+first_employee:keyword | year:datetime
+Sumant                 | 1985-01-01T00:00:00.000Z
+Sanjiv                 | 1986-01-01T00:00:00.000Z
+Claudi                 | 1987-01-01T00:00:00.000Z
+Ramzi                  | 1988-01-01T00:00:00.000Z
+Tzvetan                | 1989-01-01T00:00:00.000Z
+Parviz                 | 1990-01-01T00:00:00.000Z
+Mayuko                 | 1991-01-01T00:00:00.000Z
+Ebbe                   | 1992-01-01T00:00:00.000Z
+Weiyi                  | 1993-01-01T00:00:00.000Z
+Kenroku                | 1994-01-01T00:00:00.000Z
+Kazuhito               | 1995-01-01T00:00:00.000Z
+Sailaja                | 1996-01-01T00:00:00.000Z
+Suzette                | 1997-01-01T00:00:00.000Z
+Lillian                | 1999-01-01T00:00:00.000Z
+;
+
+first_text_by_system
+required_capability: agg_first_last_string
+FROM logs
+| STATS message = FIRST(message, @timestamp) BY system
+| SORT system ASC
+; 
+
+message:keyword                     | system:keyword
+Running cats (cycle 1)              | cron
+Doing java stuff for 192.168.86.038 | java
+Pinging 192.168.86.046              | ping
+;

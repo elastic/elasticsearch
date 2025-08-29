@@ -28,6 +28,7 @@ public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
 
     @Override
     public void add(DataPoint dataPoint, TsidBuilder tsidBuilder) {
-        tsidBuilder.add(dataPoint, DataPointDimensionsTsidFunnel.get(byteStringAccessor));
+        tsidBuilder.add(dataPoint.getAttributes(), AttributeListTsidFunnel.get(byteStringAccessor, "attributes."));
+        tsidBuilder.addStringDimension("unit", dataPoint.getUnit());
     }
 }

@@ -212,7 +212,15 @@ setup:
 
 
 ---
-"KQL boolean field queries":
+"KQL boolean expressions withing field queries":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ kql_query_boolean_field_query ]
+      test_runner_features: capabilities
+      reason: Support for boolean expression within field query is not available.
+
   - do:
       search:
         index: test-index

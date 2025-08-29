@@ -301,13 +301,13 @@ convertFromStringFancy
 required_capability: to_ip_leading_zeros
 FROM logs
 | KEEP @timestamp, system, message
+| SORT @timestamp
 | LIMIT 4
 | EVAL client = CASE(
     system == "ping",
         TO_IP(REPLACE(message, "Pinging ", ""), {"leading_zeros": "octal"}),
     system == "java" AND STARTS_WITH(message, "Doing java stuff for "),
         TO_IP(REPLACE(message, "Doing java stuff for ", ""), {"leading_zeros": "decimal"}))
-| SORT @timestamp
 ;
 
 @timestamp:datetime      | system:keyword | message:text                        | client:ip

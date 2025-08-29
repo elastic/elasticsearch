@@ -205,7 +205,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
     }
 
     public void testSerializeCCSResponseBetweenOldClusters() throws IOException {
-        TransportVersion minCompactVersion = TransportVersions.MINIMUM_COMPATIBLE;
+        TransportVersion minCompactVersion = TransportVersion.minimumCompatible();
         assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersions.V_8_2_0));
         List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
             randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),

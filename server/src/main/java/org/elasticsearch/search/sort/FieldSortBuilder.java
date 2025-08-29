@@ -703,7 +703,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     /**

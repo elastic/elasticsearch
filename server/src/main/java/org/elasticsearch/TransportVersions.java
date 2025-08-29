@@ -17,7 +17,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -47,7 +46,6 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
-    public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_0_1 = def(7_00_01_99);
     public static final TransportVersion V_7_1_0 = def(7_01_00_99);
@@ -316,18 +314,6 @@ public class TransportVersions {
      */
 
     /**
-     * Reference to the earliest compatible transport version to this version of the codebase.
-     * This should be the transport version used by the highest minor version of the previous major.
-     */
-    public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
-
-    /**
-     * Reference to the minimum transport version that can be used with CCS.
-     * This should be the transport version used by the previous minor release.
-     */
-    public static final TransportVersion MINIMUM_CCS_VERSION = RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18;
-
-    /**
      * Sorted list of all versions defined in this class
      */
     static final List<TransportVersion> DEFINED_VERSIONS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
@@ -336,14 +322,9 @@ public class TransportVersions {
         Map<Integer, String> versionIdFields = new HashMap<>();
         List<TransportVersion> definedTransportVersions = new ArrayList<>();
 
-        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
-
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();
-                if (ignore.contains(fieldName)) {
-                    continue;
-                }
 
                 TransportVersion version;
                 try {

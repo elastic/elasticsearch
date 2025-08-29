@@ -278,7 +278,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         {
             var oldVersion = randomVersionBetween(
                 random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
+                TransportVersion.minimumCompatible(),
                 getPreviousVersion(TransportVersions.NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION)
             );
             try (var out = new BytesStreamOutput()) {

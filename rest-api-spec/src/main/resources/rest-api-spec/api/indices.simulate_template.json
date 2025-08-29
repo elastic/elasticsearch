@@ -1,8 +1,8 @@
 {
   "indices.simulate_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-simulate-template.html",
-      "description": "Simulate resolving the given template name or body"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/indices-simulate-template.html",
+      "description": "Simulate an index template"
     },
     "stability":"stable",
     "visibility":"public",

@@ -1,8 +1,8 @@
 {
   "ml.get_trained_models_stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models-stats.html",
-      "description":"Retrieves usage information for trained inference models."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/get-trained-models-stats.html",
+      "description":"Get trained models usage info"
     },
     "stability":"stable",
     "visibility":"public",

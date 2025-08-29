@@ -1,8 +1,8 @@
 {
   "cluster.get_settings":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-get-settings.html",
-      "description":"Returns cluster settings."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/cluster-get-settings.html",
+      "description":"Get cluster-wide settings"
     },
     "stability":"stable",
     "visibility":"public",

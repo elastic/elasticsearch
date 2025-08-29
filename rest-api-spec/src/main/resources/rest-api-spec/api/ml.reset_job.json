@@ -1,8 +1,8 @@
 {
   "ml.reset_job":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-reset-job.html",
-      "description":"Resets an existing anomaly detection job."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ml-reset-job.html",
+      "description":"Reset an anomaly detection job"
     },
     "stability":"stable",
     "visibility":"public",

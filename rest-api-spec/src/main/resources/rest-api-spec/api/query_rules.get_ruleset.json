@@ -1,8 +1,8 @@
 {
   "query_rules.get_ruleset": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-query-ruleset.html",
-      "description": "Returns the details about a query ruleset."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/get-query-ruleset.html",
+      "description": "Get a query ruleset"
     },
     "stability": "stable",
     "visibility": "public",

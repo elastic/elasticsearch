@@ -1,8 +1,8 @@
 {
   "ingest.get_pipeline":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-pipeline-api.html",
-      "description":"Returns a pipeline."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/get-pipeline-api.html",
+      "description":"Get pipelines"
     },
     "stability":"stable",
     "visibility":"public",

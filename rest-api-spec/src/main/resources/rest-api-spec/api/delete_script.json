@@ -1,8 +1,8 @@
 {
   "delete_script":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
-      "description":"Deletes a script."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/delete-stored-script-api.html",
+      "description":"Delete a script or search template"
     },
     "stability":"stable",
     "visibility":"public",

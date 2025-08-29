@@ -1,8 +1,8 @@
 {
   "indices.get_data_stream":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Returns data streams."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/indices-get-data-stream.html",
+      "description":"Get data streams"
     },
     "stability":"stable",
     "visibility":"public",

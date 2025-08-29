@@ -1,8 +1,8 @@
 {
   "ml.get_model_snapshots":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html",
-      "description":"Retrieves information about model snapshots."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ml-get-snapshot.html",
+      "description":"Get model snapshots info"
     },
     "stability":"stable",
     "visibility":"public",

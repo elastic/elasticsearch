@@ -84,7 +84,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
             performSearch(
-                new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null, null))
+                new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, 10f, null, null))
             );
         }
 

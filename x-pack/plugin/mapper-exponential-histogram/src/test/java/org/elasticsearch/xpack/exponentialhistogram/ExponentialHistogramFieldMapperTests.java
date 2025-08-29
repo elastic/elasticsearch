@@ -500,9 +500,9 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 Number threshold = Types.forciblyCast(zeroBucket.get("threshold"));
                 Number count = Types.forciblyCast(zeroBucket.get("count"));
                 if (threshold != null && count != null) {
-                    return new ZeroBucket(threshold.doubleValue(), count.longValue());
+                    return ZeroBucket.create(threshold.doubleValue(), count.longValue());
                 } else if (threshold != null) {
-                    return new ZeroBucket(threshold.doubleValue(), 0);
+                    return ZeroBucket.create(threshold.doubleValue(), 0);
                 } else if (count != null) {
                     return ZeroBucket.minimalWithCount(count.longValue());
                 } else {

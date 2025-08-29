@@ -9,11 +9,13 @@
 
 package org.elasticsearch.action.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.ESONFlat;
 import org.elasticsearch.ingest.ESONSource;
 import org.elasticsearch.ingest.ESONXContentSerializer;
@@ -71,9 +73,9 @@ public class ModernSource implements Writeable {
         this.structuredSource = structuredSource;
     }
 
-    public void setSharedKeyBytes(HashMap<String, byte[]> sharedKeyBytes) {
+    public void setSharedKeys(HashMap<String, BytesRef> sharedKeyStrings, HashMap<BytesRef, String> sharedKeyBytes) {
         ensureStructured();
-        structuredSource.sharedKeyBytes().set(sharedKeyBytes);
+        structuredSource.sharedKeys().set(new Tuple<>(sharedKeyStrings, sharedKeyBytes));
     }
 
     public void ensureStructured() {

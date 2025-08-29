@@ -10,6 +10,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest;
@@ -215,10 +216,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     }
 
     public void createSharedKeyBytes() {
-        HashMap<String, byte[]> sharedKeyBytes = new HashMap<>();
+        HashMap<String, BytesRef> sharedKeyString = new HashMap<>();
+        HashMap<BytesRef, String> sharedKeyBytes = new HashMap<>();
         for (BulkItemRequest bulkItemRequest : items) {
             if (bulkItemRequest.request() instanceof IndexRequest indexRequest) {
-                indexRequest.modernSource().setSharedKeyBytes(sharedKeyBytes);
+                indexRequest.modernSource().setSharedKeys(sharedKeyString, sharedKeyBytes);
             }
         }
     }

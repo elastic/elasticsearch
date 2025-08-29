@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,18 +33,26 @@ public record ESONFlat(
     AtomicReference<List<ESONEntry>> keys,
     ESONSource.Values values,
     AtomicReference<BytesReference> serializedKeyBytes,
-    AtomicReference<HashMap<String, byte[]>> sharedKeyBytes
+    AtomicReference<Tuple<HashMap<String, BytesRef>, HashMap<BytesRef, String>>> sharedKeys
 ) {
 
     public ESONFlat(List<ESONEntry> keys, ESONSource.Values values) {
-        this(new AtomicReference<>(keys), values, new AtomicReference<>(), new AtomicReference<>());
+        this(new AtomicReference<>(keys), values, new AtomicReference<>(), new AtomicReference<>(new Tuple<>(null, null)));
     }
 
     public ESONXContentParser parser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, XContentType xContentType) {
         if (keys.get() != null) {
             return new ESONFlatXContentParser(keys.get(), values, registry, deprecationHandler, xContentType);
         } else {
-            return new ESONBytesXContentParser(serializedKeyBytes.get(), values, registry, deprecationHandler, xContentType);
+            return ESONByteArrayXContentParser.readFrom(
+                serializedKeyBytes.get(),
+                values,
+                sharedKeys.get().v2(),
+                registry,
+                deprecationHandler,
+                xContentType
+            );
+            // return new ESONBytesXContentParser(serializedKeyBytes.get(), values, registry, deprecationHandler, xContentType);
         }
     }
 
@@ -54,7 +63,7 @@ public record ESONFlat(
             new AtomicReference<>(),
             new ESONSource.Values(in.readBytesReference()),
             new AtomicReference<>(keys),
-            new AtomicReference<>()
+            new AtomicReference<>(new Tuple<>(null, null))
         );
     }
 
@@ -76,7 +85,7 @@ public record ESONFlat(
     }
 
     private static List<ESONEntry> readKeys(StreamInput in) throws IOException {
-        int expected = in.readVInt();
+        int expected = ESONByteArrayXContentParser.readShortInt(in);
         ESONStack esonStack = new ESONStack();
         ArrayList<ESONEntry> keys = new ArrayList<>(expected);
         byte startType = in.readByte();
@@ -88,7 +97,7 @@ public record ESONFlat(
             int stackValue = esonStack.currentStackValue();
             final String key;
             if (ESONStack.isObject(stackValue)) {
-                int stringLength = in.readVInt();
+                int stringLength = ESONByteArrayXContentParser.readShortInt(in);
                 byte[] stringBytes = new byte[stringLength];
                 in.readBytes(stringBytes, 0, stringLength);
                 key = new String(stringBytes, StandardCharsets.UTF_8);
@@ -124,7 +133,7 @@ public record ESONFlat(
 
     public BytesReference getSerializedKeyBytes() {
         if (serializedKeyBytes.get() == null) {
-            HashMap<String, byte[]> sharedKeyBytesMap = sharedKeyBytes.get();
+            Tuple<HashMap<String, BytesRef>, HashMap<BytesRef, String>> sharedKeys = this.sharedKeys.get();
             assert keys.get() != null;
             // TODO: Better estimate
             // for (ESONEntry entry : keys) {
@@ -133,7 +142,7 @@ public record ESONFlat(
             // }
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(getBytesRefRecycler())) {
                 List<ESONEntry> esonEntries = keys.get();
-                streamOutput.writeVInt(esonEntries.size());
+                streamOutput.writeShortInt(esonEntries.size());
                 for (ESONEntry entry : esonEntries) {
                     String key = entry.key();
                     if (key != null) {

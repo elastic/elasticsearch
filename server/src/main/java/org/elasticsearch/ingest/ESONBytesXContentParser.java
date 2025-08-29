@@ -66,6 +66,7 @@ public class ESONBytesXContentParser extends ESONXContentParser {
             };
         } else {
             // Skip the number of entries
+            // TODO: now is a short int
             streamInput.readVInt();
             byte startType = streamInput.readByte();
             assert startType == ESONEntry.TYPE_OBJECT;

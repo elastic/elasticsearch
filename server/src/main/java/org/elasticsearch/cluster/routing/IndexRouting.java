@@ -382,7 +382,7 @@ public abstract class IndexRouting {
             ) {
                 hash = hashSource(parser).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
                 int shardId = hashToShardId(hash);
-                return (rerouteIfResharding(shardId));
+                return (rerouteWritesIfResharding(shardId));
             } catch (IOException | ParsingException e) {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }

@@ -738,6 +738,53 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs * (moreCommits + 2)));
     }
 
+    public void testRefreshWithNewerOperationPrimaryTermThanOfHollowCommit() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+        var indexNodeA = startIndexNode(indexNodeSettings);
+        var indexNodeB = startIndexNode(indexNodeSettings);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", indexNodeB).build());
+        ensureGreen(indexName);
+
+        hollowShards(indexName, 1, indexNodeA, indexNodeB);
+        internalCluster().stopNode(indexNodeA);
+        ensureGreen(indexName);
+
+        final long primaryTermBefore = getPrimaryTerms(client(), indexName)[0];
+        final int primaryTermIncrements = randomIntBetween(1, 5);
+        for (int i = 0; i < primaryTermIncrements; i++) {
+            if (randomBoolean()) {
+                logger.debug("--> failing shard " + (i + 1) + "/" + primaryTermIncrements);
+                findIndexShard(indexName).failShard("broken", new Exception("boom local shard"));
+            } else {
+                logger.debug("--> restarting " + indexNodeB + " " + (i + 1) + "/" + primaryTermIncrements);
+                internalCluster().restartNode(indexNodeB);
+            }
+            final int fi = i;
+            assertBusy(() -> {
+                final var primaryTerms = getPrimaryTerms(client(), indexName);
+                assertThat(primaryTerms.length, equalTo(1));
+                assertThat(primaryTerms[0], greaterThan(primaryTermBefore + fi));
+            });
+            ensureGreen(indexName);
+        }
+
+        startSearchNode();
+        logger.debug("--> setting replica count");
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+
+        logger.debug("--> refreshing");
+        refresh(indexName);
+    }
+
     public void testRelocateHollowableShardWithConnectionFailure() throws Exception {
         startMasterOnlyNode();
         var indexNodeSettings = Settings.builder().put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1)).build();

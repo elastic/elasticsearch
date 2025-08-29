@@ -140,7 +140,6 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
             + "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
             + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:debug,"
             + "co.elastic.elasticsearch.stateless.commits.HollowShardsService:debug,"
-            + "co.elastic.elasticsearch.stateless.commits.HollowShardsService:debug,"
             + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:debug,"
             + "org.elasticsearch.indices.recovery:debug",
         reason = "ensure shard file deletion on DEBUG level"

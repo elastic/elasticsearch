@@ -523,9 +523,6 @@ tests:
   method: testModelWithPrefixStrings
   issue: https://github.com/elastic/elasticsearch/issues/133138
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
-  issue: https://github.com/elastic/elasticsearch/issues/133184
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/45_knn_search_byte/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
   issue: https://github.com/elastic/elasticsearch/issues/133187
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
@@ -558,9 +555,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on date field in empty index}
   issue: https://github.com/elastic/elasticsearch/issues/133439
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
-  issue: https://github.com/elastic/elasticsearch/issues/133442
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/133449
@@ -582,9 +576,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/133507
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/90_sparse_vector/Indexing and searching multi-value sparse vectors in >=8.15}
-  issue: https://github.com/elastic/elasticsearch/issues/133508
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/10_source_filtering/no filtering}
   issue: https://github.com/elastic/elasticsearch/issues/133561

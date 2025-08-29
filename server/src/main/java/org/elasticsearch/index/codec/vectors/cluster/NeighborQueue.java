@@ -82,6 +82,13 @@ public class NeighborQueue {
             return;
         }
         int toTransfer = Math.min(limit, neighborQueue.size());
+        // we can bulk transfer all elements
+        if (toTransfer == neighborQueue.size()) {
+            heap.bulkPushOrderedValues(neighborQueue.heap.heap, 1, toTransfer);
+            neighborQueue.clear();
+            return;
+        }
+        // we only want part of the elements, so we must pop one by one
         for (int i = 0; i < toTransfer; i++) {
             buffer[i] = neighborQueue.rawPop();
         }

@@ -75,27 +75,17 @@ public class WriteLoadConstraintMonitor {
 
         final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
         final Set<String> nodeIdsExceedingLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
-        final Set<String> potentialRelocationTargets = Sets.newHashSetWithExpectedSize(numberOfNodes);
         clusterInfo.getNodeUsageStatsForThreadPools().forEach((nodeId, usageStats) -> {
             final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = usageStats.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE);
             assert writeThreadPoolStats != null : "Write thread pool is not publishing usage stats for node [" + nodeId + "]";
             if (writeThreadPoolStats.maxThreadPoolQueueLatencyMillis() > writeLoadConstraintSettings.getQueueLatencyThreshold().millis()) {
                 nodeIdsExceedingLatencyThreshold.add(nodeId);
-            } else if (writeThreadPoolStats.averageThreadPoolUtilization() <= writeLoadConstraintSettings.getHighUtilizationThreshold()) {
-                potentialRelocationTargets.add(nodeId);
             }
         });
-        assert Sets.intersection(nodeIdsExceedingLatencyThreshold, potentialRelocationTargets).isEmpty()
-            : "We assume any nodes exceeding the latency threshold are not viable targets for relocation";
 
         if (nodeIdsExceedingLatencyThreshold.isEmpty()) {
             logger.debug("No hot-spotting nodes detected");
-            return;
-        }
-
-        if (potentialRelocationTargets.isEmpty()) {
-            logger.debug("No nodes are suitable as relocation targets");
             return;
         }
 
@@ -108,9 +98,8 @@ public class WriteLoadConstraintMonitor {
             || Sets.difference(nodeIdsExceedingLatencyThreshold, lastSetOfHotSpottedNodes).isEmpty() == false) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
-                    "Found {} exceeding the write thread pool queue latency threshold ({} with capacity, {} total), triggering reroute",
+                    "Found {} exceeding the write thread pool queue latency threshold ({} total), triggering reroute",
                     nodeSummary(nodeIdsExceedingLatencyThreshold),
-                    nodeSummary(potentialRelocationTargets),
                     state.nodes().size()
                 );
             }

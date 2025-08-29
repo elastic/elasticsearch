@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A builder used in {@link RestKnnSearchAction} to convert the kNN REST request
@@ -199,8 +200,6 @@ public class KnnSearchRequestParser {
         static final ParseField FIELD_FIELD = new ParseField("field");
         static final ParseField K_FIELD = new ParseField("k");
         static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
-        // FIXME: update docs to reflect the new optional field
-        // FIXME: add more tests around this field
         static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
         static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
 
@@ -211,7 +210,7 @@ public class KnnSearchRequestParser {
             for (int i = 0; i < vector.size(); i++) {
                 vectorArray[i] = vector.get(i);
             }
-            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (float) args[4]);
+            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (Float) args[4]);
         });
 
         static {
@@ -219,7 +218,7 @@ public class KnnSearchRequestParser {
             PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
             PARSER.declareInt(constructorArg(), K_FIELD);
             PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
-            PARSER.declareFloat(constructorArg(), VISIT_PERCENTAGE_FIELD);
+            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         }
 
         public static KnnSearch parse(XContentParser parser) throws IOException {
@@ -240,12 +239,12 @@ public class KnnSearchRequestParser {
          * @param k the final number of nearest neighbors to return as top hits
          * @param numCands the number of nearest neighbor candidates to consider per shard
          */
-        KnnSearch(String field, float[] queryVector, int k, int numCands, float visitPercentage) {
+        KnnSearch(String field, float[] queryVector, int k, int numCands, Float visitPercentage) {
             this.field = field;
             this.queryVector = queryVector;
             this.k = k;
             this.numCands = numCands;
-            this.visitPercentage = visitPercentage;
+            this.visitPercentage = visitPercentage == null ? 0f : visitPercentage;
         }
 
         public KnnVectorQueryBuilder toQueryBuilder() {
@@ -282,7 +281,7 @@ public class KnnSearchRequestParser {
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(field, k, numCands);
+            int result = Objects.hash(field, k, numCands, visitPercentage);
             result = 31 * result + Arrays.hashCode(queryVector);
             return result;
         }

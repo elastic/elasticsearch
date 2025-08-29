@@ -74,7 +74,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 (QueryVectorBuilder) args[2],
                 (int) args[3],
                 (int) args[4],
-                (float) args[5],
+                (Float) args[5],
                 (RescoreVectorBuilder) args[7],
                 (Float) args[6]
             );
@@ -91,7 +91,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         );
         PARSER.declareInt(constructorArg(), K_FIELD);
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
-        PARSER.declareFloat(constructorArg(), VISIT_PERCENTAGE_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
         PARSER.declareField(
             optionalConstructorArg(),
@@ -121,7 +121,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         QueryVectorBuilder queryVectorBuilder,
         int k,
         int numCands,
-        float visitPercentage,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -147,7 +147,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCands;
-        this.visitPercentage = visitPercentage;
+        this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
         this.similarity = similarity;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
     }
@@ -269,7 +269,10 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
-        builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
+
+        if( visitPercentage != 0.0f ) {
+            builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
+        }
 
         if (queryVector != null) {
             builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.get());
@@ -304,7 +307,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public int doHashCode() {
-        int result = Objects.hash(field, queryVectorBuilder, k, numCands, rescoreVectorBuilder, similarity);
+        int result = Objects.hash(field, queryVectorBuilder, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
         result = 31 * result + Arrays.hashCode(queryVector != null ? queryVector.get() : null);
         return result;
     }

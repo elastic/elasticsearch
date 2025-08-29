@@ -347,7 +347,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                   2.0,
                   3.0
                 ],
-                "num_candidates" : 10
+                "num_candidates" : 10,
+                "visit_percentage" : 10.0
               }
             }""";
         assertEquals(expected, query.toString());
@@ -363,10 +364,27 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                   3.0
                 ],
                 "k" : 5,
-                "num_candidates" : 10
+                "num_candidates" : 10,
+                "visit_percentage" : 10.0
               }
             }""";
         assertEquals(expected2, query2.toString());
+
+        KnnVectorQueryBuilder query3 = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 5, 10, null, null, null);
+        String expected3 = """
+            {
+              "knn" : {
+                "field" : "vector",
+                "query_vector" : [
+                  1.0,
+                  2.0,
+                  3.0
+                ],
+                "k" : 5,
+                "num_candidates" : 10
+              }
+            }""";
+        assertEquals(expected3, query3.toString());
     }
 
     @Override
@@ -469,30 +487,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             query.getVectorSimilarity()
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
         assertBWCSerialization(query, queryNoRescoreVector, version);
-    }
-
-    // FIXME: write me
-    public void testBWCVersionSerializationVisitPercentage() throws IOException {
-        KnnVectorQueryBuilder query = createTestQueryBuilder();
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_9_0_0,
-            TransportVersions.VISIT_PERCENTAGE
-        );
-        VectorData vectorData = version.onOrAfter(TransportVersions.V_9_0_0)
-            ? query.queryVector()
-            : VectorData.fromFloats(query.queryVector().asFloatVector());
-        Float visitPercentage = version.before(TransportVersions.VISIT_PERCENTAGE) ? null : query.visitPercentage();
-        KnnVectorQueryBuilder queryVisitPercentage = new KnnVectorQueryBuilder(
-            query.getFieldName(),
-            vectorData,
-            query.k(),
-            query.numCands(),
-            visitPercentage,
-            null,
-            query.getVectorSimilarity()
-        ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
-        assertBWCSerialization(query, queryVisitPercentage, version);
     }
 
     private void assertBWCSerialization(QueryBuilder newQuery, QueryBuilder bwcQuery, TransportVersion version) throws IOException {

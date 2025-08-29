@@ -209,7 +209,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             case 8 -> {
                 Float newVisitPercentage = randomValueOtherThan(
                     instance.visitPercentage,
-                    () -> instance.visitPercentage + ESTestCase.randomFloatBetween(-100f, 100f, true)
+                    () -> ESTestCase.randomFloatBetween(0f, 100f, true)
                 );
                 yield new KnnSearchBuilder(
                     instance.field,

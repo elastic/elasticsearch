@@ -49,7 +49,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
-    public static final ParseField VISIT_PERCENTAGE = new ParseField("visit_percentage");
+    public static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
@@ -82,7 +82,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         );
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE);
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
@@ -263,7 +263,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         List<QueryBuilder> filterQueries,
         int k,
         int numCandidates,
-        float visitPercentage,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity,
         InnerHitBuilder innerHitBuilder,
@@ -282,7 +282,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
         if (visitPercentage < 0f || visitPercentage > 100f) {
-            throw new IllegalArgumentException("[" + VISIT_PERCENTAGE.getPreferredName() + "] must be between 0 and 100");
+            throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
         }
         if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
@@ -321,11 +321,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.field = in.readString();
         this.k = in.readVInt();
         this.numCands = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
-            this.visitPercentage = in.readFloat();
-        } else {
-            this.visitPercentage = 0f;
-        }
+        this.visitPercentage = in.readFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
@@ -527,6 +523,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             field,
             k,
             numCands,
+            visitPercentage,
             querySupplier,
             queryVectorBuilder,
             rescoreVectorBuilder,
@@ -544,7 +541,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
-        builder.field(VISIT_PERCENTAGE.getPreferredName(), visitPercentage);
+
+        if( visitPercentage != 0f ) {
+            builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
+        }
 
         if (queryVectorBuilder != null) {
             builder.startObject(QUERY_VECTOR_BUILDER_FIELD.getPreferredName());
@@ -706,7 +706,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             int adjustedNumCandidates = numCandidates == null
                 ? Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK))
                 : numCandidates;
-            // FIXME: adjust this based on the other params?
             float adjustedVisitPercentage = visitPercentage == null ? 0f : visitPercentage;
             return new KnnSearchBuilder(
                 field,

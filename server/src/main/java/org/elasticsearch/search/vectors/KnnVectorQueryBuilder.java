@@ -266,12 +266,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.numCands = in.readVInt();
         }
-        // FIXME: validate transport version changes
-        if (in.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
-            this.visitPercentage = in.readOptionalFloat();
-        } else {
-            this.visitPercentage = in.readFloat();
-        }
+        this.visitPercentage = in.readOptionalFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
@@ -381,21 +376,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeVInt(numCands);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
-            out.writeOptionalFloat(visitPercentage);
-        } else {
-            if (visitPercentage == null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + VISIT_PERCENTAGE_FIELD.getPreferredName()
-                        + "] field was mandatory in previous releases "
-                        + "and is required to be non-null by some nodes. "
-                        + "Please make sure to provide the parameter as part of the request."
-                );
-            } else {
-                out.writeFloat(visitPercentage);
-            }
-        }
+        out.writeOptionalFloat(visitPercentage);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {
@@ -582,7 +563,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, NUM_CANDS_LIMIT)) : numCands;
 
         // FIXME: how do the other params interact with this?
-        float adjustedVisitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
+        float adjustedVisitPercentage = visitPercentage == null ? 0f : visitPercentage;
 
         if (fieldType == null) {
             return new MatchNoDocsQuery();
@@ -674,6 +655,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             Objects.hashCode(queryVector),
             k,
             numCands,
+            visitPercentage,
             filterQueries,
             vectorSimilarity,
             queryVectorBuilder,
@@ -687,6 +669,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             && Objects.equals(queryVector, other.queryVector)
             && Objects.equals(k, other.k)
             && Objects.equals(numCands, other.numCands)
+            && Objects.equals(visitPercentage, other.visitPercentage)
             && Objects.equals(filterQueries, other.filterQueries)
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
             && Objects.equals(queryVectorBuilder, other.queryVectorBuilder)

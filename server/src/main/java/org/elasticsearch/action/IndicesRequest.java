@@ -130,8 +130,14 @@ public interface IndicesRequest {
             return false;
         }
 
+        // This could function as "marker" instead of CrossProjectReplaceable
+        // or just rely on allowsRemoteIndices
+        default boolean supportsCrossProjectSearch() {
+            return false;
+        }
+
         // TODO probably makes more sense on a service class as opposed to the request itself
-        default void remoteErrorHandling(Map<String, ReplaceableIndices> remoteResults) {}
+        default <T extends ResponseWithReplaceableIndices> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {}
     }
 
     interface CrossProjectReplaceable extends Replaceable {
@@ -146,7 +152,9 @@ public interface IndicesRequest {
         }
 
         @Override
-        default void remoteErrorHandling(Map<String, ReplaceableIndices> remoteResults) {
+        default <T extends ResponseWithReplaceableIndices> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {
+            // This could actually move into `Replaceable`
+
             logger.info("Checking if we should throw in flat world for [{}]", getReplaceableIndices());
             // No CPS nothing to do
             if (false == hasCrossProjectExpressions()) {
@@ -177,7 +185,8 @@ public interface IndicesRequest {
 
                 for (var remoteResponse : remoteResults.values()) {
                     logger.info("Remote response resolved: [{}]", remoteResponse);
-                    Map<String, IndicesRequest.ReplacedExpression> resolved = remoteResponse.replacedExpressionMap();
+                    Map<String, IndicesRequest.ReplacedExpression> resolved = remoteResponse.getReplaceableIndices()
+                        .replacedExpressionMap();
                     assert resolved != null;
                     if (resolved.containsKey(original) && resolved.get(original).replacedBy().isEmpty() == false) {
                         logger.info("Remote cluster has resolved entries for [{}], skipping further remote existence check", original);

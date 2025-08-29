@@ -20,6 +20,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResponseWithReplaceableIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -423,7 +424,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject, ResponseWithReplaceableIndices {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
@@ -470,10 +471,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return dataStreams;
         }
 
-        public IndicesRequest.ReplaceableIndices getResolved() {
-            return new IndicesRequest.CompleteReplaceableIndices(resolved);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(indices);
@@ -504,6 +501,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public int hashCode() {
             return Objects.hash(indices, aliases, dataStreams);
+        }
+
+        @Override
+        public IndicesRequest.ReplaceableIndices getReplaceableIndices() {
+            return resolved == null ? null : new IndicesRequest.CompleteReplaceableIndices(resolved);
         }
     }
 
@@ -547,20 +549,15 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             );
 
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
             logger.info("Original local indices [{}]", localIndices);
 
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             if (localIndices != null) {
-                // TODO right now, the security interceptor will include concrete expressions (non-wildcard) if the user has access to them
-                // regardless of whether they exist or not
-                // we need to account for that either here or by changing the interceptor to record if a resource actually exists
-                // since that matters for flat-world error handling:
-                // the `request.remoteErrorHandling(fromRemoteResponses(remoteResponses));` further down
                 resolveIndices(
                     localIndices.indices(),
-                    // we need lenient mode for resolution under CPS
                     getIndicesOptions(crossProjectMode, localIndices),
                     projectState,
                     indexNameExpressionResolver,
@@ -577,9 +574,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
                         try {
-                            request.remoteErrorHandling(fromRemoteResponses(remoteResponses));
+                            request.remoteFanoutErrorHandling(remoteResponses);
                         } catch (Exception ex) {
-                            logger.warn("Failed to resolve indices in flat world mode", ex);
                             listener.onFailure(ex);
                             return;
                         }
@@ -597,16 +593,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
-                    Request remoteRequest = new Request(
-                        originalIndices.indices(),
-                        getIndicesOptions(crossProjectMode, originalIndices),
-                        crossProjectMode
-                    );
-                    logger.info(
-                        "Sending remote request to cluster [{}] for indices [{}]",
-                        clusterAlias,
-                        Arrays.toString(originalIndices.indices())
-                    );
+                    Request remoteRequest = buildRemoteFanoutRequest(crossProjectMode, originalIndices);
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
@@ -624,16 +611,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        private IndicesOptions getIndicesOptions(boolean crossProjectMode, OriginalIndices localIndices) {
-            return crossProjectMode ? lenientIndicesOptions(localIndices.indicesOptions()) : localIndices.indicesOptions();
+        private Request buildRemoteFanoutRequest(boolean crossProjectMode, OriginalIndices originalIndices) {
+            return new Request(originalIndices.indices(), getIndicesOptions(crossProjectMode, originalIndices), crossProjectMode);
         }
 
-        private static Map<String, IndicesRequest.ReplaceableIndices> fromRemoteResponses(Map<String, Response> remoteResponses) {
-            Map<String, IndicesRequest.ReplaceableIndices> responses = new TreeMap<>();
-            for (Map.Entry<String, Response> entry : remoteResponses.entrySet()) {
-                responses.put(entry.getKey(), entry.getValue().getResolved());
-            }
-            return responses;
+        private IndicesOptions getIndicesOptions(boolean crossProjectMode, OriginalIndices localIndices) {
+            return crossProjectMode ? lenientIndicesOptions(localIndices.indicesOptions()) : localIndices.indicesOptions();
         }
 
         private static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
@@ -726,7 +709,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             for (Map.Entry<String, Response> responseEntry : remoteResponses.entrySet()) {
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
-                logger.info("Cluster alias [{}] has resolved entries [{}]", clusterAlias, response.getResolved());
+                logger.info("Cluster alias [{}] has resolved entries [{}]", clusterAlias, response.getReplaceableIndices());
 
                 for (ResolvedIndex index : response.indices) {
                     indices.add(index.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getName())));

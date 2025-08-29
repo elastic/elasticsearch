@@ -761,6 +761,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             false,
             false,
             false,
+            false,
             true,
             false
         );
@@ -804,6 +805,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 VersionInformation.CURRENT
             ),
             0,
+            null,
             null,
             null,
             null,

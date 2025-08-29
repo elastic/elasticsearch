@@ -119,6 +119,7 @@ public class RestNodesActionTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
     }

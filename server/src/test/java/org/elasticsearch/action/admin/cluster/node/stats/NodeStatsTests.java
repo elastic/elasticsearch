@@ -1114,7 +1114,8 @@ public class NodeStatsTests extends ESTestCase {
             scriptCacheStats,
             indexingPressureStats,
             repositoriesStats,
-            nodeAllocationStats
+            nodeAllocationStats,
+            null
         );
     }
 

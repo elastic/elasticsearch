@@ -401,6 +401,7 @@ cost_per_mb:double | cluster:keyword | time_bucket:datetime
 ;
 
 Group by all for over time agg with no wrapper, no time bucket
+required_capability: metrics_command
 
 TS k8s 
 | STATS count = count_over_time(network.cost) 
@@ -409,3 +410,14 @@ TS k8s
 count:long | cluster:keyword | pod:keyword
 1          | ID              | FK
 ;
+
+Group By All with Tbucket and Limit
+ 
+TS k8s 
+| STATS max_over_time(@timestamp) BY tbucket=bucket(@timestamp, 1 minute) 
+| LIMIT 5;
+
+@timestamp:datetime      | tbucket:datetime 
+2024-05-10T00:18:00.000Z | 2024-05-10T00:18:00.000Z
+;
+

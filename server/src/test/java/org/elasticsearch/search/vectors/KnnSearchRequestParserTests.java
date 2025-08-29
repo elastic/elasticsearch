@@ -173,6 +173,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 100)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 80)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f)
             .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
             .endObject()
             .endObject();
@@ -189,6 +190,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 100)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10002)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f)
             .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
             .endObject()
             .endObject();
@@ -211,7 +213,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
-        assertThat(e.getMessage(), containsString("[visit_percentage] cannot be less than [0.0f]"));
+        assertThat(e.getMessage(), containsString("[visit_percentage] must be between 0 and 100"));
     }
 
     public void testVisitPercnetageGreaterThan100() throws IOException {
@@ -228,7 +230,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
-        assertThat(e.getMessage(), containsString("[visit_percentage] cannot be greater than [100.0f]"));
+        assertThat(e.getMessage(), containsString("[visit_percentage] must be between 0 and 100"));
     }
 
     public void testInvalidK() throws IOException {
@@ -239,6 +241,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 0)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f)
             .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
             .endObject()
             .endObject();

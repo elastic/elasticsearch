@@ -64,11 +64,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         // TODO optimize parsing for when BYTE values are provided
         return new Builder().field((String) args[0])
             .queryVector((VectorData) args[1])
-            .queryVectorBuilder((QueryVectorBuilder) args[4])
+            .queryVectorBuilder((QueryVectorBuilder) args[5])
             .k((Integer) args[2])
             .numCandidates((Integer) args[3])
-            .similarity((Float) args[5])
-            .rescoreVectorBuilder((RescoreVectorBuilder) args[6]);
+            .visitPercentage((Float) args[4])
+            .similarity((Float) args[6])
+            .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
     });
 
     static {
@@ -281,7 +282,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
         if (visitPercentage < 0f || visitPercentage > 100f) {
-            throw new IllegalArgumentException("[" + VISIT_PERCENTAGE.getPreferredName() + "] must be between [0] and [100]");
+            throw new IllegalArgumentException("[" + VISIT_PERCENTAGE.getPreferredName() + "] must be between 0 and 100");
         }
         if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(

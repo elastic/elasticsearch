@@ -282,17 +282,17 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     public void testVisitPercentageLessThan0() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 50, 10, -190f, null, null)
+            () -> new KnnSearchBuilder("field", randomVector(3), 50, 100, -190f, null, null)
         );
-        assertThat(e.getMessage(), containsString("[visit_percentage] cannot be less than [0.0]"));
+        assertThat(e.getMessage(), containsString("[visit_percentage] must be between 0 and 100"));
     }
 
     public void testVisitPercentageGreaterThan100() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 100, 10002, 100000f, null, null)
+            () -> new KnnSearchBuilder("field", randomVector(3), 100, 1000, 100000f, null, null)
         );
-        assertThat(e.getMessage(), containsString("[visit_percentage] cannot be greater than [100.0]"));
+        assertThat(e.getMessage(), containsString("[visit_percentage] must be between 0 and 100"));
     }
 
     public void testInvalidK() {

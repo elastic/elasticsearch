@@ -132,10 +132,11 @@ last_text_by_system
 required_capability: agg_first_last_string
 FROM logs
 | STATS message = LAST(message, @timestamp) BY system
+| SORT system ASC
 ; 
 
 message:keyword         | system:keyword
-No response             | ping
 Running cats (cycle 3)  | cron
 More java stuff         | java
+No response             | ping
 ;

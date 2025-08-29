@@ -7,7 +7,7 @@
           "type" : "keyword"
         },
         "message" : {
-            "type" : "keyword"
+            "type" : "text"
         }
     }
 }

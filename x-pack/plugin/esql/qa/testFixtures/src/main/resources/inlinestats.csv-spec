@@ -1407,7 +1407,7 @@ total_duration:long |       day:date         |                     days:date
 ;
 
 evalBeforeDoubleInlinestats1
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | EVAL salaryK = salary/1000
@@ -1427,7 +1427,7 @@ emp_no:integer |still_hired:boolean|count:long
 ;
 
 evalBeforeDoubleInlinestats2
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | EVAL jobs = MV_COUNT(job_positions)

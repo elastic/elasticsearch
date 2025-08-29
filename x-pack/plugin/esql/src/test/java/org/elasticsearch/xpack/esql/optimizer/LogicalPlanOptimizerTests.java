@@ -6127,12 +6127,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *   \_InlineJoin[LEFT,[],[],[]]
      *     |_Project[[avg{r}#1053, decades{r}#1049, idecades{r}#1056]]
      *     | \_Eval[[$$SUM$avg$0{r$}#1073 / $$COUNT$avg$1{r$}#1074 AS avg#1053, decades{r}#1049 / 2[INTEGER] AS idecades#1056]]
-     *     |   \_Limit[1000[INTEGER],false]
-     *     |     \_Aggregate[[decades{r}#1049],[SUM(salary{f}#1072,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#1073,
+     *     |   \_Aggregate[[decades{r}#1049],[SUM(salary{f}#1072,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#1073,
      *                      COUNT(salary{f}#1072,true[BOOLEAN]) AS $$COUNT$avg$1#1074, decades{r}#1049]]
-     *     |       \_Eval[[DATEDIFF(years[KEYWORD],birth_date{f}#1071,1755626308505[DATETIME]) AS age#1043, age{r}#1043 / 10[INTEGER] AS
+     *     |     \_Eval[[DATEDIFF(years[KEYWORD],birth_date{f}#1071,1755626308505[DATETIME]) AS age#1043, age{r}#1043 / 10[INTEGER] AS
      *                          decades#1046, decades{r}#1046 * 10[INTEGER] AS decades#1049]]
-     *     |         \_EsRelation[employees][birth_date{f}#1071, salary{f}#1072]
+     *     |       \_EsRelation[employees][birth_date{f}#1071, salary{f}#1072]
      *     \_Project[[avgavg{r}#1063]]
      *       \_Eval[[$$SUM$avgavg$0{r$}#1077 / $$COUNT$avgavg$1{r$}#1078 AS avgavg#1063]]
      *         \_Aggregate[[],[SUM(avg{r}#1053,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avgavg$0#1077,
@@ -6158,15 +6157,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var project = as(plan, EsqlProject.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades", "avgavg")));
-        var limit = asLimit(project.child(), 1000, true);
+        var limit = asLimit(project.child(), 1000, false);
         var inlineJoin = as(limit.child(), InlineJoin.class);
 
         // Left branch: Project with avg, decades, idecades
         var leftProject = as(inlineJoin.left(), Project.class);
         assertThat(Expressions.names(leftProject.projections()), is(List.of("avg", "decades", "idecades")));
         var leftEval = as(leftProject.child(), Eval.class);
-        var leftLimit = asLimit(leftEval.child(), 1000, false);
-        var leftAggregate = as(leftLimit.child(), Aggregate.class);
+        var leftAggregate = as(leftEval.child(), Aggregate.class);
         assertThat(Expressions.names(leftAggregate.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "decades")));
         var leftEval2 = as(leftAggregate.child(), Eval.class);
         var leftRelation = as(leftEval2.child(), EsRelation.class);

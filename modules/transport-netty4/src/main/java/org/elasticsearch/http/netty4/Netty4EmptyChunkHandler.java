@@ -24,7 +24,7 @@ public class Netty4EmptyChunkHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         switch (msg) {
             case HttpRequest request -> {
-                if (HttpUtil.isTransferEncodingChunked(request)) {
+                if (request.decoderResult().isSuccess() && HttpUtil.isTransferEncodingChunked(request)) {
                     currentRequest = request;
                     ctx.read();
                 } else {

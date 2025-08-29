@@ -139,6 +139,8 @@ FROM events_*
 
 When the type of an {{esql}} field is a *union* of `date` and `date_nanos` across different indices, {{esql}} automatically casts all values to the `date_nanos` type during query execution. This implicit casting ensures that all values are handled with nanosecond precision, regardless of their original type. As a result, users can write queries against such fields without needing to perform explicit type conversions, and the query engine will seamlessly align the types for consistent and precise results.
 
+`date_nanos` fields offer higher precision but have a narrower valid value range compared to `date` fields, which limits their representable dates roughly from 1970 to 2262. This is because dates are stored as a long representing nanoseconds since the epoch. When a field is mapped as both `date` and `date_nanos` across different indices, {{esql}} defaults to the more precise date_nanos type. This behavior ensures that no precision is lost when querying multiple indices with differing date field types. For dates that fall outside the valid range of `date_nanos` in fields that are mapped to both `date` and `date_nanos` across different indices, {{esql}} returns null by default. However, users can explicitly cast these fields to the `date` type to obtain a valid value, with precision limited to milliseconds.
+
 For example, if the `@timestamp` field is mapped as `date` in one index and `date_nanos` in another, {{esql}} will automatically treat all `@timestamp` values as `date_nanos` during query execution. This allows users to write queries that utilize the `@timestamp` field without encountering type mismatch errors, ensuring accurate time-based operations and comparisons across the combined dataset.
 
 **index: events_date**
@@ -172,19 +174,21 @@ For example, if the `@timestamp` field is mapped as `date` in one index and `dat
 ```
 
 ```esql
-FROM events_date, events_date_nanos
-| WHERE @timestamp >= "2023-10-23T13:00:00Z"
-| KEEP @timestamp, client_ip, event_duration, message
-| SORT @timestamp DESC
+FROM events_date*
+| EVAL date = @timestamp::date
+| KEEP @timestamp, date, client_ip, event_duration, message
+| SORT date
 ```
 
-| @timestamp:date_nanos    | client_ip:ip | event_duration:long | message:keyword |
-|--------------------------| --- | --- | --- |
-| 2023-10-23T13:55:01.543Z | 172.21.3.15 | 1756467 | Connected to 10.1.0.1 |
-| 2023-10-23T13:53:55.832Z | 172.21.3.15 | 5033755 | Connection error |
-| 2023-10-23T13:52:55.015Z | 172.21.3.15 | 8268153 | Connection error |
-| 2023-10-23T13:51:54.732Z | 172.21.3.15 | 725448 | Connection error |
-| 2023-10-23T13:33:34.937Z | 172.21.0.5 | 1232382 | Disconnected |
+| @timestamp:date_nanos | date:date   | client_ip:ip | event_duration:long | message:keyword |
+|--------------------------| --- |--------------|---------| --- |
+| null                          |1969-10-23T13:33:34.937Z| 172.21.0.5   | 1232382 |Disconnected|
+| 2023-10-23T12:15:03.360Z      |2023-10-23T12:15:03.360Z| 172.21.2.162 | 3450233 |Connected to 10.1.0.3|
+| 2023-10-23T12:15:03.360103847Z|2023-10-23T12:15:03.360Z| 172.22.2.162 | 3450233 |Connected to 10.1.0.3|
+| 2023-10-23T12:27:28.948Z      |2023-10-23T12:27:28.948Z| 172.22.2.113 | 2764889 |Connected to 10.1.0.2|
+| 2023-10-23T12:27:28.948Z      |2023-10-23T12:27:28.948Z| 172.21.2.113 | 2764889 |Connected to 10.1.0.2|
+| 2023-10-23T13:33:34.937193Z   |2023-10-23T13:33:34.937Z| 172.22.0.5   | 1232382 |Disconnected|
+| null                          |2263-10-23T13:51:54.732Z| 172.21.3.15  | 725448  |Connection error|
 
 ## Index metadata [esql-multi-index-index-metadata]
 

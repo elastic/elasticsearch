@@ -88,7 +88,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private String[] names;
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
-        private ReplaceableIndices replaceableIndices;
+        private ReplacedIndexExpressions replacedIndexExpressions;
         private boolean includeResolvedInResponse = false;
 
         public Request(String[] names) {
@@ -98,7 +98,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public Request(String[] names, IndicesOptions indicesOptions) {
             this.names = names;
             this.indicesOptions = indicesOptions;
-            this.replaceableIndices = null;
+            this.replacedIndexExpressions = null;
         }
 
         public Request(String[] names, IndicesOptions indicesOptions, boolean includeResolvedInResponse) {
@@ -116,7 +116,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             super(in);
             this.names = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            this.replaceableIndices = null;
+            this.replacedIndexExpressions = null;
             // skipping BWC handling here
             this.includeResolvedInResponse = in.readBoolean();
         }
@@ -160,14 +160,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
-        public IndicesRequest replaceableIndices(ReplaceableIndices replaceableIndices) {
-            this.replaceableIndices = replaceableIndices;
+        public IndicesRequest setReplacedIndexExpressions(ReplacedIndexExpressions replacedIndexExpressions) {
+            this.replacedIndexExpressions = replacedIndexExpressions;
             return this;
         }
 
         @Override
-        public ReplaceableIndices getReplaceableIndices() {
-            return replaceableIndices;
+        public ReplacedIndexExpressions getReplacedIndexExpressions() {
+            return replacedIndexExpressions;
         }
 
         @Override
@@ -440,7 +440,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final List<ResolvedAlias> aliases;
         private final List<ResolvedDataStream> dataStreams;
         @Nullable
-        private final Map<String, IndicesRequest.ReplacedExpression> resolvedExpressionMap;
+        private final Map<String, IndicesRequest.ReplacedIndexExpression> resolvedExpressionMap;
 
         public Response(List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
             this(indices, aliases, dataStreams, null);
@@ -450,7 +450,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams,
-            Map<String, IndicesRequest.ReplacedExpression> resolvedExpressionMap
+            Map<String, IndicesRequest.ReplacedIndexExpression> resolvedExpressionMap
         ) {
             this.indices = indices;
             this.aliases = aliases;
@@ -466,7 +466,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (in.readBoolean() == false) {
                 this.resolvedExpressionMap = null;
             } else {
-                this.resolvedExpressionMap = in.readMap(StreamInput::readString, IndicesRequest.ReplacedExpression::new);
+                this.resolvedExpressionMap = in.readMap(StreamInput::readString, IndicesRequest.ReplacedIndexExpression::new);
             }
         }
 
@@ -522,8 +522,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         // Note: this probably shouldn't return IndicesRequest.ReplaceableIndices but merely an "exists" map that tracks
         // for each expression if it resolved to _something_ since that's the only thing we need to generic fan-out error handling
         @Override
-        public IndicesRequest.ReplaceableIndices getReplaceableIndices() {
-            return resolvedExpressionMap == null ? null : new IndicesRequest.CompleteReplaceableIndices(resolvedExpressionMap);
+        public IndicesRequest.ReplacedIndexExpressions getReplaceableIndices() {
+            return resolvedExpressionMap == null ? null : new IndicesRequest.CompleteReplacedIndexExpressions(resolvedExpressionMap);
         }
     }
 
@@ -625,7 +625,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         indices,
                         aliases,
                         dataStreams,
-                        request.includeResolvedInResponse ? request.getReplaceableIndices().replacedExpressionMap() : null
+                        request.includeResolvedInResponse ? request.getReplacedIndexExpressions().asMap() : null
                     )
                 );
             }

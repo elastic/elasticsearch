@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.IndicesRequest.ReplacedExpression.hasCanonicalExpressionForOrigin;
+import static org.elasticsearch.action.IndicesRequest.ReplacedIndexExpression.hasCanonicalExpressionForOrigin;
 
 public class IndexAbstractionResolver {
 
@@ -45,8 +45,8 @@ public class IndexAbstractionResolver {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
-    public Map<String, IndicesRequest.ReplacedExpression> resolveIndexAbstractionsCrossProject(
-        Map<String, IndicesRequest.ReplacedExpression> rewrittenExpressions,
+    public Map<String, IndicesRequest.ReplacedIndexExpression> resolveIndexAbstractionsCrossProject(
+        Map<String, IndicesRequest.ReplacedIndexExpression> rewrittenExpressions,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
         Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
@@ -55,19 +55,19 @@ public class IndexAbstractionResolver {
     ) {
         // TODO handle exclusions
         // TODO consolidate with `resolveIndexAbstractions` somehow, maybe?
-        Map<String, IndicesRequest.ReplacedExpression> finalReplacedExpressions = new LinkedHashMap<>();
-        for (IndicesRequest.ReplacedExpression replacedExpression : rewrittenExpressions.values()) {
+        Map<String, IndicesRequest.ReplacedIndexExpression> finalReplacedExpressions = new LinkedHashMap<>();
+        for (IndicesRequest.ReplacedIndexExpression replacedIndexExpression : rewrittenExpressions.values()) {
             // no expressions targeting origin, nothing to rewrite
-            if (false == hasCanonicalExpressionForOrigin(replacedExpression.replacedBy())) {
+            if (false == hasCanonicalExpressionForOrigin(replacedIndexExpression.replacedBy())) {
                 logger.info(
                     "Skipping rewriting of qualified expression [{}] because there are no origin expressions",
-                    replacedExpression.original()
+                    replacedIndexExpression.original()
                 );
-                finalReplacedExpressions.put(replacedExpression.original(), replacedExpression);
+                finalReplacedExpressions.put(replacedIndexExpression.original(), replacedIndexExpression);
                 continue;
             }
 
-            String indexAbstraction = replacedExpression.original();
+            String indexAbstraction = replacedIndexExpression.original();
 
             // Always check to see if there's a selector on the index expression
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
@@ -97,7 +97,10 @@ public class IndexAbstractionResolver {
                         resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                     }
                 }
-                finalReplacedExpressions.put(replacedExpression.original(), replaceOriginIndices(replacedExpression, resolvedIndices));
+                finalReplacedExpressions.put(
+                    replacedIndexExpression.original(),
+                    replaceOriginIndices(replacedIndexExpression, resolvedIndices)
+                );
             } else {
                 Set<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
@@ -107,11 +110,14 @@ public class IndexAbstractionResolver {
                 if (authorized) {
                     var visible = existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
                     finalReplacedExpressions.put(
-                        replacedExpression.original(),
-                        replaceOriginIndices(replacedExpression, visible ? resolvedIndices : Set.of())
+                        replacedIndexExpression.original(),
+                        replaceOriginIndices(replacedIndexExpression, visible ? resolvedIndices : Set.of())
                     );
                 } else {
-                    finalReplacedExpressions.put(replacedExpression.original(), replaceOriginIndices(replacedExpression, Set.of()));
+                    finalReplacedExpressions.put(
+                        replacedIndexExpression.original(),
+                        replaceOriginIndices(replacedIndexExpression, Set.of())
+                    );
                 }
 
             }
@@ -126,8 +132,8 @@ public class IndexAbstractionResolver {
         return finalReplacedExpressions;
     }
 
-    private static IndicesRequest.ReplacedExpression replaceOriginIndices(
-        IndicesRequest.ReplacedExpression rewrittenExpression,
+    private static IndicesRequest.ReplacedIndexExpression replaceOriginIndices(
+        IndicesRequest.ReplacedIndexExpression rewrittenExpression,
         Set<String> resolvedIndices
     ) {
         logger.info("Replacing origin indices for expression [{}] with [{}]", rewrittenExpression, resolvedIndices);
@@ -137,7 +143,7 @@ public class IndexAbstractionResolver {
             .toList();
         List<String> combined = new ArrayList<>(resolvedIndices);
         combined.addAll(qualifiedExpressions);
-        var e = new IndicesRequest.ReplacedExpression(rewrittenExpression.original(), combined);
+        var e = new IndicesRequest.ReplacedIndexExpression(rewrittenExpression.original(), combined);
         logger.info("Replaced origin indices for expression [{}] with [{}]", rewrittenExpression, e);
         return e;
     }
@@ -162,7 +168,7 @@ public class IndexAbstractionResolver {
             );
     }
 
-    public IndicesRequest.CompleteReplaceableIndices resolveIndexAbstractions(
+    public IndicesRequest.CompleteReplacedIndexExpressions resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
@@ -171,7 +177,7 @@ public class IndexAbstractionResolver {
         boolean includeDataStreams,
         boolean ignoreUnavailableBwcBehavior
     ) {
-        final Map<String, IndicesRequest.ReplacedExpression> replaced = new LinkedHashMap<>();
+        final Map<String, IndicesRequest.ReplacedIndexExpression> replaced = new LinkedHashMap<>();
 
         boolean wildcardSeen = false;
 
@@ -226,7 +232,7 @@ public class IndexAbstractionResolver {
 
                 if (minus) {
                     if (resolvedIndices.isEmpty() == false) {
-                        for (IndicesRequest.ReplacedExpression prior : replaced.values()) {
+                        for (IndicesRequest.ReplacedIndexExpression prior : replaced.values()) {
                             if (prior.replacedBy().isEmpty()) {
                                 continue;
                             }
@@ -237,7 +243,7 @@ public class IndexAbstractionResolver {
                     resolvedForThisInput.addAll(resolvedIndices);
                     replaced.put(
                         originalIndexExpression,
-                        new IndicesRequest.ReplacedExpression(
+                        new IndicesRequest.ReplacedIndexExpression(
                             originalIndexExpression,
                             new ArrayList<>(resolvedForThisInput),
                             true,
@@ -252,7 +258,7 @@ public class IndexAbstractionResolver {
 
                 if (minus) {
                     if (resolvedIndices.isEmpty() == false) {
-                        for (IndicesRequest.ReplacedExpression prior : replaced.values()) {
+                        for (IndicesRequest.ReplacedIndexExpression prior : replaced.values()) {
                             if (prior.replacedBy().isEmpty()) {
                                 continue;
                             }
@@ -269,7 +275,7 @@ public class IndexAbstractionResolver {
                     }
                     replaced.put(
                         originalIndexExpression,
-                        new IndicesRequest.ReplacedExpression(
+                        new IndicesRequest.ReplacedIndexExpression(
                             originalIndexExpression,
                             new ArrayList<>(resolvedForThisInput),
                             authorized,
@@ -281,7 +287,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        return new IndicesRequest.CompleteReplaceableIndices(replaced);
+        return new IndicesRequest.CompleteReplacedIndexExpressions(replaced);
     }
 
     public List<String> resolveIndexAbstractions(

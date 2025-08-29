@@ -29,7 +29,7 @@ public class CrossProjectResolverUtils {
 
     private static final Logger logger = LogManager.getLogger(CrossProjectUtils.class);
 
-    public static Map<String, IndicesRequest.ReplacedExpression> maybeRewriteCrossProjectResolvableRequest(
+    public static Map<String, IndicesRequest.ReplacedIndexExpression> maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
         AuthorizedProjectsSupplier.AuthorizedProjects targetProjects,
         IndicesRequest.CrossProjectSearchCapable request
@@ -52,7 +52,7 @@ public class CrossProjectResolverUtils {
         String[] indices = request.indices();
         logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
 
-        Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = new LinkedHashMap<>(indices.length);
+        Map<String, IndicesRequest.ReplacedIndexExpression> replacedExpressions = new LinkedHashMap<>(indices.length);
         for (String indexExpression : indices) {
             // TODO we need to handle exclusions here already
             boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
@@ -60,12 +60,12 @@ public class CrossProjectResolverUtils {
                 // TODO handle empty case here -- empty means "search all" in ES which is _not_ what we want
                 List<String> canonicalExpressions = rewriteQualified(indexExpression, projects, remoteClusterAware);
                 // could fail early here in ignore_unavailable and allow_no_indices strict mode if things are empty
-                replacedExpressions.put(indexExpression, new IndicesRequest.ReplacedExpression(indexExpression, canonicalExpressions));
+                replacedExpressions.put(indexExpression, new IndicesRequest.ReplacedIndexExpression(indexExpression, canonicalExpressions));
                 logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             } else {
                 // un-qualified expression, i.e. flat-world
                 List<String> canonicalExpressions = rewriteUnqualified(indexExpression, targetProjects.projects());
-                replacedExpressions.put(indexExpression, new IndicesRequest.ReplacedExpression(indexExpression, canonicalExpressions));
+                replacedExpressions.put(indexExpression, new IndicesRequest.ReplacedIndexExpression(indexExpression, canonicalExpressions));
                 logger.info("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             }
         }

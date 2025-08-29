@@ -460,9 +460,9 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static void maybeAddExceptions(TransportRequest request) {
         if (request instanceof IndicesRequest.Replaceable replaceable
-            && replaceable.getReplaceableIndices() instanceof IndicesRequest.CompleteReplaceableIndices(Map<
+            && replaceable.getReplacedIndexExpressions() instanceof IndicesRequest.CompleteReplacedIndexExpressions(Map<
                 String,
-                IndicesRequest.ReplacedExpression> replacedExpressionMap)) {
+                IndicesRequest.ReplacedIndexExpression> replacedExpressionMap)) {
             if (replacedExpressionMap == null) {
                 return;
             }

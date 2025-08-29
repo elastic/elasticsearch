@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.IndicesRequest.ReplacedExpression.hasCanonicalExpressionForOrigin;
+import static org.elasticsearch.action.IndicesRequest.ReplacedIndexExpression.hasCanonicalExpressionForOrigin;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -59,7 +59,7 @@ public interface IndicesRequest {
         return false;
     }
 
-    interface ReplaceableIndices {
+    interface ReplacedIndexExpressions {
         String[] indices();
 
         default List<String> indicesAsList() {
@@ -67,33 +67,37 @@ public interface IndicesRequest {
         }
 
         @Nullable
-        default Map<String, ReplacedExpression> replacedExpressionMap() {
+        default Map<String, ReplacedIndexExpression> asMap() {
             return null;
         }
     }
 
-    record DummyReplaceableIndices(String[] indices) implements ReplaceableIndices {}
+    record DummyReplacedIndexExpressions(String[] indices) implements ReplacedIndexExpressions {}
 
-    record CompleteReplaceableIndices(Map<String, ReplacedExpression> replacedExpressionMap) implements ReplaceableIndices {
+    record CompleteReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap)
+        implements
+            ReplacedIndexExpressions {
         @Override
         public String[] indices() {
-            return ReplacedExpression.toIndices(replacedExpressionMap);
+            return ReplacedIndexExpression.toIndices(replacedExpressionMap);
         }
 
         @Override
-        public Map<String, ReplacedExpression> replacedExpressionMap() {
+        public Map<String, ReplacedIndexExpression> asMap() {
             return replacedExpressionMap;
         }
     }
 
-    record CrossProjectReplaceableIndices(Map<String, ReplacedExpression> replacedExpressionMap) implements ReplaceableIndices {
+    record CrossProjectReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap)
+        implements
+            ReplacedIndexExpressions {
         @Override
         public String[] indices() {
-            return ReplacedExpression.toIndices(replacedExpressionMap);
+            return ReplacedIndexExpression.toIndices(replacedExpressionMap);
         }
 
         @Override
-        public Map<String, ReplacedExpression> replacedExpressionMap() {
+        public Map<String, ReplacedIndexExpression> asMap() {
             return replacedExpressionMap;
         }
     }
@@ -104,12 +108,12 @@ public interface IndicesRequest {
          */
         IndicesRequest indices(String... indices);
 
-        default IndicesRequest replaceableIndices(ReplaceableIndices replaceableIndices) {
+        default IndicesRequest setReplacedIndexExpressions(ReplacedIndexExpressions replacedIndexExpressions) {
             return this;
         }
 
-        default ReplaceableIndices getReplaceableIndices() {
-            return new DummyReplaceableIndices(indices());
+        default ReplacedIndexExpressions getReplacedIndexExpressions() {
+            return new DummyReplacedIndexExpressions(indices());
         }
 
         /**
@@ -142,12 +146,12 @@ public interface IndicesRequest {
         }
 
         default boolean crossProjectMode() {
-            return getReplaceableIndices() instanceof CrossProjectReplaceableIndices;
+            return getReplacedIndexExpressions() instanceof CrossProjectReplacedIndexExpressions;
         }
 
         @Override
         default <T extends ResponseWithReplaceableIndices> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {
-            logger.info("Checking if we should throw in flat world for [{}]", getReplaceableIndices());
+            logger.info("Checking if we should throw in flat world for [{}]", getReplacedIndexExpressions());
             // No CPS nothing to do
             if (false == crossProjectMode()) {
                 logger.info("Skipping because no cross-project expressions found...");
@@ -159,26 +163,26 @@ public interface IndicesRequest {
                 return;
             }
 
-            Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = getReplaceableIndices().replacedExpressionMap();
+            Map<String, ReplacedIndexExpression> replacedExpressions = getReplacedIndexExpressions().asMap();
             assert replacedExpressions != null;
             logger.info("Replaced expressions to check: [{}]", replacedExpressions);
-            for (IndicesRequest.ReplacedExpression replacedExpression : replacedExpressions.values()) {
+            for (ReplacedIndexExpression replacedIndexExpression : replacedExpressions.values()) {
                 // TODO need to handle qualified expressions here, too
-                String original = replacedExpression.original();
+                String original = replacedIndexExpression.original();
                 List<ElasticsearchException> exceptions = new ArrayList<>();
-                boolean exists = hasCanonicalExpressionForOrigin(replacedExpression.replacedBy()) && replacedExpression.existsAndVisible;
+                boolean exists = hasCanonicalExpressionForOrigin(replacedIndexExpression.replacedBy())
+                    && replacedIndexExpression.existsAndVisible;
                 if (exists) {
                     logger.info("Local cluster has canonical expression for [{}], skipping remote existence check", original);
                     continue;
                 }
-                if (replacedExpression.authorizationError() != null) {
-                    exceptions.add(replacedExpression.authorizationError());
+                if (replacedIndexExpression.authorizationError() != null) {
+                    exceptions.add(replacedIndexExpression.authorizationError());
                 }
 
                 for (var remoteResponse : remoteResults.values()) {
                     logger.info("Remote response resolved: [{}]", remoteResponse);
-                    Map<String, IndicesRequest.ReplacedExpression> resolved = remoteResponse.getReplaceableIndices()
-                        .replacedExpressionMap();
+                    Map<String, ReplacedIndexExpression> resolved = remoteResponse.getReplaceableIndices().asMap();
                     assert resolved != null;
                     var r = resolved.get(original);
                     if (r != null && r.existsAndVisible && resolved.get(original).replacedBy().isEmpty() == false) {
@@ -239,7 +243,7 @@ public interface IndicesRequest {
         Collection<ShardId> shards();
     }
 
-    final class ReplacedExpression implements Writeable {
+    final class ReplacedIndexExpression implements Writeable {
         private final String original;
         private final List<String> replacedBy;
         private final boolean authorized;
@@ -247,7 +251,7 @@ public interface IndicesRequest {
         @Nullable
         private ElasticsearchException authorizationError;
 
-        public ReplacedExpression(StreamInput in) throws IOException {
+        public ReplacedIndexExpression(StreamInput in) throws IOException {
             this.original = in.readString();
             this.replacedBy = in.readCollectionAsList(StreamInput::readString);
             this.authorized = in.readBoolean();
@@ -255,7 +259,7 @@ public interface IndicesRequest {
             this.authorizationError = ElasticsearchException.readException(in);
         }
 
-        public ReplacedExpression(
+        public ReplacedIndexExpression(
             String original,
             List<String> replacedBy,
             boolean authorized,
@@ -269,14 +273,14 @@ public interface IndicesRequest {
             this.authorizationError = exception;
         }
 
-        public static String[] toIndices(Map<String, ReplacedExpression> replacedExpressions) {
+        public static String[] toIndices(Map<String, ReplacedIndexExpression> replacedExpressions) {
             return replacedExpressions.values()
                 .stream()
                 .flatMap(indexExpression -> indexExpression.replacedBy().stream())
                 .toArray(String[]::new);
         }
 
-        public ReplacedExpression(String original, List<String> replacedBy) {
+        public ReplacedIndexExpression(String original, List<String> replacedBy) {
             this(original, replacedBy, true, true, null);
         }
 
@@ -314,7 +318,7 @@ public interface IndicesRequest {
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
-            ReplacedExpression that = (ReplacedExpression) o;
+            ReplacedIndexExpression that = (ReplacedIndexExpression) o;
             return authorized == that.authorized
                 && existsAndVisible == that.existsAndVisible
                 && Objects.equals(original, that.original)

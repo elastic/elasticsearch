@@ -380,7 +380,7 @@ public class IndicesAndAliasesResolver {
                     if (replaced != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
                         // should re-use resolveIndexAbstractions here instead, then reconcile with `replaced`
-                        Map<String, IndicesRequest.ReplacedExpression> replacedExpressions = indexAbstractionResolver
+                        Map<String, IndicesRequest.ReplacedIndexExpression> replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsCrossProject(
                                 replaced,
                                 indicesOptions,
@@ -389,10 +389,10 @@ public class IndicesAndAliasesResolver {
                                 authorizedIndices::check,
                                 indicesRequest.includeDataStreams()
                             );
-                        crossProjectSearchCapableRequest.replaceableIndices(
-                            new IndicesRequest.CrossProjectReplaceableIndices(replacedExpressions)
+                        crossProjectSearchCapableRequest.setReplacedIndexExpressions(
+                            new IndicesRequest.CrossProjectReplacedIndexExpressions(replacedExpressions)
                         );
-                        crossProjectSearchCapableRequest.indices(IndicesRequest.ReplacedExpression.toIndices(replacedExpressions));
+                        crossProjectSearchCapableRequest.indices(IndicesRequest.ReplacedIndexExpression.toIndices(replacedExpressions));
                         // TODO handle empty case by calling
                         // replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                         return remoteClusterResolver.splitLocalAndRemoteIndexNames(crossProjectSearchCapableRequest.indices());
@@ -402,7 +402,7 @@ public class IndicesAndAliasesResolver {
                 logger.info(
                     "Resolving indices for request [{}] and [{}]",
                     Arrays.toString(replaceable.indices()),
-                    replaceable.getReplaceableIndices()
+                    replaceable.getReplacedIndexExpressions()
                 );
 
                 // TODO this is a hack and should not be needed in the final implementation
@@ -419,7 +419,7 @@ public class IndicesAndAliasesResolver {
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                IndicesRequest.CompleteReplaceableIndices resolved = indexAbstractionResolver.resolveIndexAbstractions(
+                IndicesRequest.CompleteReplacedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
                     indicesOptions,
                     projectMetadata,
@@ -428,7 +428,7 @@ public class IndicesAndAliasesResolver {
                     indicesRequest.includeDataStreams(),
                     true
                 );
-                replaceable.replaceableIndices(resolved);
+                replaceable.setReplacedIndexExpressions(resolved);
                 resolvedIndicesBuilder.addLocal(resolved.indicesAsList());
                 resolvedIndicesBuilder.addRemote(split.getRemote());
             }

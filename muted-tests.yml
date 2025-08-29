@@ -342,9 +342,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutorTests
   method: testSuccessfulExecution
   issue: https://github.com/elastic/elasticsearch/issues/130306
-- class: org.elasticsearch.gradle.LoggedExecFuncTest
-  method: failed tasks output logged to console when spooling true
-  issue: https://github.com/elastic/elasticsearch/issues/119509
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
@@ -537,24 +534,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/45_knn_search_byte/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
   issue: https://github.com/elastic/elasticsearch/issues/133187
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: cannot change committed ids to a branch
-  issue: https://github.com/elastic/elasticsearch/issues/133133
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: latest files cannot change base id
-  issue: https://github.com/elastic/elasticsearch/issues/133132
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: definitions have primary ids which cannot change
-  issue: https://github.com/elastic/elasticsearch/issues/133131
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: named and unreferenced definitions cannot have the same name
-  issue: https://github.com/elastic/elasticsearch/issues/133255
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: unreferenced definitions can have primary ids that are patches
-  issue: https://github.com/elastic/elasticsearch/issues/133256
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
-  method: latest can refer to an unreferenced definition
-  issue: https://github.com/elastic/elasticsearch/issues/133257
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/100_knn_nested_search/nested kNN search inner_hits & profiling}
   issue: https://github.com/elastic/elasticsearch/issues/133273

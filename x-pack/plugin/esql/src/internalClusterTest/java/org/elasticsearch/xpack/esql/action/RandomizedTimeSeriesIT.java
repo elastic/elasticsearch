@@ -260,7 +260,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
                 lastValue = currentValue; // Update last value for next iteration
             }
-            // TODO: Remove tolerances since we are already allowing a min-max range
             return new RateRange(
                 counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
                 1000.0 * counterGrowth / (lastTs.toEpochMilli() - firstTs.toEpochMilli()) * 1.01 // Add 1% tolerance to the upper bound
@@ -332,12 +331,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     void assertNoFailedWindows(List<String> failedWindows, List<List<Object>> rows) {
-        // TODO: WE have a 15% tolerance for failed windows. Must remove.
-        if (failedWindows.size() < 0.01 * rows.size()) {
-            logger.warn(
-                "Failed " + failedWindows.size() + " windows out of " + rows.size() + ", failures:\n" + String.join("\n", failedWindows)
-            );
-        } else if (failedWindows.isEmpty() == false) {
+        if (failedWindows.isEmpty() == false) {
             var pctFailures = (double) failedWindows.size() / rows.size() * 100;
             var failureDetails = String.join("\n", failedWindows);
             if (failureDetails.length() > 2000) {

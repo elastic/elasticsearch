@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -23,11 +25,13 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.NodeStatsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -56,6 +60,7 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringMigrateAlertsAction;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -64,6 +69,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -71,7 +77,7 @@ import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
-public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
+public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin, NodeStatsPlugin {
 
     public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting(
         "xpack.monitoring.migration.decommission_alerts",
@@ -246,6 +252,57 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             map.remove(".monitoring-alerts");
             return map;
         };
+    }
 
+    @Override
+    public String getNodeStatsPluginName() {
+        return "monitoring";
+    }
+
+    @Override
+    public Stats getPluginNodeStats() {
+        return new MonitoringStats(Map.of("extra plugin", "example"));
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(
+                NodeStatsPlugin.Stats.class,
+                MonitoringStats.WRITEABLE_NAME,
+                MonitoringStats::new
+            )
+        );
+
+    }
+
+    private static class MonitoringStats implements Stats {
+
+        public static final String WRITEABLE_NAME = "monitoring_stats";
+
+        private final Map<String, String> stats;
+
+        public MonitoringStats(Map<String, String> stats) {
+            this.stats = Objects.requireNonNull(stats);
+        }
+
+        public MonitoringStats(StreamInput in) throws IOException {
+            this(in.readMap(StreamInput::readString, StreamInput::readString));
+        }
+
+        @Override
+        public String getWriteableName() {
+            return WRITEABLE_NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeMap(stats, StreamOutput::writeString, StreamOutput::writeString);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.map(stats);
+        }
     }
 }

@@ -18,7 +18,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,33 +27,39 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIFTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SIXTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isCartesianPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
 
 /**
@@ -70,9 +76,22 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
 
-    private static final String NUMERIC_DATE_OR_SPATIAL_POINT = "numeric, date or spatial point";
+    public static final String OFFSET = "offset";
+    public static final String DECAY = "decay";
+    public static final String TYPE = "type";
 
-    private static final Double DEFAULT_NUMERIC_OFFSET = 0.0;
+    private static final Map<String, Collection<DataType>> ALLOWED_OPTIONS = Map.of(
+        OFFSET,
+        Set.of(TIME_DURATION, INTEGER, LONG, DOUBLE, KEYWORD, TEXT),
+        DECAY,
+        Set.of(DOUBLE),
+        TYPE,
+        Set.of(KEYWORD)
+    );
+
+    private static final Integer DEFAULT_INTEGER_OFFSET = 0;
+    private static final Long DEFAULT_LONG_OFFSET = 0L;
+    private static final Double DEFAULT_DOUBLE_OFFSET = 0.0;
     private static final BytesRef DEFAULT_GEO_POINT_OFFSET = new BytesRef("0m");
     private static final Double DEFAULT_CARTESIAN_POINT_OFFSET = 0.0;
     private static final Long DEFAULT_TEMPORAL_OFFSET = 0L;
@@ -82,9 +101,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     private final Expression origin;
     private final Expression value;
     private final Expression scale;
-    private final Expression offset;
-    private final Expression decay;
-    private final Expression type;
+    private final Expression options;
 
     @FunctionInfo(
         returnType = "double",
@@ -111,32 +128,31 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             type = { "double", "integer", "long", "time_duration", "keyword", "text" },
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
-        @Param(
-            name = "offset",
-            type = { "double", "integer", "long", "time_duration", "keyword", "text" },
-            description = "Distance from the origin where no decay occurs.",
-            optional = true
-        ) Expression offset,
-        @Param(
-            name = "decay",
-            type = { "double" },
-            description = "Multiplier value returned at the scale distance from the origin.",
-            optional = true
-        ) Expression decay,
-        @Param(
-            name = "type",
-            type = { "keyword" },
-            description = "Decay function to use: linear, exponential or gaussian.",
-            optional = true
-        ) Expression type
+        @MapParam(
+            name = "options",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = OFFSET,
+                    type = { "double", "integer", "long", "time_duration", "keyword", "text" },
+                    description = "Distance from the origin where no decay occurs."
+                ),
+                @MapParam.MapParamEntry(
+                    name = DECAY,
+                    type = { "double" },
+                    description = "Multiplier value returned at the scale distance from the origin."
+                ),
+                @MapParam.MapParamEntry(
+                    name = TYPE,
+                    type = { "keyword" },
+                    description = "Decay function to use: linear, exponential or gaussian."
+                ) }
+        ) Expression options
     ) {
-        super(source, Arrays.asList(value, origin, scale, offset, decay, type));
+        super(source, options != null ? List.of(value, origin, scale, options) : List.of(value, origin, scale));
         this.value = value;
         this.origin = origin;
         this.scale = scale;
-        this.offset = offset;
-        this.decay = decay;
-        this.type = type;
+        this.options = options;
     }
 
     private Decay(StreamInput in) throws IOException {
@@ -145,8 +161,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class)
         );
     }
@@ -157,9 +171,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         out.writeNamedWriteable(value);
         out.writeNamedWriteable(origin);
         out.writeNamedWriteable(scale);
-        out.writeOptionalNamedWriteable(offset);
-        out.writeOptionalNamedWriteable(decay);
-        out.writeOptionalNamedWriteable(type);
+        out.writeOptionalNamedWriteable(options);
     }
 
     @Override
@@ -174,7 +186,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         }
 
         TypeResolution valueResolution = isNotNull(value, sourceText(), FIRST).and(
-            isType(value, dt -> dt.isNumeric() || dt.isDate() || isSpatialPoint(dt), sourceText(), FIRST, NUMERIC_DATE_OR_SPATIAL_POINT)
+            isType(value, dt -> dt.isNumeric() || dt.isDate() || isSpatialPoint(dt), sourceText(), FIRST, "numeric, date or spatial point")
         );
         if (valueResolution.unresolved()) {
             return valueResolution;
@@ -243,65 +255,17 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
             }
         }
 
-        TypeResolutions.ParamOrdinal paramOrdinal = FOURTH;
-
-        if (offset != null) {
-            TypeResolution resolution = isType(
-                offset,
-                dt -> dt.isNumeric() || isTemporalAmount(dt) || isString(dt),
-                sourceText(),
-                paramOrdinal,
-                "numeric, temporal, or string"
-            );
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            paramOrdinal = FIFTH;
-        }
-
-        if (decay != null) {
-            TypeResolution resolution = isNumeric(decay, sourceText(), paramOrdinal);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            paramOrdinal = SIXTH;
-        }
-
-        if (type != null) {
-            TypeResolution resolution = TypeResolutions.isString(type, sourceText(), paramOrdinal);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
+        return Options.resolveWithMultipleDataTypesAllowed(options, source(), FOURTH, ALLOWED_OPTIONS);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Decay(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.get(2),
-            newChildren.get(3),
-            newChildren.get(4),
-            newChildren.get(5)
-        );
+        return new Decay(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), options != null ? newChildren.get(3) : null);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            Decay::new,
-            children().get(0),
-            children().get(1),
-            children().get(2),
-            children().get(3),
-            children().get(4),
-            children().get(5)
-        );
+        return NodeInfo.create(this, Decay::new, children().get(0), children().get(1), children().get(2), children().get(3));
     }
 
     @Override
@@ -316,8 +280,21 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
         DataType valueDataType = value.dataType();
 
+        Map<String, Object> decayOptions = new HashMap<>();
+        Options.populateMapWithExpressionsMultipleDataTypesAllowed(
+            (MapExpression) options,
+            decayOptions,
+            source(),
+            FOURTH,
+            ALLOWED_OPTIONS
+        );
+
+        Expression offset = (Expression) decayOptions.get(OFFSET);
+        Expression decay = (Expression) decayOptions.get(DECAY);
+        Expression type = (Expression) decayOptions.get(TYPE);
+
         EvalOperator.ExpressionEvaluator.Factory scaleFactory = getScaleFactory(toEvaluator, valueDataType);
-        EvalOperator.ExpressionEvaluator.Factory offsetFactory = getOffsetFactory(toEvaluator, valueDataType);
+        EvalOperator.ExpressionEvaluator.Factory offsetFactory = getOffsetFactory(toEvaluator, valueDataType, offset);
 
         EvalOperator.ExpressionEvaluator.Factory decayFactory = decay != null
             ? toEvaluator.apply(decay)
@@ -512,9 +489,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getOffsetFactory(ToEvaluator toEvaluator, DataType valueDataType) {
+    private EvalOperator.ExpressionEvaluator.Factory getOffsetFactory(ToEvaluator toEvaluator, DataType valueDataType, Expression offset) {
         if (offset == null) {
-            return getDefaultOffset();
+            return getDefaultOffset(valueDataType);
         }
 
         if (isTimeDuration(offset.dataType()) == false) {
@@ -522,10 +499,10 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         }
 
         if (isDateNanos(valueDataType)) {
-            return getTemporalOffsetAsNanos(toEvaluator);
+            return getTemporalOffsetAsNanos(toEvaluator, offset);
         }
 
-        return getTemporalOffsetAsMillis(toEvaluator);
+        return getTemporalOffsetAsMillis(toEvaluator, offset);
     }
 
     private EvalOperator.ExpressionEvaluator.Factory getScaleFactory(ToEvaluator toEvaluator, DataType valueDataType) {
@@ -565,7 +542,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         return EvalOperator.LongFactory(scaleNanos);
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsMillis(ToEvaluator toEvaluator) {
+    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsMillis(ToEvaluator toEvaluator, Expression offset) {
         EvalOperator.ExpressionEvaluator.Factory offsetFactory;
         if (offset.foldable() == false) {
             throw new IllegalArgumentException(
@@ -578,7 +555,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         return offsetFactory;
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsNanos(ToEvaluator toEvaluator) {
+    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsNanos(ToEvaluator toEvaluator, Expression offset) {
         if (offset.foldable() == false) {
             throw new IllegalArgumentException(
                 "Function [" + sourceText() + "] has non-constant temporal offset [" + offset.sourceText() + "]."
@@ -591,9 +568,11 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         return EvalOperator.LongFactory(offsetNanos);
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getDefaultOffset() {
-        return switch (value.dataType()) {
-            case INTEGER, LONG, DOUBLE -> EvalOperator.DoubleFactory(DEFAULT_NUMERIC_OFFSET);
+    private EvalOperator.ExpressionEvaluator.Factory getDefaultOffset(DataType valueDataType) {
+        return switch (valueDataType) {
+            case INTEGER -> EvalOperator.IntegerFactory(DEFAULT_INTEGER_OFFSET);
+            case LONG -> EvalOperator.LongFactory(DEFAULT_LONG_OFFSET);
+            case DOUBLE -> EvalOperator.DoubleFactory(DEFAULT_DOUBLE_OFFSET);
             case GEO_POINT -> EvalOperator.BytesRefFactory(DEFAULT_GEO_POINT_OFFSET);
             case CARTESIAN_POINT -> EvalOperator.DoubleFactory(DEFAULT_CARTESIAN_POINT_OFFSET);
             case DATETIME, DATE_NANOS -> EvalOperator.LongFactory(DEFAULT_TEMPORAL_OFFSET);

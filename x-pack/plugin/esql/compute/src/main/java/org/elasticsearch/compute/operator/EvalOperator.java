@@ -173,6 +173,37 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     private static final String CONSTANT_LONG_NAME = "ConstantLong";
 
+    public static ExpressionEvaluator.Factory IntegerFactory(int value) {
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext driverContext) {
+                return new ExpressionEvaluator() {
+                    @Override
+                    public Block eval(Page page) {
+                        return driverContext.blockFactory().newConstantIntBlockWith(value, page.getPositionCount());
+                    }
+
+                    @Override
+                    public void close() {
+
+                    }
+
+                    @Override
+                    public String toString() {
+                        return CONSTANT_INTEGER_NAME + "[" + value + "]";
+                    }
+                };
+            }
+
+            @Override
+            public String toString() {
+                return CONSTANT_INTEGER_NAME + "[" + value + "]";
+            }
+        };
+    }
+
+    private static final String CONSTANT_INTEGER_NAME = "ConstantInteger";
+
     public static ExpressionEvaluator.Factory BytesRefFactory(org.apache.lucene.util.BytesRef value) {
         return new ExpressionEvaluator.Factory() {
             @Override

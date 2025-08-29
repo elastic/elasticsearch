@@ -2,7 +2,7 @@
 
 ## `DECAY` [esql-decay]
 ```{applies_to}
-stack: development
+stack: preview 9.2.0
 serverless: preview
 ```
 
@@ -21,6 +21,9 @@ serverless: preview
 :::
 
 :::{include} ../types/decay.md
+:::
+
+:::{include} ../functionNamedParams/decay.md
 :::
 
 :::{include} ../examples/decay.md

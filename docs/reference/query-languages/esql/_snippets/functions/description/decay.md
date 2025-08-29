@@ -2,5 +2,5 @@
 
 **Description**
 
-Decay a numeric, spatial or date type value based on the distance of it to an origin.
+Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value from a target origin, using configurable decay functions.
 

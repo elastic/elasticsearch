@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -28,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
+// TODO: integration test case without options
 public class DecayTests extends AbstractScalarFunctionTestCase {
 
     public DecayTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -524,7 +527,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Decay(source, args.get(0), args.get(1), args.get(2), args.get(3), args.get(4), args.get(5));
+        return new Decay(source, args.get(0), args.get(1), args.get(2), args.get(3) != null ? args.get(3) : null);
     }
 
     @Override
@@ -536,22 +539,21 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         int value,
         int origin,
         int scale,
-        int offset,
+        Integer offset,
         double decay,
         String functionType,
         double expected
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(DataType.INTEGER, DataType.INTEGER, DataType.INTEGER, DataType.INTEGER, DataType.DOUBLE, DataType.KEYWORD),
+                List.of(DataType.INTEGER, DataType.INTEGER, DataType.INTEGER, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.INTEGER, "value"),
                         new TestCaseSupplier.TypedData(origin, DataType.INTEGER, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.INTEGER, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.INTEGER, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayIntEvaluator["),
                     DataType.DOUBLE,
@@ -565,22 +567,21 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         long value,
         long origin,
         long scale,
-        long offset,
+        Long offset,
         double decay,
         String functionType,
         double expected
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(DataType.LONG, DataType.LONG, DataType.LONG, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD),
+                List.of(DataType.LONG, DataType.LONG, DataType.LONG, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.LONG, "value"),
                         new TestCaseSupplier.TypedData(origin, DataType.LONG, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.LONG, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.LONG, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayLongEvaluator["),
                     DataType.DOUBLE,
@@ -594,22 +595,21 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         double value,
         double origin,
         double scale,
-        double offset,
+        Double offset,
         double decay,
         String functionType,
         double expected
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(DataType.DOUBLE, DataType.DOUBLE, DataType.DOUBLE, DataType.DOUBLE, DataType.DOUBLE, DataType.KEYWORD),
+                List.of(DataType.DOUBLE, DataType.DOUBLE, DataType.DOUBLE, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.DOUBLE, "value"),
                         new TestCaseSupplier.TypedData(origin, DataType.DOUBLE, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.DOUBLE, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.DOUBLE, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayDoubleEvaluator["),
                     DataType.DOUBLE,
@@ -630,15 +630,14 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.TEXT, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
+                List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.TEXT, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayGeoPointEvaluator["),
                     DataType.DOUBLE,
@@ -659,15 +658,14 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.KEYWORD, DataType.TEXT, DataType.DOUBLE, DataType.KEYWORD),
+                List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.KEYWORD, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.KEYWORD, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TEXT, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayGeoPointEvaluator["),
                     DataType.DOUBLE,
@@ -688,15 +686,14 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.TEXT, DataType.KEYWORD, DataType.DOUBLE, DataType.KEYWORD),
+                List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.TEXT, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.KEYWORD, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayGeoPointEvaluator["),
                     DataType.DOUBLE,
@@ -717,22 +714,14 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(
-                    DataType.CARTESIAN_POINT,
-                    DataType.CARTESIAN_POINT,
-                    DataType.DOUBLE,
-                    DataType.DOUBLE,
-                    DataType.DOUBLE,
-                    DataType.KEYWORD
-                ),
+                List.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_POINT, DataType.DOUBLE, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb(valueWkt), DataType.CARTESIAN_POINT, "value"),
                         new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb(originWkt), DataType.CARTESIAN_POINT, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.DOUBLE, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.DOUBLE, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayCartesianPointEvaluator["),
                     DataType.DOUBLE,
@@ -753,22 +742,14 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(
-                    DataType.DATETIME,
-                    DataType.DATETIME,
-                    DataType.TIME_DURATION,
-                    DataType.TIME_DURATION,
-                    DataType.DOUBLE,
-                    DataType.KEYWORD
-                ),
+                List.of(DataType.DATETIME, DataType.DATETIME, DataType.TIME_DURATION, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.DATETIME, "value"),
                         new TestCaseSupplier.TypedData(origin, DataType.DATETIME, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TIME_DURATION, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayDatetimeEvaluator["),
                     DataType.DOUBLE,
@@ -789,22 +770,14 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
     ) {
         return List.of(
             new TestCaseSupplier(
-                List.of(
-                    DataType.DATE_NANOS,
-                    DataType.DATE_NANOS,
-                    DataType.TIME_DURATION,
-                    DataType.TIME_DURATION,
-                    DataType.DOUBLE,
-                    DataType.KEYWORD
-                ),
+                List.of(DataType.DATE_NANOS, DataType.DATE_NANOS, DataType.TIME_DURATION, DataType.SOURCE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.DATE_NANOS, "value"),
                         new TestCaseSupplier.TypedData(origin, DataType.DATE_NANOS, "origin"),
                         new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale"),
-                        new TestCaseSupplier.TypedData(offset, DataType.TIME_DURATION, "offset"),
-                        new TestCaseSupplier.TypedData(decay, DataType.DOUBLE, "decay"),
-                        new TestCaseSupplier.TypedData(functionType, DataType.KEYWORD, "type")
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
                     ),
                     startsWith("DecayDateNanosEvaluator["),
                     DataType.DOUBLE,
@@ -812,5 +785,33 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ).withoutEvaluator()
             )
         );
+    }
+
+    private static MapExpression createOptionsMap(Object offset, double decay, String functionType) {
+        List<Expression> keyValuePairs = new ArrayList<>();
+
+        // Offset
+        keyValuePairs.add(Literal.keyword(Source.EMPTY, "offset"));
+        if (offset instanceof Integer) {
+            keyValuePairs.add(Literal.integer(Source.EMPTY, (Integer) offset));
+        } else if (offset instanceof Long) {
+            keyValuePairs.add(Literal.fromLong(Source.EMPTY, (Long) offset));
+        } else if (offset instanceof Double) {
+            keyValuePairs.add(Literal.fromDouble(Source.EMPTY, (Double) offset));
+        } else if (offset instanceof String) {
+            keyValuePairs.add(Literal.text(Source.EMPTY, (String) offset));
+        } else if (offset instanceof Duration) {
+            keyValuePairs.add(Literal.timeDuration(Source.EMPTY, (Duration) offset));
+        }
+
+        // Decay
+        keyValuePairs.add(Literal.keyword(Source.EMPTY, "decay"));
+        keyValuePairs.add(Literal.fromDouble(Source.EMPTY, decay));
+
+        // Type
+        keyValuePairs.add(Literal.keyword(Source.EMPTY, "type"));
+        keyValuePairs.add(Literal.keyword(Source.EMPTY, functionType));
+
+        return new MapExpression(Source.EMPTY, keyValuePairs);
     }
 }

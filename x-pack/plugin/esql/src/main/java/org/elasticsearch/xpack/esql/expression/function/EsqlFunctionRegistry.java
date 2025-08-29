@@ -470,7 +470,7 @@ public class EsqlFunctionRegistry {
                 def(Split.class, Split::new, "split") },
             // fulltext functions
             new FunctionDefinition[] {
-                def(Decay.class, sen(Decay::new), 3, "decay"),
+                def(Decay.class, quad(Decay::new), "decay"),
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
@@ -1213,47 +1213,6 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
 
-    /**
-     * Build a {@linkplain FunctionDefinition} for a senary function.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        SenaryBuilder<T> ctorRef,
-        int numOptionalParams,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            final int NUM_TOTAL_PARAMS = 6;
-            boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
-            if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
-                throw new QlIllegalArgumentException(
-                    "expects between "
-                        + NUM_NAMES[NUM_TOTAL_PARAMS - numOptionalParams]
-                        + " and "
-                        + NUM_NAMES[NUM_TOTAL_PARAMS]
-                        + " arguments"
-                );
-            } else if (hasOptionalParams == false && children.size() != NUM_TOTAL_PARAMS) {
-                throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
-            }
-            return ctorRef.build(
-                source,
-                children.size() > 0 ? children.get(0) : null,
-                children.size() > 1 ? children.get(1) : null,
-                children.size() > 2 ? children.get(2) : null,
-                children.size() > 3 ? children.get(3) : null,
-                children.size() > 4 ? children.get(4) : null,
-                children.size() > 5 ? children.get(5) : null
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface SenaryBuilder<T> {
-        T build(Source source, Expression one, Expression two, Expression three, Expression four, Expression five, Expression six);
-    }
-
     //
     // Utility functions to help disambiguate the method handle passed in.
     // They work by providing additional method information to help the compiler know which method to pick.
@@ -1271,10 +1230,6 @@ public class EsqlFunctionRegistry {
     }
 
     private static <T extends Function> QuaternaryBuilder<T> quad(QuaternaryBuilder<T> function) {
-        return function;
-    }
-
-    private static <T extends Function> SenaryBuilder<T> sen(SenaryBuilder<T> function) {
         return function;
     }
 

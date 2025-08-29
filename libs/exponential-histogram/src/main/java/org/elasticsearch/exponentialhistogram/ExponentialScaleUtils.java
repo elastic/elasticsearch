@@ -244,9 +244,19 @@ public class ExponentialScaleUtils {
      */
     public static double getPointOfLeastRelativeError(long bucketIndex, int scale) {
         checkIndexAndScaleBounds(bucketIndex, scale);
-        double upperBound = getUpperBucketBoundary(bucketIndex, scale);
         double histogramBase = Math.pow(2, Math.scalb(1, -scale));
-        return 2 / (histogramBase + 1) * upperBound;
+        if (Double.isFinite(histogramBase)) {
+            double upperBound = getUpperBucketBoundary(bucketIndex, scale);
+            return 2 / (histogramBase + 1) * upperBound;
+        } else {
+            if (bucketIndex >= 0) {
+                // the bucket is (1, +inf), approximate point of least error as inf
+                return Double.POSITIVE_INFINITY;
+            } else {
+                // the bucket is (1/(Inf), 1), approximate point of least error as 0
+                return 0;
+            }
+        }
     }
 
     /**

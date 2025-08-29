@@ -34,8 +34,6 @@ public class ScopeTsidFunnel implements TsidFunnel<ScopeMetrics> {
     public void add(ScopeMetrics scopeMetrics, TsidBuilder tsidBuilder) {
         List<KeyValue> resourceAttributes = scopeMetrics.getScope().getAttributesList();
         byteStringAccessor.addStringDimension(tsidBuilder, "scope.name", scopeMetrics.getScope().getNameBytes());
-        byteStringAccessor.addStringDimension(tsidBuilder, "scope.schema_url", scopeMetrics.getSchemaUrlBytes());
         tsidBuilder.add(resourceAttributes, AttributeListTsidFunnel.get(byteStringAccessor, "scope.attributes."));
-        byteStringAccessor.addStringDimension(tsidBuilder, "scope.version", scopeMetrics.getScope().getVersionBytes());
     }
 }

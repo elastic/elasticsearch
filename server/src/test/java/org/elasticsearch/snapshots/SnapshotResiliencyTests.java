@@ -1783,14 +1783,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
         },
             SnapshotsServiceUtils.class,
             new MockLog.SeenEventExpectation(
-                "INFO log",
+                "failed create snapshot INFO log",
                 SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("*failed to create snapshot*%s", expectedMessage)
             ),
             new MockLog.SeenEventExpectation(
-                "INFO log",
-                SnapshotsService.class.getCanonicalName(),
+                "failed clone snapshot INFO log",
+                SnapshotsServiceUtils.class.getCanonicalName(),
                 Level.INFO,
                 Strings.format("*failed to clone snapshot*%s", expectedMessage)
             )

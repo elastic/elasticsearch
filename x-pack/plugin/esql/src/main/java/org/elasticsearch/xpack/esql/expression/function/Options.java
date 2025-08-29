@@ -18,7 +18,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -35,7 +38,20 @@ public class Options {
         TypeResolutions.ParamOrdinal paramOrdinal,
         Map<String, DataType> allowedOptions
     ) {
-        return resolve(options, source, paramOrdinal, allowedOptions, null);
+        return resolve(
+            options,
+            source,
+            paramOrdinal,
+            toMultipleDataTypesAllowedOptions(allowedOptions),
+            null,
+            (options1, optionsMap, source1, paramOrdinal1, allowedOptions1) -> populateMap(
+                options1,
+                optionsMap,
+                source,
+                paramOrdinal,
+                allowedOptions
+            )
+        );
     }
 
     public static Expression.TypeResolution resolve(
@@ -44,6 +60,52 @@ public class Options {
         TypeResolutions.ParamOrdinal paramOrdinal,
         Map<String, DataType> allowedOptions,
         Consumer<Map<String, Object>> verifyOptions
+    ) {
+        return resolve(
+            options,
+            source,
+            paramOrdinal,
+            toMultipleDataTypesAllowedOptions(allowedOptions),
+            verifyOptions,
+            (options1, optionsMap, source1, paramOrdinal1, allowedOptions1) -> populateMap(
+                options1,
+                optionsMap,
+                source,
+                paramOrdinal,
+                allowedOptions
+            )
+        );
+    }
+
+    public static Expression.TypeResolution resolveWithMultipleDataTypesAllowed(
+        Expression options,
+        Source source,
+        TypeResolutions.ParamOrdinal paramOrdinal,
+        Map<String, Collection<DataType>> allowedOptions
+    ) {
+        return resolve(
+            options,
+            source,
+            paramOrdinal,
+            allowedOptions,
+            null,
+            (options1, optionsMap, source1, paramOrdinal1, allowedOptions1) -> populateMapWithExpressionsMultipleDataTypesAllowed(
+                options1,
+                optionsMap,
+                source,
+                paramOrdinal,
+                allowedOptions
+            )
+        );
+    }
+
+    public static Expression.TypeResolution resolve(
+        Expression options,
+        Source source,
+        TypeResolutions.ParamOrdinal paramOrdinal,
+        Map<String, Collection<DataType>> allowedOptions,
+        Consumer<Map<String, Object>> verifyOptions,
+        PopulateMap populateMap
     ) {
         if (options != null) {
             Expression.TypeResolution resolution = isNotNull(options, source.text(), paramOrdinal);
@@ -57,7 +119,7 @@ public class Options {
             }
             try {
                 Map<String, Object> optionsMap = new HashMap<>();
-                populateMap((MapExpression) options, optionsMap, source, paramOrdinal, allowedOptions);
+                populateMap.apply((MapExpression) options, optionsMap, source, paramOrdinal, allowedOptions);
                 if (verifyOptions != null) {
                     verifyOptions.accept(optionsMap);
                 }
@@ -111,5 +173,79 @@ public class Options {
                 );
             }
         }
+    }
+
+    public static void populateMapWithExpressionsMultipleDataTypesAllowed(
+        final MapExpression options,
+        final Map<String, Object> optionsMap,
+        final Source source,
+        final TypeResolutions.ParamOrdinal paramOrdinal,
+        final Map<String, Collection<DataType>> allowedOptions
+    ) throws InvalidArgumentException {
+        if (options == null) {
+            return;
+        }
+
+        for (EntryExpression entry : options.entryExpressions()) {
+            Expression optionExpr = entry.key();
+            Expression valueExpr = entry.value();
+
+            Expression.TypeResolution optionNameResolution = isFoldable(optionExpr, source.text(), paramOrdinal);
+            if (optionNameResolution.unresolved()) {
+                throw new InvalidArgumentException(optionNameResolution.message());
+            }
+
+            Object optionExprLiteral = ((Literal) optionExpr).value();
+            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+            Collection<DataType> allowedDataTypes = allowedOptions.get(optionName);
+
+            // valueExpr could be a MapExpression, but for now functions only accept literal values in options
+            if ((valueExpr instanceof Literal) == false) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], expected a [{}] value", optionName, source.text(), allowedDataTypes)
+                );
+            }
+
+            // validate the optionExpr is supported
+            if (allowedDataTypes == null || allowedDataTypes.isEmpty()) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, source.text(), allowedOptions.keySet())
+                );
+            }
+
+            Literal valueExprLiteral = ((Literal) valueExpr);
+            // validate that the literal has one of the allowed data types
+            if (allowedDataTypes.contains(valueExprLiteral.dataType()) == false) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], allowed types [{}]", optionName, source.text(), allowedDataTypes)
+                );
+            }
+
+            optionsMap.put(optionName, valueExprLiteral);
+        }
+    }
+
+    private static Map<String, Collection<DataType>> toMultipleDataTypesAllowedOptions(Map<String, DataType> allowedOptions) {
+        Map<String, Collection<DataType>> allowedOptionsWithMultipleDataTypes = new HashMap<>();
+        for (Map.Entry<String, DataType> entry : allowedOptions.entrySet()) {
+            List<DataType> list = new ArrayList<>();
+            list.add(entry.getValue());
+
+            allowedOptionsWithMultipleDataTypes.put(entry.getKey(), list);
+        }
+        return allowedOptionsWithMultipleDataTypes;
+    }
+
+    @FunctionalInterface
+    public interface PopulateMap {
+
+        void apply(
+            MapExpression options,
+            Map<String, Object> optionsMap,
+            Source source,
+            TypeResolutions.ParamOrdinal paramOrdinal,
+            Map<String, Collection<DataType>> allowedOptions
+        );
+
     }
 }

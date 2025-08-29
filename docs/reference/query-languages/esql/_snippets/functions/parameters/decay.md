@@ -3,7 +3,7 @@
 **Parameters**
 
 `value`
-:   Value to calculate decayed value for.
+:   The input value to apply decay scoring to.
 
 `origin`
 :   Central point from which the distances are calculated.
@@ -11,12 +11,6 @@
 `scale`
 :   Distance from the origin where the function returns the decay value.
 
-`offset`
-:   Distance from the origin where no decay occurs.
-
-`decay`
-:   Multiplier value returned at the scale distance from the origin.
-
-`type`
-:   Function to use: linear, exponential or gaussian decay.
+`options`
+:   
 

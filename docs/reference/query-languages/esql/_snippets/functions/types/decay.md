@@ -2,15 +2,14 @@
 
 **Supported types**
 
-| value | origin | scale | offset | decay | type | result |
-| --- | --- | --- | --- | --- | --- | --- |
-| cartesian_point | cartesian_point | double | double | double | keyword | double |
-| date | date | time_duration | time_duration | double | keyword | double |
-| date_nanos | date_nanos | time_duration | time_duration | double | keyword | double |
-| double | double | double | double | double | keyword | double |
-| geo_point | geo_point | keyword | text | double | keyword | double |
-| geo_point | geo_point | text | keyword | double | keyword | double |
-| geo_point | geo_point | text | text | double | keyword | double |
-| integer | integer | integer | integer | double | keyword | double |
-| long | long | long | long | double | keyword | double |
+| value | origin | scale | options | result |
+| --- | --- | --- | --- | --- |
+| cartesian_point | cartesian_point | double | named parameters | double |
+| date | date | time_duration | named parameters | double |
+| date_nanos | date_nanos | time_duration | named parameters | double |
+| double | double | double | named parameters | double |
+| geo_point | geo_point | keyword | named parameters | double |
+| geo_point | geo_point | text | named parameters | double |
+| integer | integer | integer | named parameters | double |
+| long | long | long | named parameters | double |
 

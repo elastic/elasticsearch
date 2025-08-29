@@ -308,10 +308,6 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V3.capabilityName())
             );
             assumeFalse(
-                "can't use Decay function in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.DECAY_FUNCTION.capabilityName())
-            );
-            assumeFalse(
                 "lookup join disabled for csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName())
             );

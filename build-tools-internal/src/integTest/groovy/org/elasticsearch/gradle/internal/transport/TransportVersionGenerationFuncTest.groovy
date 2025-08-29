@@ -11,8 +11,11 @@ package org.elasticsearch.gradle.internal.transport
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.fixtures.WiremockFixture
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
+
+import java.nio.charset.StandardCharsets
 
 class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTest {
 
@@ -22,6 +25,11 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         args.add(":myserver:generateTransportVersionDefinition")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
+    }
+
+    def runGenerateAndValidateWithLabels(String... labels) {
+        String labelsStr = String.join(System.lineSeparator(), List.of(labels));
+        return runGenerateAndValidateTask().withEnvironment(Map.of("PULL_REQUEST_LABELS", labelsStr));
     }
 
     def runGenerateTask(String... additionalArgs) {
@@ -401,5 +409,58 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertGenerateAndValidateSuccess(result)
         assertReferableDefinition("new_tv", "9001000")
         assertUpperBound(releaseBranch, "new_tv,9001000")
+    }
+
+    def "branch from pr targeting main"() {
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateAndValidateWithLabels("v9.2.0").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
+    }
+
+    def "branch from pr for backport"() {
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateAndValidateWithLabels("v9.2.0", "v9.1.2").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8124000,8012002")
+        assertUpperBound("9.2", "new_tv,8124000")
+        assertUpperBound("9.1", "new_tv,8012002")
+    }
+
+    def "branch from pr with other labels"() {
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateAndValidateWithLabels(">test", "v9.2.0", ":Core/Infra/Core").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
+    }
+
+    def "branch from pr default to main"() {
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateAndValidateWithLabels(">test", ":Core/Infra/Core").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
     }
 }

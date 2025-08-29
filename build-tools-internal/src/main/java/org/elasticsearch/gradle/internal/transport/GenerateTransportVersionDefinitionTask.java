@@ -165,23 +165,13 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             // Look for env var indicating github PR link from CI.
             // Use github api to find current labels, filter down to version labels.
             // Map version labels to branches.
-            String prUrl = System.getenv("BUILDKITE_PULL_REQUEST");
-            if (prUrl == null) {
+            String prLabels = System.getenv("PULL_REQUEST_LABELS");
+            if (prLabels == null) {
                 throw new RuntimeException("When running outside CI, --branches must be specified");
             }
 
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            ExecResult result = execOperations.exec(spec -> {
-                spec.setCommandLine(List.of("gh", "pr", "view", prUrl, "--json", "labels", "--jq", ".labels[].name"));
-                spec.setErrorOutput(output);
-                spec.setStandardOutput(output);
-                spec.setIgnoreExitValue(true);
-            });
-            if (result.getExitValue() != 0) {
-                throw new RuntimeException("Failed to get labels from github API:\n" + output);
-            }
             Set<String> targetReleaseBranches = new HashSet<>();
-            for (String label : output.toString().split(System.lineSeparator())) {
+            for (String label : prLabels.split(System.lineSeparator())) {
                 if (label.startsWith("v") == false) {
                     continue;
                 }

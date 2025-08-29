@@ -341,6 +341,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * This test validates Rate metrics aggregation with grouping by time bucket and a subset of dimensions.
+     * The subset of dimensions is a random subset of the dimensions present in the data.
+     * The test checks that the count, max, min, and avg values of the rate metric - and calculates
+     * the same values from the documents in the group.
+     */
     public void testRateGroupBySubset() {
         var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
@@ -380,6 +386,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * This test validates Rate metrics aggregation with grouping by time bucket only.
+     * The test checks that the count, max, min, and avg values of the rate metric - and calculates
+     * the same values from the documents in the group. Because there is no grouping by dimensions,
+     * there is only one metric group per time bucket.
+     */
     public void testRateGroupByNothing() {
         var groups = groupedRows(documents, List.of(), 60);
         try (var resp = run(String.format(Locale.ROOT, """

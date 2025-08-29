@@ -4,5 +4,7 @@
 Calculates the l1 norm between two dense_vectors.
 
 ```esql
-null
+ from colors
+ | eval similarity = v_l1_norm(rgb_vector, [0, 255, 255])
+ | sort similarity desc, color asc
 ```

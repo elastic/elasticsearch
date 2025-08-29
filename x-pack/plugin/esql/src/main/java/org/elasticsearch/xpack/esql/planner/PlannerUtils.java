@@ -120,6 +120,8 @@ public class PlannerUtils {
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
 
+        // Though FORK is technically a pipeline breaker, it should never show up here.
+        // See also: https://github.com/elastic/elasticsearch/pull/131945/files#r2235572935
         final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
             return null;
@@ -155,6 +157,15 @@ public class PlannerUtils {
         var indices = new LinkedHashSet<String>();
         forEachRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
         return indices.toArray(String[]::new);
+    }
+
+    public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
+        return plan.anyMatch(e -> {
+            if (e instanceof FragmentExec f) {
+                return f.fragment().anyMatch(l -> l instanceof EsRelation r && r.indexMode() == IndexMode.TIME_SERIES);
+            }
+            return false;
+        });
     }
 
     private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {

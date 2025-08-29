@@ -242,6 +242,24 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The field to collect sample values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "version",
           "optional" : false,
           "description" : "The field to collect sample values for."

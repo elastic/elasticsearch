@@ -5,7 +5,7 @@
   "description" : "Calculates the l1 norm between two dense_vectors.",
   "signatures" : [ ],
   "examples" : [
-    null
+    " from colors\n | eval similarity = v_l1_norm(rgb_vector, [0, 255, 255])\n | sort similarity desc, color asc"
   ],
   "preview" : true,
   "snapshot_only" : true

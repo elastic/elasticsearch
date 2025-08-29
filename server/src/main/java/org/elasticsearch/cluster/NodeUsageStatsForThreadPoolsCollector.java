@@ -9,25 +9,53 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
+import org.elasticsearch.client.internal.Client;
 
 import java.util.Map;
 
 /**
- * Collects the usage stats (like write thread pool load) estimations for each node in the cluster.
+ * Collects the thread pool usage stats for each node in the cluster.
  * <p>
  * Results are returned as a map of node ID to node usage stats.
  */
-public interface NodeUsageStatsForThreadPoolsCollector {
-    /**
-     * This will be used when there is no NodeUsageLoadCollector available.
-     */
-    NodeUsageStatsForThreadPoolsCollector EMPTY = listener -> listener.onResponse(Map.of());
+public class NodeUsageStatsForThreadPoolsCollector {
+    public static final NodeUsageStatsForThreadPoolsCollector EMPTY = new NodeUsageStatsForThreadPoolsCollector() {
+        public void collectUsageStats(
+            Client client,
+            ClusterState clusterState,
+            ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
+        ) {
+            listener.onResponse(Map.of());
+        }
+    };
+
+    private static final TransportVersion TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION = TransportVersion.fromName(
+        "transport_node_usage_stats_for_thread_pools_action"
+    );
 
     /**
-     * Collects the write load estimates from the cluster.
+     * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) for each node in the cluster.
      *
-     * @param listener The listener to receive the write load results.
+     * @param listener The listener to receive the usage results.
      */
-    void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener);
+    public void collectUsageStats(
+        Client client,
+        ClusterState clusterState,
+        ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
+    ) {
+        var dataNodeIds = clusterState.nodes().getDataNodes().values().stream().map(node -> node.getId()).toArray(String[]::new);
+        if (clusterState.getMinTransportVersion().supports(TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION)) {
+            client.execute(
+                TransportNodeUsageStatsForThreadPoolsAction.TYPE,
+                new NodeUsageStatsForThreadPoolsAction.Request(dataNodeIds),
+                listener.map(response -> response.getAllNodeUsageStatsForThreadPools())
+            );
+        } else {
+            listener.onResponse(Map.of());
+        }
+    }
 }

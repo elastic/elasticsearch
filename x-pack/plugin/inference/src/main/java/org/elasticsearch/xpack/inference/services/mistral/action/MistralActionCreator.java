@@ -11,17 +11,18 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.mistral.MistralCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.mistral.MistralEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.Objects;
@@ -37,9 +38,10 @@ public class MistralActionCreator implements MistralActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Mistral completions";
     public static final String USER_ROLE = "user";
-    public static final ResponseHandler COMPLETION_HANDLER = new MistralCompletionResponseHandler(
+    public static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
         "mistral completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiChatCompletionResponseEntity::fromResponse,
+        ErrorResponse::fromResponse
     );
     private final Sender sender;
     private final ServiceComponents serviceComponents;

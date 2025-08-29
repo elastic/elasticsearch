@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
 import static org.elasticsearch.core.Strings.format;
@@ -108,6 +109,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private final ThreadPool threadPool;
     private final Client client;
+    private final Supplier<ClusterState> clusterStateSupplier;
     private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
 
     private final Object mutex = new Object();
@@ -140,6 +142,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.clusterStateSupplier = clusterService::state;
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
@@ -216,7 +219,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled == WriteLoadDeciderStatus.ENABLED);
+                maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
                 maybeFetchNodesEstimatedHeapUsage(estimatedHeapThresholdEnabled);
                 maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled);
@@ -259,7 +262,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private void maybeFetchNodesUsageStatsForThreadPools(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
-            if (writeLoadConstraintEnabled != WriteLoadDeciderStatus.DISABLED) {
+            if (writeLoadConstraintEnabled.atLeastLowThresholdEnabled()) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                     fetchNodesUsageStatsForThreadPools();
                 }
@@ -270,18 +273,22 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private void fetchNodesUsageStatsForThreadPools() {
-            nodeUsageStatsForThreadPoolsCollector.collectUsageStats(ActionListener.releaseAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(Map<String, NodeUsageStatsForThreadPools> writeLoads) {
-                    nodeThreadPoolUsageStatsPerNode = writeLoads;
-                }
+            nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
+                client,
+                clusterStateSupplier.get(),
+                ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Map<String, NodeUsageStatsForThreadPools> threadPoolStats) {
+                        nodeThreadPoolUsageStatsPerNode = threadPoolStats;
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("failed to fetch write load estimates for nodes", e);
-                    nodeThreadPoolUsageStatsPerNode = Map.of();
-                }
-            }, fetchRefs.acquire()));
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to fetch thread pool usage estimates for nodes", e);
+                        nodeThreadPoolUsageStatsPerNode = Map.of();
+                    }
+                }, fetchRefs.acquire())
+            );
         }
 
         private void fetchNodesEstimatedHeapUsage() {
@@ -306,7 +313,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 // This returns the shard sizes on disk
                 indicesStatsRequest.store(true);
             }
-            if (writeLoadConstraintEnabled == WriteLoadDeciderStatus.ENABLED) {
+            if (writeLoadConstraintEnabled.atLeastLowThresholdEnabled()) {
                 // This returns the shard write-loads
                 indicesStatsRequest.indexing(true);
             }

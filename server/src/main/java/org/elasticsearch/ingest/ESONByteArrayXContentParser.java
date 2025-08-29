@@ -118,10 +118,13 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
 
     private String getString(int stringLength) {
         if (stringCache != null) {
-            return stringCache.computeIfAbsent(
-                new BytesRef(bytes, offset, stringLength),
-                ignored -> new String(bytes, offset, stringLength, StandardCharsets.UTF_8)
-            );
+            BytesRef bytes = new BytesRef(this.bytes, offset, stringLength);
+            String string = stringCache.get(bytes);
+            if (string != null) {
+                return string;
+            }
+            stringCache.put(bytes, string = new String(this.bytes, offset, stringLength, StandardCharsets.UTF_8));
+            return string;
         } else {
             return new String(bytes, offset, stringLength, StandardCharsets.UTF_8);
         }

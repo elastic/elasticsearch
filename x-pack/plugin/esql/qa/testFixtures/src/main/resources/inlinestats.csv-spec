@@ -51,11 +51,13 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword
          10014 |                 5 | 5                | null
 ;
 
+// check that the `LIMIT 1` isn't pushed into the INLINESTATS's source
 maxOfIntByKeywordLimit1Aggd
 required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender
+// | SORT emp_no
 | INLINESTATS max_lang = MAX(languages) BY gender
 | LIMIT 1
 | STATS v = VALUES(max_lang)

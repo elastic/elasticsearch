@@ -546,6 +546,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncSubmitAndFetchIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133840
 
 # Examples:
 #

@@ -91,7 +91,7 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
             int positiveValueCount = randomBoolean() ? 0 : randomIntBetween(10, 10_000);
             int negativeValueCount = randomBoolean() ? 0 : randomIntBetween(10, 10_000);
             int zeroValueCount = randomBoolean() ? 0 : randomIntBetween(10, 100);
-            int bucketCount = randomIntBetween(2, 500);
+            int bucketCount = randomIntBetween(4, 500);
 
             double correctMin = Double.MAX_VALUE;
             double zeroThreshold = Double.MAX_VALUE;

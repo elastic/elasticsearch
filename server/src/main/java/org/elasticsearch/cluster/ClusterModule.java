@@ -530,7 +530,6 @@ public class ClusterModule extends AbstractModule {
         bind(MetadataIndexStateService.class).asEagerSingleton();
         bind(MetadataMappingService.class).asEagerSingleton();
         bind(MetadataIndexAliasesService.class).asEagerSingleton();
-        bind(MetadataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();

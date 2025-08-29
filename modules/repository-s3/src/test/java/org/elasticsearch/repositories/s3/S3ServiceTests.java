@@ -111,7 +111,7 @@ public class S3ServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         throw new ElasticsearchException("simulated");
                     } else {
-                        return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()), null);
+                        return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()));
                     }
                 }
             );
@@ -164,7 +164,7 @@ public class S3ServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         throw new ElasticsearchException("simulated");
                     } else {
-                        return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()), null);
+                        return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()));
                     }
                 }
             );

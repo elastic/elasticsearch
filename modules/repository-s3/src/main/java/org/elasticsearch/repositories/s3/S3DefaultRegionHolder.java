@@ -26,12 +26,17 @@ class S3DefaultRegionHolder {
 
     private static final Logger logger = LogManager.getLogger(S3DefaultRegionHolder.class);
 
-    // no synchronization required, assignments happens-before all reads
+    // no synchronization required, assignments happen in start() which happens-before all reads
     private Region defaultRegion;
     private Runnable defaultRegionFailureLogger = () -> {};
 
     private final Runnable initializer;
 
+    /**
+     * @param delegateRegionSupplier Supplies a non-null {@link Region} or throws a {@link RuntimeException}.
+     *                               <p>
+     *                               Retained until its first-and-only invocation when {@link #start()} is called, and then released.
+     */
     S3DefaultRegionHolder(Supplier<Region> delegateRegionSupplier) {
         initializer = new RunOnce(() -> {
             try {

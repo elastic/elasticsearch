@@ -1,8 +1,8 @@
 {
   "security.put_role":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role.html",
-      "description":"Adds and updates roles in the native realm."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-put-role.html",
+      "description":"Create or update roles"
     },
     "stability":"stable",
     "visibility":"public",

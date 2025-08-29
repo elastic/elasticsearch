@@ -1,8 +1,8 @@
 {
   "indices.data_streams_stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Provides statistics on operations happening in a data stream."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/data-stream-stats-api.html",
+      "description":"Get data stream stats"
     },
     "stability":"stable",
     "visibility":"public",

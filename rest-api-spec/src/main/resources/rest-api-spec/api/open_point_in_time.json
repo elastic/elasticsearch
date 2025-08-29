@@ -1,8 +1,8 @@
 {
   "open_point_in_time":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html",
-      "description":"Open a point in time that can be used in subsequent searches"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/point-in-time-api.html",
+      "description":"Open a point in time"
     },
     "stability":"stable",
     "visibility":"public",

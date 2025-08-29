@@ -1,8 +1,8 @@
 {
   "transform.put_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html",
-      "description":"Instantiates a transform."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/put-transform.html",
+      "description":"Create a transform"
     },
     "stability":"stable",
     "visibility":"public",

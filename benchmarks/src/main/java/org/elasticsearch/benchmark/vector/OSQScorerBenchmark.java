@@ -14,9 +14,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -29,6 +30,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -66,9 +68,14 @@ public class OSQScorerBenchmark {
     float centroidDp;
 
     byte[] scratch;
-    ES91OSQVectorsScorer scorer;
+    ES91OSQVectorsScorer scorerMmap;
+    ES91OSQVectorsScorer scorerNfios;
 
-    IndexInput in;
+    Directory dirMmap;
+    IndexInput inMmap;
+
+    Directory dirNiofs;
+    IndexInput inNiofs;
 
     float[] scratchScores;
     float[] corrections;
@@ -84,18 +91,24 @@ public class OSQScorerBenchmark {
             random.nextBytes(binaryVector);
         }
 
-        Directory dir = new MMapDirectory(Files.createTempDirectory("vectorData"));
-        IndexOutput out = dir.createOutput("vectors", IOContext.DEFAULT);
+        dirMmap = new MMapDirectory(Files.createTempDirectory("vectorDataMmap"));
+        dirNiofs = new NIOFSDirectory(Files.createTempDirectory("vectorDataNFIOS"));
+        IndexOutput outMmap = dirMmap.createOutput("vectors", IOContext.DEFAULT);
+        IndexOutput outNfios = dirNiofs.createOutput("vectors", IOContext.DEFAULT);
         byte[] correctionBytes = new byte[14 * ES91OSQVectorsScorer.BULK_SIZE];
         for (int i = 0; i < numVectors; i += ES91OSQVectorsScorer.BULK_SIZE) {
             for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                out.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
+                outMmap.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
+                outNfios.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
             }
             random.nextBytes(correctionBytes);
-            out.writeBytes(correctionBytes, 0, correctionBytes.length);
+            outMmap.writeBytes(correctionBytes, 0, correctionBytes.length);
+            outNfios.writeBytes(correctionBytes, 0, correctionBytes.length);
         }
-        out.close();
-        in = dir.openInput("vectors", IOContext.DEFAULT);
+        outMmap.close();
+        outNfios.close();
+        inMmap = dirMmap.openInput("vectors", IOContext.DEFAULT);
+        inNiofs = dirNiofs.openInput("vectors", IOContext.DEFAULT);
 
         binaryQueries = new byte[numVectors][4 * length];
         for (byte[] binaryVector : binaryVectors) {
@@ -110,42 +123,40 @@ public class OSQScorerBenchmark {
         centroidDp = random.nextFloat();
 
         scratch = new byte[length];
-        scorer = ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(in, dims);
+        scorerMmap = ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(inMmap, dims);
+        scorerNfios = ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(inNiofs, dims);
         scratchScores = new float[16];
         corrections = new float[3];
     }
 
+    @TearDown
+    public void teardown() throws IOException {
+        IOUtils.close(dirMmap, inMmap, dirNiofs, inNiofs);
+    }
+
     @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromArray(Blackhole bh) throws IOException {
-        for (int j = 0; j < numQueries; j++) {
-            in.seek(0);
-            for (int i = 0; i < numVectors; i++) {
-                in.readBytes(scratch, 0, length);
-                float qDist = VectorUtil.int4BitDotProduct(binaryQueries[j], scratch);
-                in.readFloats(corrections, 0, corrections.length);
-                int addition = Short.toUnsignedInt(in.readShort());
-                float score = scorer.score(
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
-                    centroidDp,
-                    corrections[0],
-                    corrections[1],
-                    addition,
-                    corrections[2],
-                    qDist
-                );
-                bh.consume(score);
-            }
-        }
+    public void scoreFromMemorySegmentOnlyVectorMmapScalar(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentOnlyVector(bh, inMmap, scorerMmap);
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentOnlyVector(Blackhole bh) throws IOException {
+    public void scoreFromMemorySegmentOnlyVectorMmapVect(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentOnlyVector(bh, inMmap, scorerMmap);
+    }
+
+    @Benchmark
+    public void scoreFromMemorySegmentOnlyVectorNiofsScalar(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentOnlyVector(bh, inNiofs, scorerNfios);
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void scoreFromMemorySegmentOnlyVectorNiofsVect(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentOnlyVector(bh, inNiofs, scorerNfios);
+    }
+
+    private void scoreFromMemorySegmentOnlyVector(Blackhole bh, IndexInput in, ES91OSQVectorsScorer scorer) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i++) {
@@ -171,8 +182,28 @@ public class OSQScorerBenchmark {
     }
 
     @Benchmark
+    public void scoreFromMemorySegmentOnlyVectorBulkMmapScalar(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentOnlyVectorBulk(bh, inMmap, scorerMmap);
+    }
+
+    @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentOnlyVectorBulk(Blackhole bh) throws IOException {
+    public void scoreFromMemorySegmentOnlyVectorBulkMmapVect(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentOnlyVectorBulk(bh, inMmap, scorerMmap);
+    }
+
+    @Benchmark
+    public void scoreFromMemorySegmentOnlyVectorBulkNiofsScalar(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentOnlyVectorBulk(bh, inNiofs, scorerNfios);
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void scoreFromMemorySegmentOnlyVectorBulkNiofsVect(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentOnlyVectorBulk(bh, inNiofs, scorerNfios);
+    }
+
+    private void scoreFromMemorySegmentOnlyVectorBulk(Blackhole bh, IndexInput in, ES91OSQVectorsScorer scorer) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i += 16) {
@@ -200,8 +231,28 @@ public class OSQScorerBenchmark {
     }
 
     @Benchmark
+    public void scoreFromMemorySegmentAllBulkMmapScalar(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentAllBulk(bh, inMmap, scorerMmap);
+    }
+
+    @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentAllBulk(Blackhole bh) throws IOException {
+    public void scoreFromMemorySegmentAllBulkMmapVect(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentAllBulk(bh, inMmap, scorerMmap);
+    }
+
+    @Benchmark
+    public void scoreFromMemorySegmentAllBulkNiofsScalar(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentAllBulk(bh, inNiofs, scorerNfios);
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void scoreFromMemorySegmentAllBulkNiofsVect(Blackhole bh) throws IOException {
+        scoreFromMemorySegmentAllBulk(bh, inNiofs, scorerNfios);
+    }
+
+    private void scoreFromMemorySegmentAllBulk(Blackhole bh, IndexInput in, ES91OSQVectorsScorer scorer) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i += 16) {

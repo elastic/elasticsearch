@@ -15,6 +15,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
@@ -31,7 +32,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         final int length = BQVectorUtils.discretize(dimensions, 64) / 8;
         final int numVectors = random().nextInt(1, 100);
         final byte[] vector = new byte[length];
-        try (Directory dir = new MMapDirectory(createTempDir())) {
+        try (Directory dir = newRandomDirectory()) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
                 for (int i = 0; i < numVectors; i++) {
                     random().nextBytes(vector);
@@ -70,7 +71,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
-        try (Directory dir = new MMapDirectory(createTempDir())) {
+        try (Directory dir = newRandomDirectory()) {
             try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
@@ -166,7 +167,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
-        try (Directory dir = new MMapDirectory(createTempDir())) {
+        try (Directory dir = newRandomDirectory()) {
             try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
@@ -260,5 +261,9 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
             VectorUtil.l2normalize(vector);
         }
+    }
+
+    private Directory newRandomDirectory() throws IOException {
+        return randomBoolean() ? new MMapDirectory(createTempDir()) : new NIOFSDirectory(createTempDir());
     }
 }

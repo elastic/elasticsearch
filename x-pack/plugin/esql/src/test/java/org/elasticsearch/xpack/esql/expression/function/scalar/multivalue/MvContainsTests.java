@@ -286,7 +286,11 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
         }));
     }
 
-    // Adjusted from static method anyNullIsNull in {@code AbstractScalarFunctionTestCase#}
+    // Adjusted from static method anyNullIsNull in {@code AbstractFunctionTestCase#}
+    // - changed logic to expect a Boolean as an outcome and alternative evaluators (IsNullEvaluator, ConstantTrue)
+    // - constructor TestCase that's used has default access which we can't access, using public constructor variant as a replacement
+    // - Added prefix to generated tests for my sanity.
+    // - changed construction of new lists by copying them and updating the entries where necessary instead of regenerating
     protected static List<TestCaseSupplier> anyNullIsNull(
         List<TestCaseSupplier> testCaseSuppliers,
         ExpectedType expectedType,

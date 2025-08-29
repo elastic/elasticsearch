@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
-import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -50,7 +48,8 @@ public class OTLPMetricsRestAction extends BaseRestHandler {
                 ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(OTLPMetricsTransportAction.MetricsResponse r) {
-                        return new RestResponse(r.getStatus(), "application/x-protobuf", r.getResponse());
+                        RestStatus restStatus = r.getStatus();
+                        return new RestResponse(restStatus, "application/x-protobuf", r.getResponse());
                     }
                 })
             );
@@ -60,13 +59,7 @@ public class OTLPMetricsRestAction extends BaseRestHandler {
         // (a request that does not carry any telemetry data)
         // the server SHOULD respond with success.
         // https://opentelemetry.io/docs/specs/otlp/#full-success-1
-        return channel -> channel.sendResponse(
-            new RestResponse(
-                RestStatus.OK,
-                "application/x-protobuf",
-                new BytesArray(ExportMetricsServiceResponse.newBuilder().build().toByteArray())
-            )
-        );
+        return channel -> channel.sendResponse(new RestResponse(RestStatus.OK, "application/x-protobuf", new BytesArray(new byte[0])));
     }
 
 }

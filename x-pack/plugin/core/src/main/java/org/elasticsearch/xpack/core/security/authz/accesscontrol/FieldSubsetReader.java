@@ -403,7 +403,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
                 // TODO: move logic to IgnoredSourceFormat
-                if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.SINGLE_IGNORED_SOURCE) {
+                if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE) {
                     // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
                     IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
                     Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
@@ -424,7 +424,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                             visitor.binaryField(fieldInfo, value);
                         }
                     }
-                } else if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE) {
+                } else if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE) {
                     List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper
                         .decodeAsMapMultipleFieldValues(value);
                     List<IgnoredSourceFieldMapper.MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());

@@ -143,6 +143,6 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
     static boolean supports(StoredFieldsSpec spec) {
         return spec.onlyRequiresIgnoredFields()
-            && spec.ignoredFieldsSpec().format() == IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE;
+            && spec.ignoredFieldsSpec().format() == IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE;
     }
 }

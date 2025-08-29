@@ -177,7 +177,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         ignoredSourceFormat(context.indexSettings().getIndexVersionCreated()).writeIgnoredFields(context.getIgnoredFieldValues());
     }
 
-    static BytesRef encodeMultipleValuesForField(List<NameValue> values) {
+    public static BytesRef encodeMultipleValuesForField(List<NameValue> values) {
         assert values.isEmpty() == false;
         try {
             BytesStreamOutput stream = new BytesStreamOutput();
@@ -268,7 +268,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 assert false : "cannot write " + ignoredFieldValues.size() + " values with format NO_IGNORED_SOURCE";
             }
         },
-        SINGLE_IGNORED_SOURCE {
+        LEGACY_SINGLE_IGNORED_SOURCE {
             @Override
             public Map<String, List<NameValue>> loadAllIgnoredFields(SourceFilter filter, Map<String, List<Object>> storedFields) {
                 Map<String, List<NameValue>> objectsWithIgnoredFields = null;
@@ -312,7 +312,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 }
             }
         },
-        COALESCED_IGNORED_SOURCE {
+        COALESCED_SINGLE_IGNORED_SOURCE {
             @Override
             public Map<String, List<NameValue>> loadAllIgnoredFields(SourceFilter filter, Map<String, List<Object>> storedFields) {
                 Map<String, List<NameValue>> objectsWithIgnoredFields = null;
@@ -398,8 +398,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static IgnoredSourceFormat ignoredSourceFormat(IndexVersion indexCreatedVersion) {
         return indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY_WITH_FF)
             && COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()
-                ? IgnoredSourceFormat.COALESCED_IGNORED_SOURCE
-                : IgnoredSourceFormat.SINGLE_IGNORED_SOURCE;
+                ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE
+                : IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE;
     }
 
     @Override

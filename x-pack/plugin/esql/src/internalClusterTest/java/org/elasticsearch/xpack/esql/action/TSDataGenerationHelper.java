@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +66,29 @@ class TSDataGenerationHelper {
             return dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toList());
         }).toList();
 
+        // We want to ensure that all documents have different timestamps.
+        var now = Instant.now();
+        var timestampSet = new HashSet<Instant>();
+        var regens = 0;
+        for (int i = 0; i < numDocs; i++) {
+            // Random timestamps within the last 90 days.
+            while (true) {
+                var randomIns = Instant.ofEpochMilli(
+                    ESTestCase.randomLongBetween(now.minusSeconds(60 * 60 * 2).toEpochMilli(), now.toEpochMilli())
+                );
+                if (timestampSet.add(randomIns)) {
+                    break;
+                }
+                regens++;
+                if (regens > numDocs) {
+                    throw new IllegalStateException("Too many collisions when generating timestamps");
+                }
+            }
+        }
+        // Timestampset should have exactly numDocs entries - this works as long as the random number generator
+        // does not cycle early.
+        assert timestampSet.size() == numDocs : "Expected [" + numDocs + "] timestamps but got [" + timestampSet.size() + "]";
+        var timestampsIter = timestampSet.iterator();
         spec = DataGeneratorSpecification.builder()
             .withMaxFieldCountPerLevel(0)
             .withPredefinedFields(
@@ -73,7 +97,7 @@ class TSDataGenerationHelper {
                         "@timestamp",
                         FieldType.DATE,
                         Map.of("type", "date"),
-                        fieldMapping -> ESTestCase.randomInstantBetween(Instant.now().minusSeconds(2 * 60 * 60), Instant.now())
+                        fieldMapping -> timestampsIter.next()
                     ),
                     new PredefinedField.WithGenerator(
                         "attributes",

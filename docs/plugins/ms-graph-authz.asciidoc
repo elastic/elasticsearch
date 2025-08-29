@@ -46,6 +46,7 @@ sudo bin/elasticsearch-plugin remove {plugin_name}
 
 The node must be stopped before removing the plugin.
 
+[discrete]
 ==== Configuration
 To learn how to configure the Microsoft Graph Authz plugin, refer to <<configure-elasticsearch,configuration properties>>.
 

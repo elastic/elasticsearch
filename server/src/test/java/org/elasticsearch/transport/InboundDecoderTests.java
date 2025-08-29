@@ -356,7 +356,7 @@ public class InboundDecoderTests extends ESTestCase {
     public void testVersionIncompatibilityDecodeException() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
         OutboundMessage message = new OutboundMessage.Request(
             threadContext,
             new TestRequest(randomAlphaOfLength(100)),
@@ -385,13 +385,13 @@ public class InboundDecoderTests extends ESTestCase {
     public void testCheckVersionCompatibility() {
         try {
             InboundDecoder.checkVersionCompatibility(
-                TransportVersionUtils.randomVersionBetween(random(), TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current())
+                TransportVersionUtils.randomVersionBetween(random(), TransportVersion.minimumCompatible(), TransportVersion.current())
             );
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
 
-        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
         try {
             InboundDecoder.checkVersionCompatibility(invalid);
             fail();
@@ -400,7 +400,7 @@ public class InboundDecoderTests extends ESTestCase {
                 "Received message from unsupported version: ["
                     + invalid.toReleaseVersion()
                     + "] minimal compatible version is: ["
-                    + TransportVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
+                    + TransportVersion.minimumCompatible().toReleaseVersion()
                     + "]",
                 expected.getMessage()
             );

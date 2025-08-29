@@ -15,6 +15,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
+import org.elasticsearch.logstashbridge.common.ProjectIdBridge;
 import org.elasticsearch.logstashbridge.env.EnvironmentBridge;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 import org.elasticsearch.logstashbridge.threadpool.ThreadPoolBridge;
@@ -178,14 +179,15 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
      * An external bridge for {@link Processor.Factory}
      */
     interface Factory extends StableBridgeAPI<Processor.Factory> {
-        @Deprecated // supply ProjectId
+
+        @Deprecated // supply ProjectIdBridge
         default ProcessorBridge create(
             Map<String, ProcessorBridge.Factory> registry,
             String processorTag,
             String description,
             Map<String, Object> config
         ) throws Exception {
-            return this.create(registry, processorTag, description, config, ProjectId.DEFAULT);
+            return this.create(registry, processorTag, description, config, ProjectIdBridge.getDefault());
         }
 
         ProcessorBridge create(
@@ -193,7 +195,7 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
             String processorTag,
             String description,
             Map<String, Object> config,
-            ProjectId projectId
+            ProjectIdBridge projectId
         ) throws Exception;
 
         static Factory fromInternal(final Processor.Factory delegate) {
@@ -218,10 +220,11 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
                 final String processorTag,
                 final String description,
                 final Map<String, Object> config,
-                final ProjectId projectId
+                final ProjectIdBridge bridgedProjectId
             ) throws Exception {
                 final Map<String, Processor.Factory> internalRegistry = StableBridgeAPI.toInternal(registry);
                 final Processor.Factory internalFactory = toInternal();
+                final ProjectId projectId = bridgedProjectId.toInternal();
                 final Processor internalProcessor = internalFactory.create(internalRegistry, processorTag, description, config, projectId);
                 return ProcessorBridge.fromInternal(internalProcessor);
             }
@@ -260,14 +263,15 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
                 ) throws Exception {
                     final Map<String, ProcessorBridge.Factory> bridgedProcessorFactories = StableBridgeAPI.fromInternal(
                         processorFactories,
-                        ProcessorBridge.Factory.ProxyInternal::new
+                        ProcessorBridge.Factory::fromInternal
                     );
+                    final ProjectIdBridge bridgedProjectId = ProjectIdBridge.fromInternal(projectId);
                     final ProcessorBridge bridgedProcessor = AbstractExternal.this.create(
                         bridgedProcessorFactories,
                         tag,
                         description,
                         config,
-                        projectId
+                        bridgedProjectId
                     );
                     return bridgedProcessor.toInternal();
                 }

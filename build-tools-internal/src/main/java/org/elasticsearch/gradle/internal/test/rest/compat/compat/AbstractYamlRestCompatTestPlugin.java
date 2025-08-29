@@ -43,6 +43,7 @@ import org.gradle.language.jvm.tasks.ProcessResources;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -95,10 +96,19 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         SourceSet yamlTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST);
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.YAML_REST_TEST, SOURCE_SET_NAME);
 
+        // determine the previous rest compatibility version and BWC project path
+        int currentMajor = buildParams.getBwcVersions().getCurrentVersion().getMajor();
+        Version lastMinor = buildParams.getBwcVersions()
+            .getUnreleased()
+            .stream()
+            .filter(v -> v.getMajor() == currentMajor - 1)
+            .min(Comparator.reverseOrder())
+            .get();
+        String lastMinorProjectPath = buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();
+
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
-        Dependency bwcMinor = project.getDependencies()
-            .project(Map.of("path", ":distribution:bwc:maintenance", "configuration", "checkout"));
+        Dependency bwcMinor = project.getDependencies().project(Map.of("path", lastMinorProjectPath, "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         String projectPath = project.getPath();

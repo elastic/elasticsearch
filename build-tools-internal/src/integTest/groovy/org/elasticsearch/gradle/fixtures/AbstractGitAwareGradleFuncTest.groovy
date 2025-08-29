@@ -26,6 +26,17 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
         execute("git clone ${remoteGitRepo.absolutePath} cloned", testProjectDir.root)
         buildFile = new File(testProjectDir.root, 'cloned/build.gradle')
         settingsFile = new File(testProjectDir.root, 'cloned/settings.gradle')
+        versionPropertiesFile = new File(testProjectDir.root, 'cloned/build-tools-internal/version.properties')
+        versionPropertiesFile.text = """
+            elasticsearch     = 9.1.0
+            lucene            = 10.2.2
+
+            bundled_jdk_vendor = openjdk
+            bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
+            minimumJdkVersion = 21
+            minimumRuntimeJava = 21
+            minimumCompilerJava = 21
+        """
     }
 
     File setupGitRemote() {

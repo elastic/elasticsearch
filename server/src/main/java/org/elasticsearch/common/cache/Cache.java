@@ -6,900 +6,337 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.core.Tuple;
-
-import java.lang.reflect.Array;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
+import java.util.Spliterator;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.ToLongBiFunction;
 
+import static org.elasticsearch.common.cache.RemovalNotification.RemovalReason.EVICTED;
+import static org.elasticsearch.common.cache.RemovalNotification.RemovalReason.INVALIDATED;
+import static org.elasticsearch.common.cache.RemovalNotification.RemovalReason.REPLACED;
+
 /**
- * A simple concurrent cache.
+ * Implementation of <a href="https://junchengyang.com/publication/nsdi24-SIEVE.pdf">SIEVE</a>
  * <p>
- * Cache is a simple concurrent cache that supports time-based and weight-based evictions, with notifications for all
- * evictions. The design goals for this cache were simplicity and read performance. This means that we are willing to
- * accept reduced write performance in exchange for easy-to-understand code. Cache statistics for hits, misses and
- * evictions are exposed.
- * <p>
- * The design of the cache is relatively simple. The cache is segmented into 256 segments which are backed by HashMaps.
- * Each segment is protected by a re-entrant read/write lock. The read/write locks permit multiple concurrent readers
- * without contention, and the segments gives us write throughput without impacting readers (so readers are blocked only
- * if they are reading a segment that a writer is writing to).
- * <p>
- * The LRU functionality is backed by a single doubly-linked list chaining the entries in order of insertion. This
- * LRU list is protected by a lock that serializes all writes to it. There are opportunities for improvements
- * here if write throughput is a concern.
- * <ol>
- * <li>LRU list mutations could be inserted into a blocking queue that a single thread is reading from
- * and applying to the LRU list.</li>
- * <li>Promotions could be deferred for entries that were "recently" promoted.</li>
- * <li>Locks on the list could be taken per node being modified instead of globally.</li>
- * </ol>
- * <p>
- * Evictions only occur after a mutation to the cache (meaning an entry promotion, a cache insertion, or a manual
- * invalidation) or an explicit call to {@link #refresh()}.
+ * SIEVE, a simple, efficient, fast, and scalable cache eviction algorithm for web caches that leverages “lazy
+ * promotion” and “quick demotion”. The high efficiency in SIEVE comes from gradually sifting out the unpopular objects.
+ * </p>
+ * maxSize and maxWeight are soft limits and we might surge over.
  *
- * @param <K> The type of the keys
- * @param <V> The type of the values
+ * @param <Key> type of keys used for lookup
+ * @param <Value> type of values this cache can hold.
  */
-public class Cache<K, V> {
+public class Cache<Key, Value> {
 
-    private final LongAdder hits = new LongAdder();
+    private static class EntryHolder<Key, Value> {
+        public final Key key;
+        public final Value value;
+        public final AtomicBoolean visited = new AtomicBoolean(false);
 
-    private final LongAdder misses = new LongAdder();
-
-    private final LongAdder evictions = new LongAdder();
-
-    // positive if entries have an expiration
-    private long expireAfterAccessNanos = -1;
-
-    // true if entries can expire after access
-    private boolean entriesExpireAfterAccess;
-
-    // positive if entries have an expiration after write
-    private long expireAfterWriteNanos = -1;
-
-    // true if entries can expire after initial insertion
-    private boolean entriesExpireAfterWrite;
-
-    // the number of entries in the cache
-    private int count = 0;
-
-    // the weight of the entries in the cache
-    private long weight = 0;
-
-    // the maximum weight that this cache supports
-    private long maximumWeight = -1;
-
-    // the weigher of entries
-    private ToLongBiFunction<K, V> weigher = (k, v) -> 1;
-
-    // the removal callback
-    private RemovalListener<K, V> removalListener = notification -> {};
-
-    // use CacheBuilder to construct
-    Cache() {}
-
-    void setExpireAfterAccessNanos(long expireAfterAccessNanos) {
-        if (expireAfterAccessNanos <= 0) {
-            throw new IllegalArgumentException("expireAfterAccessNanos <= 0");
-        }
-        this.expireAfterAccessNanos = expireAfterAccessNanos;
-        this.entriesExpireAfterAccess = true;
-    }
-
-    // public for testing
-    public long getExpireAfterAccessNanos() {
-        return this.expireAfterAccessNanos;
-    }
-
-    void setExpireAfterWriteNanos(long expireAfterWriteNanos) {
-        if (expireAfterWriteNanos <= 0) {
-            throw new IllegalArgumentException("expireAfterWriteNanos <= 0");
-        }
-        this.expireAfterWriteNanos = expireAfterWriteNanos;
-        this.entriesExpireAfterWrite = true;
-    }
-
-    // pkg-private for testing
-    long getExpireAfterWriteNanos() {
-        return this.expireAfterWriteNanos;
-    }
-
-    void setMaximumWeight(long maximumWeight) {
-        if (maximumWeight < 0) {
-            throw new IllegalArgumentException("maximumWeight < 0");
-        }
-        this.maximumWeight = maximumWeight;
-    }
-
-    void setWeigher(ToLongBiFunction<K, V> weigher) {
-        Objects.requireNonNull(weigher);
-        this.weigher = weigher;
-    }
-
-    void setRemovalListener(RemovalListener<K, V> removalListener) {
-        Objects.requireNonNull(removalListener);
-        this.removalListener = removalListener;
-    }
-
-    /**
-     * The relative time used to track time-based evictions.
-     *
-     * @return the current relative time
-     */
-    protected long now() {
-        // System.nanoTime takes non-negligible time, so we only use it if we need it
-        // use System.nanoTime because we want relative time, not absolute time
-        return entriesExpireAfterAccess || entriesExpireAfterWrite ? System.nanoTime() : 0;
-    }
-
-    // the state of an entry in the LRU list
-    enum State {
-        NEW,
-        EXISTING,
-        DELETED
-    }
-
-    private static final class Entry<K, V> {
-        final K key;
-        final V value;
-        final long writeTime;
-        volatile long accessTime;
-        Entry<K, V> before;
-        Entry<K, V> after;
-        State state = State.NEW;
-
-        Entry(K key, V value, long writeTime) {
+        EntryHolder(Key key, Value value) {
             this.key = key;
             this.value = value;
-            this.writeTime = this.accessTime = writeTime;
         }
     }
 
-    /**
-     * A cache segment.
-     * <p>
-     * A CacheSegment is backed by a HashMap and is protected by a read/write lock.
-     */
-    private final class CacheSegment {
-        // read/write lock protecting mutations to the segment
-        final ReadWriteLock segmentLock = new ReentrantReadWriteLock();
+    private final ConcurrentMap<Key, EntryHolder<Key, Value>> cache = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedDeque<EntryHolder<Key, Value>> queue = new ConcurrentLinkedDeque<>();
+    private final AtomicLong weight = new AtomicLong();
+    private final LongAdder hits = new LongAdder();
+    private final LongAdder misses = new LongAdder();
+    private final LongAdder evictions = new LongAdder();
+    private final Object sieveLock = new Object();
+    private volatile Iterator<EntryHolder<Key, Value>> sieve;
+    private final Long maxCapacity;
+    private final Long maxWeight;
+    private final ToLongBiFunction<Key, Value> weigher;
+    private final RemovalListener<Key, Value> removalListener;
 
-        final Lock readLock = segmentLock.readLock();
-        final Lock writeLock = segmentLock.writeLock();
-
-        Map<K, CompletableFuture<Entry<K, V>>> map;
-
-        /**
-         * get an entry from the segment; expired entries will be returned as null but not removed from the cache until the LRU list is
-         * pruned or a manual {@link Cache#refresh()} is performed however a caller can take action using the provided callback
-         *
-         * @param key       the key of the entry to get from the cache
-         * @param now       the access time of this entry
-         * @param eagerEvict whether entries should be eagerly evicted on expiration
-         * @return the entry if there was one, otherwise null
-         */
-        Entry<K, V> get(K key, long now, boolean eagerEvict) {
-            CompletableFuture<Entry<K, V>> future;
-            readLock.lock();
-            try {
-                future = map == null ? null : map.get(key);
-            } finally {
-                readLock.unlock();
-            }
-            if (future != null) {
-                Entry<K, V> entry;
-                try {
-                    entry = future.get();
-                } catch (ExecutionException e) {
-                    assert future.isCompletedExceptionally();
-                    misses.increment();
-                    return null;
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
-                if (isExpired(entry, now)) {
-                    misses.increment();
-                    if (eagerEvict) {
-                        lruLock.lock();
-                        try {
-                            evictEntry(entry);
-                        } finally {
-                            lruLock.unlock();
-                        }
-                    }
-                    return null;
-                } else {
-                    hits.increment();
-                    entry.accessTime = now;
-                    return entry;
-                }
-            } else {
-                misses.increment();
-                return null;
-            }
-        }
-
-        /**
-         * put an entry into the segment
-         *
-         * @param key   the key of the entry to add to the cache
-         * @param value the value of the entry to add to the cache
-         * @param now   the access time of this entry
-         * @return a tuple of the new entry and the existing entry, if there was one otherwise null
-         */
-        Tuple<Entry<K, V>, Entry<K, V>> put(K key, V value, long now) {
-            Entry<K, V> entry = new Entry<>(key, value, now);
-            Entry<K, V> existing = null;
-            writeLock.lock();
-            try {
-                try {
-                    if (map == null) {
-                        map = new HashMap<>();
-                    }
-                    CompletableFuture<Entry<K, V>> future = map.put(key, CompletableFuture.completedFuture(entry));
-                    if (future != null) {
-                        existing = future.handle((ok, ex) -> ok).get();
-                    }
-                } catch (ExecutionException | InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
-            } finally {
-                writeLock.unlock();
-            }
-            return Tuple.tuple(entry, existing);
-        }
-
-        /**
-         * remove an entry from the segment
-         *
-         * @param key       the key of the entry to remove from the cache
-         */
-        void remove(K key) {
-            CompletableFuture<Entry<K, V>> future;
-            writeLock.lock();
-            try {
-                if (map == null) {
-                    future = null;
-                } else {
-                    future = map.remove(key);
-                    if (map.isEmpty()) {
-                        map = null;
-                    }
-                }
-            } finally {
-                writeLock.unlock();
-            }
-            if (future != null) {
-                evictions.increment();
-                notifyWithInvalidated(future);
-            }
-        }
-
-        /**
-         * remove an entry from the segment iff the future is done and the value is equal to the
-         * expected value
-         *
-         * @param key the key of the entry to remove from the cache
-         * @param value the value expected to be associated with the key
-         * @param notify whether to trigger a removal notification if the entry has been removed
-         */
-        void remove(K key, V value, boolean notify) {
-            CompletableFuture<Entry<K, V>> future;
-            boolean removed = false;
-            writeLock.lock();
-            try {
-                future = map == null ? null : map.get(key);
-                try {
-                    if (future != null) {
-                        if (future.isDone()) {
-                            Entry<K, V> entry = future.get();
-                            if (Objects.equals(value, entry.value)) {
-                                removed = map.remove(key, future);
-                                if (map.isEmpty()) {
-                                    map = null;
-                                }
-                            }
-                        }
-                    }
-                } catch (ExecutionException | InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
-            } finally {
-                writeLock.unlock();
-            }
-
-            if (future != null && removed) {
-                evictions.increment();
-                if (notify) {
-                    notifyWithInvalidated(future);
-                }
-            }
-        }
-
+    public Cache() {
+        this(null,null,null,null);
     }
 
-    public static final int NUMBER_OF_SEGMENTS = 256;
-    @SuppressWarnings("unchecked")
-    private final CacheSegment[] segments = (CacheSegment[]) Array.newInstance(CacheSegment.class, NUMBER_OF_SEGMENTS);
-
-    {
-        for (int i = 0; i < segments.length; i++) {
-            segments[i] = new CacheSegment();
-        }
+    public Cache(Long maxCapacity, Long maxWeight, RemovalListener<Key, Value> removalListener, ToLongBiFunction<Key, Value> weigher) {
+        this.maxCapacity = maxCapacity;
+        this.maxWeight = maxWeight;
+        this.removalListener = removalListener != null ? removalListener : (notification) -> {} ;
+        this.weigher = weigher != null ? weigher : (key, value) -> 0;
     }
 
-    Entry<K, V> head;
-    Entry<K, V> tail;
-
-    // lock protecting mutations to the LRU list
-    private final ReentrantLock lruLock = new ReentrantLock();
-
-    /**
-     * Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.
-     *
-     * @param key the key whose associated value is to be returned
-     * @return the value to which the specified key is mapped, or null if this map contains no mapping for the key
-     */
-    public V get(K key) {
-        return get(key, now(), false);
-    }
-
-    private V get(K key, long now, boolean eagerEvict) {
-        CacheSegment segment = getCacheSegment(key);
-        Entry<K, V> entry = segment.get(key, now, eagerEvict);
-        if (entry == null) {
-            return null;
-        } else {
-            promote(entry, now);
+    public Value get(Key key) {
+        EntryHolder<Key, Value> entry = cache.get(key);
+        if(entry != null) {
+            hits.increment();
+            entry.visited.set(true);
             return entry.value;
         }
+        misses.increment();
+        return null;
     }
 
-    /**
-     * If the specified key is not already associated with a value (or is mapped to null), attempts to compute its
-     * value using the given mapping function and enters it into this map unless null. The load method for a given key
-     * will be invoked at most once.
-     *
-     * Use of different {@link CacheLoader} implementations on the same key concurrently may result in only the first
-     * loader function being called and the second will be returned the result provided by the first including any exceptions
-     * thrown during the execution of the first.
-     *
-     * @param key    the key whose associated value is to be returned or computed for if non-existent
-     * @param loader the function to compute a value given a key
-     * @return the current (existing or computed) non-null value associated with the specified key
-     * @throws ExecutionException thrown if loader throws an exception or returns a null value
-     */
-    public V computeIfAbsent(K key, CacheLoader<K, V> loader) throws ExecutionException {
-        long now = now();
-        // we have to eagerly evict expired entries or our putIfAbsent call below will fail
-        V value = get(key, now, true);
-        if (value == null) {
-            // we need to synchronize loading of a value for a given key; however, holding the segment lock while
-            // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
-            // need a mechanism to ensure that load is invoked at most once, but we are not invoking load while holding
-            // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
-            // get the value from this future on the thread that won the race to place the future into the segment map
-            final CacheSegment segment = getCacheSegment(key);
-            CompletableFuture<Entry<K, V>> future;
-            CompletableFuture<Entry<K, V>> completableFuture = new CompletableFuture<>();
+    public void put(Key key, Value value) {
+        EntryHolder<Key, Value> newHead = new EntryHolder<>(key, value);
+        EntryHolder<Key, Value> oldValue = cache.put(key, newHead);
+        weight.getAndAdd(weigher.applyAsLong(key, value));
+        appendToHead(newHead);
+        if(oldValue!=null) {
+            weight.getAndAdd(-weigher.applyAsLong(oldValue.key, oldValue.value));
+            removeFromQueue(oldValue, REPLACED);
+        }
+        sieveUntilSpace();
+    }
 
-            segment.writeLock.lock();
-            try {
-                if (segment.map == null) {
-                    segment.map = new HashMap<>();
-                }
-                future = segment.map.putIfAbsent(key, completableFuture);
-            } finally {
-                segment.writeLock.unlock();
-            }
-
-            BiFunction<? super Entry<K, V>, Throwable, ? extends V> handler = (ok, ex) -> {
-                if (ok != null) {
-                    promote(ok, now);
-                    return ok.value;
-                } else {
-                    segment.writeLock.lock();
-                    try {
-                        CompletableFuture<Entry<K, V>> sanity = segment.map == null ? null : segment.map.get(key);
-                        if (sanity != null && sanity.isCompletedExceptionally()) {
-                            segment.map.remove(key);
-                            if (segment.map.isEmpty()) {
-                                segment.map = null;
-                            }
-                        }
-                    } finally {
-                        segment.writeLock.unlock();
-                    }
-                    return null;
-                }
-            };
-
-            CompletableFuture<V> completableValue;
-            if (future == null) {
-                future = completableFuture;
-                completableValue = future.handle(handler);
-                V loaded;
+    public Value computeIfAbsent(Key key, CacheLoader<Key, Value> loader) throws ExecutionException {
+        Objects.requireNonNull(loader);
+        try {
+            EntryHolder<Key, Value> entry = cache.computeIfAbsent(key, (loadKey) -> {
                 try {
-                    loaded = loader.load(key);
+                    return new EntryHolder<>(loadKey, loader.load(loadKey));
                 } catch (Exception e) {
-                    future.completeExceptionally(e);
-                    throw new ExecutionException(e);
+                    throw new CacheLoaderException(e);
                 }
-                if (loaded == null) {
-                    NullPointerException npe = new NullPointerException("loader returned a null value");
-                    future.completeExceptionally(npe);
-                    throw new ExecutionException(npe);
-                } else {
-                    future.complete(new Entry<>(key, loaded, now));
-                }
+            });
+            weight.getAndAdd(weigher.applyAsLong(entry.key, entry.value));
+            appendToHead(entry);
+            sieveUntilSpace();
+            return entry.value;
+        } catch (CacheLoaderException e) {
+            throw new ExecutionException(e.getCause());
+        }
+    }
+
+    public void invalidate(Key key) {
+        EntryHolder<Key, Value> removedEntry = cache.remove(key);
+        if(removedEntry != null) {
+            weight.getAndAdd(-weigher.applyAsLong(removedEntry.key, removedEntry.value));
+            removeFromQueue(removedEntry, INVALIDATED);
+        }
+    }
+
+    public void invalidate(Key key, Value value) {
+        EntryHolder<Key, Value> entry = cache.get(key);
+        if(entry != null && entry.value.equals(value)) {
+            if(cache.remove(key, entry)) {
+                weight.getAndAdd(-weigher.applyAsLong(entry.key, entry.value));
+                removeFromQueue(entry, INVALIDATED);
             } else {
-                completableValue = future.handle(handler);
-            }
-
-            try {
-                value = completableValue.get();
-                // check to ensure the future hasn't been completed with an exception
-                if (future.isCompletedExceptionally()) {
-                    future.get(); // call get to force the exception to be thrown for other concurrent callers
-                    throw new IllegalStateException("the future was completed exceptionally but no exception was thrown");
-                }
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
+                // Value already replaced before we could remove it. Invalidating is no longer necessary
             }
         }
-        return value;
     }
 
-    /**
-     * Associates the specified value with the specified key in this map. If the map previously contained a mapping for
-     * the key, the old value is replaced.
-     *
-     * @param key   key with which the specified value is to be associated
-     * @param value value to be associated with the specified key
-     */
-    public void put(K key, V value) {
-        long now = now();
-        put(key, value, now);
-    }
-
-    private void put(K key, V value, long now) {
-        CacheSegment segment = getCacheSegment(key);
-        Tuple<Entry<K, V>, Entry<K, V>> tuple = segment.put(key, value, now);
-        boolean replaced = false;
-        lruLock.lock();
-        try {
-            if (tuple.v2() != null && tuple.v2().state == State.EXISTING) {
-                if (unlink(tuple.v2())) {
-                    replaced = true;
-                }
-            }
-            promote(tuple.v1(), now);
-        } finally {
-            lruLock.unlock();
-        }
-        if (replaced) {
-            removalListener.onRemoval(
-                new RemovalNotification<>(tuple.v2().key, tuple.v2().value, RemovalNotification.RemovalReason.REPLACED)
-            );
-        }
-    }
-
-    private void notifyWithInvalidated(CompletableFuture<Entry<K, V>> f) {
-        try {
-            Entry<K, V> entry = f.get();
-            lruLock.lock();
-            try {
-                delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
-            } finally {
-                lruLock.unlock();
-            }
-        } catch (ExecutionException e) {
-            // ok
-        } catch (InterruptedException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    /**
-     * Invalidate the association for the specified key. A removal notification will be issued for invalidated
-     * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
-     *
-     * @param key the key whose mapping is to be invalidated from the cache
-     */
-    public void invalidate(K key) {
-        CacheSegment segment = getCacheSegment(key);
-        segment.remove(key);
-    }
-
-    /**
-     * Invalidate the entry for the specified key and value. If the value provided is not equal to the value in
-     * the cache, no removal will occur. A removal notification will be issued for invalidated
-     * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
-     *
-     * @param key the key whose mapping is to be invalidated from the cache
-     * @param value the expected value that should be associated with the key
-     */
-    public void invalidate(K key, V value) {
-        CacheSegment segment = getCacheSegment(key);
-        segment.remove(key, value, true);
-    }
-
-    /**
-     * Invalidate all cache entries. A removal notification will be issued for invalidated entries with
-     * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
-     */
     public void invalidateAll() {
-        Entry<K, V> h;
-
-        boolean[] haveSegmentLock = new boolean[NUMBER_OF_SEGMENTS];
-        lruLock.lock();
-        try {
-            try {
-                for (int i = 0; i < NUMBER_OF_SEGMENTS; i++) {
-                    segments[i].segmentLock.writeLock().lock();
-                    haveSegmentLock[i] = true;
-                }
-                h = head;
-                for (CacheSegment segment : segments) {
-                    segment.map = null;
-                }
-                Entry<K, V> current = head;
-                while (current != null) {
-                    current.state = State.DELETED;
-                    current = current.after;
-                }
-                head = tail = null;
-                count = 0;
-                weight = 0;
-            } finally {
-                for (int i = NUMBER_OF_SEGMENTS - 1; i >= 0; i--) {
-                    if (haveSegmentLock[i]) {
-                        segments[i].segmentLock.writeLock().unlock();
-                    }
-                }
+        while(true) {
+            EntryHolder<Key, Value> entry = queue.pollLast();
+            if(entry == null) {
+                break;
             }
-        } finally {
-            lruLock.unlock();
-        }
-        while (h != null) {
-            removalListener.onRemoval(new RemovalNotification<>(h.key, h.value, RemovalNotification.RemovalReason.INVALIDATED));
-            h = h.after;
+            if(cache.remove(entry.key, entry)) {
+                weight.getAndAdd(-weigher.applyAsLong(entry.key, entry.value));
+                removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, INVALIDATED));
+            }
         }
     }
 
-    /**
-     * Force any outstanding size-based and time-based evictions to occur
-     */
     public void refresh() {
-        long now = now();
-        lruLock.lock();
-        try {
-            evict(now);
-        } finally {
-            lruLock.unlock();
-        }
+        sieveUntilSpace();
     }
 
-    /**
-     * The number of entries in the cache.
-     *
-     * @return the number of entries in the cache
-     */
     public int count() {
-        return count;
+        return cache.size();
     }
 
-    /**
-     * The weight of the entries in the cache.
-     *
-     * @return the weight of the entries in the cache
-     */
     public long weight() {
-        return weight;
+        return weight.get();
     }
 
-    /**
-     * An LRU sequencing of the keys in the cache that supports removal. This sequence is not protected from mutations
-     * to the cache (except for {@link Iterator#remove()}. The result of iteration under any other mutation is
-     * undefined.
-     *
-     * @return an LRU-ordered {@link Iterable} over the keys in the cache
-     */
-    public Iterable<K> keys() {
-        return () -> new Iterator<>() {
-            private final CacheIterator iterator = new CacheIterator(head);
+    public Iterable<Key> keys() {
+        return cache.keySet();
+    }
 
+    public Iterable<Value> values() {
+        return new Iterable<>() {
             @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
+            public Iterator<Value> iterator() {
+                return new UnwrappingIterator(cache.values().iterator());
             }
 
             @Override
-            public K next() {
-                return iterator.next().key;
-            }
-
-            @Override
-            public void remove() {
-                iterator.remove();
+            public Spliterator<Value> spliterator() {
+                return new UnwrappingSpliterator(cache.values().spliterator());
             }
         };
     }
 
-    /**
-     * An LRU sequencing of the values in the cache. This sequence is not protected from mutations
-     * to the cache (except for {@link Iterator#remove()}. The result of iteration under any other mutation is
-     * undefined.
-     *
-     * @return an LRU-ordered {@link Iterable} over the values in the cache
-     */
-    public Iterable<V> values() {
-        return () -> new Iterator<>() {
-            private final CacheIterator iterator = new CacheIterator(head);
-
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public V next() {
-                return iterator.next().value;
-            }
-
-            @Override
-            public void remove() {
-                iterator.remove();
-            }
-        };
+    public Stats stats() {
+        return new Stats(hits.sum(),misses.sum(),evictions.sum());
     }
 
-    /**
-     * Performs an action for each cache entry in the cache. While iterating over the cache entries this method is protected from mutations
-     * that occurs within the same cache segment by acquiring the segment's read lock during all the iteration. As such, the specified
-     * consumer should not try to modify the cache. Modifications that occur in already traveled segments won't been seen by the consumer
-     * but modification that occur in non yet traveled segments should be.
-     *
-     * @param consumer the {@link Consumer}
-     */
-    public void forEach(BiConsumer<K, V> consumer) {
-        for (CacheSegment segment : segments) {
-            segment.readLock.lock();
-            try {
-                if (segment.map == null) {
-                    continue;
-                }
-                for (CompletableFuture<Entry<K, V>> future : segment.map.values()) {
-                    try {
-                        if (future != null && future.isDone()) {
-                            final Entry<K, V> entry = future.get();
-                            consumer.accept(entry.key, entry.value);
-                        }
-                    } catch (ExecutionException | InterruptedException e) {
-                        throw new IllegalStateException(e);
+    public void forEach(BiConsumer<Key, Value> consumer) {
+        cache.forEach((key, entry) -> {
+            consumer.accept(key, entry.value);
+        });
+    }
+
+    private void sieveUntilSpace() {
+        if(hasSpace()) {
+            return;
+        }
+        synchronized (sieveLock) {
+            while (hasSpace()==false) {
+                if (sieve == null || sieve.hasNext() == false) {
+                    if(queue.isEmpty()) {
+                        return; // protect against queue.clear() etc.
                     }
+                    sieve = queue.descendingIterator();
                 }
-            } finally {
-                segment.readLock.unlock();
+                EntryHolder<Key, Value> entry = sieve.next();
+                if(entry.visited.get() == false) {
+                    if(cache.remove(entry.key, entry)) {
+                        weight.getAndAdd(-weigher.applyAsLong(entry.key, entry.value));
+                    }
+                    sieve.remove();
+                    removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, EVICTED));
+                    evictions.increment();
+                }
             }
         }
     }
 
-    private class CacheIterator implements Iterator<Entry<K, V>> {
-        private Entry<K, V> current;
-        private Entry<K, V> next;
+    private boolean hasSpace() {
+        return (maxCapacity==null || count()<maxCapacity) && (maxWeight==null || weight()<maxWeight);
+    }
 
-        CacheIterator(Entry<K, V> head) {
-            current = null;
-            next = head;
+    private void appendToHead(EntryHolder<Key, Value> newHead) {
+        queue.addFirst(newHead);
+    }
+
+    /**
+     * We should hold that regardless of which entry, we should be able to transverse to the head.
+     * @param entry currently linked entry
+     */
+    private void removeFromQueue(EntryHolder<Key, Value> entry, RemovalNotification.RemovalReason reason) {
+        queue.remove(entry);
+        removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, reason));
+    }
+
+    private static class CacheLoaderException extends RuntimeException {
+        CacheLoaderException(Throwable throwable) {
+            super(throwable);
+        }
+    }
+
+    private class UnwrappingSpliterator implements Spliterator<Value> {
+        private final Spliterator<EntryHolder<Key, Value>> spliterator;
+
+        UnwrappingSpliterator(Spliterator<EntryHolder<Key, Value>> spliterator) {
+            Objects.requireNonNull(spliterator);
+            if(spliterator.hasCharacteristics(ORDERED) || spliterator.hasCharacteristics(SORTED)){
+                throw new UnsupportedOperationException("Because we erase context(key), #getComparator() can't be implemented in any efficient way.");
+            }
+            this.spliterator = spliterator;
+        }
+
+        @Override
+        public boolean tryAdvance(Consumer<? super Value> action) {
+            return spliterator.tryAdvance(entry -> action.accept(entry.value));
+        }
+
+        @Override
+        public Spliterator<Value> trySplit() {
+            return new UnwrappingSpliterator(spliterator.trySplit());
+        }
+
+        @Override
+        public long estimateSize() {
+            return spliterator.estimateSize();
+        }
+
+        @Override
+        public int characteristics() {
+            return spliterator.characteristics();
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super Value> action) {
+            spliterator.forEachRemaining((entry) -> action.accept(entry.value));
+        }
+
+        @Override
+        public Comparator<? super Value> getComparator() {
+            throw new IllegalStateException();
+        }
+
+        @Override
+        public long getExactSizeIfKnown() {
+            return spliterator.getExactSizeIfKnown();
+        }
+
+        @Override
+        public boolean hasCharacteristics(int characteristics) {
+            return spliterator.hasCharacteristics(characteristics);
+        }
+    }
+
+    private class UnwrappingIterator implements Iterator<Value> {
+        private final Iterator<EntryHolder<Key, Value>> iterator;
+
+        UnwrappingIterator(Iterator<EntryHolder<Key, Value>> iterator) {
+            this.iterator = iterator;
         }
 
         @Override
         public boolean hasNext() {
-            return next != null;
+            return iterator.hasNext();
         }
 
         @Override
-        public Entry<K, V> next() {
-            current = next;
-            next = next.after;
-            return current;
+        public Value next() {
+            EntryHolder<Key, Value> entry = iterator.next();
+            if(entry == null) {
+                return null;
+            }
+            return entry.value;
         }
 
         @Override
         public void remove() {
-            Entry<K, V> entry = current;
-            if (entry != null) {
-                CacheSegment segment = getCacheSegment(entry.key);
-                segment.remove(entry.key, entry.value, false);
-                lruLock.lock();
-                try {
-                    current = null;
-                    delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
-                } finally {
-                    lruLock.unlock();
-                }
-            }
+            iterator.remove();
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super Value> action) {
+            iterator.forEachRemaining((entry) -> action.accept(entry.value));
         }
     }
 
     /**
-     * The cache statistics tracking hits, misses and evictions. These are taken on a best-effort basis meaning that
-     * they could be out-of-date mid-flight.
-     *
-     * @return the current cache statistics
+     * Record holding the cache stats
+     * @param hits number of cache hits since creation.
+     * @param misses number of cache misses since creation.
+     * @param evictions number of cache ections since creation.
      */
-    public Stats stats() {
-        return new Stats(this.hits.sum(), misses.sum(), evictions.sum());
-    }
-
-    public static class Stats {
-        private final long hits;
-        private final long misses;
-        private final long evictions;
-
-        public Stats(long hits, long misses, long evictions) {
-            this.hits = hits;
-            this.misses = misses;
-            this.evictions = evictions;
-        }
-
-        public long getHits() {
+    public record Stats(long hits, long misses, long evictions) {
+        long getHits() {
             return hits;
         }
-
-        public long getMisses() {
+        long getMisses() {
             return misses;
         }
-
-        public long getEvictions() {
+        long getEvictions() {
             return evictions;
         }
-    }
-
-    private void promote(Entry<K, V> entry, long now) {
-        boolean promoted = true;
-        lruLock.lock();
-        try {
-            switch (entry.state) {
-                case DELETED -> promoted = false;
-                case EXISTING -> relinkAtHead(entry);
-                case NEW -> linkAtHead(entry);
-            }
-            if (promoted) {
-                evict(now);
-            }
-        } finally {
-            lruLock.unlock();
-        }
-    }
-
-    private void evict(long now) {
-        assert lruLock.isHeldByCurrentThread();
-
-        while (tail != null && shouldPrune(tail, now)) {
-            evictEntry(tail);
-        }
-    }
-
-    private void evictEntry(Entry<K, V> entry) {
-        assert lruLock.isHeldByCurrentThread();
-
-        CacheSegment segment = getCacheSegment(entry.key);
-        if (segment != null) {
-            segment.remove(entry.key, entry.value, false);
-        }
-        delete(entry, RemovalNotification.RemovalReason.EVICTED);
-    }
-
-    private void delete(Entry<K, V> entry, RemovalNotification.RemovalReason removalReason) {
-        assert lruLock.isHeldByCurrentThread();
-
-        if (unlink(entry)) {
-            removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, removalReason));
-        }
-    }
-
-    private boolean shouldPrune(Entry<K, V> entry, long now) {
-        return exceedsWeight() || isExpired(entry, now);
-    }
-
-    private boolean exceedsWeight() {
-        return maximumWeight != -1 && weight > maximumWeight;
-    }
-
-    private boolean isExpired(Entry<K, V> entry, long now) {
-        return (entriesExpireAfterAccess && now - entry.accessTime > expireAfterAccessNanos)
-            || (entriesExpireAfterWrite && now - entry.writeTime > expireAfterWriteNanos);
-    }
-
-    private boolean unlink(Entry<K, V> entry) {
-        assert lruLock.isHeldByCurrentThread();
-
-        if (entry.state == State.EXISTING) {
-            final Entry<K, V> before = entry.before;
-            final Entry<K, V> after = entry.after;
-
-            if (before == null) {
-                // removing the head
-                assert head == entry;
-                head = after;
-                if (head != null) {
-                    head.before = null;
-                }
-            } else {
-                // removing inner element
-                before.after = after;
-                entry.before = null;
-            }
-
-            if (after == null) {
-                // removing tail
-                assert tail == entry;
-                tail = before;
-                if (tail != null) {
-                    tail.after = null;
-                }
-            } else {
-                // removing inner element
-                after.before = before;
-                entry.after = null;
-            }
-
-            count--;
-            weight -= weigher.applyAsLong(entry.key, entry.value);
-            entry.state = State.DELETED;
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    private void linkAtHead(Entry<K, V> entry) {
-        assert lruLock.isHeldByCurrentThread();
-
-        Entry<K, V> h = head;
-        entry.before = null;
-        entry.after = head;
-        head = entry;
-        if (h == null) {
-            tail = entry;
-        } else {
-            h.before = entry;
-        }
-
-        count++;
-        weight += weigher.applyAsLong(entry.key, entry.value);
-        entry.state = State.EXISTING;
-    }
-
-    private void relinkAtHead(Entry<K, V> entry) {
-        assert lruLock.isHeldByCurrentThread();
-
-        if (head != entry) {
-            unlink(entry);
-            linkAtHead(entry);
-        }
-    }
-
-    private CacheSegment getCacheSegment(K key) {
-        return segments[key.hashCode() & 0xff];
     }
 }

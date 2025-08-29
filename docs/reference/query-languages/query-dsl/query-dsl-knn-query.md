@@ -2,6 +2,9 @@
 navigation_title: "Knn"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-knn-query.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # Knn query [query-dsl-knn-query]
@@ -87,6 +90,9 @@ If all queried fields are of type [semantic_text](/reference/elasticsearch/mappi
 :   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set.
 
 
+```{applies_to}
+stack: ga 9.2
+```
 `visit_percentage`
 :   (Optional, float) The percentage of vectors to explore per shard while doing knn search with `bbq_disk`. Must be between 1 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  If `visit_percentage` is set for `bbq_disk`, `num_candidates` is ignored. Defaults to a reasonable percent per shard of ~1% for every 1 million vectors.
 

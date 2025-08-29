@@ -111,6 +111,13 @@ public interface ExponentialHistogram extends Accountable {
     long valueCount();
 
     /**
+     * Returns minimum of all values represented by this histogram.
+     *
+     * @return the minimum, NaN for empty histograms
+     */
+    double min();
+
+    /**
      * Represents a bucket range of an {@link ExponentialHistogram}, either the positive or the negative range.
      */
     interface Buckets {

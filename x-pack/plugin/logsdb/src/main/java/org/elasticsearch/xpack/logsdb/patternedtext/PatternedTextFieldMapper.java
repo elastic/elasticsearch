@@ -184,9 +184,13 @@ public class PatternedTextFieldMapper extends FieldMapper {
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
 
+        // Add args Info
+        String argsInfoEncoded = Arg.encodeInfo(parts.argsInfo());
+        context.doc().add(new SortedSetDocValuesField(fieldType().argsInfoFieldName(), new BytesRef(argsInfoEncoded)));
+
         // Add args doc_values
         if (parts.args().isEmpty() == false) {
-            String remainingArgs = PatternedTextValueProcessor.encodeRemainingArgs(parts);
+            String remainingArgs = Arg.encodeRemainingArgs(parts);
             context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
         }
     }
@@ -207,7 +211,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
             () -> new CompositeSyntheticFieldLoader(
                 leafName(),
                 fullPath(),
-                new PatternedTextSyntheticFieldLoaderLayer(fieldType().name(), fieldType().templateFieldName(), fieldType().argsFieldName())
+                new PatternedTextSyntheticFieldLoaderLayer(
+                    fieldType().name(),
+                    fieldType().templateFieldName(),
+                    fieldType().argsFieldName(),
+                    fieldType().argsInfoFieldName()
+                )
             )
         );
     }

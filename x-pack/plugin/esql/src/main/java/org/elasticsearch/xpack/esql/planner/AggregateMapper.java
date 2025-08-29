@@ -96,7 +96,7 @@ final class AggregateMapper {
             } else {
                 dataType = DataType.fromEs(is.dataType());
             }
-            return new ReferenceAttribute(Source.EMPTY, Attribute.rawTemporaryName(aggAlias, is.name()), dataType);
+            return new ReferenceAttribute(Source.EMPTY, null, Attribute.rawTemporaryName(aggAlias, is.name()), dataType);
         });
     }
 

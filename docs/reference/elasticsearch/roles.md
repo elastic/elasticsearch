@@ -67,8 +67,8 @@ $$$built-in-roles-ingest-user$$$ `ingest_admin`
     ::::
 
 
-$$$built-in-roles-kibana-dashboard$$$ `kibana_dashboard_only_user`
-:   (This role is deprecated, please use [{{kib}} feature privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md#kibana-feature-privileges) instead). Grants read-only access to the {{kib}} Dashboard in every [space in {{kib}}](docs-content://deploy-manage/manage-spaces.md). This role does not have access to editing tools in {{kib}}.
+$$$built-in-roles-kibana-dashboard$$$ `kibana_dashboard_only_user` {applies_to}`stack: deprecated`
+:   This role is deprecated, use [{{kib}} feature privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md#kibana-feature-privileges) instead. Grants read-only access to the {{kib}} Dashboard in every [space in {{kib}}](docs-content://deploy-manage/manage-spaces.md). This role does not have access to editing tools in {{kib}}.
 
 $$$built-in-roles-kibana-system$$$ `kibana_system`
 :   Grants access necessary for the {{kib}} system user to read from and write to the {{kib}} indices, manage index templates and tokens, and check the availability of the {{es}} cluster. It also permits activating, searching, and retrieving user profiles, as well as updating user profile data for the `kibana-*` namespace. This role grants read access to the `.monitoring-*` indices and read and write access to the `.reporting-*` indices. For more information, see [Configuring Security in {{kib}}](docs-content://deploy-manage/security/secure-your-cluster-deployment.md).
@@ -117,7 +117,7 @@ $$$built-in-roles-remote-monitoring-collector$$$ `remote_monitoring_collector`
 $$$built-in-roles-reporting-user$$$ `reporting_user` {applies_to}`stack: deprecated 9.0`
 :   This role is deprecated. Use [{{kib}} feature privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md#kibana-feature-privileges) instead.
     
-    Grants the necessary privileges required to use {{report-features}} in {{kib}}, including generating and downloading reports. This role implicitly grants access to all {{kib}} reporting features, with each user having access only to their own reports. Note that reporting users should also be assigned additional roles that grant read access to the [indices](https://www.elastic.co/guide/en/elasticsearch/reference/current/defining-roles.html#roles-indices-priv) that will be used to generate reports.
+    Grants the necessary privileges required to use {{report-features}} in {{kib}}, including generating and downloading reports. This role implicitly grants access to all {{kib}} reporting features, with each user having access only to their own reports. Note that reporting users should also be assigned additional roles that grant read access to the [indices](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/role-structure#roles-indices-priv) that will be used to generate reports.
 
 $$$built-in-roles-rollup-admin$$$ `rollup_admin`
 :   Grants `manage_rollup` cluster privileges, which enable you to manage and execute all rollup actions.

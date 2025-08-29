@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -204,9 +205,8 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     public void testIncrementalBulkMissingContent() {
-        assertThrows(
-            ElasticsearchParseException.class,
-            () -> new RestBulkAction(
+        try {
+            new RestBulkAction(
                 Settings.EMPTY,
                 ClusterSettings.createBuiltInClusterSettings(),
                 new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
@@ -217,8 +217,12 @@ public class RestBulkActionTests extends ESTestCase {
                     .build(),
                 mock(RestChannel.class),
                 mock(NodeClient.class)
-            )
-        );
+            );
+            assert false : "must throw";
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchParseException.class));
+            assertEquals("request body is required", e.getMessage());
+        }
     }
 
     public void testIncrementalParsing() {

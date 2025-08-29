@@ -673,6 +673,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             indexingPressure.trackReplicaOperationExpansion(getMaxOperationMemoryOverhead(request), force(request)),
             outerListener
         );
+        request.createSharedKeyBytes();
         ActionListener.completeWith(listener, () -> {
             final long startBulkTime = System.nanoTime();
             final Translog.Location location = performOnReplica(request, replica);

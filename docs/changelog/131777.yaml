@@ -1,5 +1,0 @@
-pr: 131777
-summary: Update cache weight setting logic and calculations in `ApiKeyService.java`
-area: Authentication
-type: bug
-issues: []

@@ -13,12 +13,13 @@ import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.Set;
 
 public class AutoCreateDotValidator extends DotPrefixValidator<CreateIndexRequest> {
-    public AutoCreateDotValidator(ThreadContext threadContext, ClusterService clusterService) {
-        super(threadContext, clusterService);
+    public AutoCreateDotValidator(ThreadContext threadContext, ClusterService clusterService, SystemIndices systemIndices) {
+        super(threadContext, clusterService, systemIndices);
     }
 
     @Override

@@ -18,11 +18,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -42,15 +41,8 @@ public class Options {
             options,
             source,
             paramOrdinal,
-            toMultipleDataTypesAllowedOptions(allowedOptions),
             null,
-            (options1, optionsMap, source1, paramOrdinal1, allowedOptions1) -> populateMap(
-                options1,
-                optionsMap,
-                source,
-                paramOrdinal,
-                allowedOptions
-            )
+            (opts, optsMap) -> populateMap(opts, optsMap, source, paramOrdinal, allowedOptions)
         );
     }
 
@@ -65,15 +57,8 @@ public class Options {
             options,
             source,
             paramOrdinal,
-            toMultipleDataTypesAllowedOptions(allowedOptions),
             verifyOptions,
-            (options1, optionsMap, source1, paramOrdinal1, allowedOptions1) -> populateMap(
-                options1,
-                optionsMap,
-                source,
-                paramOrdinal,
-                allowedOptions
-            )
+            (opts, optsMap) -> populateMap(opts, optsMap, source, paramOrdinal, allowedOptions)
         );
     }
 
@@ -87,25 +72,17 @@ public class Options {
             options,
             source,
             paramOrdinal,
-            allowedOptions,
             null,
-            (options1, optionsMap, source1, paramOrdinal1, allowedOptions1) -> populateMapWithExpressionsMultipleDataTypesAllowed(
-                options1,
-                optionsMap,
-                source,
-                paramOrdinal,
-                allowedOptions
-            )
+            (opts, optsMap) -> populateMapWithExpressionsMultipleDataTypesAllowed(opts, optsMap, source, paramOrdinal, allowedOptions)
         );
     }
 
-    public static Expression.TypeResolution resolve(
+    private static Expression.TypeResolution resolve(
         Expression options,
         Source source,
         TypeResolutions.ParamOrdinal paramOrdinal,
-        Map<String, Collection<DataType>> allowedOptions,
         Consumer<Map<String, Object>> verifyOptions,
-        PopulateMap populateMap
+        BiConsumer<MapExpression, Map<String, Object>> populateMap
     ) {
         if (options != null) {
             Expression.TypeResolution resolution = isNotNull(options, source.text(), paramOrdinal);
@@ -119,7 +96,7 @@ public class Options {
             }
             try {
                 Map<String, Object> optionsMap = new HashMap<>();
-                populateMap.apply((MapExpression) options, optionsMap, source, paramOrdinal, allowedOptions);
+                populateMap.accept((MapExpression) options, optionsMap);
                 if (verifyOptions != null) {
                     verifyOptions.accept(optionsMap);
                 }
@@ -223,29 +200,5 @@ public class Options {
 
             optionsMap.put(optionName, valueExprLiteral);
         }
-    }
-
-    private static Map<String, Collection<DataType>> toMultipleDataTypesAllowedOptions(Map<String, DataType> allowedOptions) {
-        Map<String, Collection<DataType>> allowedOptionsWithMultipleDataTypes = new HashMap<>();
-        for (Map.Entry<String, DataType> entry : allowedOptions.entrySet()) {
-            List<DataType> list = new ArrayList<>();
-            list.add(entry.getValue());
-
-            allowedOptionsWithMultipleDataTypes.put(entry.getKey(), list);
-        }
-        return allowedOptionsWithMultipleDataTypes;
-    }
-
-    @FunctionalInterface
-    public interface PopulateMap {
-
-        void apply(
-            MapExpression options,
-            Map<String, Object> optionsMap,
-            Source source,
-            TypeResolutions.ParamOrdinal paramOrdinal,
-            Map<String, Collection<DataType>> allowedOptions
-        );
-
     }
 }

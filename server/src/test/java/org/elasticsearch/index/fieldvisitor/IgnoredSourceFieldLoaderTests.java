@@ -44,7 +44,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                     false,
                     false,
                     Set.of(),
-                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE)
+                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE)
                 )
             )
         );
@@ -55,7 +55,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                     false,
                     false,
                     Set.of(),
-                    new IgnoredFieldsSpec(Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE)
+                    new IgnoredFieldsSpec(Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE)
                 )
             )
         );
@@ -66,7 +66,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                     true,
                     false,
                     Set.of(),
-                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE)
+                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE)
                 )
             )
         );
@@ -127,7 +127,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                 false,
                 false,
                 Set.of(),
-                new IgnoredFieldsSpec(fieldsToLoad, IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE)
+                new IgnoredFieldsSpec(fieldsToLoad, IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE)
             );
             assertTrue(IgnoredSourceFieldLoader.supports(spec));
             iw.addDocument(doc);

@@ -54,7 +54,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
     public void testEmpty() throws IOException {
         testStoredFieldLoader(
             doc("foo", "lorem ipsum", "_ignored_source.bar", "dolor sit amet"),
-            fieldsSpec(Set.of(), Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE),
+            fieldsSpec(Set.of(), Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE),
             storedFields -> {
                 assertThat(storedFields, anEmptyMap());
             }
@@ -64,7 +64,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
     public void testSingleIgnoredSourceNewFormat() throws IOException {
         testIgnoredSourceLoader(
             doc("_ignored_source.foo", "lorem ipsum"),
-            fieldsSpec(Set.of(), Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE),
+            fieldsSpec(Set.of(), Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE),
             storedFields -> {
                 assertThat(storedFields, hasEntry(equalTo("_ignored_source.foo"), containsInAnyOrder(new BytesRef("lorem ipsum"))));
             }
@@ -84,7 +84,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
     public void testMultiValueIgnoredSourceNewFormat() throws IOException {
         testIgnoredSourceLoader(
             doc("_ignored_source.foo", "lorem ipsum", "_ignored_source.bar", "dolor sit amet"),
-            fieldsSpec(Set.of(), Set.of("foo", "bar"), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE),
+            fieldsSpec(Set.of(), Set.of("foo", "bar"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE),
             storedFields -> {
                 assertThat(storedFields, hasEntry(equalTo("_ignored_source.foo"), containsInAnyOrder(new BytesRef("lorem ipsum"))));
                 assertThat(storedFields, hasEntry(equalTo("_ignored_source.bar"), containsInAnyOrder(new BytesRef("dolor sit amet"))));
@@ -108,7 +108,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
     public void testSingleStoredField() throws IOException {
         testStoredFieldLoader(
             doc("foo", "lorem ipsum"),
-            fieldsSpec(Set.of("foo"), Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE),
+            fieldsSpec(Set.of("foo"), Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE),
             storedFields -> {
                 assertThat(storedFields, hasEntry(equalTo("foo"), containsInAnyOrder(new BytesRef("lorem ipsum"))));
             }
@@ -118,7 +118,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
     public void testMultiValueStoredField() throws IOException {
         testStoredFieldLoader(
             doc("foo", "lorem ipsum", "bar", "dolor sit amet"),
-            fieldsSpec(Set.of("foo", "bar"), Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE),
+            fieldsSpec(Set.of("foo", "bar"), Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE),
             storedFields -> {
                 assertThat(storedFields, hasEntry(equalTo("foo"), containsInAnyOrder(new BytesRef("lorem ipsum"))));
                 assertThat(storedFields, hasEntry(equalTo("bar"), containsInAnyOrder(new BytesRef("dolor sit amet"))));
@@ -129,7 +129,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
     public void testMixedStoredAndIgnoredFieldsNewFormat() throws IOException {
         testStoredFieldLoader(
             doc("foo", "lorem ipsum", "_ignored_source.bar", "dolor sit amet"),
-            fieldsSpec(Set.of("foo"), Set.of("bar"), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE),
+            fieldsSpec(Set.of("foo"), Set.of("bar"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE),
             storedFields -> {
                 assertThat(storedFields, hasEntry(equalTo("foo"), containsInAnyOrder(new BytesRef("lorem ipsum"))));
                 assertThat(storedFields, hasEntry(equalTo("_ignored_source.bar"), containsInAnyOrder(new BytesRef("dolor sit amet"))));
@@ -151,7 +151,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
     public void testMixedStoredAndIgnoredFieldsLoadParent() throws IOException {
         testStoredFieldLoader(
             doc("foo", "lorem ipsum", "_ignored_source.parent", "dolor sit amet"),
-            fieldsSpec(Set.of("foo"), Set.of("parent.bar"), IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE),
+            fieldsSpec(Set.of("foo"), Set.of("parent.bar"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_IGNORED_SOURCE),
             storedFields -> {
                 assertThat(storedFields, hasEntry(equalTo("foo"), containsInAnyOrder(new BytesRef("lorem ipsum"))));
                 assertThat(storedFields, hasEntry(equalTo("_ignored_source.parent"), containsInAnyOrder(new BytesRef("dolor sit amet"))));

@@ -41,7 +41,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -76,7 +75,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         "mapper.ignored_source.always_store_object_arrays_in_nested"
     );
 
-    public static final FeatureFlag IGNORED_SOURCE_FIELDS_PER_ENTRY_FF = new FeatureFlag("ignored_source_fields_per_entry");
+    public static final FeatureFlag COALESCE_IGNORED_SOURCE_ENTRIES = new FeatureFlag("ignored_source_fields_per_entry");
 
     /*
         Setting to disable encoding and writing values for this field.
@@ -178,10 +177,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         ignoredSourceFormat(context.indexSettings().getIndexVersionCreated()).writeIgnoredFields(context.getIgnoredFieldValues());
     }
 
-    public static String ignoredFieldName(String fieldName) {
-        return NAME + "." + fieldName;
-    }
-
     static BytesRef encodeMultipleValuesForField(List<NameValue> values) {
         assert values.isEmpty() == false;
         try {
@@ -200,7 +195,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static List<NameValue> decodeMultipleValuesForField(BytesRef value) {
+    public static List<NameValue> decodeMultipleValuesForField(BytesRef value) {
         try {
             StreamInput stream = new BytesArray(value).streamInput();
             var count = stream.readVInt();
@@ -259,18 +254,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public enum IgnoredSourceFormat {
         NO_IGNORED_SOURCE {
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
-                SourceFilter filter,
-                Map<String, List<Object>> storedFields
-            ) {
+            public Map<String, List<NameValue>> loadAllIgnoredFields(SourceFilter filter, Map<String, List<Object>> storedFields) {
                 return Map.of();
             }
 
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadSingleIgnoredField(
-                Set<String> fieldPaths,
-                Map<String, List<Object>> storedFields
-            ) {
+            public Map<String, List<NameValue>> loadSingleIgnoredField(Set<String> fieldPaths, Map<String, List<Object>> storedFields) {
                 return Map.of();
             }
 
@@ -278,26 +267,18 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
                 assert false : "cannot write " + ignoredFieldValues.size() + " values with format NO_IGNORED_SOURCE";
             }
-
-            @Override
-            public Set<String> requiredStoredFields(String fieldName) {
-                return Set.of();
-            }
         },
         SINGLE_IGNORED_SOURCE {
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
-                SourceFilter filter,
-                Map<String, List<Object>> storedFields
-            ) {
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
-                List<Object> storedValues = storedFields.get(IgnoredSourceFieldMapper.NAME);
+            public Map<String, List<NameValue>> loadAllIgnoredFields(SourceFilter filter, Map<String, List<Object>> storedFields) {
+                Map<String, List<NameValue>> objectsWithIgnoredFields = null;
+                List<Object> storedValues = storedFields.get(NAME);
                 if (storedValues != null) {
                     for (Object value : storedValues) {
                         if (objectsWithIgnoredFields == null) {
                             objectsWithIgnoredFields = new HashMap<>();
                         }
-                        IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                        NameValue nameValue = decode(value);
                         if (filter != null
                             && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
                             // This path is filtered by the include/exclude rules
@@ -310,15 +291,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadSingleIgnoredField(
-                Set<String> fieldPaths,
-                Map<String, List<Object>> storedFields
-            ) {
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
-                var ignoredSource = storedFields.get(IgnoredSourceFieldMapper.NAME);
+            public Map<String, List<NameValue>> loadSingleIgnoredField(Set<String> fieldPaths, Map<String, List<Object>> storedFields) {
+                Map<String, List<NameValue>> valuesForFieldAndParents = new HashMap<>();
+                var ignoredSource = storedFields.get(NAME);
                 if (ignoredSource != null) {
                     for (Object value : ignoredSource) {
-                        IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                        NameValue nameValue = decode(value);
                         if (fieldPaths.contains(nameValue.name())) {
                             valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
                         }
@@ -333,64 +311,55 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                     nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
                 }
             }
-
-            @Override
-            public Set<String> requiredStoredFields(String fieldName) {
-                return Set.of(IgnoredSourceFieldMapper.NAME);
-            }
         },
-        PER_FIELD_IGNORED_SOURCE {
+        COALESCED_IGNORED_SOURCE {
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
-                SourceFilter filter,
-                Map<String, List<Object>> storedFields
-            ) {
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
-                for (Map.Entry<String, List<Object>> e : storedFields.entrySet()) {
-                    if (e.getKey().startsWith(IgnoredSourceFieldMapper.NAME)) {
-                        assert e.getValue().size() == 1;
+            public Map<String, List<NameValue>> loadAllIgnoredFields(SourceFilter filter, Map<String, List<Object>> storedFields) {
+                Map<String, List<NameValue>> objectsWithIgnoredFields = null;
+                var ignoredSource = storedFields.get(NAME);
+                if (ignoredSource == null) {
+                    return objectsWithIgnoredFields;
+                }
+                for (var ignoredSourceEntry : ignoredSource) {
+                    if (objectsWithIgnoredFields == null) {
+                        objectsWithIgnoredFields = new HashMap<>();
+                    }
 
-                        Object value = e.getValue().getFirst();
-                        if (objectsWithIgnoredFields == null) {
-                            objectsWithIgnoredFields = new HashMap<>();
-                        }
-                        List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMultipleValuesForField(
-                            (BytesRef) value
-                        );
+                    @SuppressWarnings("unchecked")
+                    List<NameValue> nameValues = (ignoredSourceEntry instanceof List<?>)
+                        ? (List<NameValue>) ignoredSourceEntry
+                        : decodeMultipleValuesForField((BytesRef) ignoredSourceEntry);
+                    assert nameValues.isEmpty() == false;
 
-                        for (var nameValue : nameValues) {
-                            if (filter != null
-                                && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
-                                // This path is filtered by the include/exclude rules
-                                continue;
-                            }
-                            objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
+                    for (var nameValue : nameValues) {
+                        if (filter != null
+                            && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
+                            // This path is filtered by the include/exclude rules
+                            continue;
                         }
+                        objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
                     }
                 }
                 return objectsWithIgnoredFields;
             }
 
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadSingleIgnoredField(
-                Set<String> fieldPaths,
-                Map<String, List<Object>> storedFields
-            ) {
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
-                for (var parentPath : fieldPaths) {
-                    var ignoredSource = storedFields.get(IgnoredSourceFieldMapper.ignoredFieldName(parentPath));
-                    if (ignoredSource == null) {
-                        continue;
-                    }
-                    assert ignoredSource.size() == 1;
-
-                    List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMultipleValuesForField(
-                        (BytesRef) ignoredSource.getFirst()
-                    );
-
-                    for (var nameValue : nameValues) {
-                        assert fieldPaths.contains(nameValue.name());
-                        valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
+            public Map<String, List<NameValue>> loadSingleIgnoredField(Set<String> fieldPaths, Map<String, List<Object>> storedFields) {
+                Map<String, List<NameValue>> valuesForFieldAndParents = new HashMap<>();
+                var ignoredSource = storedFields.get(NAME);
+                if (ignoredSource == null) {
+                    return valuesForFieldAndParents;
+                }
+                for (var ignoredSourceEntry : ignoredSource) {
+                    @SuppressWarnings("unchecked")
+                    List<NameValue> nameValues = (ignoredSourceEntry instanceof List<?>)
+                        ? (List<NameValue>) ignoredSourceEntry
+                        : decodeMultipleValuesForField((BytesRef) ignoredSourceEntry);
+                    assert nameValues.isEmpty() == false;
+                    String fieldPath = nameValues.getFirst().name();
+                    if (fieldPaths.contains(fieldPath)) {
+                        assert valuesForFieldAndParents.containsKey(fieldPath) == false;
+                        valuesForFieldAndParents.put(fieldPath, nameValues);
                     }
                 }
 
@@ -402,44 +371,24 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 Map<LuceneDocument, Map<String, List<NameValue>>> entriesMap = new HashMap<>();
 
                 for (NameValue nameValue : ignoredFieldValues) {
-                    String fieldName = ignoredFieldName(nameValue.name());
                     entriesMap.computeIfAbsent(nameValue.doc(), d -> new HashMap<>())
-                        .computeIfAbsent(fieldName, n -> new ArrayList<>())
+                        .computeIfAbsent(nameValue.name(), n -> new ArrayList<>())
                         .add(nameValue);
                 }
 
                 for (var docEntry : entriesMap.entrySet()) {
                     for (var fieldEntry : docEntry.getValue().entrySet()) {
-                        docEntry.getKey().add(new StoredField(fieldEntry.getKey(), encodeMultipleValuesForField(fieldEntry.getValue())));
+                        docEntry.getKey().add(new StoredField(NAME, encodeMultipleValuesForField(fieldEntry.getValue())));
                     }
                 }
             }
-
-            @Override
-            public Set<String> requiredStoredFields(String fieldName) {
-                return FallbackSyntheticSourceBlockLoader.splitIntoFieldPaths(fieldName)
-                    .stream()
-                    .map(IgnoredSourceFieldMapper::ignoredFieldName)
-                    .collect(Collectors.toSet());
-            }
         };
 
-        public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
-            SourceFilter filter,
-            Map<String, List<Object>> storedFields
-        );
+        public abstract Map<String, List<NameValue>> loadAllIgnoredFields(SourceFilter filter, Map<String, List<Object>> storedFields);
 
-        public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadSingleIgnoredField(
-            Set<String> fieldPaths,
-            Map<String, List<Object>> storedFields
-        );
+        public abstract Map<String, List<NameValue>> loadSingleIgnoredField(Set<String> fieldPaths, Map<String, List<Object>> storedFields);
 
         public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues);
-
-        /**
-         * Get the set of stored fields needed to retrieve the value for fieldName
-         */
-        public abstract Set<String> requiredStoredFields(String fieldName);
     }
 
     public IgnoredSourceFormat ignoredSourceFormat() {
@@ -448,8 +397,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     public static IgnoredSourceFormat ignoredSourceFormat(IndexVersion indexCreatedVersion) {
         return indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY_WITH_FF)
-            && IGNORED_SOURCE_FIELDS_PER_ENTRY_FF.isEnabled()
-                ? IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE
+            && COALESCE_IGNORED_SOURCE_ENTRIES.isEnabled()
+                ? IgnoredSourceFormat.COALESCED_IGNORED_SOURCE
                 : IgnoredSourceFormat.SINGLE_IGNORED_SOURCE;
     }
 
@@ -515,7 +464,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      */
     public static MappedNameValue decodeAsMap(byte[] value) throws IOException {
         BytesRef bytes = new BytesRef(value);
-        IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(bytes);
+        NameValue nameValue = decode(bytes);
         return nameValueToMapped(nameValue);
     }
 
@@ -546,7 +495,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      * @throws IOException
      */
     public static byte[] encodeFromMap(MappedNameValue mappedNameValue) throws IOException {
-        return IgnoredSourceFieldMapper.encode(mappedToNameValue(mappedNameValue));
+        return encode(mappedToNameValue(mappedNameValue));
     }
 
     public static byte[] encodeFromMapMultipleFieldValues(List<MappedNameValue> filteredValues) throws IOException {
@@ -558,7 +507,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         return ArrayUtil.copyOfSubArray(encoded.bytes, encoded.offset, encoded.length);
     }
 
-    private static IgnoredSourceFieldMapper.NameValue mappedToNameValue(MappedNameValue mappedNameValue) throws IOException {
+    private static NameValue mappedToNameValue(MappedNameValue mappedNameValue) throws IOException {
         // The first entry is the field name, we skip to get to the value to encode.
         assert mappedNameValue.map.size() == 1;
         Object content = mappedNameValue.map.values().iterator().next();
@@ -571,7 +520,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
         // Clone the NameValue with the updated value.
         NameValue oldNameValue = mappedNameValue.nameValue();
-        return new IgnoredSourceFieldMapper.NameValue(
+        return new NameValue(
             oldNameValue.name(),
             oldNameValue.parentOffset(),
             XContentDataHelper.encodeXContentBuilder(xContentBuilder),

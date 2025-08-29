@@ -174,6 +174,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public String getProjectRouting() {
             return null;
         }
+
+        @Override
+        public boolean includeDataStreams() {
+            // request must allow data streams because the index name expression resolver for the action handler assumes it
+            return true;
+        }
     }
 
     public static class ResolvedIndexAbstraction {
@@ -429,34 +435,39 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         static final ParseField INDICES_FIELD = new ParseField("indices");
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
         static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
-        static final ParseField RESOLVED = new ParseField("resolved");
 
         private final List<ResolvedIndex> indices;
         private final List<ResolvedAlias> aliases;
         private final List<ResolvedDataStream> dataStreams;
-        private final Map<String, IndicesRequest.ReplacedExpression> resolved;
+        @Nullable
+        private final Map<String, IndicesRequest.ReplacedExpression> resolvedExpressionMap;
 
         public Response(List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
-            this(indices, aliases, dataStreams, Map.of());
+            this(indices, aliases, dataStreams, null);
         }
 
         public Response(
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams,
-            Map<String, IndicesRequest.ReplacedExpression> resolved
+            Map<String, IndicesRequest.ReplacedExpression> resolvedExpressionMap
         ) {
             this.indices = indices;
             this.aliases = aliases;
             this.dataStreams = dataStreams;
-            this.resolved = resolved == null ? Map.of() : resolved;
+            this.resolvedExpressionMap = resolvedExpressionMap == null ? Map.of() : resolvedExpressionMap;
         }
 
         public Response(StreamInput in) throws IOException {
             this.indices = in.readCollectionAsList(ResolvedIndex::new);
             this.aliases = in.readCollectionAsList(ResolvedAlias::new);
             this.dataStreams = in.readCollectionAsList(ResolvedDataStream::new);
-            this.resolved = in.readMap(StreamInput::readString, IndicesRequest.ReplacedExpression::new);
+            // TODO clean this up
+            if (in.readBoolean() == false) {
+                this.resolvedExpressionMap = null;
+            } else {
+                this.resolvedExpressionMap = in.readMap(StreamInput::readString, IndicesRequest.ReplacedExpression::new);
+            }
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -477,7 +488,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             out.writeCollection(aliases);
             out.writeCollection(dataStreams);
             // TODO clean this up
-            out.writeMap(resolved, StreamOutput::writeString, (outStream, value) -> value.writeTo(outStream));
+            if (resolvedExpressionMap != null) {
+                out.writeBoolean(true);
+                out.writeMap(resolvedExpressionMap, StreamOutput::writeString, (outStream, value) -> value.writeTo(outStream));
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override
@@ -503,9 +519,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return Objects.hash(indices, aliases, dataStreams);
         }
 
+        // Note: this probably shouldn't return IndicesRequest.ReplaceableIndices but merely an "exists" map that tracks
+        // for each expression if it resolved to _something_ since that's the only thing we need to generic fan-out error handling
         @Override
         public IndicesRequest.ReplaceableIndices getReplaceableIndices() {
-            return resolved == null ? null : new IndicesRequest.CompleteReplaceableIndices(resolved);
+            return resolvedExpressionMap == null ? null : new IndicesRequest.CompleteReplaceableIndices(resolvedExpressionMap);
         }
     }
 
@@ -567,7 +585,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 );
             }
 
-            if (false == remoteClusterIndices.isEmpty()) {
+            // TODO assert that it was handled upstream OR handle the case where we had a CPS request that only accessed indices locally
+            if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
@@ -605,7 +624,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         indices,
                         aliases,
                         dataStreams,
-                        request.includeResolvedInResponse ? request.getReplaceableIndices().replacedExpressionMap() : Map.of()
+                        request.includeResolvedInResponse ? request.getReplaceableIndices().replacedExpressionMap() : null
                     )
                 );
             }

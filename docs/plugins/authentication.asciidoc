@@ -1,0 +1,12 @@
+[[authentication]]
+== Authentication plugins
+
+Authentication plugins extend the functionality provided by the built-in {ref}/realms.html[authentication realms].
+
+[discrete]
+=== Core authentication plugins
+
+<<ms-graph-authz,Microsoft Graph Authz>>::
+The Microsoft Graph Authz plugin uses https://learn.microsoft.com/en-us/graph/api/user-list-memberof/[Microsoft Graph] to look up group membership information from Microsoft Entra ID
+
+include::ms-graph-authz.asciidoc[]

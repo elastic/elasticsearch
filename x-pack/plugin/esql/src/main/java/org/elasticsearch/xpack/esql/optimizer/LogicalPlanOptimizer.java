@@ -208,6 +208,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation(), new PropgateUnmappedFields());
+        return new Batch<>(
+            "Clean Up",
+            new ReplaceLimitAndSortAsTopN(),
+            new PruneRedundantOrderBy(),
+            new ReplaceRowAsLocalRelation(),
+            new PropgateUnmappedFields()
+        );
     }
 }

@@ -1523,7 +1523,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         if (throwElasticsearchSecurityException) {
             throwE = new ElasticsearchSecurityException("authentication error", RestStatus.UNAUTHORIZED);
             if (withAuthenticateHeader) {
-                ((ElasticsearchSecurityException) throwE).addHeader("WWW-Authenticate", selectedScheme);
+                ((ElasticsearchSecurityException) throwE).addBodyHeader("WWW-Authenticate", selectedScheme);
             }
         }
         mockAuthenticate(secondRealm, token, throwE, true);
@@ -1535,13 +1535,13 @@ public class AuthenticationServiceTests extends ESTestCase {
         if (throwElasticsearchSecurityException) {
             assertThat(e.getMessage(), is("authentication error"));
             if (withAuthenticateHeader) {
-                assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
+                assertThat(e.getBodyHeader("WWW-Authenticate"), contains(selectedScheme));
             } else {
-                assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+                assertThat(e.getBodyHeader("WWW-Authenticate"), contains(basicScheme));
             }
         } else {
             assertThat(e.getMessage(), is("error attempting to authenticate request"));
-            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+            assertThat(e.getBodyHeader("WWW-Authenticate"), contains(basicScheme));
         }
         if (requestIdAlreadyPresent) {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
@@ -1573,7 +1573,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             () -> authenticateBlocking("_action", transportRequest, null, null)
         );
         assertThat(e.getMessage(), is("unable to authenticate user [" + principal + "] for action [_action]"));
-        assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+        assertThat(e.getBodyHeader("WWW-Authenticate"), contains(basicScheme));
         if (requestIdAlreadyPresent) {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
         } else {
@@ -1980,6 +1980,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             when(projectIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
         } else {
             when(projectIndex.isAvailable(any())).thenReturn(true);
+            doAnswer(invocationOnMock -> {
+                Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
+                runnable.run();
+                return null;
+            }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
             doAnswer(inv -> {
                 final GetRequest request = inv.getArgument(0);
                 final ActionListener<GetResponse> listener = inv.getArgument(1);

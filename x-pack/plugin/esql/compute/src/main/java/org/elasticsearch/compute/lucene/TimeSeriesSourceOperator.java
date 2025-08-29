@@ -36,12 +36,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public final class TimeSeriesSourceOperator extends LuceneOperator {
-
     private final int maxPageSize;
     private final BlockFactory blockFactory;
     private final LuceneSliceQueue sliceQueue;
@@ -55,8 +55,14 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
     private DocIdCollector docCollector;
     private long tsidsLoaded;
 
-    TimeSeriesSourceOperator(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int maxPageSize, int limit) {
-        super(blockFactory, maxPageSize, sliceQueue);
+    TimeSeriesSourceOperator(
+        List<? extends ShardContext> contexts,
+        BlockFactory blockFactory,
+        LuceneSliceQueue sliceQueue,
+        int maxPageSize,
+        int limit
+    ) {
+        super(contexts, blockFactory, maxPageSize, sliceQueue);
         this.maxPageSize = maxPageSize;
         this.blockFactory = blockFactory;
         this.remainingDocs = limit;
@@ -91,7 +97,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         long startInNanos = System.nanoTime();
         try {
             if (iterator == null) {
-                var slice = sliceQueue.nextSlice();
+                var slice = sliceQueue.nextSlice(null);
                 if (slice == null) {
                     doneCollecting = true;
                     return null;
@@ -131,7 +137,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public void close() {
+    public void additionalClose() {
         Releasables.closeExpectNoException(timestampsBuilder, tsHashesBuilder, docCollector);
     }
 
@@ -177,16 +183,20 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
             for (LeafIterator leaf : oneTsidQueue) {
                 leaf.reinitializeIfNeeded(executingThread);
             }
-            do {
-                PriorityQueue<LeafIterator> sub = subQueueForNextTsid();
-                if (sub.size() == 0) {
-                    break;
-                }
-                tsHashesBuilder.appendNewTsid(sub.top().timeSeriesHash);
-                if (readValuesForOneTsid(sub)) {
-                    break;
-                }
-            } while (mainQueue.size() > 0);
+            if (mainQueue.size() + oneTsidQueue.size() == 1) {
+                readValuesFromSingleRemainingLeaf();
+            } else {
+                do {
+                    PriorityQueue<LeafIterator> sub = subQueueForNextTsid();
+                    if (sub.size() == 0) {
+                        break;
+                    }
+                    tsHashesBuilder.appendNewTsid(sub.top().timeSeriesHash);
+                    if (readValuesForOneTsid(sub)) {
+                        break;
+                    }
+                } while (mainQueue.size() > 0);
+            }
         }
 
         private boolean readValuesForOneTsid(PriorityQueue<LeafIterator> sub) throws IOException {
@@ -228,6 +238,38 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                 }
             }
             return oneTsidQueue;
+        }
+
+        private void readValuesFromSingleRemainingLeaf() throws IOException {
+            if (oneTsidQueue.size() == 0) {
+                oneTsidQueue.add(getMainQueue().pop());
+                tsidsLoaded++;
+            }
+            final LeafIterator sub = oneTsidQueue.top();
+            int lastTsid = -1;
+            do {
+                currentPagePos++;
+                remainingDocs--;
+                docCollector.collect(sub.segmentOrd, sub.docID);
+                if (lastTsid != sub.lastTsidOrd) {
+                    tsHashesBuilder.appendNewTsid(sub.timeSeriesHash);
+                    lastTsid = sub.lastTsidOrd;
+                }
+                tsHashesBuilder.appendOrdinal();
+                timestampsBuilder.appendLong(sub.timestamp);
+                if (sub.nextDoc() == false) {
+                    if (sub.docID == DocIdSetIterator.NO_MORE_DOCS) {
+                        oneTsidQueue.clear();
+                        return;
+                    } else {
+                        ++tsidsLoaded;
+                    }
+                }
+            } while (remainingDocs > 0 && currentPagePos < maxPageSize);
+        }
+
+        private PriorityQueue<LeafIterator> getMainQueue() {
+            return mainQueue;
         }
 
         boolean completed() {
@@ -382,7 +424,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                 segments = segmentsBuilder.build();
                 segmentsBuilder = null;
                 shards = blockFactory.newConstantIntVector(shardContext.index(), docs.getPositionCount());
-                docVector = new DocVector(shards, segments, docs, segments.isConstant());
+                docVector = new DocVector(ShardRefCounted.fromShardContext(shardContext), shards, segments, docs, segments.isConstant());
                 return docVector;
             } finally {
                 if (docVector == null) {

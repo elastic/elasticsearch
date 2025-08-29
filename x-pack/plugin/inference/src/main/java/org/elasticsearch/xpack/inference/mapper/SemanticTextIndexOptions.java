@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Represents index options for a semantic_text field.
@@ -50,11 +52,36 @@ public class SemanticTextIndexOptions implements ToXContent {
         return indexOptions;
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (other == this) {
+            return true;
+        }
+
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        SemanticTextIndexOptions otherSemanticTextIndexOptions = (SemanticTextIndexOptions) other;
+        return type == otherSemanticTextIndexOptions.type && Objects.equals(indexOptions, otherSemanticTextIndexOptions.indexOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, indexOptions);
+    }
+
     public enum SupportedIndexOptions {
         DENSE_VECTOR("dense_vector") {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
                 return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion);
+            }
+        },
+        SPARSE_VECTOR("sparse_vector") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
+                return parseSparseVectorIndexOptionsFromMap(map);
             }
         };
 
@@ -103,6 +130,14 @@ public class SemanticTextIndexOptions implements ToXContent {
             ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
 
             return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
+        } catch (Exception exc) {
+            throw new ElasticsearchException(exc);
+        }
+    }
+
+    private static SparseVectorFieldMapper.SparseVectorIndexOptions parseSparseVectorIndexOptionsFromMap(Map<String, Object> map) {
+        try {
+            return SparseVectorFieldMapper.SparseVectorIndexOptions.parseFromMap(map);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

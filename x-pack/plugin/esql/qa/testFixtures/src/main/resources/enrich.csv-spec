@@ -590,7 +590,7 @@ warningRegex:evaluation of \[LENGTH\(TO_STRING\(city_boundary\)\)\] failed, trea
 warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
-POINT(1.396561 24.127649)  |  872         |  88               |  1044
+POINT(1.396561 24.127649)  |  872         |  88               |  947
 ;
 
 
@@ -660,4 +660,105 @@ from *
 
 author.keyword:keyword|book_no:keyword|scalerank:integer|street:keyword|bytes_in:ul|@timestamp:unsupported|abbrev:keyword|city_location:geo_point|distance:double|description:unsupported|birth_date:date|language_code:integer|intersects:boolean|client_ip:unsupported|event_duration:long|version:version|language_name:keyword
 Fyodor Dostoevsky     |1211           |null             |null          |null       |null                  |null          |null                   |null           |null                   |null           |null                 |null              |null                 |null               |null           |null
+;
+
+
+statsAfterRemoteEnrich
+required_capability: enrich_load
+
+FROM sample_data
+| KEEP message
+| WHERE message IN ("Connected to 10.1.0.1", "Connected to 10.1.0.2")
+| EVAL language_code = "1"
+| ENRICH _remote:languages_policy ON language_code
+| STATS messages = count_distinct(message) BY language_name
+;
+
+messages:long | language_name:keyword
+2             | English
+;
+
+
+enrichAfterRemoteEnrich
+required_capability: enrich_load
+
+FROM sample_data
+| KEEP message
+| WHERE message IN ("Connected to 10.1.0.1")
+| EVAL language_code = "1"
+| ENRICH _remote:languages_policy ON language_code
+| RENAME language_name AS first_language_name
+| ENRICH languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | first_language_name:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | English                     | English
+;
+
+
+coordinatorEnrichAfterRemoteEnrich
+required_capability: enrich_load
+
+FROM sample_data
+| KEEP message
+| WHERE message IN ("Connected to 10.1.0.1")
+| EVAL language_code = "1"
+| ENRICH _remote:languages_policy ON language_code
+| RENAME language_name AS first_language_name
+| ENRICH _coordinator:languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | first_language_name:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | English                     | English
+;
+
+
+doubleRemoteEnrich
+required_capability: enrich_load
+
+FROM sample_data
+| KEEP message
+| WHERE message IN ("Connected to 10.1.0.1")
+| EVAL language_code = "1"
+| ENRICH _remote:languages_policy ON language_code
+| RENAME language_name AS first_language_name
+| ENRICH _remote:languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | first_language_name:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | English                     | English
+;
+
+
+enrichAfterCoordinatorEnrich
+required_capability: enrich_load
+
+FROM sample_data
+| KEEP message
+| WHERE message IN ("Connected to 10.1.0.1")
+| EVAL language_code = "1"
+| ENRICH _coordinator:languages_policy ON language_code
+| RENAME language_name AS first_language_name
+| ENRICH languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | first_language_name:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | English                     | English
+;
+
+
+doubleCoordinatorEnrich
+required_capability: enrich_load
+
+FROM sample_data
+| KEEP message
+| WHERE message IN ("Connected to 10.1.0.1")
+| EVAL language_code = "1"
+| ENRICH _coordinator:languages_policy ON language_code
+| RENAME language_name AS first_language_name
+| ENRICH _coordinator:languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | first_language_name:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | English                     | English
 ;

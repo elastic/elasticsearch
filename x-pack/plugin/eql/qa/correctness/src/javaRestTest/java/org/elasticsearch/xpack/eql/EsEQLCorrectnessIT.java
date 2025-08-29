@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Request;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -46,7 +46,6 @@ import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 @TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:INFO", reason = "Log query execution time")
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112572")
 public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -133,7 +132,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     // To enable test of subqueries (filtering) results: -Dtests.eql_correctness_debug=true
     @SuppressWarnings("unchecked")
     public void test() throws Exception {
-        boolean debugMode = Boolean.parseBoolean(System.getProperty("tests.eql_correctness_debug", "false"));
+        boolean debugMode = Booleans.parseBoolean(System.getProperty("tests.eql_correctness_debug", "false"));
         int queryNo = spec.queryNo();
 
         if (debugMode) {

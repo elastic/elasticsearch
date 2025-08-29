@@ -248,9 +248,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     }
 
     @Override
-    public Task createTask(String localNodeId, long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(localNodeId, id)));
-        return new EsqlQueryRequestTask(query, id, type, action, parentTaskId, headers, status);
+    public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId));
+        return new EsqlQueryRequestTask(query, taskId.getId(), type, action, parentTaskId, headers, status);
     }
 
     private static class EsqlQueryRequestTask extends CancellableTask {

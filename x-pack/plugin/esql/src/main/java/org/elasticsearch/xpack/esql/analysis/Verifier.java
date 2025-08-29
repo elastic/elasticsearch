@@ -55,18 +55,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * step does type resolution and fails queries based on invalid type expressions.
  */
 public class Verifier {
-    public interface ExtraCheckers {
-        /**
-         * Build a list of checks to perform on the plan. Each one is called once per
-         * {@link LogicalPlan} node in the plan.
-         */
-        List<BiConsumer<LogicalPlan, Failures>> extra();
-    }
 
     /**
      * Extra plan verification checks defined in plugins.
      */
-    private final List<ExtraCheckers> extraCheckers;
+    private final List<BiConsumer<LogicalPlan, Failures>> extraCheckers;
     private final Metrics metrics;
     private final XPackLicenseState licenseState;
 
@@ -74,7 +67,7 @@ public class Verifier {
         this(metrics, licenseState, Collections.emptyList());
     }
 
-    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<ExtraCheckers> extraCheckers) {
+    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<BiConsumer<LogicalPlan, Failures>> extraCheckers) {
         this.metrics = metrics;
         this.licenseState = licenseState;
         this.extraCheckers = extraCheckers;
@@ -101,9 +94,7 @@ public class Verifier {
 
         // collect plan checkers
         var planCheckers = planCheckers(plan);
-        for (ExtraCheckers e : extraCheckers) {
-            planCheckers.addAll(e.extra());
-        }
+        planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
         plan.forEachDown(p -> {

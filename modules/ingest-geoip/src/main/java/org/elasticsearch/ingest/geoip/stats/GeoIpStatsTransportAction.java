@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -77,15 +78,16 @@ public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Res
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getTask(projectResolver.getProjectId());
+        ProjectId projectId = projectResolver.getProjectId();
+        GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getTask(projectId);
         GeoIpDownloaderStats downloaderStats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
         CacheStats cacheStats = registry.getCacheStats();
         return new NodeResponse(
             transportService.getLocalNode(),
             downloaderStats,
             cacheStats,
-            registry.getAvailableDatabases(),
-            registry.getFilesInTemp(),
+            registry.getAvailableDatabases(projectId),
+            registry.getFilesInTemp(projectId),
             registry.getConfigDatabases()
         );
     }

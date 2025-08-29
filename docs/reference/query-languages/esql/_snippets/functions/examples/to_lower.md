@@ -11,6 +11,10 @@ ROW message = "Some Text"
 | --- | --- |
 | Some Text | some text |
 
+```{applies_to}
+stack: ga 9.1.0
+```
+
 ```esql
 ROW v = TO_LOWER(["Some", "Text"])
 ```

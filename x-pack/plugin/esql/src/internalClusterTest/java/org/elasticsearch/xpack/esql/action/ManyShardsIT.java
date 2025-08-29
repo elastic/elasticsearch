@@ -252,7 +252,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 for (SearchService searchService : searchServices) {
                     SearchContextCounter counter = new SearchContextCounter(pragmas.maxConcurrentShardsPerNode());
                     var mockSearchService = (MockSearchService) searchService;
-                    mockSearchService.setOnPutContext(r -> counter.onNewContext());
+                    mockSearchService.setOnCreateSearchContext(r -> counter.onNewContext());
                     mockSearchService.setOnRemoveContext(r -> counter.onContextReleased());
                 }
                 run(syncEsqlQueryRequest().query(q).pragmas(pragmas)).close();
@@ -260,7 +260,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         } finally {
             for (SearchService searchService : searchServices) {
                 var mockSearchService = (MockSearchService) searchService;
-                mockSearchService.setOnPutContext(r -> {});
+                mockSearchService.setOnCreateSearchContext(r -> {});
                 mockSearchService.setOnRemoveContext(r -> {});
             }
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -43,9 +44,15 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     private final ClusterService clusterService;
     private final Executor managementExecutor;
+    private final ProjectResolver projectResolver;
 
     @Inject
-    public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
+    public TransportGetRollupCapsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
+    ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
             GetRollupCapsAction.NAME,
@@ -56,6 +63,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
         );
         this.clusterService = clusterService;
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -67,7 +75,8 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     private void doExecuteForked(String indexPattern, ActionListener<GetRollupCapsAction.Response> listener) {
         Transports.assertNotTransportThread("retrieving rollup job caps may be expensive");
-        Map<String, RollableIndexCaps> allCaps = getCaps(indexPattern, clusterService.state().getMetadata().getProject().indices());
+        final var project = projectResolver.getProjectMetadata(clusterService.state());
+        Map<String, RollableIndexCaps> allCaps = getCaps(indexPattern, project.indices());
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
 

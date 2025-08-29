@@ -2,4 +2,3 @@
 
 ### NEGATE `-`
 Returns the negation of the argument.
-

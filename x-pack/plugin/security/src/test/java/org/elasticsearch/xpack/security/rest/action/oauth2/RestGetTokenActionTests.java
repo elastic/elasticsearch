@@ -124,7 +124,7 @@ public class RestGetTokenActionTests extends ESTestCase {
         String errorMessage = "failed to authenticate user, gss context negotiation not complete";
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(errorMessage, RestStatus.UNAUTHORIZED);
         boolean addBase64EncodedToken = randomBoolean();
-        ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate" + ((addBase64EncodedToken) ? " FAIL" : ""));
+        ese.addBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate" + ((addBase64EncodedToken) ? " FAIL" : ""));
         listener.onFailure(ese);
 
         RestResponse response = responseSetOnce.get();

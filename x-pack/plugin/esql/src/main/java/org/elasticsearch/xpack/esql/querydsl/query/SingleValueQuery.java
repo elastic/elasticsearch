@@ -125,6 +125,11 @@ public class SingleValueQuery extends Query {
         return Objects.hash(super.hashCode(), next, field, useSyntheticSourceDelegate);
     }
 
+    @Override
+    public boolean containsPlan() {
+        return next.containsPlan();
+    }
+
     public abstract static class AbstractBuilder extends AbstractQueryBuilder<AbstractBuilder> {
         private final QueryBuilder next;
         private final String field;
@@ -224,6 +229,10 @@ public class SingleValueQuery extends Query {
             builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
             builder.add(rewrite, BooleanClause.Occur.FILTER);
             return builder.build();
+        }
+
+        public String fieldName() {
+            return field;
         }
     }
 

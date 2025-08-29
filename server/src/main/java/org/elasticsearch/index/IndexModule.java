@@ -43,6 +43,7 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -181,6 +182,7 @@ public final class IndexModule {
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
+    private final MergeMetrics mergeMetrics;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -190,6 +192,7 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
+     * @param mergeMetrics
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -203,7 +206,8 @@ public final class IndexModule {
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
         final IndexingStatsSettings indexingStatsSettings,
-        final SearchStatsSettings searchStatsSettings
+        final SearchStatsSettings searchStatsSettings,
+        final MergeMetrics mergeMetrics
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -220,6 +224,7 @@ public final class IndexModule {
         this.mapperMetrics = mapperMetrics;
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
+        this.mergeMetrics = mergeMetrics;
     }
 
     /**
@@ -557,7 +562,8 @@ public final class IndexModule {
                 mapperMetrics,
                 queryRewriteInterceptor,
                 indexingStatsSettings,
-                searchStatsSettings
+                searchStatsSettings,
+                mergeMetrics
             );
             success = true;
             return indexService;

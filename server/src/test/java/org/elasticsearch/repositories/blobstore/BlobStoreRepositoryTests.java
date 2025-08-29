@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -520,11 +521,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     public void testEnsureUploadListenerIsResolvedWhenAFileSnapshotTaskFails() throws Exception {
+        final ProjectId projectId = randomProjectIdOrDefault();
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
         final FsRepository repository = new FsRepository(
-            randomProjectIdOrDefault(),
+            projectId,
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),
@@ -698,7 +700,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 "new repo uuid message",
                 BlobStoreRepository.class.getCanonicalName(),
                 Level.INFO,
-                Strings.format("Generated new repository UUID [*] for repository [%s] in generation [*]", repoName)
+                Strings.format("Generated new repository UUID [*] for repository %s in generation [*]", repo.toStringShort())
             )
         );
 
@@ -727,7 +729,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         "existing repo uuid message",
                         RepositoriesService.class.getCanonicalName(),
                         Level.INFO,
-                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                        Strings.format("Registering repository %s with repository UUID *", repo.toStringShort())
                     )
                 );
 
@@ -783,7 +785,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         "existing repo uuid message",
                         RepositoriesService.class.getCanonicalName(),
                         Level.INFO,
-                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                        Strings.format("Registering repository %s with repository UUID *", repo.toStringShort())
                     )
                 );
             },

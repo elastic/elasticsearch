@@ -2,4 +2,3 @@
 
 ### ADD `+`
 Add two numbers together. If either field is [multivalued](https://www.elastic.co/docs/reference/query-languages/esql/esql-multivalued-fields) then the result is `null`.
-

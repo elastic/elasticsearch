@@ -25,6 +25,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -74,7 +75,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         throw createUnknownTypeException();
     }
 
@@ -102,16 +103,6 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
         Runnable onCompletion
     ) {
         repositoryDataUpdateListener.onFailure(createUnknownTypeException());
-    }
-
-    @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw createUnknownTypeException();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        throw createUnknownTypeException();
     }
 
     @Override
@@ -176,6 +167,21 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     @Override
     public void awaitIdle() {
 
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        /*
+         * The presence of a misconfigured repository shouldn't interfere with
+         * the collection of metrics from the other repositories. We just return
+         * null here to indicate we have nothing to contribute.
+         */
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        throw createUnknownTypeException();
     }
 
     @Override

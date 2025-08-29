@@ -26,17 +26,18 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
@@ -69,9 +70,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private final IngestActionForwarder ingestForwarder;
     protected final LongSupplier relativeTimeNanosProvider;
     protected final Executor coordinationExecutor;
-    protected final Executor writeExecutor;
-    protected final Executor systemWriteExecutor;
+    protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
+    protected final FeatureService featureService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -84,7 +85,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
-        LongSupplier relativeTimeNanosProvider
+        LongSupplier relativeTimeNanosProvider,
+        FeatureService featureService
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -94,9 +96,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         this.systemIndices = systemIndices;
         this.projectResolver = projectResolver;
         this.coordinationExecutor = threadPool.executor(ThreadPool.Names.WRITE_COORDINATION);
-        this.writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
-        this.systemWriteExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
+        this.systemCoordinationExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE_COORDINATION);
         this.ingestForwarder = new IngestActionForwarder(transportService);
+        this.featureService = featureService;
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
@@ -134,14 +136,14 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         }
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         // Use coordinationExecutor for dispatching coordination tasks
-        ensureClusterStateThenForkAndExecute(task, bulkRequest, coordinationExecutor, isOnlySystem, releasingListener);
+        final Executor executor = isOnlySystem ? systemCoordinationExecutor : coordinationExecutor;
+        ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
     }
 
     private void ensureClusterStateThenForkAndExecute(
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        boolean isOnlySystem,
         ActionListener<BulkResponse> releasingListener
     ) {
         final ClusterState initialState = clusterService.state();
@@ -163,7 +165,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    forkAndExecute(task, bulkRequest, executor, isOnlySystem, releasingListener);
+                    forkAndExecute(task, bulkRequest, executor, releasingListener);
                 }
 
                 @Override
@@ -177,63 +179,51 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(projectId, ClusterBlockLevel.WRITE));
         } else {
-            forkAndExecute(task, bulkRequest, executor, isOnlySystem, releasingListener);
+            forkAndExecute(task, bulkRequest, executor, releasingListener);
         }
     }
 
-    private void forkAndExecute(
-        Task task,
-        BulkRequest bulkRequest,
-        Executor executor,
-        boolean isOnlySystem,
-        ActionListener<BulkResponse> releasingListener
-    ) {
+    private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
-                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, isOnlySystem, releasingListener);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
     }
 
-    private boolean applyPipelines(
-        Task task,
-        BulkRequest bulkRequest,
-        Executor executor,
-        boolean isOnlySystem,
-        ActionListener<BulkResponse> listener
-    ) throws IOException {
+    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
+        throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
         ProjectId projectId = projectResolver.getProjectId();
-        final Metadata metadata;
+        final ProjectMetadata project;
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
         if (bulkRequest.isSimulated()
             && (componentTemplateSubstitutions.isEmpty() == false || indexTemplateSubstitutions.isEmpty() == false)) {
             /*
-             * If this is a simulated request, and there are template substitutions, then we want to create and use a new metadata that has
+             * If this is a simulated request, and there are template substitutions, then we want to create and use a new project that has
              * those templates. That is, we want to add the new templates (which will replace any that already existed with the same name),
              * and remove the indices and data streams that are referred to from the bulkRequest so that we get settings from the templates
              * rather than from the indices/data streams.
              */
-            Metadata originalMetadata = state.metadata();
-            @FixForMultiProject // properly ensure simulated actions work with MP
-            Metadata.Builder simulatedMetadataBuilder = Metadata.builder(originalMetadata);
+            ProjectMetadata originalProject = state.metadata().getProject(projectId);
+            ProjectMetadata.Builder simulatedMetadataBuilder = ProjectMetadata.builder(originalProject);
             if (componentTemplateSubstitutions.isEmpty() == false) {
                 Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
-                updatedComponentTemplates.putAll(originalMetadata.getProject(projectId).componentTemplates());
+                updatedComponentTemplates.putAll(originalProject.componentTemplates());
                 updatedComponentTemplates.putAll(componentTemplateSubstitutions);
                 simulatedMetadataBuilder.componentTemplates(updatedComponentTemplates);
             }
             if (indexTemplateSubstitutions.isEmpty() == false) {
                 Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
-                updatedIndexTemplates.putAll(originalMetadata.getProject(projectId).templatesV2());
+                updatedIndexTemplates.putAll(originalProject.templatesV2());
                 updatedIndexTemplates.putAll(indexTemplateSubstitutions);
                 simulatedMetadataBuilder.indexTemplates(updatedIndexTemplates);
             }
             /*
-             * We now remove the index from the simulated metadata to force the templates to be used. Note that simulated requests are
+             * We now remove the index from the simulated project to force the templates to be used. Note that simulated requests are
              * always index requests -- no other type of request is supported.
              */
             for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
@@ -249,12 +239,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     }
                 }
             }
-            metadata = simulatedMetadataBuilder.build();
+            project = simulatedMetadataBuilder.build();
         } else {
-            metadata = state.getMetadata();
+            project = state.metadata().getProject(projectId);
         }
 
-        ProjectMetadata project = metadata.getProject(projectId);
         Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
@@ -291,7 +280,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executor, isOnlySystem, project, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executor, project, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
@@ -305,12 +294,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest original,
         Executor executor,
-        boolean isOnlySystem,
         ProjectMetadata metadata,
         ActionListener<BulkResponse> listener
     ) {
         final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
+        final Thread originalThread = Thread.currentThread();
         getIngestService(original).executeBulkRequest(
             metadata.id(),
             original.numberOfActions(),
@@ -319,51 +308,42 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             (indexName) -> resolveFailureStore(indexName, metadata, threadPool.absoluteTimeInMillis()),
             bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
-            (originalThread, exception) -> {
-                if (exception != null) {
-                    logger.debug("failed to execute pipeline for a bulk request", exception);
-                    listener.onFailure(exception);
+            listener.delegateFailureAndWrap((l, unused) -> {
+                long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
+                BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, l);
+                if (bulkRequest.requests().isEmpty()) {
+                    // at this stage, the transport bulk action can't deal with a bulk request with no requests,
+                    // so we stop and send an empty response back to the client.
+                    // (this will happen if pre-processing all items in the bulk failed)
+                    actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
                 } else {
-                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
-                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
-                        ingestTookInMillis,
-                        listener
-                    );
-                    if (bulkRequest.requests().isEmpty()) {
-                        // at this stage, the transport bulk action can't deal with a bulk request with no requests,
-                        // so we stop and send an empty response back to the client.
-                        // (this will happen if pre-processing all items in the bulk failed)
-                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
-                    } else {
-                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
-                            @Override
-                            protected void doRun() throws IOException {
-                                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, isOnlySystem, actionListener);
-                            }
-
-                            @Override
-                            public boolean isForceExecution() {
-                                // If we fork back to a coordination thread we **not** should fail, because tp queue is full.
-                                // (Otherwise the work done during ingest will be lost)
-                                // It is okay to force execution here. Throttling of write requests happens prior to
-                                // ingest when a node receives a bulk request.
-                                return true;
-                            }
-                        };
-                        // If a processor went async and returned a response on a different thread then
-                        // before we continue the bulk request we should fork back on a coordination thread. Otherwise it is fine to perform
-                        // coordination steps on the write thread
-                        if (originalThread == Thread.currentThread()) {
-                            runnable.run();
-                        } else {
-                            executor.execute(runnable);
+                    ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
+                        @Override
+                        protected void doRun() throws IOException {
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                         }
+
+                        @Override
+                        public boolean isForceExecution() {
+                            // If we fork back to a coordination thread we **not** should fail, because tp queue is full.
+                            // (Otherwise the work done during ingest will be lost)
+                            // It is okay to force execution here. Throttling of write requests happens prior to
+                            // ingest when a node receives a bulk request.
+                            return true;
+                        }
+                    };
+                    // If a processor went async and returned a response on a different thread then
+                    // before we continue the bulk request we should fork back on a coordination thread. Otherwise it is fine to perform
+                    // coordination steps on the write thread
+                    if (originalThread == Thread.currentThread()) {
+                        runnable.run();
+                    } else {
+                        executor.execute(runnable);
                     }
                 }
-            },
-            // Use the appropriate write executor for actual ingest processing
-            isOnlySystem ? systemWriteExecutor : writeExecutor
+
+            })
         );
     }
 
@@ -419,12 +399,50 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        boolean isOnlySystem,
         ActionListener<BulkResponse> listener
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
-        if (applyPipelines(task, bulkRequest, executor, isOnlySystem, listener) == false) {
-            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
+
+        // Validate child stream writes before processing pipelines
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);
+
+        DocWriteRequest<?> req;
+        int i = -1;
+        while (bulkRequestModifier.hasNext()) {
+            req = bulkRequestModifier.next();
+            i++;
+
+            for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
+                if (req instanceof IndexRequest ir && streamType.matchesStreamPrefix(req.index()) && ir.isPipelineResolved() == false) {
+                    IllegalArgumentException e = new IllegalArgumentException(
+                        "Direct writes to child streams are prohibited. Index directly into the ["
+                            + streamType.getStreamName()
+                            + "] stream instead"
+                    );
+                    Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
+
+                    if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
+                        if (Boolean.TRUE.equals(failureStoreEnabled)) {
+                            bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+                        } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
+                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
+                        } else {
+                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                        }
+                    } else {
+                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
+
+        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener) == false) {
+            doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
     }
 

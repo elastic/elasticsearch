@@ -18,9 +18,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> {
+/**
+ * An external bridge for {@link IngestDocument} that proxies calls through a real {@link IngestDocument}
+ */
+public class IngestDocumentBridge extends StableBridgeAPI.ProxyInternal<IngestDocument> {
 
-    public static IngestDocumentBridge wrap(final IngestDocument ingestDocument) {
+    public static final class Constants {
+        public static final String METADATA_VERSION_FIELD_NAME = IngestDocument.Metadata.VERSION.getFieldName();
+
+        private Constants() {}
+    }
+
+    public static IngestDocumentBridge fromInternalNullable(final IngestDocument ingestDocument) {
         if (ingestDocument == null) {
             return null;
         }
@@ -36,55 +45,56 @@ public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> 
     }
 
     public MetadataBridge getMetadata() {
-        return new MetadataBridge(delegate.getMetadata());
+        return new MetadataBridge(internalDelegate.getMetadata());
     }
 
     public Map<String, Object> getSource() {
-        return delegate.getSource();
+        return internalDelegate.getSource();
     }
 
     public boolean updateIndexHistory(final String index) {
-        return delegate.updateIndexHistory(index);
+        return internalDelegate.updateIndexHistory(index);
     }
 
     public Set<String> getIndexHistory() {
-        return Set.copyOf(delegate.getIndexHistory());
+        return Set.copyOf(internalDelegate.getIndexHistory());
     }
 
     public boolean isReroute() {
-        return LogstashInternalBridge.isReroute(delegate);
+        return LogstashInternalBridge.isReroute(internalDelegate);
     }
 
     public void resetReroute() {
-        LogstashInternalBridge.resetReroute(delegate);
+        LogstashInternalBridge.resetReroute(internalDelegate);
     }
 
     public Map<String, Object> getIngestMetadata() {
-        return Map.copyOf(delegate.getIngestMetadata());
+        return internalDelegate.getIngestMetadata();
     }
 
     public <T> T getFieldValue(final String fieldName, final Class<T> type) {
-        return delegate.getFieldValue(fieldName, type);
+        return internalDelegate.getFieldValue(fieldName, type);
     }
 
     public <T> T getFieldValue(final String fieldName, final Class<T> type, final boolean ignoreMissing) {
-        return delegate.getFieldValue(fieldName, type, ignoreMissing);
+        return internalDelegate.getFieldValue(fieldName, type, ignoreMissing);
     }
 
     public String renderTemplate(final TemplateScriptBridge.Factory templateScriptFactory) {
-        return delegate.renderTemplate(templateScriptFactory.unwrap());
+        return internalDelegate.renderTemplate(templateScriptFactory.toInternal());
     }
 
     public void setFieldValue(final String path, final Object value) {
-        delegate.setFieldValue(path, value);
+        internalDelegate.setFieldValue(path, value);
     }
 
     public void removeField(final String path) {
-        delegate.removeField(path);
+        internalDelegate.removeField(path);
     }
 
-    // public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
     public void executePipeline(final PipelineBridge pipelineBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
-        this.delegate.executePipeline(pipelineBridge.unwrap(), (unwrapped, e) -> handler.accept(IngestDocumentBridge.wrap(unwrapped), e));
+        this.internalDelegate.executePipeline(pipelineBridge.toInternal(), (ingestDocument, e) -> {
+            handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e);
+        });
     }
 }

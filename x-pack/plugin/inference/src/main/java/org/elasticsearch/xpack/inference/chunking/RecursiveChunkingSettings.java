@@ -31,12 +31,11 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     public static final String NAME = "RecursiveChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.RECURSIVE;
     private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
-    private static final int MAX_CHUNK_SIZE_UPPER_LIMIT = 300;
 
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
         ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
-        ChunkingSettingsOptions.SEPARATOR_SET.toString(),
+        ChunkingSettingsOptions.SEPARATOR_GROUP.toString(),
         ChunkingSettingsOptions.SEPARATORS.toString()
     );
 
@@ -45,7 +44,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
 
     public RecursiveChunkingSettings(int maxChunkSize, List<String> separators) {
         this.maxChunkSize = maxChunkSize;
-        this.separators = separators == null ? SeparatorSet.PLAINTEXT.getSeparators() : separators;
+        this.separators = separators == null ? SeparatorGroup.PLAINTEXT.getSeparators() : separators;
     }
 
     public RecursiveChunkingSettings(StreamInput in) throws IOException {
@@ -63,21 +62,20 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             );
         }
 
-        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerBetween(
+        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
             MAX_CHUNK_SIZE_LOWER_LIMIT,
-            MAX_CHUNK_SIZE_UPPER_LIMIT,
             ModelConfigurations.CHUNKING_SETTINGS,
             validationException
         );
 
-        SeparatorSet separatorSet = ServiceUtils.extractOptionalEnum(
+        SeparatorGroup separatorGroup = ServiceUtils.extractOptionalEnum(
             map,
-            ChunkingSettingsOptions.SEPARATOR_SET.toString(),
+            ChunkingSettingsOptions.SEPARATOR_GROUP.toString(),
             ModelConfigurations.CHUNKING_SETTINGS,
-            SeparatorSet::fromString,
-            EnumSet.allOf(SeparatorSet.class),
+            SeparatorGroup::fromString,
+            EnumSet.allOf(SeparatorGroup.class),
             validationException
         );
 
@@ -88,12 +86,12 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             validationException
         );
 
-        if (separators != null && separatorSet != null) {
+        if (separators != null && separatorGroup != null) {
             validationException.addValidationError("Recursive chunking settings can not have both separators and separator_set");
         }
 
-        if (separatorSet != null) {
-            separators = separatorSet.getSeparators();
+        if (separatorGroup != null) {
+            separators = separatorGroup.getSeparators();
         } else if (separators != null && separators.isEmpty()) {
             validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
         }
@@ -105,7 +103,8 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
         return new RecursiveChunkingSettings(maxChunkSize, separators);
     }
 
-    public int getMaxChunkSize() {
+    @Override
+    public Integer maxChunkSize() {
         return maxChunkSize;
     }
 

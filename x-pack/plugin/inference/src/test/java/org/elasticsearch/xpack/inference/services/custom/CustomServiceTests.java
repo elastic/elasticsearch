@@ -13,13 +13,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -54,6 +55,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -149,7 +151,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new CustomService(senderFactory, createWithEmptySettings(threadPool));
+        return new CustomService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
@@ -223,7 +225,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     private static CustomModel createInternalEmbeddingModel(SimilarityMeasure similarityMeasure) {
         return createInternalEmbeddingModel(
             similarityMeasure,
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             "http://www.abc.com"
         );
     }
@@ -244,7 +246,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, DenseVectorFieldMapper.ElementType.FLOAT),
+                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,
@@ -271,7 +273,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, DenseVectorFieldMapper.ElementType.FLOAT),
+                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,
@@ -318,7 +320,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJson));
 
-            var model = createInternalEmbeddingModel(new TextEmbeddingResponseParser("$.data[*].embedding"), getUrl(webServer));
+            var model = createInternalEmbeddingModel(
+                new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+                getUrl(webServer)
+            );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -373,7 +378,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createInternalEmbeddingModel(new TextEmbeddingResponseParser("$.data[*].embedding"), getUrl(webServer));
+            var model = createInternalEmbeddingModel(
+                new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+                getUrl(webServer)
+            );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -653,7 +661,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = createInternalEmbeddingModel(
             SimilarityMeasure.DOT_PRODUCT,
-            new TextEmbeddingResponseParser("$.data[*].embedding"),
+            new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
             getUrl(webServer),
             ChunkingSettingsTests.createRandomChunkingSettings(),
             2
@@ -738,7 +746,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = createInternalEmbeddingModel(new TextEmbeddingResponseParser("$.data[*].embedding"), getUrl(webServer));
+        var model = createInternalEmbeddingModel(
+            new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+            getUrl(webServer)
+        );
         String responseJson = """
             {
               "object": "list",
@@ -795,5 +806,18 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("input"), is(List.of("a")));
         }
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService(threadPool, clientManager);
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("any model"),
+            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
     }
 }

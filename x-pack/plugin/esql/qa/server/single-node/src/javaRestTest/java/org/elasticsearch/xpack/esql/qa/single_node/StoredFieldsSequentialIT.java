@@ -20,9 +20,11 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,6 +53,9 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     public void testFetchTen() throws IOException {
         testQuery(null, """
@@ -106,13 +111,15 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         setPercent(percent);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         builder.profile(true);
-        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertMap(
             result,
             matchesMap().entry("documents_found", documentsFound)
                 .entry(
                     "profile",
-                    matchesMap().entry("drivers", instanceOf(List.class))
+                    matchesMap() //
+                        .entry("drivers", instanceOf(List.class))
+                        .entry("plans", instanceOf(List.class))
                         .entry("planning", matchesMap().extraOk())
                         .entry("query", matchesMap().extraOk())
                 )
@@ -193,6 +200,15 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         bulk.setJsonEntity(b.toString());
         Response bulkResponse = client().performRequest(bulk);
         assertThat(entityToMap(bulkResponse.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
+
+        // Forcemerge to one segment to get more consistent results.
+        Request forcemerge = new Request("POST", "/_forcemerge");
+        forcemerge.addParameter("max_num_segments", "1");
+        Response forcemergeResponse = client().performRequest(forcemerge);
+        assertThat(
+            entityToMap(forcemergeResponse.getEntity(), XContentType.JSON),
+            matchesMap().entry("_shards", matchesMap().entry("failed", 0).entry("successful", greaterThanOrEqualTo(1)).extraOk()).extraOk()
+        );
     }
 
     @Override

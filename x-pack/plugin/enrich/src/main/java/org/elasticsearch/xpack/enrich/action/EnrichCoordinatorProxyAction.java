@@ -77,6 +77,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 ThreadPool.Names.WRITE,
                 ThreadPool.Names.WRITE_COORDINATION,
                 ThreadPool.Names.SYSTEM_WRITE,
+                ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
                 ThreadPool.Names.SEARCH,
                 ThreadPool.Names.MANAGEMENT
             );

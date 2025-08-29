@@ -12,7 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -43,6 +44,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -76,13 +78,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -160,8 +163,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -206,7 +209,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -214,7 +217,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
-        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean(), EsField.TimeSeriesFieldType.NONE));
     }
 
     public static Literal of(Object value) {
@@ -289,12 +292,12 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public byte[] min(FieldName field, DataType dataType) {
+        public Object min(FieldName field) {
             return null;
         }
 
         @Override
-        public byte[] max(FieldName field, DataType dataType) {
+        public Object max(FieldName field) {
             return null;
         }
 
@@ -380,6 +383,27 @@ public final class EsqlTestUtils {
         }
     }
 
+    public static class TestSearchStatsWithMinMax extends TestSearchStats {
+
+        private final Map<String, Object> minValues;
+        private final Map<String, Object> maxValues;
+
+        public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues) {
+            this.minValues = minValues;
+            this.maxValues = maxValues;
+        }
+
+        @Override
+        public Object min(FieldName field) {
+            return minValues.get(field.string());
+        }
+
+        @Override
+        public Object max(FieldName field) {
+            return maxValues.get(field.string());
+        }
+    }
+
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
 
     private static final Map<String, Map<String, Column>> TABLES = tables();
@@ -393,25 +417,26 @@ public final class EsqlTestUtils {
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
-        mock(TransportService.class),
+        createMockTransportService(),
         mock(SearchService.class),
         null,
         mock(ClusterService.class),
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        mockInferenceRunner()
+        new InferenceService(mock(Client.class))
     );
 
-    @SuppressWarnings("unchecked")
-    private static InferenceRunner mockInferenceRunner() {
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        doAnswer(i -> {
-            i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
-            return null;
-        }).when(inferenceRunner).resolveInferenceIds(any(), any());
+    private static TransportService createMockTransportService() {
+        var service = mock(TransportService.class);
+        doReturn(createMockThreadPool()).when(service).getThreadPool();
+        return service;
+    }
 
-        return inferenceRunner;
+    private static ThreadPool createMockThreadPool() {
+        var threadPool = mock(ThreadPool.class);
+        doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPool).executor(anyString());
+        return threadPool;
     }
 
     private EsqlTestUtils() {}
@@ -446,7 +471,7 @@ public final class EsqlTestUtils {
     }
 
     public static LogicalPlan emptySource() {
-        return new LocalRelation(Source.EMPTY, emptyList(), LocalSupplier.EMPTY);
+        return new LocalRelation(Source.EMPTY, emptyList(), EmptyLocalSupplier.EMPTY);
     }
 
     public static LogicalPlan localSource(BlockFactory blockFactory, List<Attribute> fields, List<Object> row) {
@@ -863,7 +888,7 @@ public final class EsqlTestUtils {
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {
-        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp), false);
     }
 
     public static RLike rlike(Expression left, String exp) {

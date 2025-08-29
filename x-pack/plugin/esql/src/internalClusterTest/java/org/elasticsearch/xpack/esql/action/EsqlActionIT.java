@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -143,6 +144,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testRow() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         try (EsqlQueryResponse response = run("row " + value)) {
+            assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    public void testRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest().query("row " + value).filter(new BoolQueryBuilder().boost(1.0f)))) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
     }
@@ -1679,6 +1687,40 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testGroupingStatsOnMissingFields() {
+        assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
+        assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
+        long oneValue = between(1, 1000);
+        indexDoc("missing_field_index", "1", "data", oneValue);
+        refresh("missing_field_index");
+        QueryPragmas pragmas = randomPragmas();
+        pragmas = new QueryPragmas(
+            Settings.builder().put(pragmas.getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
+        );
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM missing_field_index,test | STATS s = sum(data) BY color, tag | SORT color");
+        request.pragmas(pragmas);
+        try (var r = run(request)) {
+            var rows = getValuesList(r);
+            assertThat(rows, hasSize(4));
+            for (List<Object> row : rows) {
+                assertThat(row, hasSize(3));
+            }
+            assertThat(rows.get(0).get(0), equalTo(20L));
+            assertThat(rows.get(0).get(1), equalTo("blue"));
+            assertNull(rows.get(0).get(2));
+            assertThat(rows.get(1).get(0), equalTo(10L));
+            assertThat(rows.get(1).get(1), equalTo("green"));
+            assertNull(rows.get(1).get(2));
+            assertThat(rows.get(2).get(0), equalTo(30L));
+            assertThat(rows.get(2).get(1), equalTo("red"));
+            assertNull(rows.get(2).get(2));
+            assertThat(rows.get(3).get(0), equalTo(oneValue));
+            assertNull(rows.get(3).get(1));
+            assertNull(rows.get(3).get(2));
+        }
+    }
+
     private void assertEmptyIndexQueries(String from) {
         try (EsqlQueryResponse resp = run(from + "METADATA _source | KEEP _source | LIMIT 1")) {
             assertFalse(resp.values().hasNext());
@@ -1816,6 +1858,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     "time",
                     "type=long",
                     "color",
+                    "type=keyword",
+                    "tag",
                     "type=keyword"
                 )
         );

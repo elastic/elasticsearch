@@ -10,18 +10,22 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
@@ -36,6 +40,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalTimeValue;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
@@ -650,6 +655,69 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validation.validationErrors(), hasSize(2));
         assertNull(parsedInt);
         assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_ReturnsValueWhenValueIsEqualToMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(5, 5);
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_ReturnsValueWhenValueIsGreaterThanToMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(5, 6);
+    }
+
+    private void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(int minValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, "key", minValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(actualValue));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorWhenValueIsLessThanMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "key",
+            5,
+            4,
+            "[scope] Invalid value [4.0]. [key] must be a greater than or equal to [5.0]"
+        );
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorWhenKeyIsMissing() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "not_key",
+            5,
+            -1,
+            "[scope] does not contain the required setting [not_key]"
+        );
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorOnNegativeValue() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "key",
+            5,
+            -1,
+            "[scope] Invalid value [-1]. [key] must be a positive integer"
+        );
+    }
+
+    private void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+        String key,
+        int minValue,
+        int actualValue,
+        String error
+    ) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, key, minValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), containsString(error));
     }
 
     public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsBetweenMinAndMax() {
@@ -1307,5 +1375,47 @@ public class ServiceUtilsTests extends ESTestCase {
                     + "the second element must be a string but was [Integer];"
             )
         );
+    }
+
+    public void testResolveInferenceTimeout_WithProvidedTimeout_ReturnsProvidedTimeout() {
+        var clusterService = mockClusterService(Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build());
+        var providedTimeout = TimeValue.timeValueSeconds(45);
+
+        for (InputType inputType : InputType.values()) {
+            var result = ServiceUtils.resolveInferenceTimeout(providedTimeout, inputType, clusterService);
+            assertEquals("Input type " + inputType + " should return provided timeout", providedTimeout, result);
+        }
+    }
+
+    public void testResolveInferenceTimeout_WithNullTimeout_ReturnsExpectedTimeoutByInputType() {
+        var configuredTimeout = TimeValue.timeValueSeconds(10);
+        var clusterService = mockClusterService(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
+        );
+
+        Map<InputType, TimeValue> expectedTimeouts = Map.of(
+            InputType.SEARCH,
+            configuredTimeout,
+            InputType.INTERNAL_SEARCH,
+            configuredTimeout,
+            InputType.INGEST,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.INTERNAL_INGEST,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.CLASSIFICATION,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.CLUSTERING,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.UNSPECIFIED,
+            InferenceAction.Request.DEFAULT_TIMEOUT
+        );
+
+        for (Map.Entry<InputType, TimeValue> entry : expectedTimeouts.entrySet()) {
+            InputType inputType = entry.getKey();
+            TimeValue expectedTimeout = entry.getValue();
+
+            var result = ServiceUtils.resolveInferenceTimeout(null, inputType, clusterService);
+            assertEquals("Input type " + inputType + " should return expected timeout", expectedTimeout, result);
+        }
     }
 }

@@ -9,38 +9,11 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.internal.hppc.IntArrayList;
+record CentroidAssignments(int numCentroids, float[][] centroids, int[] assignments, int[] overspillAssignments) {
 
-final class CentroidAssignments {
-
-    private final int numCentroids;
-    private final float[][] cachedCentroids;
-    private final IntArrayList[] assignmentsByCluster;
-
-    private CentroidAssignments(int numCentroids, float[][] cachedCentroids, IntArrayList[] assignmentsByCluster) {
-        this.numCentroids = numCentroids;
-        this.cachedCentroids = cachedCentroids;
-        this.assignmentsByCluster = assignmentsByCluster;
-    }
-
-    CentroidAssignments(float[][] centroids, IntArrayList[] assignmentsByCluster) {
-        this(centroids.length, centroids, assignmentsByCluster);
-    }
-
-    CentroidAssignments(int numCentroids, IntArrayList[] assignmentsByCluster) {
-        this(numCentroids, null, assignmentsByCluster);
-    }
-
-    // Getters and setters
-    public int numCentroids() {
-        return numCentroids;
-    }
-
-    public float[][] cachedCentroids() {
-        return cachedCentroids;
-    }
-
-    public IntArrayList[] assignmentsByCluster() {
-        return assignmentsByCluster;
+    CentroidAssignments(float[][] centroids, int[] assignments, int[] overspillAssignments) {
+        this(centroids.length, centroids, assignments, overspillAssignments);
+        assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
+            : "assignments and overspillAssignments must have the same length";
     }
 }

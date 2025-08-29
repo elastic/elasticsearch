@@ -44,7 +44,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,6 +52,7 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.Before;
 
@@ -114,8 +115,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -141,8 +142,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -160,6 +161,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             .put("xpack.security.http.ssl.client_authentication", value)
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
+        final SslProfile httpSslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
         Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
@@ -168,8 +170,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(httpSslProfile::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -195,8 +197,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -217,8 +219,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -240,8 +242,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -272,8 +274,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -312,7 +314,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> {
@@ -387,7 +389,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 },
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> listener.onResponse(null)
@@ -486,7 +488,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> listener.onResponse(null)
@@ -569,7 +571,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> {
@@ -699,7 +701,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> {

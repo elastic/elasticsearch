@@ -453,8 +453,8 @@ class SetupPasswordTool extends MultiCommand {
                     Map<String, Object> featureInfo = (Map<String, Object>) features.get("security");
                     if (featureInfo != null) {
                         xPackSecurityFeatureConfig = new XPackSecurityFeatureConfig(
-                            Boolean.parseBoolean(featureInfo.get("available").toString()),
-                            Boolean.parseBoolean(featureInfo.get("enabled").toString())
+                            Booleans.parseBoolean(featureInfo.get("available").toString()),
+                            Booleans.parseBoolean(featureInfo.get("enabled").toString())
                         );
                         return xPackSecurityFeatureConfig;
                     }

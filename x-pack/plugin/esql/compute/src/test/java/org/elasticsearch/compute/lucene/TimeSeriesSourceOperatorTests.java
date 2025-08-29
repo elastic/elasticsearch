@@ -34,12 +34,15 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.TimeSeriesExtractFieldOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
@@ -71,7 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
+public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
 
     private IndexReader reader;
     private final Directory directory = newDirectory();
@@ -487,6 +490,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
                 f -> new ValuesSourceReaderOperator.FieldInfo(
                     f.ft.name(),
                     f.elementType,
+                    false,
                     n -> f.ft.blockLoader(ValuesSourceReaderOperatorTests.blContext())
                 )
             )

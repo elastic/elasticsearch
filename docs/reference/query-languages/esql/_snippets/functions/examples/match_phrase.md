@@ -2,6 +2,10 @@
 
 **Example**
 
+```{applies_to}
+stack: ga 9.1.0
+```
+
 ```esql
 FROM books
 | WHERE MATCH_PHRASE(author, "William Faulkner")

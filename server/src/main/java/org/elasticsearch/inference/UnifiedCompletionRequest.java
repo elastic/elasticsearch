@@ -121,11 +121,19 @@ public record UnifiedCompletionRequest(
      * - Key: {@link #MODEL_FIELD}, Value: modelId
      * - Key: {@link #MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
-    public static Params withMaxCompletionTokensTokens(String modelId, Params params) {
+    public static Params withMaxCompletionTokens(String modelId, Params params) {
         return new DelegatingMapParams(
             Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD)),
             params
         );
+    }
+
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     */
+    public static Params withMaxCompletionTokensTokens(Params params) {
+        return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
     }
 
     public sealed interface Content extends NamedWriteable, ToXContent permits ContentObjects, ContentString {}

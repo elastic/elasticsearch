@@ -25,7 +25,7 @@ import org.apache.lucene.util.NumericUtils;
 /**
  * Copied from and modified from Apache Lucene.
  */
-class NeighborQueue {
+public class NeighborQueue {
 
     private enum Order {
         MIN_HEAP {
@@ -49,7 +49,7 @@ class NeighborQueue {
     private final LongHeap heap;
     private final Order order;
 
-    NeighborQueue(int initialSize, boolean maxHeap) {
+    public NeighborQueue(int initialSize, boolean maxHeap) {
         this.heap = new LongHeap(initialSize);
         this.order = maxHeap ? Order.MAX_HEAP : Order.MIN_HEAP;
     }
@@ -59,6 +59,10 @@ class NeighborQueue {
      */
     public int size() {
         return heap.size();
+    }
+
+    public long peek() {
+        return heap.top();
     }
 
     /**
@@ -84,6 +88,10 @@ class NeighborQueue {
         return heap.insertWithOverflow(encode(newNode, newScore));
     }
 
+    public boolean insertWithOverflow(long encoded) {
+        return heap.insertWithOverflow(encoded);
+    }
+
     /**
      * Encodes the node ID and its similarity score as long, preserving the Lucene tie-breaking rule
      * that when two scores are equal, the smaller node ID must win.
@@ -91,24 +99,32 @@ class NeighborQueue {
      * @param score the node score
      * @return the encoded score, node ID
      */
-    private long encode(int node, float score) {
-        return order.apply((((long) NumericUtils.floatToSortableInt(score)) << 32) | (0xFFFFFFFFL & ~node));
+    public long encode(int node, float score) {
+        return order.apply(encodeRaw(node, score));
     }
 
     /** Returns the top element's node id. */
-    int topNode() {
+    public int topNode() {
         return decodeNodeId(heap.top());
+    }
+
+    public static long encodeRaw(int node, float score) {
+        return (((long) NumericUtils.floatToSortableInt(score)) << 32) | (0xFFFFFFFFL & ~node);
+    }
+
+    public static float decodeScoreRaw(long heapValue) {
+        return NumericUtils.sortableIntToFloat((int) (heapValue >> 32));
     }
 
     /**
      * Returns the top element's node score. For the min heap this is the minimum score. For the max
      * heap this is the maximum score.
      */
-    float topScore() {
+    public float topScore() {
         return decodeScore(heap.top());
     }
 
-    private float decodeScore(long heapValue) {
+    public float decodeScore(long heapValue) {
         return NumericUtils.sortableIntToFloat((int) (order.apply(heapValue) >> 32));
     }
 
@@ -119,33 +135,6 @@ class NeighborQueue {
     /** Removes the top element and returns its node id. */
     public int pop() {
         return decodeNodeId(heap.pop());
-    }
-
-    public void consumeNodes(int[] dest) {
-        if (dest.length < size()) {
-            throw new IllegalArgumentException("Destination array is too small. Expected at least " + size() + " elements.");
-        }
-        for (int i = 0; i < size(); i++) {
-            dest[i] = decodeNodeId(heap.get(i + 1));
-        }
-    }
-
-    public int consumeNodesAndScoresMin(int[] dest, float[] scores) {
-        if (dest.length < size() || scores.length < size()) {
-            throw new IllegalArgumentException("Destination array is too small. Expected at least " + size() + " elements.");
-        }
-        float bestScore = Float.POSITIVE_INFINITY;
-        int bestIdx = 0;
-        for (int i = 0; i < size(); i++) {
-            long heapValue = heap.get(i + 1);
-            scores[i] = decodeScore(heapValue);
-            dest[i] = decodeNodeId(heapValue);
-            if (scores[i] < bestScore) {
-                bestScore = scores[i];
-                bestIdx = i;
-            }
-        }
-        return bestIdx;
     }
 
     public void clear() {

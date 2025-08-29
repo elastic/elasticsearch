@@ -31,10 +31,6 @@ class KMeansIntermediate extends KMeansResult {
         this(new float[0][0], new int[0], i -> i, new int[0]);
     }
 
-    KMeansIntermediate(float[][] centroids) {
-        this(centroids, new int[0], i -> i, new int[0]);
-    }
-
     KMeansIntermediate(float[][] centroids, int[] assignments) {
         this(centroids, assignments, i -> i, new int[0]);
     }

@@ -109,10 +109,11 @@ public class AuditIT extends ESRestTestCase {
 
     public void testAuditAuthenticationSuccessForStreamingRequest() throws Exception {
         final Request request = new Request("POST", "/testindex/_bulk");
-        request.setEntity(new StringEntity("""
+        final String content = """
             {"index":{}}
             {}
-            """, ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
+            """;
+        request.setEntity(new StringEntity(content, ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
         executeAndVerifyAudit(
             request,
             AuditLevel.AUTHENTICATION_SUCCESS,
@@ -120,7 +121,7 @@ public class AuditIT extends ESRestTestCase {
                 event,
                 allOf(
                     hasEntry(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, "REALM"),
-                    hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, "Request body had not been received at the time of the audit event")
+                    hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, content)
                 )
             )
         );

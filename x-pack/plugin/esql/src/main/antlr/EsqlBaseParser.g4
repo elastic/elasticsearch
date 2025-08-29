@@ -59,12 +59,12 @@ processingCommand
     | completionCommand
     | sampleCommand
     | forkCommand
+    | rerankCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? rerankCommand
-    | {this.isDevVersion()}? rrfCommand
+    | {this.isDevVersion()}? fuseCommand
     ;
 
 whereCommand
@@ -151,11 +151,21 @@ aggField
     ;
 
 qualifiedName
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=UNQUOTED_IDENTIFIER? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldName CLOSING_BRACKET
+    | name=fieldName
+    ;
+
+fieldName
     : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : identifierPattern (DOT identifierPattern)*
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=ID_PATTERN? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldNamePattern CLOSING_BRACKET
+    | name=fieldNamePattern
+    ;
+
+fieldNamePattern
+    : (identifierPattern (DOT identifierPattern)*)
     ;
 
 qualifiedNamePatterns
@@ -219,7 +229,20 @@ renameClause:
     ;
 
 dissectCommand
-    : DISSECT primaryExpression string commandOptions?
+    : DISSECT primaryExpression string dissectCommandOptions?
+    ;
+
+dissectCommandOptions
+    : dissectCommandOption (COMMA dissectCommandOption)*
+    ;
+
+dissectCommandOption
+    : identifier ASSIGN constant
+    ;
+
+
+commandNamedParameters
+    : (WITH mapExpression)?
     ;
 
 grokCommand
@@ -228,14 +251,6 @@ grokCommand
 
 mvExpandCommand
     : MV_EXPAND qualifiedName
-    ;
-
-commandOptions
-    : commandOption (COMMA commandOption)*
-    ;
-
-commandOption
-    : identifier ASSIGN constant
     ;
 
 explainCommand
@@ -251,7 +266,12 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=enrichPolicyName (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    ;
+
+enrichPolicyName
+    : ENRICH_POLICY_NAME
+    | QUOTED_STRING
     ;
 
 enrichWithClause
@@ -262,23 +282,8 @@ sampleCommand
     : SAMPLE probability=constant
     ;
 
-//
-// In development
-//
-lookupCommand
-    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
-    ;
-
-inlinestatsCommand
-    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
-    ;
-
 changePointCommand
     : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
-    ;
-
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
     ;
 
 forkCommand
@@ -302,27 +307,29 @@ forkSubQueryProcessingCommand
     : processingCommand
     ;
 
-rrfCommand
-   : DEV_RRF
-   ;
-
-inferenceCommandOptions
-    : inferenceCommandOption (COMMA inferenceCommandOption)*
-    ;
-
-inferenceCommandOption
-    : identifier ASSIGN inferenceCommandOptionValue
-    ;
-
-inferenceCommandOptionValue
-    : constant
-    | identifier
-    ;
-
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields commandNamedParameters
     ;
 
 completionCommand
-    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression commandNamedParameters
+    ;
+
+//
+// In development
+//
+lookupCommand
+    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+inlinestatsCommand
+    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+insistCommand
+    : DEV_INSIST qualifiedNamePatterns
+    ;
+
+fuseCommand
+    : DEV_FUSE
     ;

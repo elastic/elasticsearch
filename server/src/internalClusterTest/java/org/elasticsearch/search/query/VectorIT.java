@@ -223,5 +223,4 @@ public class VectorIT extends ESIntegTestCase {
             );
         }
     }
-
 }

@@ -460,25 +460,29 @@ public class SparseVectorFieldMapper extends FieldMapper {
             }
 
             var fieldInfos = leafReader.getFieldInfos().fieldInfo(fullPath);
-            if (fieldInfos == null || fieldInfos.hasTermVectors() == false) {
-                return null;
-            }
+            boolean hasTermVectors = fieldInfos != null && fieldInfos.hasTermVectors();
             return docId -> {
+                termsDocEnum = null;
+
                 if (scorer.iterator().docID() < docId) {
                     scorer.iterator().advance(docId);
                 }
                 if (scorer.iterator().docID() != docId) {
-                    termsDocEnum = null;
                     return hasValue = false;
                 }
-                var terms = leafReader.termVectors().get(docId, fullPath);
-                if (terms != null && (termsDocEnum = terms.iterator()).next() != null) {
-                    return hasValue = true;
-                } else {
-                    // this is an empty map
-                    termsDocEnum = null;
+
+                if (hasTermVectors == false) {
                     return hasValue = true;
                 }
+
+                var terms = leafReader.termVectors().get(docId, fullPath);
+                if (terms != null) {
+                    termsDocEnum = terms.iterator();
+                    if (termsDocEnum.next() == null) {
+                        termsDocEnum = null;
+                    }
+                }
+                return hasValue = true;
             };
         }
 

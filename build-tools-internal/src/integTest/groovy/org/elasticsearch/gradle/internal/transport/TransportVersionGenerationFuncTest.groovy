@@ -27,11 +27,6 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         return gradleRunner(args.toArray())
     }
 
-    def runGenerateAndValidateWithLabels(String... labels) {
-        String labelsStr = String.join(System.lineSeparator(), List.of(labels));
-        return runGenerateAndValidateTask().withEnvironment(Map.of("PULL_REQUEST_LABELS", labelsStr));
-    }
-
     def runGenerateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
         args.add(":myserver:generateTransportVersionDefinition")
@@ -47,8 +42,9 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
     }
 
-    void assertGenerateFailure(BuildResult result) {
+    void assertGenerateFailure(BuildResult result, String expectedOutput) {
         assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.FAILED
+        assertOutputContains(result.output, expectedOutput)
     }
 
     void assertValidateSuccess(BuildResult result) {
@@ -58,10 +54,6 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     void assertGenerateAndValidateSuccess(BuildResult result) {
         assertGenerateSuccess(result)
         assertValidateSuccess(result)
-    }
-
-    def setup() {
-
     }
 
     def "setup is valid"() {
@@ -74,7 +66,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "a definition should be generated when specified by an arg but no code reference exists yet"() {
         when:
-        def result = runGenerateTask("--name=new_tv", "--branches=9.2").build()
+        def result = runGenerateTask("--name=new_tv").build()
 
         then:
         assertGenerateSuccess(result)
@@ -94,7 +86,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referencedTransportVersion("new_tv")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -102,23 +94,12 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8124000")
     }
 
-    def "generation fails if branches omitted outside CI"() {
-        when:
-        def generateResult = runGenerateTask("--name=no_branches").buildAndFail()
-        def validateResult = runValidateTask().build()
-
-        then:
-        assertGenerateFailure(generateResult)
-        assertOutputContains(generateResult.output, "When running outside CI, --branches must be specified")
-        assertValidateSuccess(validateResult)
-    }
-
     def "invalid changes to a latest file should be reverted"() {
         given:
         transportVersionUpperBound("9.2", "modification", "9000000")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -131,7 +112,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         transportVersionUpperBound("9.1", "modification", "9000000")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2,9.1").build()
+        def result = runGenerateAndValidateTask("--backport-branches=9.1").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -176,7 +157,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referencedTransportVersion("renamed_tv")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -193,7 +174,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referencedTransportVersion("renamed_tv")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2,9.1").build()
+        def result = runGenerateAndValidateTask("--backport-branches=9.1").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -209,7 +190,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         transportVersionUpperBound("9.2", "test_tv", "8124000")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -222,7 +203,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referableAndReferencedTransportVersion("test_tv", "8124000")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -237,7 +218,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         transportVersionUpperBound("9.1", "test_tv", "8012002")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -252,7 +233,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         transportVersionUpperBound("9.2", "test_tv", "8124000")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2,9.1").build()
+        def result = runGenerateAndValidateTask("--backport-branches=9.1").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -290,7 +271,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referableAndReferencedTransportVersion("second_tv", "8123000")
 
         when:
-        def result = runGenerateAndValidateTask("--name=second_tv", "--branches=9.2").build()
+        def result = runGenerateAndValidateTask("--name=second_tv", ).build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -299,20 +280,19 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "second_tv,8124000")
     }
 
-    def "branches param order can be changed"() {
+    def "branches param order does not matter"() {
         given:
-        referableAndReferencedTransportVersion("test_tv", "8124000,8012002")
-        transportVersionUpperBound("9.2", "test_tv", "8124000")
-        transportVersionUpperBound("9.1", "test_tv", "8012002")
+        referencedTransportVersion("test_tv")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.1,9.2").build()
+        def result = runGenerateAndValidateTask("--backport-branches=9.0,9.1").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("test_tv", "8124000,8012002")
+        assertReferableDefinition("test_tv", "8124000,8012002,8000001")
         assertUpperBound("9.2", "test_tv,8124000")
         assertUpperBound("9.1", "test_tv,8012002")
+        assertUpperBound("9.0", "test_tv,8000001")
     }
 
     def "if the files for a new definition already exist, no change should occur"() {
@@ -322,7 +302,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -332,7 +312,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "can add backport to an existing definition"() {
         when:
-        def result = runGenerateAndValidateTask("--name=existing_92", "--branches=9.2,9.1,9.0").build()
+        def result = runGenerateAndValidateTask("--name=existing_92", "--backport-branches=9.1,9.0").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -342,6 +322,18 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.0", "existing_92,8000001")
     }
 
+    def "increment must be positive"() {
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateTask("--increment=0").buildAndFail()
+
+        then:
+        assertGenerateFailure(result, "Invalid increment [0], must be a positive integer")
+        assertReferableDefinitionDoesNotExist("new_tv")
+        assertUpperBound("9.2", "existing_92,8123000")
+    }
 
     def "a different increment can be specified"() {
         given:
@@ -353,7 +345,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         """
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2", "--increment=100").build()
+        def result = runGenerateAndValidateTask("--backport-branches=9.2", "--increment=100").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -366,7 +358,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referencedTransportVersion("new_tv")
 
         when:
-        def result = runGenerateTask("--branches=9.2", "--increment=0").buildAndFail()
+        def result = runGenerateTask("--increment=0").buildAndFail()
 
         then:
         assertOutputContains(result.output, "Invalid increment: must be a positive integer > 0")
@@ -378,7 +370,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         transportVersionUpperBound("9.2", "new_tv", "1000000")
 
         when:
-        def result = runGenerateAndValidateTask("--branches=9.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -386,37 +378,12 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8124000")
     }
 
-    def "branches=main should be translated"() {
-        given:
-        execute("git checkout main")
-        Version esVersion = VersionProperties.getElasticsearchVersion()
-        String releaseBranch = esVersion.getMajor() + "." + esVersion.getMinor()
-        unreferableTransportVersion("initial_main", "9000000")
-        transportVersionUpperBound(releaseBranch, "initial_main", "9000000")
-        file('myserver/build.gradle') << """
-            tasks.named('generateTransportVersionDefinition') {
-                getMainReleaseBranch().unset()
-            }
-        """
-        execute('git commit -a -m "setup_main"')
-        execute('git checkout -b new_branch')
-        referencedTransportVersion("new_tv")
-
-        when:
-        def result = runGenerateAndValidateTask("--branches=main").build()
-
-        then:
-        assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("new_tv", "9001000")
-        assertUpperBound(releaseBranch, "new_tv,9001000")
-    }
-
-    def "branch from pr targeting main"() {
+    def "backport branches is optional"() {
         given:
         referencedTransportVersion("new_tv")
 
         when:
-        def result = runGenerateAndValidateWithLabels("v9.2.0").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -424,43 +391,23 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8124000")
     }
 
-    def "branch from pr for backport"() {
+    def "deleted upper bounds files are restored"() {
         given:
-        referencedTransportVersion("new_tv")
+        file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").delete()
 
         when:
-        def result = runGenerateAndValidateWithLabels("v9.2.0", "v9.1.2").build()
+        def result = runGenerateAndValidateTask().build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("new_tv", "8124000,8012002")
-        assertUpperBound("9.2", "new_tv,8124000")
-        assertUpperBound("9.1", "new_tv,8012002")
+        assertUpperBound("9.2", "existing_92,8123000")
     }
 
-    def "branch from pr with other labels"() {
-        given:
-        referencedTransportVersion("new_tv")
-
+    def "upper bounds files must exist for backport branches"() {
         when:
-        def result = runGenerateAndValidateWithLabels(">test", "v9.2.0", ":Core/Infra/Core").build()
+        def result = runGenerateTask("--backport-branches=9.1,8.13,7.17,6.0").buildAndFail()
 
         then:
-        assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("new_tv", "8124000")
-        assertUpperBound("9.2", "new_tv,8124000")
-    }
-
-    def "branch from pr default to main"() {
-        given:
-        referencedTransportVersion("new_tv")
-
-        when:
-        def result = runGenerateAndValidateWithLabels(">test", ":Core/Infra/Core").build()
-
-        then:
-        assertGenerateAndValidateSuccess(result)
-        assertReferableDefinition("new_tv", "8124000")
-        assertUpperBound("9.2", "new_tv,8124000")
+        assertGenerateFailure(result, "Missing upper bounds files for branches [6.0, 7.17, 8.13], known branches are [9.0, 9.1, 9.2]")
     }
 }

@@ -202,13 +202,11 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     void execute(String command, File workingDir = testProjectDir.root) {
         def proc = command.execute(Collections.emptyList(), workingDir)
-        System.out.println(command)
         proc.waitFor()
         if (proc.exitValue()) {
             System.err.println("Error running command ${command}:")
             System.err.println("Syserr: " + proc.errorStream.text)
         }
-        System.out.println("Output: " + proc.inputStream.text)
     }
 
     File dir(String path) {

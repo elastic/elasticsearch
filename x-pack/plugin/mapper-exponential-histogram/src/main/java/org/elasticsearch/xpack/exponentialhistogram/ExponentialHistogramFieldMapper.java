@@ -373,7 +373,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
             if (min == null) {
                 OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
-                    new ZeroBucket(zeroBucket.threshold(), zeroBucket.count),
+                    ZeroBucket.create(zeroBucket.threshold(), zeroBucket.count),
                     IndexWithCount.asBuckets(scale, negativeBuckets),
                     IndexWithCount.asBuckets(scale, positiveBuckets)
                 );

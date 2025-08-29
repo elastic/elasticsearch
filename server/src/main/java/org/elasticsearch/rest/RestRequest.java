@@ -329,16 +329,20 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return httpRequest.body().asStream();
     }
 
-    /**
-     * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
-     * See {@link #content()}.
-     */
-    public ReleasableBytesReference requiredContent() {
+    public void ensureContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
             throwValidationException("unknown content type");
         }
+    }
+
+    /**
+     * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
+     * See {@link #content()}.
+     */
+    public ReleasableBytesReference requiredContent() {
+        ensureContent();
         return content();
     }
 

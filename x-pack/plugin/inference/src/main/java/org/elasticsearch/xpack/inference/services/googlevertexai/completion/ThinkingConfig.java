@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
@@ -23,7 +22,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 /**
  * This class encapsulates the ThinkingConfig object contained within GenerationConfig. Only the thinkingBudget field is currently
@@ -52,23 +50,14 @@ public class ThinkingConfig implements Writeable, ToXContentFragment {
         thinkingBudget = in.readOptionalVInt();
     }
 
-    public static ThinkingConfig of(
-        Map<String, Object> map,
-        ValidationException validationException,
-        String serviceName,
-        ConfigurationParseContext context
-    ) {
+    public static ThinkingConfig fromMap(Map<String, Object> map, ValidationException validationException) {
         Map<String, Object> thinkingConfigSettings = removeFromMapOrDefaultEmpty(map, THINKING_CONFIG_FIELD);
         Integer thinkingBudget = ServiceUtils.extractOptionalInteger(
             thinkingConfigSettings,
             THINKING_BUDGET_FIELD,
-            ModelConfigurations.SERVICE_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
             validationException
         );
-
-        if (ConfigurationParseContext.isRequestContext(context)) {
-            throwIfNotEmptyMap(thinkingConfigSettings, serviceName);
-        }
 
         return new ThinkingConfig(thinkingBudget);
     }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
@@ -35,8 +34,7 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
             randomString(),
             randomString(),
             randomString(),
-            new RateLimitSettings(randomIntBetween(1, 1000)),
-            new ThinkingConfig(randomInt())
+            new RateLimitSettings(randomIntBetween(1, 1000))
         );
     }
 
@@ -45,16 +43,6 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
         GoogleVertexAiChatCompletionServiceSettings instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.GEMINI_THINKING_BUDGET_ADDED)) {
-            return new GoogleVertexAiChatCompletionServiceSettings(
-                instance.projectId(),
-                instance.location(),
-                instance.modelId(),
-                instance.rateLimitSettings(),
-                null
-            );
-        } else {
-            return instance;
-        }
+        return instance;
     }
 }

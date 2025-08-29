@@ -39,7 +39,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
 
         var requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            model.getServiceSettings().thinkingConfig()
+            model.getTaskSettings().thinkingConfig()
         );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));

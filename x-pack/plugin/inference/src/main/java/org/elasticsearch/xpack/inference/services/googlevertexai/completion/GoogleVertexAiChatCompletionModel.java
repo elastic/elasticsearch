@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -47,7 +46,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             taskType,
             service,
             GoogleVertexAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            new EmptyTaskSettings(),
+            GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettings),
             GoogleVertexAiSecretSettings.fromMap(secrets)
         );
     }
@@ -57,7 +56,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         TaskType taskType,
         String service,
         GoogleVertexAiChatCompletionServiceSettings serviceSettings,
-        EmptyTaskSettings taskSettings,
+        GoogleVertexAiChatCompletionTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
@@ -73,6 +72,14 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         }
     }
 
+    private GoogleVertexAiChatCompletionModel(
+        GoogleVertexAiChatCompletionModel model,
+        GoogleVertexAiChatCompletionTaskSettings taskSettings
+    ) {
+        super(model, taskSettings);
+        streamingURI = model.streamingURI();
+    }
+
     public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, UnifiedCompletionRequest request) {
         var originalModelServiceSettings = model.getServiceSettings();
 
@@ -80,8 +87,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             originalModelServiceSettings.projectId(),
             originalModelServiceSettings.location(),
             Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
-            originalModelServiceSettings.rateLimitSettings(),
-            originalModelServiceSettings.thinkingConfig()
+            originalModelServiceSettings.rateLimitSettings()
         );
 
         return new GoogleVertexAiChatCompletionModel(
@@ -92,6 +98,26 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             model.getTaskSettings(),
             model.getSecretSettings()
         );
+    }
+
+    /**
+     * Overrides the task settings in the given model with the settings in the map. If no new settings are present or the provided settings
+     * do not differ from those already in the model, returns the original model
+     * @param model the model whose task settings will be overridden
+     * @param taskSettingsMap the new task settings to use
+     * @return a {@link GoogleVertexAiChatCompletionModel} with overridden {@link GoogleVertexAiChatCompletionTaskSettings}
+     */
+    public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, Map<String, Object> taskSettingsMap) {
+        if (taskSettingsMap == null || taskSettingsMap.isEmpty()) {
+            return model;
+        }
+
+        var requestTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettingsMap);
+        if (requestTaskSettings.isEmpty() || model.getTaskSettings().equals(requestTaskSettings)) {
+            return model;
+        }
+        var combinedTaskSettings = GoogleVertexAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
+        return new GoogleVertexAiChatCompletionModel(model, combinedTaskSettings);
     }
 
     @Override
@@ -110,8 +136,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public EmptyTaskSettings getTaskSettings() {
-        return (EmptyTaskSettings) super.getTaskSettings();
+    public GoogleVertexAiChatCompletionTaskSettings getTaskSettings() {
+        return (GoogleVertexAiChatCompletionTaskSettings) super.getTaskSettings();
     }
 
     @Override

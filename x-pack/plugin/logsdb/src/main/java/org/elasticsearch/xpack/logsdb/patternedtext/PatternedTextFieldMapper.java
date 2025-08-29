@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
@@ -56,7 +55,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends TextFamilyFieldMapper.Builder {
+    public static class Builder extends BuilderWithExtendedSyntheticSourceSupport {
 
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();

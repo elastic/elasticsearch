@@ -28,7 +28,7 @@
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
-          "optional" : false,
+          "optional" : true,
           "description" : ""
         }
       ],
@@ -59,7 +59,7 @@
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
-          "optional" : false,
+          "optional" : true,
           "description" : ""
         }
       ],
@@ -90,7 +90,7 @@
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
-          "optional" : false,
+          "optional" : true,
           "description" : ""
         }
       ],
@@ -121,7 +121,7 @@
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
-          "optional" : false,
+          "optional" : true,
           "description" : ""
         }
       ],
@@ -152,7 +152,7 @@
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
-          "optional" : false,
+          "optional" : true,
           "description" : ""
         }
       ],
@@ -183,7 +183,7 @@
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
-          "optional" : false,
+          "optional" : true,
           "description" : ""
         }
       ],
@@ -214,7 +214,7 @@
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
-          "optional" : false,
+          "optional" : true,
           "description" : ""
         }
       ],
@@ -245,7 +245,7 @@
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
-          "optional" : false,
+          "optional" : true,
           "description" : ""
         }
       ],

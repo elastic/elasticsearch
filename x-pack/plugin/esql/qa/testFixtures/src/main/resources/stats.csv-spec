@@ -2425,7 +2425,7 @@ required_capability: per_agg_filtering
 // tag::aggFilteringOnGroup[]
 FROM employees
 | STATS `count` = COUNT(*) WHERE languages < 3 BY languages
-// end::aggFilteringNoGroup[]
+// end::aggFilteringOnGroup[]
 | SORT languages
 ;
 
@@ -2442,7 +2442,7 @@ count:long | languages:integer
 
 docsStatsWithFilteringBefore
 required_capability: per_agg_filtering
-// tag::aggFilteringOnGroup[]
+// tag::aggFilteringBefore[]
 FROM employees
 | WHERE languages < 3
 | STATS `count` = COUNT(*) BY languages

@@ -32,8 +32,8 @@ STATS [column1 =] expression1 [WHERE boolean_expression1][,
 
 `boolean_expressionX`
 :   The condition that must be met for a row to be included in the evaluation of
-    `expressionX`. Does not have any effect on the values used in
-    `grouping_expressionX` or the other `expressionX`.
+    `expressionX`. Does not have any effect on the values produced by
+    `grouping_expressionX` or the other `expressionX`. Consequently, `... | STATS ... WHERE <condition> ...` is not equivalent to `... | WHERE <condition> | STATS ...`.
 
 ::::{note}
 Individual `null` values are skipped when computing aggregations.

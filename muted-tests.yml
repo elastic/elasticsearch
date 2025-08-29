@@ -546,6 +546,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.LossySumDoubleGroupingAggregatorFunctionTests
   method: testManyInitialManyPartialFinalRunner
   issue: https://github.com/elastic/elasticsearch/issues/133809
+- class: org.elasticsearch.compute.aggregation.LossySumDoubleGroupingAggregatorFunctionTests
+  method: testInitialIntermediateFinal
+  issue: https://github.com/elastic/elasticsearch/issues/133822
 
 # Examples:
 #

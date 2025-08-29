@@ -206,14 +206,6 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         };
     }
 
-    static void process(BooleanBlock.Builder builder, int position, Block subset) {
-        if (subset.isNull(position) == false) {
-            appendTo(builder, false);
-            return;
-        }
-        appendTo(builder, true);
-    }
-
     // @Evaluator(extraName = "Int") see end of file.
     static void process(BooleanBlock.Builder builder, int position, IntBlock field1, IntBlock field2) {
         appendTo(builder, containsAll(field1, field2, position, IntBlock::getInt));

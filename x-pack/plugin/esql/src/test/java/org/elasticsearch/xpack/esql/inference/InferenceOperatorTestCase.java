@@ -28,7 +28,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
-import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -41,16 +41,12 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
+public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends AsyncOperatorTestCase {
     protected ThreadPool threadPool;
     protected int inputsCount;
 
@@ -118,11 +114,6 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
             }
         };
-    }
-
-    @Override
-    protected void assertEmptyStatus(Map<String, Object> map) {
-        assertMap(map, matchesMap().entry("received_pages", 0).entry("completed_pages", 0).entry("process_nanos", greaterThanOrEqualTo(0)));
     }
 
     @SuppressWarnings("unchecked")
@@ -205,6 +196,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Block b = page.getBlock(channel);
                 b.incRef();
                 return b;
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
             }
 
             @Override

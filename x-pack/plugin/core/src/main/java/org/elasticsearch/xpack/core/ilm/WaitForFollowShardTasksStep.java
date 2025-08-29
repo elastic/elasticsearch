@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,8 +38,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = state.metadata().index(index);
+    public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             listener.onResponse(true, null);
@@ -48,7 +46,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         }
 
         FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
-        request.setIndices(new String[] { index.getName() });
+        request.setIndices(new String[] { indexMetadata.getIndex().getName() });
         getClient(state.projectId()).execute(
             FollowStatsAction.INSTANCE,
             request,

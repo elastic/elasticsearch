@@ -136,7 +136,7 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
     private int readShortInt() {
         short x = (short) VH_BE_SHORT.get(bytes, offset);
         offset += 2;
-        if (x > 0) {
+        if (x >= 0) {
             return x;
         } else {
             short y = (short) VH_BE_SHORT.get(bytes, offset);

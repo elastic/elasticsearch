@@ -489,7 +489,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             ALL_VERSIONS_BY_NAME = Collections.unmodifiableMap(allVersionsByName);
 
             CURRENT = ALL_VERSIONS.getLast();
-            ZERO = loadConstant("zero");
+            ZERO = new TransportVersion(0);
             MINIMUM_COMPATIBLE = loadConstant("minimum_compatible");
             MINIMUM_CCS_VERSION = loadConstant("minimum_ccs_version");
         }

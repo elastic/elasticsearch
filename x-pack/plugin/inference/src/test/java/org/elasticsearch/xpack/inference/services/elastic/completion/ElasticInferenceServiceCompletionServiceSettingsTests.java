@@ -7,17 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -25,8 +27,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class ElasticInferenceServiceCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<
+public class ElasticInferenceServiceCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     ElasticInferenceServiceCompletionServiceSettings> {
 
     @Override
@@ -53,7 +56,28 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings, is(new ElasticInferenceServiceCompletionServiceSettings(modelId, new RateLimitSettings(720L))));
+        assertThat(serviceSettings, is(new ElasticInferenceServiceCompletionServiceSettings(modelId)));
+        assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
+        assertFalse(serviceSettings.rateLimitSettings().isEnabled());
+    }
+
+    public void testFromMap_RemovesRateLimitingField() {
+        var modelId = "my-model-id";
+
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                modelId,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+            )
+        );
+        var serviceSettings = ElasticInferenceServiceRerankServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(map, is(Map.of()));
+        assertThat(serviceSettings, is(new ElasticInferenceServiceRerankServiceSettings(modelId)));
+        assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
+        assertFalse(serviceSettings.rateLimitSettings().isEnabled());
     }
 
     public void testFromMap_MissingModelId_ThrowsException() {
@@ -67,17 +91,25 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
 
     public void testToXContent_WritesAllFields() throws IOException {
         var modelId = "model_id";
-        var serviceSettings = new ElasticInferenceServiceCompletionServiceSettings(modelId, new RateLimitSettings(1000));
+        var serviceSettings = new ElasticInferenceServiceCompletionServiceSettings(modelId);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is(Strings.format("""
-            {"model_id":"%s","rate_limit":{"requests_per_minute":1000}}""", modelId)));
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {"model_id":"%s"}""", modelId))));
     }
 
     public static ElasticInferenceServiceCompletionServiceSettings createRandom() {
-        return new ElasticInferenceServiceCompletionServiceSettings(randomAlphaOfLength(4), RateLimitSettingsTests.createRandom());
+        return new ElasticInferenceServiceCompletionServiceSettings(randomAlphaOfLength(4));
+    }
+
+    @Override
+    protected ElasticInferenceServiceCompletionServiceSettings mutateInstanceForVersion(
+        ElasticInferenceServiceCompletionServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

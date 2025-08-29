@@ -34,32 +34,33 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     public static final String NAME = "elastic_inference_service_completion_service_settings";
 
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(720L);
-
     public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.disabledRateLimiting(map);
+        RateLimitSettings.disabledRateLimiting(map);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ElasticInferenceServiceCompletionServiceSettings(modelId, rateLimitSettings);
+        return new ElasticInferenceServiceCompletionServiceSettings(modelId);
     }
 
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public ElasticInferenceServiceCompletionServiceSettings(String modelId, RateLimitSettings rateLimitSettings) {
+    public ElasticInferenceServiceCompletionServiceSettings(String modelId) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
     }
 
     public ElasticInferenceServiceCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        this.rateLimitSettings = new RateLimitSettings(in);
+        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
+        if (in.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+            new RateLimitSettings(in);
+        }
     }
 
     @Override
@@ -103,7 +104,9 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +34,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String FIELD_NAME = "rate_limit";
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
+    public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
 
     public static RateLimitSettings of(
         Map<String, Object> map,
@@ -54,7 +56,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static RateLimitSettings disabledRateLimiting(Map<String, Object> map) {
         removeFromMap(map, FIELD_NAME);
 
-        return new RateLimitSettings(1, TimeUnit.MINUTES, false);
+        return DISABLED_INSTANCE;
     }
 
     public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(
@@ -109,7 +111,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         if (requestsPerTimeUnit <= 0) {
             throw new IllegalArgumentException("requests per minute must be positive");
         }
-        this.requestsPerTimeUnit = 0;
+        this.requestsPerTimeUnit = requestsPerTimeUnit;
         this.timeUnit = Objects.requireNonNull(timeUnit);
         this.enabled = enabled;
     }
@@ -117,7 +119,11 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public RateLimitSettings(StreamInput in) throws IOException {
         requestsPerTimeUnit = in.readVLong();
         timeUnit = TimeUnit.MINUTES;
-        enabled = true;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+            enabled = in.readBoolean();
+        } else {
+            enabled = true;
+        }
     }
 
     public long requestsPerTimeUnit() {
@@ -147,6 +153,9 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(requestsPerTimeUnit);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+            out.writeBoolean(enabled);
+        }
     }
 
     @Override

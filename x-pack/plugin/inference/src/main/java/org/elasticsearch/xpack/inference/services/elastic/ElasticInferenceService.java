@@ -193,7 +193,7 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
                     TaskType.CHAT_COMPLETION,
                     NAME,
-                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1, null),
+                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
@@ -206,7 +206,7 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents,
@@ -224,8 +224,7 @@ public class ElasticInferenceService extends SenderService {
                         DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
                         defaultDenseTextEmbeddingsSimilarity(),
                         null,
-                        null,
-                        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
+                        null
                     ),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
@@ -245,7 +244,7 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_RERANK_ENDPOINT_ID_V1,
                     TaskType.RERANK,
                     NAME,
-                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1, null),
+                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
@@ -622,8 +621,7 @@ public class ElasticInferenceService extends SenderService {
                 modelId,
                 similarityToUse,
                 embeddingSize,
-                maxInputTokens,
-                serviceSettings.rateLimitSettings()
+                maxInputTokens
             );
 
             return new ElasticInferenceServiceDenseTextEmbeddingsModel(embeddingsModel, updateServiceSettings);

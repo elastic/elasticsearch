@@ -20,7 +20,7 @@ public class ElasticInferenceServiceRerankModelTests extends ESTestCase {
             "id",
             TaskType.RERANK,
             "service",
-            new ElasticInferenceServiceRerankServiceSettings(modelId, null),
+            new ElasticInferenceServiceRerankServiceSettings(modelId),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url)

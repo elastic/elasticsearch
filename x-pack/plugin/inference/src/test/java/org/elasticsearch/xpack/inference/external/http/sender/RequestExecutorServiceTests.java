@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -52,6 +53,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -569,7 +571,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         verifyNoInteractions(requestSender);
     }
 
-    public void testDoesNotExecuteTask_WhenCannotReserveTokens() {
+    public void testDoesNotAttemptToReserveTokens_WhenRateLimitSettingsDisabled() throws ExecutionException, InterruptedException,
+        TimeoutException {
         var mockRateLimiter = mock(RateLimiter.class);
         RequestExecutorService.RateLimiterCreator rateLimiterCreator = (a, b, c) -> mockRateLimiter;
 
@@ -584,19 +587,28 @@ public class RequestExecutorServiceTests extends ESTestCase {
             Clock.systemUTC(),
             rateLimiterCreator
         );
-        var requestManager = RequestManagerTests.createMock(requestSender);
+        var requestManager = RequestManagerTests.createMock(requestSender, "id", RateLimitSettings.DISABLED_INSTANCE);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         service.execute(requestManager, new EmbeddingsInput(List.of(), null), null, listener);
 
+        var waitToShutdown = new CountDownLatch(1);
+        var waitToReturnFromSend = new CountDownLatch(1);
+        // There is a request already queued, and its execution path will initiate shutting down the service
         doAnswer(invocation -> {
-            service.shutdown();
-            return TimeValue.timeValueDays(1);
-        }).when(mockRateLimiter).timeToReserve(anyInt());
+            waitToShutdown.countDown();
+            waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+            return Void.TYPE;
+        }).when(requestSender).send(any(), any(), any(), any(), any());
+
+        Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
         service.start();
+        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
 
-        verifyNoInteractions(requestSender);
+        // The request manager that we create has RateLimitSettings.DISABLED_INSTANCE, so we should never call the rate limiter
+        verify(mockRateLimiter, never()).timeToReserve(anyInt());
+        verify(mockRateLimiter, never()).reserve(anyInt());
     }
 
     public void testDoesNotExecuteTask_WhenCannotReserveTokens_AndThenCanReserve_AndExecutesTask() {

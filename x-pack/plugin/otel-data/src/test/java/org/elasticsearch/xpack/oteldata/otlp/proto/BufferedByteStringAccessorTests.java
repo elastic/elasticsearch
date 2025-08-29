@@ -23,7 +23,7 @@ public class BufferedByteStringAccessorTests extends ESTestCase {
     private final BufferedByteStringAccessor accessor = new BufferedByteStringAccessor();
 
     public void testAddStringDimension() {
-        String value = randomUnicodeOfLengthBetween(10, 1000);
+        String value = randomUnicodeOfLengthBetween(1, 1000);
         TsidBuilder byteStringTsidBuilder = new TsidBuilder();
         accessor.addStringDimension(byteStringTsidBuilder, "test", ByteString.copyFromUtf8(value));
         TsidBuilder basicTsidBuilder = new TsidBuilder();
@@ -31,14 +31,19 @@ public class BufferedByteStringAccessorTests extends ESTestCase {
         assertThat(byteStringTsidBuilder.hash(), equalTo(basicTsidBuilder.hash()));
     }
 
+    public void testAddEmptyStringDimension() {
+        TsidBuilder byteStringTsidBuilder = new TsidBuilder();
+        accessor.addStringDimension(byteStringTsidBuilder, "test", ByteString.copyFromUtf8(""));
+        assertThat(byteStringTsidBuilder.size(), equalTo(0));
+    }
+
     public void testUtf8Value() throws Exception {
-        String value = randomUnicodeOfLengthBetween(10, 1000);
-        ByteString byteString = ByteString.copyFromUtf8(value);
+        String value = randomUnicodeOfLengthBetween(0, 1000);
         String json;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             builder.field("value");
-            accessor.utf8Value(builder, byteString);
+            accessor.utf8Value(builder, ByteString.copyFromUtf8(value));
             builder.endObject();
             json = Strings.toString(builder);
         }

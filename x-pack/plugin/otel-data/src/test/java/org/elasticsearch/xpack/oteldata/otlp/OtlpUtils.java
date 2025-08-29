@@ -25,6 +25,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomLong;
+
 public class OtlpUtils {
 
     public static KeyValueList keyValueList(KeyValue... values) {
@@ -102,21 +105,21 @@ public class OtlpUtils {
             .build();
     }
 
-    public static NumberDataPoint createDoubleDataPoint(long timestamp, List<KeyValue> attributes, double value) {
+    public static NumberDataPoint createDoubleDataPoint(long timestamp, List<KeyValue> attributes) {
         return NumberDataPoint.newBuilder()
             .setTimeUnixNano(timestamp)
             .setStartTimeUnixNano(timestamp)
             .addAllAttributes(attributes)
-            .setAsDouble(value)
+            .setAsDouble(randomDouble())
             .build();
     }
 
-    public static NumberDataPoint createLongDataPoint(long timestamp, List<KeyValue> attributes, long value) {
+    public static NumberDataPoint createLongDataPoint(long timestamp, List<KeyValue> attributes) {
         return NumberDataPoint.newBuilder()
             .setTimeUnixNano(timestamp)
             .setStartTimeUnixNano(timestamp)
             .addAllAttributes(attributes)
-            .setAsInt(value)
+            .setAsInt(randomLong())
             .build();
     }
 

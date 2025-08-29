@@ -35,6 +35,9 @@ public class BufferedByteStringAccessor {
      */
     public void addStringDimension(TsidBuilder tsidBuilder, String dimension, ByteString value) {
         if (value.isEmpty()) {
+            // Ignoring invalid values
+            // According to the spec https://opentelemetry.io/docs/specs/otel/common/#attribute:
+            // The attribute key MUST be a non-null and non-empty string.
             return;
         }
         tsidBuilder.addStringDimension(dimension, toBytes(value), 0, value.size());

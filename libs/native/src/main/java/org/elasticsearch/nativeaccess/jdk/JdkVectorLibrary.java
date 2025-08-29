@@ -158,8 +158,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (a.byteSize() % count != 0) {
                 throw new IllegalArgumentException("b size not multiple of count: " + b.byteSize() + "%" + count);
             }
-            if (a.byteSize()/count != b.byteSize()) {
-                throw new IllegalArgumentException("dimensions differ: " + a.byteSize()/count + "!=" + b.byteSize());
+            if (a.byteSize() / count != b.byteSize()) {
+                throw new IllegalArgumentException("dimensions differ: " + a.byteSize() / count + "!=" + b.byteSize());
             }
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return dot7uBulk(a, b, length, count, results);

@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -122,9 +123,13 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
+        // TODO: should we just allow all fields to use tsdb doc values codec?
         // Avoid using tsdb codec for fields like _seq_no, _primary_term.
         // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
+        return fieldName.startsWith("_")
+            && fieldName.equals("_tsid") == false
+            && fieldName.equals("_ts_routing_hash") == false
+            && fieldName.equals(SeqNoFieldMapper.NAME) == false;
     }
 
     private boolean isTimeSeriesModeIndex() {

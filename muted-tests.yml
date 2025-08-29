@@ -552,6 +552,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.LossySumDoubleGroupingAggregatorFunctionTests
   method: testInitialFinal
   issue: https://github.com/elastic/elasticsearch/issues/133829
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/133220
 
 # Examples:
 #

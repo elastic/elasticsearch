@@ -2623,3 +2623,37 @@ ROW u = "%21%23%24%26%27%28%29*%2B%2C%2F%3A%3B%3D%3F%40%5B%5D" | EVAL u = URL_DE
 u:keyword
 "!#$&'()*+,/:;=?@[]"
 ;
+
+combined url encode decode tests with table reads
+required_capability: url_encode
+required_capability: url_decode
+
+FROM employees 
+| SORT emp_no
+| LIMIT 10
+| EVAL name = URL_DECODE(URL_ENCODE(CONCAT(gender, " - ", first_name, "+", last_name, "; ", CONCAT("@", first_name, last_name))))
+| KEEP emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | M - Georgi+Facello; @GeorgiFacello
+10002          | F - Bezalel+Simmel; @BezalelSimmel
+10003          | M - Parto+Bamford; @PartoBamford
+10004          | M - Chirstian+Koblick; @ChirstianKoblick
+10005          | M - Kyoichi+Maliniak; @KyoichiMaliniak
+10006          | F - Anneke+Preusig; @AnnekePreusig
+10007          | F - Tzvetan+Zielinski; @TzvetanZielinski
+10008          | M - Saniya+Kalloufi; @SaniyaKalloufi
+10009          | F - Sumant+Peac; @SumantPeac
+10010          | null
+;
+
+combined url encode decode tests with random strings
+required_capability: url_encode
+required_capability: url_decode
+
+ROW u = ["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"] 
+| eval u = URL_DECODE(URL_ENCODE(u));
+
+u:keyword
+["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"]
+;

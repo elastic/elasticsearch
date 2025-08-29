@@ -87,9 +87,6 @@ public final class UrlDecode extends UnaryScalarFunction {
     static BytesRef process(final BytesRef val) {
         String input = val.utf8ToString();
         String decoded = URLDecoder.decode(input, StandardCharsets.UTF_8);
-
-        // System.out.println(String.format("in: %s - out: %s", input, decoded));
-
         return new BytesRef(decoded);
     }
 }

@@ -1,5 +1,5 @@
 pr: 133683
-summary: Don't run async actions when ILM is stopped
+summary: Avoid running asynchronous ILM actions while ILM is stopped
 area: ILM+SLM
 type: bug
 issues:

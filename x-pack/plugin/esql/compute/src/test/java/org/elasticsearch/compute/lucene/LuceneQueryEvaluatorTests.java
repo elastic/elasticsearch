@@ -216,9 +216,8 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                     0
                 )
             );
-            LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] {
-                new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher) };
-            operators.add(createOperator(blockFactory, shards));
+            var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
+            operators.add(createOperator(blockFactory, shardConfig));
             List<Page> results = new ArrayList<>();
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -298,7 +297,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
     /**
      * Create the operator to test
      */
-    protected abstract Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards);
+    protected abstract Operator createOperator(BlockFactory blockFactory, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards);
 
     /**
      * Should the test use scoring?

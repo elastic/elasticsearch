@@ -47,7 +47,7 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
     }
 
     @Override
-    protected Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards) {
+    protected Operator createOperator(BlockFactory blockFactory, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards) {
         return new ScoreOperator(blockFactory, new LuceneQueryScoreEvaluator(blockFactory, shards), 1);
     }
 

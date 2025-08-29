@@ -31,7 +31,7 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleVector
 
     public static final double NO_MATCH_SCORE = 0.0;
 
-    LuceneQueryScoreEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
+    LuceneQueryScoreEvaluator(BlockFactory blockFactory, IndexedByShardId<ShardConfig> shards) {
         super(blockFactory, shards);
     }
 
@@ -65,7 +65,7 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleVector
         builder.appendDouble(scorer.score());
     }
 
-    public record Factory(ShardConfig[] shardConfigs) implements ScoreOperator.ExpressionScorer.Factory {
+    public record Factory(IndexedByShardId<ShardConfig> shardConfigs) implements ScoreOperator.ExpressionScorer.Factory {
         @Override
         public ScoreOperator.ExpressionScorer get(DriverContext context) {
             return new LuceneQueryScoreEvaluator(context.blockFactory(), shardConfigs);

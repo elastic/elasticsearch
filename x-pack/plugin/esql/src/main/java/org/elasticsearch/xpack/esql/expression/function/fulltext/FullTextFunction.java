@@ -381,24 +381,16 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.collection().size()];
-        int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts.collection()) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
-        }
-        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+        return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
     }
 
     @Override
     public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
-        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.collection().size()];
-        int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts.collection()) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
-        }
-        return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
+        return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
+    }
+
+    private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
+        return contexts.map(sc -> new ShardConfig(sc.toQuery(queryBuilder()), sc.searcher()));
     }
 
     // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks

@@ -18,6 +18,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -49,15 +50,15 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     public record ShardConfig(Query query, IndexSearcher searcher) {}
 
     private final BlockFactory blockFactory;
-    private final ShardConfig[] shards;
+    private final IndexedByShardId<ShardConfig> shards;
 
-    private final List<ShardState> perShardState;
+    private final LongObjectPagedHashMap<ShardState> perShardState;
 
-    protected LuceneQueryEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
-        assert shards != null && shards.length > 0 : "LuceneQueryEvaluator requires shard information";
+    protected LuceneQueryEvaluator(BlockFactory blockFactory, IndexedByShardId<ShardConfig> shards) {
+        // assert shards != null && shards.isEmpty() == false : "LuceneQueryEvaluator requires shard information";
         this.blockFactory = blockFactory;
         this.shards = shards;
-        this.perShardState = new ArrayList<>(Collections.nCopies(shards.length, null));
+        this.perShardState = new LongObjectPagedHashMap<>(10, blockFactory.bigArrays());
     }
 
     public Block executeQuery(Page page) {
@@ -163,15 +164,17 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        perShardState.close();
+    }
 
     private ShardState shardState(int shard) throws IOException {
         ShardState shardState = perShardState.get(shard);
         if (shardState != null) {
             return shardState;
         }
-        shardState = new ShardState(shards[shard]);
-        perShardState.set(shard, shardState);
+        shardState = new ShardState(shards.get(shard));
+        perShardState.put(shard, shardState);
         return shardState;
     }
 

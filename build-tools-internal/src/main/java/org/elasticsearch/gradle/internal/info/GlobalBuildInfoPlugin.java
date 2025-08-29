@@ -268,7 +268,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             LOGGER.quiet("  JAVA_TOOLCHAIN_HOME   : " + javaToolchainHome);
         }
 
-        if (buildFeatures.getConfigurationCache().getActive().get()) {
+        if (buildFeatures.getConfigurationCache().getActive().get() == false) {
             // if configuration cache is enabled, resolving the test seed early breaks configuration cache reuse
             LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
         }

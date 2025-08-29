@@ -210,8 +210,8 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Random getRandom() {
-        return new Random(Long.parseUnsignedLong(getTestSeed().split(":")[0], 16));
+    public Provider<Random> getRandom() {
+        return getTestSeedProvider().map(seed -> new Random(Long.parseUnsignedLong(seed.split(":")[0], 16)));
     }
 
     @Override

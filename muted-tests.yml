@@ -552,6 +552,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/133841
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133842
 
 # Examples:
 #

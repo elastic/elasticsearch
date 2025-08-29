@@ -40,6 +40,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -1349,11 +1350,10 @@ public final class IngestDocument {
     }
 
     /**
-     * @return The access pattern for any currently executing pipelines, or null if no pipelines are in progress for this doc
+     * @return The access pattern for any currently executing pipelines, or empty if no pipelines are in progress for this doc
      */
-    public IngestPipelineFieldAccessPattern getCurrentAccessPattern() {
-        // PRTODO: Make this return an Optional, I beg of me
-        return accessPatternStack.peek();
+    public Optional<IngestPipelineFieldAccessPattern> getCurrentAccessPattern() {
+        return Optional.ofNullable(accessPatternStack.peek());
     }
 
     /**
@@ -1361,7 +1361,7 @@ public final class IngestDocument {
      * pipelines are in progress for this doc for the sake of backwards compatibility
      */
     private IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
-        return Objects.requireNonNullElse(getCurrentAccessPattern(), IngestPipelineFieldAccessPattern.CLASSIC);
+        return getCurrentAccessPattern().orElse(IngestPipelineFieldAccessPattern.CLASSIC);
     }
 
     /**

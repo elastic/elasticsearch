@@ -12,9 +12,16 @@ package org.elasticsearch.logstashbridge.core;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
-public interface ReleasableBridge extends StableBridgeAPI<Releasable> {
+import java.io.Closeable;
 
+public interface ReleasableBridge extends StableBridgeAPI<Releasable>, Closeable {
+
+    @Override // only RuntimeException
     void close();
+
+    static ReleasableBridge fromInternal(Releasable releasable) {
+        return new ProxyInternal(releasable);
+    }
 
     class ProxyInternal extends StableBridgeAPI.ProxyInternal<Releasable> implements ReleasableBridge {
 

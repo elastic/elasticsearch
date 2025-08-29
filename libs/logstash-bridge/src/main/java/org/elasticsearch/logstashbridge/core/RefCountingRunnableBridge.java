@@ -10,28 +10,51 @@
 package org.elasticsearch.logstashbridge.core;
 
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
-public class RefCountingRunnableBridge extends StableBridgeAPI.ProxyInternal<RefCountingRunnable> {
+import java.io.Closeable;
 
-    private RefCountingRunnableBridge(final RefCountingRunnable delegate) {
-        super(delegate);
+/**
+ * An external bridge for {@link RefCountingRunnable} that proxies calls through a real {@link RefCountingRunnable}
+ */
+public interface RefCountingRunnableBridge extends StableBridgeAPI<RefCountingRunnable>, Closeable {
+
+    @Override // only RuntimeException
+    void close();
+
+    ReleasableBridge acquire();
+
+    /**
+     * An API-stable factory method for {@link RefCountingRunnableBridge}
+     * @param delegate the {@link Runnable} to execute when all refs are closed
+     * @return a {@link RefCountingRunnableBridge} that will execute the provided
+     * block when all refs are closed
+     */
+    static RefCountingRunnableBridge create(final Runnable delegate) {
+        final RefCountingRunnable refCountingRunnable = new RefCountingRunnable(delegate);
+        return new ProxyInternal(refCountingRunnable);
     }
 
-    public RefCountingRunnableBridge(final Runnable delegate) {
-        super(new RefCountingRunnable(delegate));
-    }
+    /**
+     * An implementation of {@link RefCountingRunnableBridge} that proxies calls through
+     * to an internal {@link RefCountingRunnable}
+     */
+    class ProxyInternal extends StableBridgeAPI.ProxyInternal<RefCountingRunnable> implements RefCountingRunnableBridge {
+        private ProxyInternal(final RefCountingRunnable delegate) {
+            super(delegate);
+        }
 
-    public void close() {
-        toInternal().close();
-    }
+        @Override
+        public void close() {
+            toInternal().close();
+        }
 
-    public ReleasableBridge acquire() {
-        return new ReleasableBridge.ProxyInternal(toInternal().acquire());
-    }
-
-    @Override
-    public RefCountingRunnable toInternal() {
-        return this.internalDelegate;
+        @Override
+        public ReleasableBridge acquire() {
+            @SuppressWarnings("resource")
+            final Releasable releasable = toInternal().acquire();
+            return ReleasableBridge.fromInternal(releasable);
+        }
     }
 }

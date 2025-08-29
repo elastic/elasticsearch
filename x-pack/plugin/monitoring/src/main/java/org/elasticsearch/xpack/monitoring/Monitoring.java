@@ -266,13 +266,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(
-                NodeStatsPlugin.Stats.class,
-                MonitoringStats.WRITEABLE_NAME,
-                MonitoringStats::new
-            )
-        );
+        return List.of(new NamedWriteableRegistry.Entry(NodeStatsPlugin.Stats.class, MonitoringStats.WRITEABLE_NAME, MonitoringStats::new));
 
     }
 

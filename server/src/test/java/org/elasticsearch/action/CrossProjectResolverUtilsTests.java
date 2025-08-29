@@ -20,7 +20,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class CPSExpressionRewriterTests extends ESTestCase {
+public class CrossProjectResolverUtilsTests extends ESTestCase {
     private RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
 
     public void testFlatOnlyRewriteCrossProjectResolvableRequest() {
@@ -33,7 +33,7 @@ public class CPSExpressionRewriterTests extends ESTestCase {
             IndicesOptions.DEFAULT
         );
 
-        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("logs*", "metrics*"));
         assertThat(
@@ -56,7 +56,7 @@ public class CPSExpressionRewriterTests extends ESTestCase {
             IndicesOptions.DEFAULT
         );
 
-        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("P1:logs*", "metrics*"));
         assertThat(crossProjectRequest.getCanonicalExpressions().get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -76,7 +76,7 @@ public class CPSExpressionRewriterTests extends ESTestCase {
             IndicesOptions.DEFAULT
         );
 
-        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("P1:logs*", "P2:metrics*"));
         assertThat(crossProjectRequest.getCanonicalExpressions().get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -94,7 +94,7 @@ public class CPSExpressionRewriterTests extends ESTestCase {
             IndicesOptions.DEFAULT
         );
 
-        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("_origin:logs*", "_origin:metrics*"));
         assertThat(crossProjectRequest.getCanonicalExpressions().get("_origin:logs*"), containsInAnyOrder("logs*"));
@@ -111,7 +111,7 @@ public class CPSExpressionRewriterTests extends ESTestCase {
             IndicesOptions.DEFAULT
         );
 
-        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("P1:logs*", "_origin:metrics*"));
         assertThat(crossProjectRequest.getCanonicalExpressions().get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -128,7 +128,7 @@ public class CPSExpressionRewriterTests extends ESTestCase {
             IndicesOptions.DEFAULT
         );
 
-        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("P*:metrics*"));
         assertThat(crossProjectRequest.getCanonicalExpressions().get("P*:metrics*"), containsInAnyOrder("P1:metrics*", "P2:metrics*"));
@@ -144,7 +144,7 @@ public class CPSExpressionRewriterTests extends ESTestCase {
             IndicesOptions.DEFAULT
         );
 
-        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("*1:metrics*"));
         assertThat(crossProjectRequest.getCanonicalExpressions().get("*1:metrics*"), containsInAnyOrder("P1:metrics*", "Q1:metrics*"));
@@ -160,13 +160,53 @@ public class CPSExpressionRewriterTests extends ESTestCase {
             IndicesOptions.DEFAULT
         );
 
-        CPSExpressionRewriter.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
 
         assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("*:metrics*"));
         assertThat(
             crossProjectRequest.getCanonicalExpressions().get("*:metrics*"),
             containsInAnyOrder("P1:metrics*", "P2:metrics*", "Q1:metrics*", "Q2:metrics*", "metrics*")
         );
+    }
+
+    public void testEmptyExpressionShouldMatchAll() {
+        AuthorizedProjectsSupplier.AuthorizedProjects authorizedProjects = new AuthorizedProjectsSupplier.AuthorizedProjects(
+            "_origin",
+            List.of("P1", "P2")
+        );
+        CrossProjectReplaceableTest crossProjectRequest = new CrossProjectReplaceableTest(new String[] {}, IndicesOptions.DEFAULT);
+
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+
+        assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("*"));
+        assertThat(crossProjectRequest.getCanonicalExpressions().get("*"), containsInAnyOrder("P1:*", "P2:*", "*"));
+    }
+
+    public void testWildcardExpressionShouldMatchAll() {
+        AuthorizedProjectsSupplier.AuthorizedProjects authorizedProjects = new AuthorizedProjectsSupplier.AuthorizedProjects(
+            "_origin",
+            List.of("P1", "P2")
+        );
+        CrossProjectReplaceableTest crossProjectRequest = new CrossProjectReplaceableTest(new String[] { "*" }, IndicesOptions.DEFAULT);
+
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+
+        assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("*"));
+        assertThat(crossProjectRequest.getCanonicalExpressions().get("*"), containsInAnyOrder("P1:*", "P2:*", "*"));
+    }
+
+    public void test_ALLExpressionShouldMatchAll() {
+        AuthorizedProjectsSupplier.AuthorizedProjects authorizedProjects = new AuthorizedProjectsSupplier.AuthorizedProjects(
+            "_origin",
+            List.of("P1", "P2")
+        );
+        String all = randomBoolean() ? "_ALL" : "_all";
+        CrossProjectReplaceableTest crossProjectRequest = new CrossProjectReplaceableTest(new String[] { all }, IndicesOptions.DEFAULT);
+
+        CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(remoteClusterAware, authorizedProjects, crossProjectRequest);
+
+        assertThat(crossProjectRequest.getCanonicalExpressions().keySet(), containsInAnyOrder("*"));
+        assertThat(crossProjectRequest.getCanonicalExpressions().get("*"), containsInAnyOrder("P1:*", "P2:*", "*"));
     }
 
     private static class RemoteClusterAwareTest extends RemoteClusterAware {

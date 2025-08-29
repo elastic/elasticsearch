@@ -24,9 +24,10 @@ import java.util.Set;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 
-public class CPSExpressionRewriter {
-    private static final Logger logger = LogManager.getLogger(CPSExpressionRewriter.class);
+public class CrossProjectResolverUtils {
+    private static final Logger logger = LogManager.getLogger(CrossProjectResolverUtils.class);
     private static final String WILDCARD = "*";
+    private static final String MATCH_ALL = "_ALL";
 
     public static void maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
@@ -50,6 +51,10 @@ public class CPSExpressionRewriter {
         String[] indices = request.indices();
         logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
 
+        if (indices.length == 0 || WILDCARD.equals(indices[0]) || MATCH_ALL.equalsIgnoreCase(indices[0])) {
+            // handling of match all cases
+            indices = new String[] { WILDCARD };
+        }
         Map<String, List<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
         for (String indexExpression : indices) {
             // TODO we need to handle exclusions here already

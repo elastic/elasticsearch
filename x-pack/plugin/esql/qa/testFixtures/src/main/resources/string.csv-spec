@@ -2072,6 +2072,32 @@ a:keyword | b:keyword | n:null | aa:boolean | bb:boolean   | ab:boolean | ba:boo
 a         | [a, b, c] | null   | true       | true         | false      | true       | false      | true       | true
 ;
 
+mvContainsCombinations_multirow
+required_capability: fn_mv_contains
+
+ROW row_number = [1,2,3,4,5], element = "e", n = null, setA = ["b","d"], setB = ["a", "c", "e"]
+| MV_EXPAND row_number
+| EVAL superset = CASE(
+                    row_number == 1, ["a","e"],
+                    row_number == 2, ["b","d"],
+                    row_number == 3, null,
+                    row_number == 4, ["a","e","c","b","d"], 
+                    row_number == 5, ["a","d","c","b","e"],
+                  null) 
+| EVAL contains_element = mv_contains(superset, element), 
+       contains_null    = mv_contains(superset, n), 
+       contains_setA    = mv_contains(superset, setA), 
+       contains_setB    = mv_contains(superset, setB) 
+;
+
+row_number:INTEGER | element:keyword | n:null | setA:keyword | setB:keyword    | superset:keyword         |contains_element:boolean | contains_null:boolean | contains_setA:boolean | contains_setB:boolean
+1                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","e"]                | true                    | true                  | false                 | false       
+2                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["b","d"]                | false                   | true                  | true                  | false    
+3                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | null                     | false                   | true                  | false                 | false    
+4                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","e","c","b","d"]    | true                    | true                  | true                  | true    
+5                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","e"]    | true                    | true                  | true                  | true    
+;
+
 mvContains_where
 required_capability: fn_mv_contains
 // tag::mv_contains_where[]

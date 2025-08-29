@@ -56,6 +56,8 @@ public interface BuildParameterExtension {
 
     String getTestSeed();
 
+    Provider<String> getTestSeedProvider();
+
     Boolean getCi();
 
     Integer getDefaultParallel();

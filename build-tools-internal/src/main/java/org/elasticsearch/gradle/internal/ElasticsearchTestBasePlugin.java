@@ -60,7 +60,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
     @Inject
     protected abstract BuildFeatures getBuildFeatures();
 
-
     @Override
     public void apply(Project project) {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
@@ -171,7 +170,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
             if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
-                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeed());
+                System.out.println("ignoring changes to test seed");
+                // Provider<String> stringProvider = getProviderFactory().of(TestSeedValueSource.class, params -> {
+                // // no params
+                // });
+                // nonInputProperties.systemProperty("tests.seed",stringProvider);
+                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
+
             } else {
                 test.systemProperty("tests.seed", buildParams.get().getTestSeed());
             }

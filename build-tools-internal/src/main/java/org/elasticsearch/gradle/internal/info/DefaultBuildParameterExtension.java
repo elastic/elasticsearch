@@ -185,6 +185,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
+    public Provider<String> getTestSeedProvider() {
+        return testSeed;
+    }
+
+    @Override
     public Boolean getCi() {
         return isCi;
     }

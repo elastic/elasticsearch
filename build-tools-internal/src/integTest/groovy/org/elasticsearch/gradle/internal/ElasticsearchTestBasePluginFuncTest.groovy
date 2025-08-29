@@ -116,7 +116,7 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         public class SomeTests {
             @org.junit.Test
             public void printTestSeed() {
-                System.out.println("TESTSEED=" + System.getProperty("tests.seed"));
+                System.out.println("TESTSEED=[" + System.getProperty("tests.seed") + "]");
             }
         }
 
@@ -133,6 +133,14 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
                 }
             }
 
+            tasks.register('test2', Test) {
+                classpath = sourceSets.test.runtimeClasspath
+                testClassesDirs = sourceSets.test.output.classesDirs
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+
             repositories {
                 mavenCentral()
             }
@@ -144,12 +152,19 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result1 = gradleRunner("cleanTest", "test").build()
-        def result2 = gradleRunner("cleanTest", "test").build()
-        println result1.output
-        println result2.output
+        def result1 = gradleRunner("cleanTest", "cleanTest2", "test", "test2").build()
+        def result2 = gradleRunner("cleanTest", "cleanTest2", "test", "test2").build()
+
         then:
-        result1.output == result2.output
+        def seeds1 = result1.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
+        def seeds2 = result2.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
+
+        assert seeds1.unique().size() == 1
+        assert seeds2.unique().size() == 1
+        println "${seeds1[0]} != ${seeds2[0]}"
+
+        assert seeds1[0] != seeds2[0]
+
 
     }
 }

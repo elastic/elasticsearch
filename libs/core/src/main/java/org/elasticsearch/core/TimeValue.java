@@ -340,6 +340,9 @@ public class TimeValue implements Comparable<TimeValue> {
     }
 
     public String getStringRep() {
+        if (duration < 0 && TimeUnit.MILLISECONDS == timeUnit) {
+            return Long.toString(duration);
+        }
         return switch (timeUnit) {
             case NANOSECONDS -> duration + "nanos";
             case MICROSECONDS -> duration + "micros";

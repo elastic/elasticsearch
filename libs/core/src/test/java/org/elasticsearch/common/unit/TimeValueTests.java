@@ -166,7 +166,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testToStringRep() {
-        assertEquals("-1ms", new TimeValue(-1).getStringRep());
+        assertEquals("-1", new TimeValue(-1).getStringRep());
         assertEquals("10ms", new TimeValue(10, TimeUnit.MILLISECONDS).getStringRep());
         assertEquals("1533ms", new TimeValue(1533, TimeUnit.MILLISECONDS).getStringRep());
         assertEquals("90s", new TimeValue(90, TimeUnit.SECONDS).getStringRep());

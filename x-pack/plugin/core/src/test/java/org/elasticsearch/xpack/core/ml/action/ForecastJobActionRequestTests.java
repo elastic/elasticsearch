@@ -56,7 +56,7 @@ public class ForecastJobActionRequestTests extends AbstractXContentSerializingTe
     }
 
     public void testSetDuration_GivenNegative() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Request().setDuration("-1s"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Request().setDuration("-1"));
         assertThat(e.getMessage(), equalTo("[duration] must be positive: [-1]"));
     }
 
@@ -67,7 +67,7 @@ public class ForecastJobActionRequestTests extends AbstractXContentSerializingTe
     }
 
     public void testSetExpiresIn_GivenNegative() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Request().setExpiresIn("-1s"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Request().setExpiresIn("-1"));
         assertThat(e.getMessage(), equalTo("[expires_in] must be non-negative: [-1]"));
     }
 }

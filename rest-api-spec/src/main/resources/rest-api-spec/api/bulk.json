@@ -1,8 +1,8 @@
 {
   "bulk":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-bulk.html",
-      "description":"Allows to perform multiple index/update/delete operations in a single request."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/docs-bulk.html",
+      "description":"Bulk index or delete documents"
     },
     "stability":"stable",
     "visibility":"public",

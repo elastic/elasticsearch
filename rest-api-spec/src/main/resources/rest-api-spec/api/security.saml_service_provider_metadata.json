@@ -1,8 +1,8 @@
 {
   "security.saml_service_provider_metadata":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-saml-sp-metadata.html",
-      "description":"Generates SAML metadata for the Elastic stack SAML 2.0 Service Provider"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-saml-sp-metadata.html",
+      "description":"Create SAML service provider metadata"
     },
     "stability":"stable",
     "visibility":"public",

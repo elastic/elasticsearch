@@ -1,8 +1,8 @@
 {
   "searchable_snapshots.stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-apis.html",
-      "description": "Retrieve shard-level statistics about searchable snapshots."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/searchable-snapshots-api-stats.html",
+      "description": "Get searchable snapshot statistics"
     },
     "stability": "stable",
     "visibility":"public",

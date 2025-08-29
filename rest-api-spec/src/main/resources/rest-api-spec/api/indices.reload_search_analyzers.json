@@ -1,8 +1,8 @@
 {
   "indices.reload_search_analyzers":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-reload-analyzers.html",
-      "description":"Reloads an index's search analyzers and their resources."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-reload-search-analyzers",
+      "description":"Reload search analyzers"
     },
     "stability" : "stable",
     "visibility":"public",

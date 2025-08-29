@@ -66,15 +66,21 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     private static final String INDEX = "test_index";
     private static final String MATCH_ONLY_TEXT_FIELD = "field_match_only_text";
     private static final String PATTERNED_TEXT_FIELD = "field_patterned_text";
-    private static final String MAPPING = """
+    private static final String MAPPING_TEMPLATE = """
             {
               "properties": {
                 "@timestamp": { "type": "date" },
                 "field_match_only_text": { "type": "match_only_text" },
-                "field_patterned_text": { "type": "patterned_text" }
+                "field_patterned_text": {
+                    "type": "patterned_text",
+                    "index_options": "%"
+                }
               }
             }
         """;
+
+    private static final String MAPPING_DOCS_ONLY = MAPPING_TEMPLATE.replace("%", "docs");
+    private static final String MAPPING_POSITIONS = MAPPING_TEMPLATE.replace("%", "positions");
 
     @Before
     public void setup() {
@@ -82,7 +88,8 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     }
 
     public void testQueries() throws IOException {
-        var createRequest = new CreateIndexRequest(INDEX).mapping(MAPPING);
+        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
+        var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
 
         assertAcked(admin().indices().create(createRequest));
 

@@ -517,7 +517,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
-    public final void testDeprecatedBoostWarning() throws IOException {
+    public void testDeprecatedBoostWarning() throws IOException {
         try {
             createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
                 minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);

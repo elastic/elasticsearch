@@ -192,6 +192,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_3 = def(8_840_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_4 = def(8_840_0_06);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_6 = def(8_840_0_08);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_7 = def(8_840_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
@@ -259,6 +260,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_3 = def(8_841_0_67);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_4 = def(8_841_0_68);
 
     /*
      * STOP! READ THIS FIRST! No, really,

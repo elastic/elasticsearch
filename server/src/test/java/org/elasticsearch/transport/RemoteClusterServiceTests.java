@@ -58,6 +58,7 @@ import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
+import static org.elasticsearch.transport.RemoteClusterSettings.toConfig;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,8 +74,21 @@ public class RemoteClusterServiceTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    private RemoteClusterService createRemoteClusterService(final Settings settings, final MockTransportService transportService) {
-        return new RemoteClusterService(settings, transportService, DefaultProjectResolver.INSTANCE);
+    private RemoteClusterService createRemoteClusterService(Settings settings, MockTransportService transportService) {
+        return createRemoteClusterService(settings, ClusterSettings.createBuiltInClusterSettings(), transportService);
+    }
+
+    private RemoteClusterService createRemoteClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        MockTransportService transportService
+    ) {
+        return new RemoteClusterService(
+            settings,
+            new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
+            transportService,
+            DefaultProjectResolver.INSTANCE
+        );
     }
 
     private MockTransportService startTransport(
@@ -505,7 +519,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     // connect before returning.
                     new Thread(() -> {
                         try {
-                            service.validateAndUpdateRemoteCluster("cluster_1", cluster1Settings);
+                            service.updateLinkedProject(toConfig("cluster_1", cluster1Settings));
                             clusterAdded.onResponse(null);
                         } catch (Exception e) {
                             clusterAdded.onFailure(e);
@@ -518,16 +532,16 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         "cluster_2",
                         Collections.singletonList(cluster2Seed.getAddress().toString())
                     );
-                    service.validateAndUpdateRemoteCluster("cluster_2", cluster2Settings);
+                    service.updateLinkedProject(toConfig("cluster_2", cluster2Settings));
                     assertTrue(hasRegisteredClusters(service));
                     assertTrue(isRemoteClusterRegistered(service, "cluster_1"));
                     assertTrue(isRemoteClusterRegistered(service, "cluster_2"));
                     Settings cluster2SettingsDisabled = createSettings("cluster_2", Collections.emptyList());
-                    service.validateAndUpdateRemoteCluster("cluster_2", cluster2SettingsDisabled);
+                    service.updateLinkedProject(toConfig("cluster_2", cluster2SettingsDisabled));
                     assertFalse(isRemoteClusterRegistered(service, "cluster_2"));
                     IllegalArgumentException iae = expectThrows(
                         IllegalArgumentException.class,
-                        () -> service.validateAndUpdateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Settings.EMPTY)
+                        () -> service.updateLinkedProject(toConfig(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Settings.EMPTY))
                     );
                     assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
                 }
@@ -572,10 +586,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(hasRegisteredClusters(service));
                     service.initializeRemoteClusters();
                     assertTrue(hasRegisteredClusters(service));
-                    service.validateAndUpdateRemoteCluster(
-                        "cluster_1",
-                        createSettings("cluster_1", Collections.singletonList(seedNode.getAddress().toString()))
-                    );
+                    final var newSettings = createSettings("cluster_1", Collections.singletonList(seedNode.getAddress().toString()));
+                    final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
+                    service.updateLinkedProject(toConfig("cluster_1", mergedSettings));
                     assertTrue(hasRegisteredClusters(service));
                     assertTrue(isRemoteClusterRegistered(service, "cluster_1"));
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
@@ -685,7 +698,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         settingsChange.put("cluster.remote.cluster_1.transport.compress", enabledChange);
                     }
                     settingsChange.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                    service.validateAndUpdateRemoteCluster("cluster_1", settingsChange.build());
+                    service.updateLinkedProject(toConfig("cluster_1", settingsChange.build()));
                     assertBusy(remoteClusterConnection::isClosed);
 
                     remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
@@ -1794,14 +1807,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     public void testLogsConnectionResult() throws IOException {
-
+        final var clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         try (
             var remote = startTransport("remote", List.of(), VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
             var local = startTransport("local", List.of(), VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
-            var remoteClusterService = createRemoteClusterService(Settings.EMPTY, local)
+            var remoteClusterService = createRemoteClusterService(Settings.EMPTY, clusterSettings, local)
         ) {
-            var clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-            remoteClusterService.listenForUpdates(clusterSettings);
+            remoteClusterService.listenForUpdates();
 
             assertThatLogger(
                 () -> clusterSettings.applySettings(

@@ -43,6 +43,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -121,6 +122,7 @@ class NodeServiceProvider {
         TaskManager taskManager,
         Tracer tracer,
         String nodeId,
+        LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver
     ) {
         return new TransportService(
@@ -132,6 +134,7 @@ class NodeServiceProvider {
             clusterSettings,
             new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
             taskManager,
+            linkedProjectConfigService,
             projectResolver
         );
     }

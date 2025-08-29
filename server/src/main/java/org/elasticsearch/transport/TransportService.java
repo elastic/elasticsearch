@@ -275,6 +275,11 @@ public class TransportService extends AbstractLifecycleComponent
             clusterSettings,
             connectionManager,
             taskManger,
+            new ClusterSettingsLinkedProjectConfigService(
+                settings,
+                clusterSettings != null ? clusterSettings : ClusterSettings.createBuiltInClusterSettings(),
+                DefaultProjectResolver.INSTANCE
+            ),
             DefaultProjectResolver.INSTANCE
         );
     }
@@ -289,6 +294,7 @@ public class TransportService extends AbstractLifecycleComponent
         @Nullable ClusterSettings clusterSettings,
         ConnectionManager connectionManager,
         TaskManager taskManger,
+        LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver
     ) {
         this.transport = transport;
@@ -304,13 +310,13 @@ public class TransportService extends AbstractLifecycleComponent
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
-        remoteClusterService = new RemoteClusterService(settings, this, projectResolver);
+        remoteClusterService = new RemoteClusterService(settings, linkedProjectConfigService, this, projectResolver);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
             if (remoteClusterClient) {
-                remoteClusterService.listenForUpdates(clusterSettings);
+                remoteClusterService.listenForUpdates();
             }
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
         }

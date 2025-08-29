@@ -31,6 +31,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -57,5 +58,6 @@ public record PluginServiceInstances(
     TaskManager taskManager,
     ProjectResolver projectResolver,
     SlowLogFieldProvider slowLogFieldProvider,
-    IndexingPressure indexingPressure
+    IndexingPressure indexingPressure,
+    LinkedProjectConfigService linkedProjectConfigService
 ) implements Plugin.PluginServices {}

@@ -30,6 +30,8 @@ public interface VectorSimilarityFunctions {
      */
     MethodHandle dotProductHandle7u();
 
+    MethodHandle dotProductHandle7uBulk();
+
     /**
      * Produces a method handle returning the square distance of byte (unsigned int7) vectors.
      *

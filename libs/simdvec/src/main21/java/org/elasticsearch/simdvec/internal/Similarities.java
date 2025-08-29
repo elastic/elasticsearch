@@ -22,11 +22,26 @@ public class Similarities {
         .orElseThrow(AssertionError::new);
 
     static final MethodHandle DOT_PRODUCT_7U = DISTANCE_FUNCS.dotProductHandle7u();
+    static final MethodHandle DOT_PRODUCT_7U_BULK = DISTANCE_FUNCS.dotProductHandle7uBulk();
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
 
     static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         try {
             return (int) DOT_PRODUCT_7U.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    static int dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment results) {
+        try {
+            return (int) DOT_PRODUCT_7U_BULK.invokeExact(a, b, length, count, results);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

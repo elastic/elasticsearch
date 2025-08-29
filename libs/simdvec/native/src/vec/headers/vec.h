@@ -19,6 +19,8 @@ EXPORT int vec_caps();
 
 EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims);
 
+EXPORT int32_t dot7uBulk(int8_t* a, int8_t* b, size_t dims, size_t count, float* scores);
+
 EXPORT int32_t sqr7u(int8_t *a, int8_t *b, size_t length);
 
 EXPORT float cosf32(const float *a, const float *b, size_t elementCount);

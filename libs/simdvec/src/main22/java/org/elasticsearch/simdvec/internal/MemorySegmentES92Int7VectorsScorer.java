@@ -48,6 +48,15 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         return res;
     }
 
+    private long nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
+        final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions * count);
+        final MemorySegment querySegment = MemorySegment.ofArray(q);
+        final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
+        Similarities.dotProduct7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+        in.skipBytes(dimensions * count);
+        return 0; // not used
+    }
+
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;

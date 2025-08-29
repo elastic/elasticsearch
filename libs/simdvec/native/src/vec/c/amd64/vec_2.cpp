@@ -114,6 +114,14 @@ EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
+extern "C"
+EXPORT int32_t dot7u_bulk_2(int8_t* a, int8_t* b, size_t dims, size_t count, float* scores) {
+    for (int i = 0; i < count; i++) {
+        scores[i] = (float) dot7u_2(a + i * dims, b, dims);
+    }
+    return count;
+}
+
 template<int offsetRegs>
 inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     constexpr int lanes = offsetRegs * STRIDE_BYTES_LEN;

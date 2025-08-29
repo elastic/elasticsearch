@@ -164,7 +164,6 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         println "${seeds1[0]} != ${seeds2[0]}"
 
         assert seeds1[0] != seeds2[0]
-
-
+        assert result2.output.contains("Configuration cache entry reused.")
     }
 }

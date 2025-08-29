@@ -168,15 +168,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
             test.systemProperties(sysprops);
 
-            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
+            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability
+            // also ignore when configuration cache is on since the test seed as task input would break
+            // configuration cache reuse.
             if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
-                System.out.println("ignoring changes to test seed");
-                // Provider<String> stringProvider = getProviderFactory().of(TestSeedValueSource.class, params -> {
-                // // no params
-                // });
-                // nonInputProperties.systemProperty("tests.seed",stringProvider);
                 nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
-
             } else {
                 test.systemProperty("tests.seed", buildParams.get().getTestSeed());
             }

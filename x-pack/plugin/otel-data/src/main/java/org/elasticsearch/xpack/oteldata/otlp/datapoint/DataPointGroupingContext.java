@@ -163,7 +163,7 @@ public class DataPointGroupingContext {
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
         private final ByteString scopeSchemaUrl;
-        // index -> timiestamp -> dataPointGroupHash -> DataPointGroup
+        // index -> timestamp -> dataPointGroupHash -> DataPointGroup
         private final Map<String, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
 
         ScopeGroup(ResourceGroup resourceGroup, InstrumentationScope scope, ByteString scopeSchemaUrl) {

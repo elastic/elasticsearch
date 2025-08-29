@@ -90,7 +90,7 @@ public interface DataPoint {
      * @param messages a set to collect validation error messages
      * @return true if the data point is valid, false otherwise
      */
-    boolean isValid(Set<String> messages);
+    boolean isValid(Set<String> errors);
 
     record Number(NumberDataPoint dataPoint, Metric metric) implements DataPoint {
 
@@ -149,7 +149,7 @@ public interface DataPoint {
         }
 
         @Override
-        public boolean isValid(Set<String> messages) {
+        public boolean isValid(Set<String> errors) {
             return true;
         }
     }

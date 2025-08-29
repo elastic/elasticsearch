@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.spi.SymbolTable;
-import org.elasticsearch.xcontent.spi.XContentProvider;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -32,7 +31,7 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
     private static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle VH_BE_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
 
-    private final SymbolTable symbolTable;
+    private final SymbolTable symbolTable = null;
 
     private final int lenth;
     private final byte[] bytes;
@@ -51,7 +50,6 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
         this.bytes = keyBytes.bytes;
         this.lenth = keyBytes.length;
         this.offset = keyBytes.offset;
-        this.symbolTable = XContentProvider.provider().newSymbolTable();
     }
 
     public static ESONByteArrayXContentParser readFrom(
@@ -118,24 +116,25 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
     }
 
     private String getString(int stringLength) {
-        if (symbolTable != null) {
-            int[] quads = bytesToQuads(bytes, offset, stringLength);
-            int qlen = (stringLength + 3) / 4;
-
-            // Try to find existing string first
-            String cached = symbolTable.findName(quads, qlen);
-            if (cached != null) {
-                return cached;
-            }
-
-            // Not found, create new string and add to cache
-            String newString = new String(bytes, offset, stringLength, StandardCharsets.UTF_8);
-            return symbolTable.addName(newString, quads, qlen);
-        } else {
-            return new String(bytes, offset, stringLength, StandardCharsets.UTF_8);
-        }
+        // if (symbolTable != null) {
+        // int[] quads = bytesToQuads(bytes, offset, stringLength);
+        // int qlen = (stringLength + 3) / 4;
+        //
+        // // Try to find existing string first
+        // String cached = symbolTable.findName(quads, qlen);
+        // if (cached != null) {
+        // return cached;
+        // }
+        //
+        // // Not found, create new string and add to cache
+        // String newString = new String(bytes, offset, stringLength, StandardCharsets.UTF_8);
+        // return symbolTable.addName(newString, quads, qlen);
+        // } else {
+        // }
+        return new String(bytes, offset, stringLength, StandardCharsets.UTF_8);
     }
 
+    // TODO: Moderately broken because does not exactly replicate Jackson
     private int[] bytesToQuads(byte[] bytes, int offset, int length) {
         int quadCount = (length + 3) / 4; // Round up
         int[] quads = new int[quadCount];
@@ -206,6 +205,6 @@ public class ESONByteArrayXContentParser extends ESONXContentParser {
     @Override
     public void close() {
         super.close();
-        symbolTable.close();
+        // symbolTable.close();
     }
 }

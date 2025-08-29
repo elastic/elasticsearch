@@ -90,9 +90,9 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("DocBlock{");
+        final StringBuffer sb = new StringBuffer("DocBlock[");
         sb.append("vector=").append(vector);
-        sb.append('}');
+        sb.append(']');
         return sb.toString();
     }
 

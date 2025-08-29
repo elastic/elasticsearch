@@ -59,7 +59,7 @@ class ResultBuilderForDoc implements ResultBuilder {
             segmentsVector = blockFactory.newIntArrayVector(segments, position);
             var docsVector = blockFactory.newIntArrayVector(docs, position);
             // The ref counts were already incremented in decodeValue, so we don't need to increment them again.
-            var docsBlock = DocVector.withoutIncrementingRefCounts(refCounteds, shardsVector, segmentsVector, docsVector).asBlock();
+            var docsBlock = DocVector.withoutIncrementingShardRefCounts(refCounteds, shardsVector, segmentsVector, docsVector).asBlock();
             success = true;
             return docsBlock;
         } finally {

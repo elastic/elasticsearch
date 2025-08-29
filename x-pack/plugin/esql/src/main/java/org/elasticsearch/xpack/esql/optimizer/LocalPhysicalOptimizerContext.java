@@ -19,6 +19,10 @@ public record LocalPhysicalOptimizerContext(
     SearchStats searchStats,
     ProjectAfterTopN removeProjectAfterTopN
 ) {
+    /**
+     * Controls whether to run the {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN}. Runs on
+     * {@code REMOVE}, skipped on {@code KEEP}.
+     */
     public enum ProjectAfterTopN {
         REMOVE,
         KEEP

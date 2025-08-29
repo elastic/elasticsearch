@@ -31,6 +31,10 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     public static final int SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD = Integer.BYTES * 2;
 
+    /**
+     * The shard IDs for each position. Note that these shard IDs are shared between all doc vectors running in the same node, but a given
+     * doc vector might only reference a subset of the shard IDs (Which is the subset is also the one exposed by {@link #refCounteds}).
+     */
     private final IntVector shards;
     private final IntVector segments;
     private final IntVector docs;
@@ -67,7 +71,7 @@ public final class DocVector extends AbstractVector implements Vector {
         this(refCounteds, shards, segments, docs, singleSegmentNonDecreasing, true);
     }
 
-    public static DocVector withoutIncrementingRefCounts(
+    public static DocVector withoutIncrementingShardRefCounts(
         IndexedByShardId<? extends RefCounted> refCounteds,
         IntVector shards,
         IntVector segments,
@@ -82,7 +86,7 @@ public final class DocVector extends AbstractVector implements Vector {
         IntVector segments,
         IntVector docs,
         Boolean singleSegmentNonDecreasing,
-        boolean incrementRefCounts
+        boolean incrementShardRefCounts
     ) {
         super(shards.getPositionCount(), shards.blockFactory());
         this.refCounteds = refCounteds;
@@ -102,7 +106,7 @@ public final class DocVector extends AbstractVector implements Vector {
         }
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
 
-        if (incrementRefCounts) {
+        if (incrementShardRefCounts) {
             forEachShardRefCounter(RefCounted::mustIncRef);
         }
     }
@@ -336,11 +340,11 @@ public final class DocVector extends AbstractVector implements Vector {
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("DocVector{");
+        final StringBuffer sb = new StringBuffer("DocVector[");
         sb.append("shards=").append(shards);
         sb.append(", segments=").append(segments);
         sb.append(", docs=").append(docs);
-        sb.append('}');
+        sb.append(']');
         return sb.toString();
     }
 

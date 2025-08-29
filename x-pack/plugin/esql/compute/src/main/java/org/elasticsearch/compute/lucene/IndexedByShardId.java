@@ -56,5 +56,4 @@ public abstract class IndexedByShardId<T> {
             return (IndexedByShardId<S>) this;
         }
     };
-
 }

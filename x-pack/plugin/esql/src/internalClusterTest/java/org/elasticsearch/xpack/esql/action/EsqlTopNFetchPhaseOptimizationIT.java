@@ -73,14 +73,14 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
     }
 
     public void testNoPushdowns() throws Exception {
-        testTopNOperatorDoesTheThingy("from test | sort sorted + 1 desc | limit 3 | stats sum(read)");
+        testLateMaterializationAfterReduceTopN("from test | sort sorted + 1 desc | limit 3 | stats sum(read)");
     }
 
     public void testPushdownTopN() throws Exception {
-        testTopNOperatorDoesTheThingy("from test | sort sorted desc | limit 3 | stats sum(read)");
+        testLateMaterializationAfterReduceTopN("from test | sort sorted desc | limit 3 | stats sum(read)");
     }
 
-    private void testTopNOperatorDoesTheThingy(String query) throws Exception {
+    private void testLateMaterializationAfterReduceTopN(String query) throws Exception {
         try (var result = sendQuery(query)) {
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));

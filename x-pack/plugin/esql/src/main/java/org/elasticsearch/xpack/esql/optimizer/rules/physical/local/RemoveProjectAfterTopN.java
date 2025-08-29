@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
  * Removes a {@link ProjectExec} that follows a {@link TopNExec}.
  *
  * This step is needed since said project will activate {@link InsertFieldExtraction} later on, whereas we wish to perform these
- * extractions in the reduce coordinator node, after performing multiple Top N operations, thereby reducing the amount of data we need to
+ * extractions in the node reduce driver, after performing multiple Top N operations, thereby reducing the amount of data we need to
  * read from the index.
  */
 public class RemoveProjectAfterTopN extends PhysicalOptimizerRules.ParameterizedOptimizerRule<ProjectExec, LocalPhysicalOptimizerContext> {

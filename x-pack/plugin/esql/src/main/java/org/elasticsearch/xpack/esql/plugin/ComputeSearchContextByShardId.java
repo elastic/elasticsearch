@@ -26,29 +26,29 @@ import java.util.stream.IntStream;
  */
 class ComputeSearchContextByShardId extends IndexedByShardId<ComputeSearchContext> implements Releasable {
     private final ComputeSearchContext[] array;
-    private int currentIndex;
+    private int nextAddIndex;
 
     ComputeSearchContextByShardId(int size) {
         this.array = new ComputeSearchContext[size];
-        this.currentIndex = 0;
+        this.nextAddIndex = 0;
     }
 
     public void add(ComputeSearchContext cse) {
-        array[currentIndex++] = cse;
+        array[nextAddIndex++] = cse;
     }
 
     @Override
     public ComputeSearchContext get(int shardId) {
         var result = array[shardId];
         if (result == null) {
-            throw new IndexOutOfBoundsException("shardId " + shardId + " out of bounds [0, " + currentIndex + ")");
+            throw new IndexOutOfBoundsException("shardId " + shardId + " out of bounds [0, " + nextAddIndex + ")");
         }
         return result;
     }
 
     @Override
     public Collection<ComputeSearchContext> collection() {
-        return Arrays.asList(array).subList(0, currentIndex);
+        return Arrays.asList(array).subList(0, nextAddIndex);
     }
 
     @Override
@@ -56,12 +56,21 @@ class ComputeSearchContextByShardId extends IndexedByShardId<ComputeSearchContex
         return new Mapped<>(this, array.length, 0, mapper);
     }
 
+    /**
+     * Returns a view of this instance containing only the elements from {@code fromIndex} (inclusive) to {@code toIndex} (exclusive).
+     * This has consequences:
+     * <ol>
+     * <li>{@link #get} fails if the index is out of range.</li>
+     * <li>{@link #collection} only returns the elements in the specified range.</li>
+     * <li>{@link #map} only maps the elements in the specified range.</li>
+     * </ol>
+     */
     public IndexedByShardId<ComputeSearchContext> subRange(int fromIndex, int toIndex) {
         return new SubRanged<>(array, fromIndex, toIndex);
     }
 
     public int length() {
-        return currentIndex;
+        return nextAddIndex;
     }
 
     @Override

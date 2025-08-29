@@ -55,28 +55,40 @@ public class FieldAttribute extends TypedAttribute {
     private final EsField field;
     protected FieldName lazyFieldName;
 
+    @Deprecated
+    /**
+     * For testing only
+     */
     public FieldAttribute(Source source, String name, EsField field) {
-        this(source, null, name, field);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field) {
-        this(source, parentName, name, field, Nullability.TRUE, null, false);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field, boolean synthetic) {
-        this(source, parentName, name, field, Nullability.TRUE, null, synthetic);
+        this(source, null, null, name, field, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(
         Source source,
         @Nullable String parentName,
+        @Nullable String qualifier,
+        String name,
+        EsField field,
+        boolean synthetic
+    ) {
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, synthetic);
+    }
+
+    public FieldAttribute(Source source, @Nullable String parentName, @Nullable String qualifier, String name, EsField field) {
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, false);
+    }
+
+    public FieldAttribute(
+        Source source,
+        @Nullable String parentName,
+        @Nullable String qualifier,
         String name,
         EsField field,
         Nullability nullability,
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, field.getDataType(), nullability, id, synthetic);
+        super(source, qualifier, name, field.getDataType(), nullability, id, synthetic);
         this.parentName = parentName;
         this.field = field;
     }
@@ -92,6 +104,7 @@ public class FieldAttribute extends TypedAttribute {
          */
         Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
         String name = readCachedStringWithVersionCheck(in);
         if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
             DataType.readFrom(in);
@@ -103,7 +116,7 @@ public class FieldAttribute extends TypedAttribute {
         Nullability nullability = in.readEnum(Nullability.class);
         NameId nameId = NameId.readFrom((StreamInput & PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
-        return new FieldAttribute(source, parentName, name, field, nullability, nameId, synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic);
     }
 
     @Override
@@ -111,13 +124,14 @@ public class FieldAttribute extends TypedAttribute {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
             writeCachedStringWithVersionCheck(out, name());
             if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
                 dataType().writeTo(out);
             }
             field.writeTo(out);
             if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
-                // We used to write the qualifier here. We can still do if needed in the future.
+                // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
             }
             out.writeEnum(nullable());
@@ -137,7 +151,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parentName, name(), field, nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parentName, qualifier(), name(), field, nullable(), id(), synthetic());
     }
 
     public String parentName() {
@@ -185,13 +199,30 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), fieldName().string, name() + "." + type.getName(), type, nullable(), id(), synthetic());
+        return new FieldAttribute(
+            source(),
+            fieldName().string,
+            qualifier(),
+            name() + "." + type.getName(),
+            type,
+            nullable(),
+            id(),
+            synthetic()
+        );
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         // Ignore `type`, this must be the same as the field's type.
-        return new FieldAttribute(source, parentName, name, field, nullability, id, synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, id, synthetic);
     }
 
     @Override

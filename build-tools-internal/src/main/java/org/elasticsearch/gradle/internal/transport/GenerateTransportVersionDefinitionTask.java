@@ -120,51 +120,36 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         String mainReleaseBranch = getMainReleaseBranch().get();
         int primaryIncrement = getPrimaryIncrement().get();
         if (primaryIncrement <= 0) {
-            throw new IllegalArgumentException("Invalid increment [" + primaryIncrement + "], must be a positive integer");
+            throw new IllegalArgumentException("Invalid increment " + primaryIncrement + ", must be a positive integer");
         }
         List<TransportVersionId> ids = new ArrayList<>();
 
         TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromMain(name);
         for (TransportVersionUpperBound existingUpperBound : existingUpperBounds) {
 
-            TransportVersionUpperBound upperBoundToWrite = existingUpperBound;
+            String releaseBranch = existingUpperBound.releaseBranch();
+            boolean targetThisBranch = targetReleaseBranches.contains(existingUpperBound.releaseBranch());
 
-            // LOGIC
-            /*
-              - name may or may not already be set in the existing upper bound
-              - target release branches may or may not target the upper bound file
-             */
+            // Case: Targeting this upper bound file and it already points at the name we're generating
+            if (targetThisBranch && name.equals(existingUpperBound.name())) {
+                ids.add(existingUpperBound.id());
+                continue;
+            }
 
-            resources.writeUpperBound(upperBoundToWrite);
-
-            if (name.equals(existingUpperBound.name())) {
-                if (targetReleaseBranches.contains(existingUpperBound.releaseBranch()) == false) {
-                    // Here, we aren't targeting this latest file, but need to undo prior updates if the list of minor
-                    // versions has changed. We must regenerate this latest file to make this operation idempotent.
-                    resources.writeUpperBound(existingUpperBound);
-                } else {
-                    ids.add(existingUpperBound.id());
+            if (targetThisBranch) {
+                // Case: targeting this branch, find an existing id for this branch if it exists
+                TransportVersionId targetId = maybeGetExistingId(existingUpperBound, existingDefinition);
+                if (targetId == null) {
+                    // Case: an id doesn't yet exist for this branch, so create one
+                    int increment = releaseBranch.equals(mainReleaseBranch) ? primaryIncrement : 1;
+                    targetId = TransportVersionId.fromInt(existingUpperBound.id().complete() + increment);
+                    var newUpperBound = new TransportVersionUpperBound(releaseBranch, name, targetId);
+                    resources.writeUpperBound(newUpperBound);
                 }
+                ids.add(targetId);
             } else {
-                if (targetReleaseBranches.contains(existingUpperBound.releaseBranch())) {
-                    TransportVersionId targetId = null;
-                    if (existingDefinition != null) {
-                        for (TransportVersionId id : existingDefinition.ids()) {
-                            if (id.base() == existingUpperBound.id().base()) {
-                                targetId = id;
-                                break;
-                            }
-                        }
-                    }
-                    if (targetId == null) {
-                        int increment = existingUpperBound.releaseBranch().equals(mainReleaseBranch) ? primaryIncrement : 1;
-                        TransportVersionId id = TransportVersionId.fromInt(existingUpperBound.id().complete() + increment);
-                        ids.add(id);
-                        resources.writeUpperBound(new TransportVersionUpperBound(existingUpperBound.releaseBranch(), name, id));
-                    }
-                } else {
-                    resources.writeUpperBound(existingUpperBound);
-                }
+                // Default case: we're not targeting this branch so reset it
+                resources.writeUpperBound(existingUpperBound);
             }
         }
 
@@ -230,4 +215,20 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             }
         }
     }
+
+    private TransportVersionId maybeGetExistingId(TransportVersionUpperBound upperBound, TransportVersionDefinition existingDefinition) {
+        if (existingDefinition == null) {
+            return null;
+        }
+        if (upperBound.releaseBranch().equals(getMainReleaseBranch().get())) {
+            return existingDefinition.ids().get(0); // main is always the primary id
+        }
+        for (TransportVersionId id : existingDefinition.ids()) {
+            if (id.base() == upperBound.id().base()) {
+                return id;
+            }
+        }
+        return null; // no id for this release branch
+    }
+
 }

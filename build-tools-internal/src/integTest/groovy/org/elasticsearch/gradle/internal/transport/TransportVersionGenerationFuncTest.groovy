@@ -9,13 +9,9 @@
 
 package org.elasticsearch.gradle.internal.transport
 
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.fixtures.WiremockFixture
+
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
-
-import java.nio.charset.StandardCharsets
 
 class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTest {
 
@@ -94,7 +90,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8124000")
     }
 
-    def "invalid changes to a latest file should be reverted"() {
+    def "invalid changes to a upper bounds should be reverted"() {
         given:
         transportVersionUpperBound("9.2", "modification", "9000000")
 
@@ -106,7 +102,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "existing_92,8123000")
     }
 
-    def "invalid changes to multiple latest files should be reverted"() {
+    def "invalid changes to multiple upper bounds should be reverted"() {
         given:
         transportVersionUpperBound("9.2", "modification", "9000000")
         transportVersionUpperBound("9.1", "modification", "9000000")
@@ -198,8 +194,9 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "test_tv,8124000")
     }
 
-    def "a latest file can be regenerated"() {
+    def "an upper bound can be regenerated"() {
         given:
+        file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").delete()
         referableAndReferencedTransportVersion("test_tv", "8124000")
 
         when:
@@ -310,7 +307,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "test_tv,8124000")
     }
 
-    def "can add backport to an existing definition"() {
+    def "can add backport to latest upper bound"() {
         when:
         def result = runGenerateAndValidateTask("--name=existing_92", "--backport-branches=9.1,9.0").build()
 
@@ -322,17 +319,24 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.0", "existing_92,8000001")
     }
 
-    def "increment must be positive"() {
+    def "can add backport to older definition"() {
         given:
-        referencedTransportVersion("new_tv")
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("latest_tv", "8124000,8012002")
+        transportVersionUpperBound("9.2", "latest_tv", "8124000")
+        transportVersionUpperBound("9.1", "latest_tv", "8012002")
+        execute("git commit -a -m added")
+        execute("git checkout -b mybranch")
 
         when:
-        def result = runGenerateTask("--increment=0").buildAndFail()
+        def result = runGenerateAndValidateTask("--name=existing_92", "--backport-branches=9.1,9.0").build()
 
         then:
-        assertGenerateFailure(result, "Invalid increment [0], must be a positive integer")
-        assertReferableDefinitionDoesNotExist("new_tv")
-        assertUpperBound("9.2", "existing_92,8123000")
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("existing_92", "8123000,8012001,8000001")
+        assertUpperBound("9.2", "latest_tv,8124000")
+        assertUpperBound("9.1", "latest_tv,8012002")
+        assertUpperBound("9.0", "existing_92,8000001")
     }
 
     def "a different increment can be specified"() {
@@ -361,7 +365,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         def result = runGenerateTask("--increment=0").buildAndFail()
 
         then:
-        assertOutputContains(result.output, "Invalid increment: must be a positive integer > 0")
+        assertOutputContains(result.output, "Invalid increment 0, must be a positive integer")
     }
 
     def "a new definition exists and is in the latest file, but the version id is wrong and needs to be updated"(){

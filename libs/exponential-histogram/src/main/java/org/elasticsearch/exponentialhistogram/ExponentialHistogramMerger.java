@@ -150,6 +150,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             buffer = FixedCapacityExponentialHistogram.create(bucketLimit, circuitBreaker);
         }
         buffer.setZeroBucket(zeroBucket);
+        buffer.setSum(a.sum() + b.sum());
 
         // We attempt to bring everything to the scale of A.
         // This might involve increasing the scale for B, which would increase its indices.

@@ -2985,6 +2985,74 @@ public class FieldNameUtilsTests extends ESTestCase {
             | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
     }
 
+    public void testImplicitFieldNames() {
+        assertFieldNames("""
+            FROM sample_data
+            | STATS x = 1 year + TBUCKET(1 day) BY b1d = TBUCKET(1 day)""", Set.of("@timestamp", "@timestamp.*"));
+    }
+
+    public void testKeepTimestampBeforeStats() {
+        assertFieldNames("""
+            FROM sample_data
+                | WHERE event_duration > 0
+                | KEEP @timestamp, client_ip
+                | STATS count = COUNT(*), avg_dur = AVG(event_duration) BY hour = TBUCKET(1h), client_ip
+                | SORT hour ASC
+            """, Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*"));
+    }
+
+    public void testKeepAtWildcardBeforeStats() {
+        assertFieldNames("""
+            FROM sample_data
+                | WHERE message LIKE "error%"
+                | KEEP @*, message
+                | STATS errors = COUNT() BY day = TBUCKET(1d), message
+                | SORT day ASC
+            """, Set.of("@timestamp", "@timestamp.*", "@*", "message", "message.*"));
+    }
+
+    public void testKeepWildcardBeforeStats() {
+        assertFieldNames("""
+            FROM sample_data
+                | WHERE client_ip IS NOT NULL
+                | KEEP *stamp*, client_ip
+                | STATS p95 = PERCENTILE(event_duration, 95) BY ten_min = TBUCKET(10min), client_ip
+                | SORT ten_min ASC
+            """, Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "*stamp*"));
+    }
+
+    public void testStatsChainingWithTimestampCarriedForward() {
+        assertFieldNames("""
+            FROM sample_data
+                | KEEP @timestamp, event_duration
+                | STATS day_count = COUNT(), day_p95 = PERCENTILE(event_duration, 95) BY day = TBUCKET(1d), @timestamp
+                | WHERE day_count > 0
+                | STATS hour_count = COUNT(), hour_p95 = PERCENTILE(day_p95, 95)  BY hour = TBUCKET(1h), day
+                | SORT day ASC, hour ASC
+            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*"));
+    }
+
+    public void testStatsChainingWithTimestampEval() {
+        assertFieldNames("""
+            FROM sample_data
+                | KEEP @timestamp, event_duration, message
+                | EVAL t = @timestamp
+                | STATS total = COUNT(*), med = MEDIAN(event_duration) BY d = TBUCKET(1d), message, t
+                | WHERE total > 5
+                | STATS day_total = SUM(total), hour_med = MEDIAN(med) BY h = TBUCKET(1h), message
+            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "message", "message.*"));
+    }
+
+    public void testStatsChainingWithTimestampCarriedForwardAsByKey() {
+        assertFieldNames("""
+            FROM sample_data
+                | KEEP @timestamp, client_ip, event_duration
+                | STATS reqs = COUNT(), max_dur = MAX(event_duration) BY day = TBUCKET(1d), client_ip, @timestamp
+                | WHERE max_dur > 1000
+                | STATS spikes = COUNT() BY hour = TBUCKET(1h), client_ip, day
+            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "client_ip", "client_ip.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, new EnrichResolution(), expected, Set.of());
     }

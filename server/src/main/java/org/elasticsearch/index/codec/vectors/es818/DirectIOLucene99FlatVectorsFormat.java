@@ -69,7 +69,6 @@ public class DirectIOLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat
     }
 
     static boolean shouldUseDirectIO(SegmentReadState state) {
-        assert USE_DIRECT_IO;
         return FsDirectoryFactory.isHybridFs(state.directory);
     }
 

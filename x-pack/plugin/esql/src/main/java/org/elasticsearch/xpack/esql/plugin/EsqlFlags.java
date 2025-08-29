@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
+
 public class EsqlFlags {
     public static final Setting<Boolean> ESQL_STRING_LIKE_ON_INDEX = Setting.boolSetting(
         "esql.query.string_like_on_index",
@@ -39,7 +41,7 @@ public class EsqlFlags {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
+    public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(ESQL_STRING_LIKE_ON_INDEX, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
     private final boolean stringLikeOnIndex;
 
     private final int roundToPushdownThreshold;

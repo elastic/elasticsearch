@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -111,11 +113,33 @@ public class LocalMapper {
                     join.rightOutputFields()
                 );
             }
-            if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+            LookupJoinExec lookupJoinExec = getLookupJoinExec(join, right, left, config);
+            if (lookupJoinExec == null && right instanceof FilterExec filterExec) {
+                lookupJoinExec = getLookupJoinExec(join, filterExec.child(), left, config);
             }
+            if (lookupJoinExec != null) {
+                // we want to do local physical planning on the lookup node eventually for the right side of the lookup join
+                // so here we will wrap the logical plan with a FragmentExec and keep it as is
+                FragmentExec fragmentExec = new FragmentExec(binary.right());
+                return new LookupJoinExec(
+                    join.source(),
+                    left,
+                    fragmentExec,
+                    config.leftFields(),
+                    config.rightFields(),
+                    join.rightOutputFields()
+                );
+            }
+            return MapperUtils.unsupported(binary);
         }
 
         return MapperUtils.unsupported(binary);
+    }
+
+    private static LookupJoinExec getLookupJoinExec(Join join, PhysicalPlan right, PhysicalPlan left, JoinConfig config) {
+        if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
+            return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+        }
+        return null;
     }
 }

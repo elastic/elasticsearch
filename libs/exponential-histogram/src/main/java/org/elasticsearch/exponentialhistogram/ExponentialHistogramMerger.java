@@ -55,12 +55,21 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     /**
      * Creates a new instance with the specified bucket limit.
      *
-     * @param bucketLimit the maximum number of buckets the result histogram is allowed to have
+     * @param bucketLimit the maximum number of buckets the result histogram is allowed to have, must be at least 4
      * @param circuitBreaker the circuit breaker to use to limit memory allocations
      */
     public static ExponentialHistogramMerger create(int bucketLimit, ExponentialHistogramCircuitBreaker circuitBreaker) {
         circuitBreaker.adjustBreaker(BASE_SIZE);
-        return new ExponentialHistogramMerger(bucketLimit, circuitBreaker);
+        boolean success = false;
+        try {
+            ExponentialHistogramMerger result = new ExponentialHistogramMerger(bucketLimit, circuitBreaker);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                circuitBreaker.adjustBreaker(-BASE_SIZE);
+            }
+        }
     }
 
     private ExponentialHistogramMerger(int bucketLimit, ExponentialHistogramCircuitBreaker circuitBreaker) {
@@ -70,7 +79,10 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     // Only intended for testing, using this in production means an unnecessary reduction of precision
     private ExponentialHistogramMerger(int bucketLimit, int maxScale, ExponentialHistogramCircuitBreaker circuitBreaker) {
         // We need at least four buckets to represent any possible distribution
-        this.bucketLimit = Math.max(4, bucketLimit);
+        if (bucketLimit < 4) {
+            throw new IllegalArgumentException("The bucket limit must be at least 4");
+        }
+        this.bucketLimit = bucketLimit;
         this.maxScale = maxScale;
         this.circuitBreaker = circuitBreaker;
         downscaleStats = new DownscaleStats();

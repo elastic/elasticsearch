@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene.read;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -23,10 +24,13 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
     private final BlockFactory blockFactory;
 
     private int count;
+    private long memoryUsed;
 
     public SingletonDoubleBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
-        blockFactory.adjustBreaker(valuesSize(expectedCount));
+        long memory = valuesSize(expectedCount);
+        blockFactory.adjustBreaker(memory);
+        memoryUsed += memory;
         this.values = new double[expectedCount];
     }
 
@@ -69,7 +73,9 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
         if (values.length != count) {
             throw new IllegalStateException("expected " + values.length + " values but got " + count);
         }
-        return blockFactory.newDoubleArrayVector(values, count).asBlock();
+        var result = blockFactory.newDoubleArrayVector(values, count, memoryUsed).asBlock();
+        memoryUsed = 0;
+        return result;
     }
 
     @Override
@@ -83,10 +89,11 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-valuesSize(values.length));
+        blockFactory.adjustBreaker(-memoryUsed);
     }
 
     static long valuesSize(int count) {
-        return (long) count * Double.BYTES;
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Double.BYTES * count)
+            + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
     }
 }

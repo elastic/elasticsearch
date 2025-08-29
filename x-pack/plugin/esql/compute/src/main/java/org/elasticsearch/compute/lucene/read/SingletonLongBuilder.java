@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene.read;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -20,12 +21,15 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     private final long[] values;
     private final BlockFactory blockFactory;
+    private long memoryUsed;
 
     private int count;
 
     public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
-        blockFactory.adjustBreaker(valuesSize(expectedCount));
+        final long memory = valuesSize(expectedCount);
+        blockFactory.adjustBreaker(memory);
+        memoryUsed += memory;
         this.values = new long[expectedCount];
     }
 
@@ -68,7 +72,9 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
         if (values.length != count) {
             throw new IllegalStateException("expected [" + values.length + "] values but got [" + count + "]");
         }
-        return blockFactory.newLongArrayVector(values, count).asBlock();
+        var result = blockFactory.newLongArrayVector(values, count, memoryUsed).asBlock();
+        memoryUsed = 0;
+        return result;
     }
 
     @Override
@@ -86,10 +92,11 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-valuesSize(values.length));
+        blockFactory.adjustBreaker(-memoryUsed);
     }
 
     static long valuesSize(int count) {
-        return (long) count * Long.BYTES;
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * count)
+            + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
     }
 }

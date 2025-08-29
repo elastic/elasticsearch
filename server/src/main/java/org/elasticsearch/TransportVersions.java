@@ -357,6 +357,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = def(9_145_0_00);
     public static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = def(9_146_0_00);
+    public static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = def(9_147_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

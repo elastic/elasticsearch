@@ -52,6 +52,8 @@ public class CreateIndexClusterStateUpdateRequest {
 
     private ComposableIndexTemplate matchingTemplate;
 
+    private boolean settingsSystemProvided = false;
+
     /**
      * @deprecated project id ought always be specified
      */
@@ -221,6 +223,19 @@ public class CreateIndexClusterStateUpdateRequest {
     public CreateIndexClusterStateUpdateRequest setMatchingTemplate(ComposableIndexTemplate matchingTemplate) {
         this.matchingTemplate = matchingTemplate;
         return this;
+    }
+
+    /**
+     * Indicates whether the {@link #settings} of this request are system provided.
+     * If this is true, private settings will be allowed to be set in the request.
+     */
+    public CreateIndexClusterStateUpdateRequest settingsSystemProvided(boolean settingsSystemProvided) {
+        this.settingsSystemProvided = settingsSystemProvided;
+        return this;
+    }
+
+    public boolean settingsSystemProvided() {
+        return settingsSystemProvided;
     }
 
     @Override

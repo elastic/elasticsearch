@@ -788,8 +788,7 @@ public class MetadataIndexTemplateService {
 
         final var combinedMappings = collectMappings(indexTemplate, projectMetadata.componentTemplates(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, projectMetadata.componentTemplates());
-        // First apply settings sourced from index setting providers:
-        var finalSettings = Settings.builder();
+        var additionalSettingsBuilder = Settings.builder();
         ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         for (var provider : indexSettingProviders) {
             Settings.Builder builder = Settings.builder();
@@ -805,9 +804,13 @@ public class MetadataIndexTemplateService {
                 customMetadataBuilder::put
             );
             var newAdditionalSettings = builder.build();
-            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
-            finalSettings.put(newAdditionalSettings);
+            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalSettingsBuilder);
+            additionalSettingsBuilder.put(newAdditionalSettings);
         }
+        Settings additionalSettings = additionalSettingsBuilder.build();
+        var finalSettings = Settings.builder();
+        // First apply settings sourced from index setting providers:
+        finalSettings.put(additionalSettings);
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);
         // Then finally apply settings resolved from index template:
@@ -817,7 +820,7 @@ public class MetadataIndexTemplateService {
 
         var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
-        validate(name, templateToValidate);
+        validate(name, templateToValidate, additionalSettings);
         validateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
         validateLifecycle(projectMetadata, name, templateToValidate, globalRetentionSettings.get(false));
         validateDataStreamOptions(projectMetadata, name, templateToValidate, globalRetentionSettings.get(true));
@@ -2057,18 +2060,19 @@ public class MetadataIndexTemplateService {
     }
 
     public void validate(String name, ComponentTemplate template) {
-        validate(name, template.template(), Collections.emptyList());
+        validate(name, template.template(), Collections.emptyList(), null);
     }
 
-    private void validate(String name, ComposableIndexTemplate template) {
-        validate(name, template.template(), template.indexPatterns());
+    private void validate(String name, ComposableIndexTemplate template, Settings systemProvided) {
+        validate(name, template.template(), template.indexPatterns(), systemProvided);
     }
 
-    private void validate(String name, Template template, List<String> indexPatterns) {
+    private void validate(String name, Template template, List<String> indexPatterns, @Nullable Settings systemProvided) {
         Optional<Template> maybeTemplate = Optional.ofNullable(template);
         validate(
             name,
             maybeTemplate.map(Template::settings).orElse(Settings.EMPTY),
+            systemProvided,
             indexPatterns,
             maybeTemplate.map(Template::aliases).orElse(emptyMap()).values().stream().map(MetadataIndexTemplateService::toAlias).toList()
         );
@@ -2087,10 +2091,16 @@ public class MetadataIndexTemplateService {
     }
 
     private void validate(PutRequest putRequest) {
-        validate(putRequest.name, putRequest.settings, putRequest.indexPatterns, putRequest.aliases);
+        validate(putRequest.name, putRequest.settings, null, putRequest.indexPatterns, putRequest.aliases);
     }
 
-    private void validate(String name, @Nullable Settings settings, List<String> indexPatterns, List<Alias> aliases) {
+    private void validate(
+        String name,
+        @Nullable Settings settings,
+        @Nullable Settings systemProvided,
+        List<String> indexPatterns,
+        List<Alias> aliases
+    ) {
         List<String> validationErrors = new ArrayList<>();
         if (name.contains(" ")) {
             validationErrors.add("name must not contain a space");
@@ -2143,7 +2153,11 @@ public class MetadataIndexTemplateService {
                     validationErrors.add(t.getMessage());
                 }
             }
-            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(settings, true);
+            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(
+                settings,
+                systemProvided,
+                true
+            );
             validationErrors.addAll(indexSettingsValidation);
         }
 

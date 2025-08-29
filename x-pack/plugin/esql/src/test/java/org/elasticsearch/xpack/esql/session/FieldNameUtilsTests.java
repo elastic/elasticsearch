@@ -34,7 +34,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("from test | inlinestats max(salary) by gender", ALL_FIELDS);
     }
 
@@ -43,7 +43,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithMetadata_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("from test metadata _index, _id, _version | inlinestats max(salary)", ALL_FIELDS);
     }
 
@@ -320,7 +320,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLimitZero_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             FROM employees
             | INLINESTATS COUNT(*), MAX(salary) BY gender
@@ -335,7 +335,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDocsDropHeight_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             FROM employees
             | DROP height
@@ -351,7 +351,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDocsDropHeightWithWildcard_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             FROM employees
             | INLINESTATS MAX(salary) BY gender
@@ -518,7 +518,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSortWithLimitOne_DropHeight_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("from employees | inlinestats avg(salary) by languages | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
 
@@ -818,7 +818,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFilterById_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("FROM apps metadata _id | INLINESTATS max(rate) | WHERE _id == \"4\"", ALL_FIELDS);
     }
 
@@ -1289,7 +1289,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testProjectDropPattern_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             from test
             | inlinestats max(foo) by bar
@@ -1372,7 +1372,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testCountAllAndOtherStatGrouped_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             from test
             | inlinestats c = count(*), min = min(emp_no) by languages
@@ -1411,7 +1411,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testCountAllWithEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1424,7 +1424,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testKeepAfterEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1437,7 +1437,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testKeepBeforeEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1450,7 +1450,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsBeforeEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1462,7 +1462,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsBeforeInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             from test
             | stats min = min(salary) by languages
@@ -1471,7 +1471,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testKeepBeforeInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertFieldNames("""
             from test
             | keep languages, salary
@@ -2845,7 +2845,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
@@ -2858,7 +2858,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
@@ -2872,7 +2872,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkAfterInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
@@ -2983,6 +2983,74 @@ public class FieldNameUtilsTests extends ESTestCase {
             | GROK x "%{WORD:a} %{WORD:b}"
             | SORT _fork, emp_no
             | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+    }
+
+    public void testImplicitFieldNames() {
+        assertFieldNames("""
+            FROM sample_data
+            | STATS x = 1 year + TBUCKET(1 day) BY b1d = TBUCKET(1 day)""", Set.of("@timestamp", "@timestamp.*"));
+    }
+
+    public void testKeepTimestampBeforeStats() {
+        assertFieldNames("""
+            FROM sample_data
+                | WHERE event_duration > 0
+                | KEEP @timestamp, client_ip
+                | STATS count = COUNT(*), avg_dur = AVG(event_duration) BY hour = TBUCKET(1h), client_ip
+                | SORT hour ASC
+            """, Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*"));
+    }
+
+    public void testKeepAtWildcardBeforeStats() {
+        assertFieldNames("""
+            FROM sample_data
+                | WHERE message LIKE "error%"
+                | KEEP @*, message
+                | STATS errors = COUNT() BY day = TBUCKET(1d), message
+                | SORT day ASC
+            """, Set.of("@timestamp", "@timestamp.*", "@*", "message", "message.*"));
+    }
+
+    public void testKeepWildcardBeforeStats() {
+        assertFieldNames("""
+            FROM sample_data
+                | WHERE client_ip IS NOT NULL
+                | KEEP *stamp*, client_ip
+                | STATS p95 = PERCENTILE(event_duration, 95) BY ten_min = TBUCKET(10min), client_ip
+                | SORT ten_min ASC
+            """, Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "*stamp*"));
+    }
+
+    public void testStatsChainingWithTimestampCarriedForward() {
+        assertFieldNames("""
+            FROM sample_data
+                | KEEP @timestamp, event_duration
+                | STATS day_count = COUNT(), day_p95 = PERCENTILE(event_duration, 95) BY day = TBUCKET(1d), @timestamp
+                | WHERE day_count > 0
+                | STATS hour_count = COUNT(), hour_p95 = PERCENTILE(day_p95, 95)  BY hour = TBUCKET(1h), day
+                | SORT day ASC, hour ASC
+            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*"));
+    }
+
+    public void testStatsChainingWithTimestampEval() {
+        assertFieldNames("""
+            FROM sample_data
+                | KEEP @timestamp, event_duration, message
+                | EVAL t = @timestamp
+                | STATS total = COUNT(*), med = MEDIAN(event_duration) BY d = TBUCKET(1d), message, t
+                | WHERE total > 5
+                | STATS day_total = SUM(total), hour_med = MEDIAN(med) BY h = TBUCKET(1h), message
+            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "message", "message.*"));
+    }
+
+    public void testStatsChainingWithTimestampCarriedForwardAsByKey() {
+        assertFieldNames("""
+            FROM sample_data
+                | KEEP @timestamp, client_ip, event_duration
+                | STATS reqs = COUNT(), max_dur = MAX(event_duration) BY day = TBUCKET(1d), client_ip, @timestamp
+                | WHERE max_dur > 1000
+                | STATS spikes = COUNT() BY hour = TBUCKET(1h), client_ip, day
+            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "client_ip", "client_ip.*"));
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

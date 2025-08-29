@@ -1,6 +1,0 @@
-pr: 133188
-summary: Don't fail search if bottom doc can't be formatted
-area: Search
-type: bug
-issues:
- - 125321

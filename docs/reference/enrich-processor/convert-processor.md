@@ -6,17 +6,41 @@ mapped_pages:
 
 # Convert processor [convert-processor]
 
-
 Converts a field in the currently ingested document to a different type, such as converting a string to an integer. If the field value is an array, all members will be converted.
 
-The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, and `auto`.
+## Supported types
 
-Specifying `boolean` will set the field to true if its string value is equal to `true` (ignore case), to false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
+The supported types are: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, and `auto` (all case-insensitive).
 
-Specifying `ip` will set the target field to the value of `field` if it contains a valid IPv4 or IPv6 address that can be indexed into an [IP field type](/reference/elasticsearch/mapping-reference/ip.md).
+| Target `type` | Supported input values                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `integer`     | `Integer` values<br><br>`Long` values in 32-bit signed integer range<br><br>`String` values representing an integer in 32-bit signed integer range in either decimal format (without a decimal point) or hex format (e.g. `"123"` or `"0x7b"`)                                                                                                                                                                                                                                                                                |
+| `long`        | `Integer` values<br><br>`Long` values<br><br>`String` values representing an integer in 64-bit signed integer range in either decimal format (without a decimal point) or hex format (e.g. `"123"` or `"0x7b"`)                                                                                                                                                                                                                                                                                                               |
+| `float`       | `Integer` values (may lose precision for absolute values greater than 2^24^)<br><br>`Long` values (may lose precision for absolute values greater than 2^24^)<br><br>`Float` values<br><br>`Double` values (may lose precision)<br><br>`String` values representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) or an integer (may lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value) |
+| `double`      | `Integer` values<br><br>`Long` values (may lose precision for absolute values greater than 2^53^)<br><br>`Float` values<br><br>`Double` values<br><br>`String` values representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) or an integer (may lose precision, and will give positive or negative infinity if out of range for a 64-bit floating point value)                                                                                  |
+| `string`      | All values                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `boolean`     | `Boolean` values<br><br>`String` values matching `"true"` or `"false"` (case-insensitive)                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `ip`          | `String` values containing a valid IPv4 or IPv6 address that can be indexed into an [IP field type](/reference/elasticsearch/mapping-reference/ip.md)                                                                                                                                                                                                                                                                                                                                                                         |
+| `auto`        | All values (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string, non-IP type. For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. Do note that float takes precedence of double in `auto`. A value of `"242.15"` will "automatically" be converted to `242.15` of type `float`. If a provided field cannot be appropriately converted, the processor will still process successfully and leave the field value as-is. In such a case, `target_field` will be updated with the unconverted field value.
+Specifying `auto` will attempt to convert a string-valued `field` into the closest non-string, non-IP type:
+ - A string whose value is `"true"` or `"false"` (case insensitive) will be converted to a `Boolean`.
+ - A string representing an integer in decimal or hex format (e.g. `"123"` or `"0x7b"`) will be converted to an `Integer` if the number fits in a 32-bit signed integer, else to a `Long` if it fits in a 64-bit signed integer, else to a `Float` (in which case it may
+lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value).
+ - A string representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) will be converted to a `Float` (and may lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value).
 
+Using `auto` to convert a `field` which is either not a `String` or a `String` which cannot be converted will leave the
+field value as-is. In such a case, `target_field` will be updated with the unconverted field value.
+
+:::{tip}
+ If conversions other than those provided by this processor are required, the
+[`script`](/reference/enrich-processor/script-processor.md) processor may be used to implement the desired behavior.
+
+The performance of the `script` processor should be as good or better than the `convert` processor.
+:::
+
+
+## Options
 $$$convert-options$$$
 
 | Name | Required | Default | Description |

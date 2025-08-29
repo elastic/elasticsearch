@@ -720,8 +720,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                         @Override
                         public void onFailure(Exception e) {
-                            // TODO: count down fully and just respond with an exception if partial results aren't allowed as an
-                            // optimization
+                            // Note: this shard won't be retried until it returns to the coordinating node where the shard iterator lives
+                            // TODO: consider alternatives that don't wait for the entire batch to complete before retrying the shard
                             setFailure(state, dataNodeLocalIdx, e);
                             doneFuture.onResponse(null);
                         }

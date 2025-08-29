@@ -1,0 +1,100 @@
+version: 9.1.3
+released: true
+generated: 2025-08-28T15:34:50.901192133Z
+changelogs:
+  - pr: 130336
+    summary: "[EIS] Rename the elser 2 default model and the default inference endpoint"
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 132546
+    summary: Improve EIS auth call logs and fix revocation bug
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 132638
+    summary: Better error message for sequences with only one clause plus UNTIL
+    area: EQL
+    type: bug
+    issues: []
+  - pr: 132646
+    summary: Update EIS sparse and dense embedding max batch size to 16
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 132766
+    summary: Change `reporting_user` role to leverage reserved kibana privileges
+    area: Authorization
+    type: deprecation
+    issues: []
+    deprecation:
+      area: Authorization
+      title: Deprecate the built-in `reporting_user` role.
+      details: The `reporting_user` role is deprecated. Administrators should manage access to Kibana's reporting features via custom roles which grant the necessary privileges.
+      impact: This role will be removed in a future version. Administrators should migrate to custom roles to avoid interruption.
+      notable: false
+      essSettingChange: false
+  - pr: 132922
+    summary: Change GeoIpCache and EnrichCache to LongAdder
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 132945
+    summary: Disable child span for streaming tasks
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 132973
+    summary: Preserve lost thread context in node inference action. A lost context causes a memory leak if APM tracing is enabled
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 133004
+    summary: Limit frequency of feature last-used time updates
+    area: License
+    type: bug
+    issues: []
+  - pr: 133021
+    summary: Fix update expiration for async query
+    area: ES|QL
+    type: bug
+    issues:
+      - 130619
+  - pr: 133113
+    summary: Limit the depth of a filter
+    area: Infra/REST API
+    type: enhancement
+    issues: []
+  - pr: 133119
+    summary: Update bundled JDK to Java 24.0.2+12
+    area: Packaging
+    type: upgrade
+    issues: []
+  - pr: 133134
+    summary: Fix sequences with conditions involving keys and non-keys
+    area: EQL
+    type: bug
+    issues: []
+  - pr: 133188
+    summary: Don't fail search if bottom doc can't be formatted
+    area: Search
+    type: bug
+    issues:
+      - 125321
+  - pr: 133347
+    summary: Force rollover on write to true when data stream indices list is empty
+    area: Data streams
+    type: bug
+    issues:
+      - 133176
+  - pr: 133410
+    summary: Upgrading to tika 3.2.2
+    area: Ingest Node
+    type: upgrade
+    issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        The 9.1.3 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 133410

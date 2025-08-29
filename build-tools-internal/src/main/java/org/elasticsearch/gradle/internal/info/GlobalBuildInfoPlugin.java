@@ -29,6 +29,7 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
@@ -36,7 +37,6 @@ import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.provider.ValueSource;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.jvm.inspection.JavaInstallationRegistry;
 import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
@@ -61,7 +61,6 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -88,7 +87,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
-    private final BranchesFileParser branchesFileParser;
+    private final BuildFeatures buildFeatures;
     private JavaToolchainService toolChainService;
     private Project project;
 
@@ -97,13 +96,14 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         ObjectFactory objectFactory,
         JavaInstallationRegistry javaInstallationRegistry,
         JvmMetadataDetector metadataDetector,
-        ProviderFactory providers
+        ProviderFactory providers,
+        BuildFeatures buildFeatures
     ) {
         this.objectFactory = objectFactory;
         this.javaInstallationRegistry = javaInstallationRegistry;
         this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
-        this.branchesFileParser = new BranchesFileParser(new ObjectMapper());
+        this.buildFeatures = buildFeatures;
     }
 
     @Override
@@ -114,6 +114,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         project.getPlugins().apply(JdkDownloadPlugin.class);
+        project.getPlugins().apply(VersionPropertiesPlugin.class);
         Provider<GitInfo> gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
 
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
@@ -122,11 +123,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             throw new GradleException("Gradle " + minimumGradleVersion.getVersion() + "+ is required");
         }
 
-        project.getPlugins().apply(VersionPropertiesPlugin.class);
         Properties versionProperties = (Properties) project.getExtensions().getByName(VERSIONS_EXT);
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(versionProperties.get("minimumCompilerJava"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(versionProperties.get("minimumRuntimeJava"));
-
         Version elasticsearchVersionProperty = Version.fromString(versionProperties.getProperty("elasticsearch"));
 
         RuntimeJava runtimeJavaHome = findRuntimeJavaHome();
@@ -234,6 +233,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
         }
 
+        var branchesFileParser = new BranchesFileParser(new ObjectMapper());
         return branchesFileParser.parse(branchesBytes);
     }
 
@@ -267,7 +267,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (javaToolchainHome != null) {
             LOGGER.quiet("  JAVA_TOOLCHAIN_HOME   : " + javaToolchainHome);
         }
-        LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
+
+        if (buildFeatures.getConfigurationCache().getActive().get()) {
+            // if configuration cache is enabled, resolving the test seed early breaks configuration cache reuse
+            LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
+        }
         LOGGER.quiet("  In FIPS 140 mode      : " + buildParams.getInFipsJvm());
         LOGGER.quiet("=======================================");
     }
@@ -323,20 +327,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private Provider<String> getTestSeed() {
-//        return project.getProviders().of(TestSeedValueSource.class, spec -> {});
-        return project.provider(() -> obtain());
-    }
-
-    public String obtain() {
-        String testSeedProperty = System.getProperty("tests.seed");
-        final String testSeed;
-        if (testSeedProperty == null) {
-            long seed = new Random(System.currentTimeMillis()).nextLong();
-            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT);
-        } else {
-            testSeed = testSeedProperty;
-        }
-        return testSeed;
+        return project.getProviders().of(TestSeedValueSource.class, spec -> {});
     }
 
     private static void throwInvalidJavaHomeException(String description, File javaHome, int expectedVersion, int actualVersion) {

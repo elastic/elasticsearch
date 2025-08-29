@@ -153,9 +153,17 @@ public interface ExponentialHistogram extends Accountable {
 
         return a.scale() == b.scale()
             && a.sum() == b.sum()
+            && equalsIncludingNaN(a.min(), b.min())
             && a.zeroBucket().equals(b.zeroBucket())
             && bucketIteratorsEqual(a.negativeBuckets().iterator(), b.negativeBuckets().iterator())
             && bucketIteratorsEqual(a.positiveBuckets().iterator(), b.positiveBuckets().iterator());
+    }
+
+    private static boolean equalsIncludingNaN(double a, double b) {
+        if (Double.isNaN(a)) {
+            return Double.isNaN(b);
+        }
+        return a == b;
     }
 
     private static boolean bucketIteratorsEqual(BucketIterator a, BucketIterator b) {
@@ -180,8 +188,9 @@ public interface ExponentialHistogram extends Accountable {
     static int hashCode(ExponentialHistogram histogram) {
         int hash = histogram.scale();
         hash = 31 * hash + Double.hashCode(histogram.sum());
-        hash = 31 * hash + histogram.zeroBucket().hashCode();
         hash = 31 * hash + Long.hashCode(histogram.valueCount());
+        hash = 31 * hash + Double.hashCode(histogram.min());
+        hash = 31 * hash + histogram.zeroBucket().hashCode();
         // we intentionally don't include the hash of the buckets here, because that is likely expensive to compute
         // instead, we assume that the value count and sum are a good enough approximation in most cases to minimize collisions
         // the value count is typically available as a cached value and doesn't involve iterating over all buckets

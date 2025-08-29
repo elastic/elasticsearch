@@ -113,7 +113,7 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
             ExponentialHistogram histo = createAutoReleasedHistogram(bucketCount, values);
 
             OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
-                new ZeroBucket(zeroThreshold, zeroValueCount),
+                ZeroBucket.create(zeroThreshold, zeroValueCount),
                 histo.negativeBuckets(),
                 histo.positiveBuckets()
             );

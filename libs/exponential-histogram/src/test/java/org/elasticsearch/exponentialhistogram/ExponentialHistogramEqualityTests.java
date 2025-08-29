@@ -40,6 +40,7 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
     public enum Modification {
         SCALE,
         SUM,
+        MIN,
         ZERO_THRESHOLD,
         ZERO_COUNT,
         POSITIVE_BUCKETS,
@@ -80,7 +81,7 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
     }
 
     private ExponentialHistogram randomHistogram() {
-        return createAutoReleasedHistogram(randomIntBetween(1, 20), randomDoubles(randomIntBetween(0, 200)).toArray());
+        return createAutoReleasedHistogram(randomIntBetween(4, 20), randomDoubles(randomIntBetween(0, 200)).toArray());
     }
 
     private ExponentialHistogram copyWithModification(ExponentialHistogram toCopy, Modification modification) {
@@ -95,6 +96,11 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
             copy.setSum(randomDouble());
         } else {
             copy.setSum(toCopy.sum());
+        }
+        if (modification == Modification.MIN) {
+            copy.setMin(randomDouble());
+        } else {
+            copy.setMin(toCopy.min());
         }
         long zeroCount = toCopy.zeroBucket().count();
         double zeroThreshold = toCopy.zeroBucket().zeroThreshold();
@@ -144,7 +150,7 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
         do {
             newIndex = randomLongBetween(Math.max(MIN_INDEX, minIndex - 10), Math.min(MAX_INDEX, maxIndex + 10));
         } while (indices.contains(newIndex));
-        int position = Collections.binarySearch(indices, newIndex) + 1;
+        int position = -(Collections.binarySearch(indices, newIndex) + 1);
         indices.add(position, newIndex);
         counts.add(position, randomLongBetween(1, Long.MAX_VALUE));
     }

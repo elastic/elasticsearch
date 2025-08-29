@@ -111,6 +111,9 @@ public class SearchEngine extends Engine {
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
+    // The current primary term/generation is updated on initialization and after new commit notifications from the indexing shard.
+    // It can be higher than the term/gen found by the search shard in the object store, if the commit is not yet uploaded or if the
+    // commit is a hollow commit that has been uploaded before the indexing shard primary term changed (e.g., after a shard failure).
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
@@ -190,11 +193,24 @@ public class SearchEngine extends Engine {
                     }
                 }
             };
+
             this.segmentInfosAndCommit = initialSegmentInfosAndCommit;
-            this.currentPrimaryTermGeneration = new PrimaryTermAndGeneration(
-                primaryTerm(segmentInfosAndCommit.segmentInfos()),
-                segmentInfosAndCommit.segmentInfos().getGeneration()
-            );
+            final var segmentInfos = initialSegmentInfosAndCommit.segmentInfos();
+            final var compoundCommit = initialSegmentInfosAndCommit.statelessCompoundCommit();
+            final var segmentIsHollow = compoundCommit == null ? false : compoundCommit.hollow();
+            final var segmentPrimaryTerm = primaryTerm(segmentInfos);
+            final var segmentGeneration = segmentInfos.getGeneration();
+            final var operationPrimaryTerm = config().getPrimaryTermSupplier().getAsLong();
+            if (segmentIsHollow == false) {
+                currentPrimaryTermGeneration = new PrimaryTermAndGeneration(segmentPrimaryTerm, segmentGeneration);
+            } else {
+                // Hollow indexing shards do not flush when the primary term changes, so we can have a segment with a primary term
+                // lower than the current operation primary term. We should consider the current operation primary term for notifying
+                // segment generation listeners.
+                currentPrimaryTermGeneration = new PrimaryTermAndGeneration(operationPrimaryTerm, segmentGeneration);
+            }
+            assert assertCurrentPrimaryTermGeneration(segmentInfosAndCommit, currentPrimaryTermGeneration);
+
             this.setSequenceNumbers(segmentInfosAndCommit.segmentInfos());
             this.readerManager = wrapForAssertions(readerManager, config);
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
@@ -347,19 +363,8 @@ public class SearchEngine extends Engine {
                 batchSize = pendingCommitNotifications.get();
                 assert batchSize > 0 : batchSize;
 
+                assert assertCurrentPrimaryTermGeneration(segmentInfosAndCommit, currentPrimaryTermGeneration);
                 final SegmentInfos current = segmentInfosAndCommit.segmentInfos();
-                assert current.getGeneration() == currentPrimaryTermGeneration.generation()
-                    : "segment info generation ["
-                        + current.getGeneration()
-                        + "] not in sync with current generation ["
-                        + currentPrimaryTermGeneration
-                        + "]";
-                assert primaryTerm(current) == currentPrimaryTermGeneration.primaryTerm()
-                    : Strings.format(
-                        "segment info primary term [%d] not in sync with current primary term [%s]",
-                        primaryTerm(current),
-                        currentPrimaryTermGeneration
-                    );
                 NewCommitNotification latestNotification = findLatestNotification(current);
                 if (latestNotification == null) {
                     logger.trace("directory is on most recent commit generation [{}]", current.getGeneration());
@@ -467,6 +472,7 @@ public class SearchEngine extends Engine {
                     primaryTerm(segmentInfosAndCommit.segmentInfos()),
                     segmentInfosAndCommit.getGeneration()
                 );
+                assert assertCurrentPrimaryTermGeneration(segmentInfosAndCommit, currentPrimaryTermGeneration);
 
                 var reader = readerManager.acquire();
                 try {
@@ -1034,6 +1040,35 @@ public class SearchEngine extends Engine {
         assert segmentGenerationListeners.isEmpty();
     }
 
+    private boolean assertCurrentPrimaryTermGeneration(
+        SegmentInfosAndCommit segmentInfosAndCommit,
+        PrimaryTermAndGeneration currentPrimaryTermGeneration
+    ) throws IOException {
+        final var segmentInfos = segmentInfosAndCommit.segmentInfos();
+        final var compoundCommit = segmentInfosAndCommit.statelessCompoundCommit();
+        final var segmentIsHollow = compoundCommit == null ? false : compoundCommit.hollow();
+        final var segmentPrimaryTerm = primaryTerm(segmentInfos);
+        final var segmentGeneration = segmentInfos.getGeneration();
+
+        if (segmentIsHollow == false) {
+            assert currentPrimaryTermGeneration.primaryTerm() == segmentPrimaryTerm
+                : Strings.format(
+                    "current primary term [%d] must be == segment primary term [%d]",
+                    currentPrimaryTermGeneration.primaryTerm(),
+                    segmentPrimaryTerm
+                );
+        } else {
+            assert currentPrimaryTermGeneration.primaryTerm() >= segmentPrimaryTerm
+                : Strings.format(
+                    "current primary term [%d] must be >= segment primary term [%d]",
+                    currentPrimaryTermGeneration.primaryTerm(),
+                    segmentPrimaryTerm
+                );
+        }
+
+        return true;
+    }
+
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";
         return new UnsupportedOperationException("Search engine does not support this operation");
@@ -1050,7 +1085,12 @@ public class SearchEngine extends Engine {
     private record SegmentInfosAndCommit(SegmentInfos segmentInfos, StatelessCompoundCommit statelessCompoundCommit) {
 
         private SegmentInfosAndCommit {
-            assert statelessCompoundCommit == null || segmentInfos.getGeneration() == statelessCompoundCommit.generation();
+            assert statelessCompoundCommit == null || segmentInfos.getGeneration() == statelessCompoundCommit.generation()
+                : "segment generation ["
+                    + segmentInfos.getGeneration()
+                    + "] does not match CC generation ["
+                    + statelessCompoundCommit.generation()
+                    + ']';
         }
 
         Set<PrimaryTermAndGeneration> getBCCDependenciesForCommit() {

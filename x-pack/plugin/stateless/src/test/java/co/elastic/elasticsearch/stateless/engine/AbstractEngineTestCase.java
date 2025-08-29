@@ -29,10 +29,12 @@ import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadT
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
 import co.elastic.elasticsearch.stateless.commits.ShardLocalCommitsRefs;
 import co.elastic.elasticsearch.stateless.commits.ShardLocalCommitsTracker;
 import co.elastic.elasticsearch.stateless.commits.ShardLocalReadersTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -424,6 +426,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
     protected SearchEngine newSearchEngineFromIndexEngine(IndexEngine indexEngine, DeterministicTaskQueue deterministicTaskQueue)
         throws IOException {
+        var primaryTermSupplier = indexEngine.getEngineConfig().getPrimaryTermSupplier();
         var shardId = indexEngine.getEngineConfig().getShardId();
         var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
         var threadPool = deterministicTaskQueue.getThreadPool();
@@ -447,6 +450,20 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             shardId
         );
         directory.setBlobContainer(primaryTerm -> blobContainer);
+        // update the CC of the directory because assertions use it for the primary term
+        directory.updateCommit(
+            new StatelessCompoundCommit(
+                shardId,
+                new PrimaryTermAndGeneration(primaryTermSupplier.getAsLong(), 1L),
+                -1L,
+                "node-id",
+                Map.of(),
+                0L,
+                Set.of(),
+                0L,
+                InternalFilesReplicatedRanges.EMPTY
+            )
+        );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         final EngineConfig searchConfig = new EngineConfig(
             shardId,
@@ -472,7 +489,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             () -> {
                 throw new AssertionError();
             },
-            () -> 1L,
+            primaryTermSupplier,
             null,
             null,
             null,
@@ -546,6 +563,21 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             objectStoreUploadTracker,
             shardId
         );
+        directory.setBlobContainer(primaryTerm -> blobContainer);
+        // update the CC of the directory because assertions use it for the primary term
+        directory.updateCommit(
+            new StatelessCompoundCommit(
+                shardId,
+                new PrimaryTermAndGeneration(1L, 1L),
+                -1L,
+                "node-id",
+                Map.of(),
+                0L,
+                Set.of(),
+                0L,
+                InternalFilesReplicatedRanges.EMPTY
+            )
+        );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         return new EngineConfig(
             shardId,
@@ -571,7 +603,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             () -> {
                 throw new AssertionError();
             },
-            () -> 1L,
+            directory.getCurrentCommit()::primaryTerm,
             null,
             null,
             null,

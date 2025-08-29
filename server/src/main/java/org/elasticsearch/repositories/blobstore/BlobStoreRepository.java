@@ -128,6 +128,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
@@ -969,7 +970,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return new SnapshotsDeletion(
                     snapshotIds,
                     repositoryDataGeneration,
-                    SnapshotsService.minCompatibleVersion(minimumNodeVersion, originalRepositoryData, snapshotIds),
+                    SnapshotsServiceUtils.minCompatibleVersion(minimumNodeVersion, originalRepositoryData, snapshotIds),
                     originalRootBlobs,
                     blobStore().blobContainer(indicesPath()).children(OperationPurpose.SNAPSHOT_DATA),
                     originalRepositoryData
@@ -1075,7 +1076,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             this.snapshotIds = snapshotIds;
             this.originalRepositoryDataGeneration = originalRepositoryDataGeneration;
             this.repositoryFormatIndexVersion = repositoryFormatIndexVersion;
-            this.useShardGenerations = SnapshotsService.useShardGenerations(repositoryFormatIndexVersion);
+            this.useShardGenerations = SnapshotsServiceUtils.useShardGenerations(repositoryFormatIndexVersion);
             this.originalRootBlobs = originalRootBlobs;
             this.originalIndexContainers = originalIndexContainers;
             this.originalRepositoryData = originalRepositoryData;
@@ -1744,11 +1745,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened
         // when writing the index-${N} to each shard directory.
         final IndexVersion repositoryMetaVersion = finalizeSnapshotContext.repositoryMetaVersion();
-        final boolean writeShardGens = SnapshotsService.useShardGenerations(repositoryMetaVersion);
+        final boolean writeShardGens = SnapshotsServiceUtils.useShardGenerations(repositoryMetaVersion);
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
-        final boolean writeIndexGens = SnapshotsService.useIndexGenerations(repositoryMetaVersion);
+        final boolean writeIndexGens = SnapshotsServiceUtils.useIndexGenerations(repositoryMetaVersion);
 
         record MetadataWriteResult(
             RepositoryData existingRepositoryData,
@@ -2516,7 +2517,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         final RepositoryData toCache;
-        if (SnapshotsService.useShardGenerations(version)) {
+        if (SnapshotsServiceUtils.useShardGenerations(version)) {
             toCache = repositoryData;
         } else {
             // don't cache shard generations here as they may be unreliable
@@ -2873,7 +2874,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, true);
             maybeWriteIndexLatest(newGen);
 
-            if (filteredRepositoryData.getUuid().equals(RepositoryData.MISSING_UUID) && SnapshotsService.includesUUIDs(version)) {
+            if (filteredRepositoryData.getUuid().equals(RepositoryData.MISSING_UUID) && SnapshotsServiceUtils.includesUUIDs(version)) {
                 assert newRepositoryData.getUuid().equals(RepositoryData.MISSING_UUID) == false;
                 logger.info(
                     Strings.format(
@@ -2954,7 +2955,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData updateRepositoryData(RepositoryData repositoryData, IndexVersion repositoryMetaversion, long newGen) {
-        if (SnapshotsService.includesUUIDs(repositoryMetaversion)) {
+        if (SnapshotsServiceUtils.includesUUIDs(repositoryMetaversion)) {
             final String clusterUUID = clusterService.state().metadata().clusterUUID();
             if (repositoryData.getClusterUUID().equals(clusterUUID) == false) {
                 repositoryData = repositoryData.withClusterUuid(clusterUUID);
@@ -3089,7 +3090,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
         updatedDeletionsInProgress = changedDeletions ? SnapshotDeletionsInProgress.of(deletionEntries) : null;
-        return SnapshotsService.updateWithSnapshots(state, updatedSnapshotsInProgress, updatedDeletionsInProgress);
+        return SnapshotsServiceUtils.updateWithSnapshots(state, updatedSnapshotsInProgress, updatedDeletionsInProgress);
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {
@@ -3323,8 +3324,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
 
             final ShardGeneration indexGeneration;
-            final boolean writeShardGens = SnapshotsService.useShardGenerations(context.getRepositoryMetaVersion());
-            final boolean writeFileInfoWriterUUID = SnapshotsService.includeFileInfoWriterUUID(context.getRepositoryMetaVersion());
+            final boolean writeShardGens = SnapshotsServiceUtils.useShardGenerations(context.getRepositoryMetaVersion());
+            final boolean writeFileInfoWriterUUID = SnapshotsServiceUtils.includeFileInfoWriterUUID(context.getRepositoryMetaVersion());
             // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
             final BlobStoreIndexShardSnapshots updatedBlobStoreIndexShardSnapshots = snapshots.withAddedSnapshot(
                 new SnapshotFiles(snapshotId.getName(), indexCommitPointFiles, context.stateIdentifier())

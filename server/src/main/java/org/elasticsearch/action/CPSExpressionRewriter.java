@@ -50,7 +50,7 @@ public class CPSExpressionRewriter {
         String[] indices = request.indices();
         logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
 
-        Map<String, IndicesRequest.CanonicalExpression> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
+        Map<String, List<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
         for (String indexExpression : indices) {
             // TODO we need to handle exclusions here already
             boolean isQualified = isQualifiedIndexExpression(indexExpression);
@@ -58,12 +58,12 @@ public class CPSExpressionRewriter {
                 // TODO handle empty case here -- empty means "search all" in ES which is _not_ what we want
                 List<String> canonicalExpressions = rewriteQualified(indexExpression, projects, remoteClusterAware);
                 // could fail early here in ignore_unavailable and allow_no_indices strict mode if things are empty
-                canonicalExpressionsMap.put(indexExpression, new IndicesRequest.CanonicalExpression(indexExpression, canonicalExpressions));
+                canonicalExpressionsMap.put(indexExpression, canonicalExpressions);
                 logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             } else {
                 // un-qualified expression, i.e. flat-world
                 List<String> canonicalExpressions = rewriteUnqualified(indexExpression, targetProjects.projects());
-                canonicalExpressionsMap.put(indexExpression, new IndicesRequest.CanonicalExpression(indexExpression, canonicalExpressions));
+                canonicalExpressionsMap.put(indexExpression, canonicalExpressions);
                 logger.info("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             }
         }

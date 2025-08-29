@@ -67,14 +67,14 @@ public interface IndicesRequest {
             return false;
         }
 
-        default void setCanonicalExpressions(@Nullable Map<String, CanonicalExpression> canonicalExpressions) {
+        default void setCanonicalExpressions(@Nullable Map<String, List<String>> canonicalExpressions) {
             if (false == storeCanonicalExpressions()) {
                 assert false : "setCanonicalExpressions should not be called when storeCanonicalExpressions is false";
                 throw new IllegalStateException("setCanonicalExpressions should not be called when storeCanonicalExpressions is false");
             }
         }
 
-        default Map<String, CanonicalExpression> getCanonicalExpressions() {
+        default Map<String, List<String>> getCanonicalExpressions() {
             if (false == storeCanonicalExpressions()) {
                 assert false : "getCanonicalExpressions should not be called when storeCanonicalExpressions is false";
                 throw new IllegalStateException("getCanonicalExpressions should not be called when storeCanonicalExpressions is false");
@@ -126,6 +126,4 @@ public interface IndicesRequest {
          */
         Collection<ShardId> shards();
     }
-
-    record CanonicalExpression(String originalExpression, List<String> canonicalExpressions) {}
 }

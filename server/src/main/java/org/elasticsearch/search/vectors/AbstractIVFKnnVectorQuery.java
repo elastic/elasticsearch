@@ -261,16 +261,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             allowedDocs.add(iterator.docID());
         }
         ScoreDoc[] scoreDocs = Arrays.stream(topDocs.scoreDocs).filter(sd -> allowedDocs.contains(sd.doc)).toArray(ScoreDoc[]::new);
-        if (scoreDocs.length >= k || topDocs.scoreDocs.length < k) {
-            return new TopDocs(new TotalHits(topDocs.totalHits.value(), topDocs.totalHits.relation()), scoreDocs);
-        }
-        // We gathered too few results, research without post filter
-        assert filterScorer != null;
-        if (filterScorer == null) {
-            return NO_RESULTS;
-        }
-        acceptDocs = createBitSet(filterScorer.iterator(), liveDocs, reader.maxDoc());
-        return approximateSearch(ctx, acceptDocs, knnCollectorManager, visitRatio);
+        // TODO what to do if we have fewer than k matches?!?!?
+        return new TopDocs(new TotalHits(topDocs.totalHits.value(), topDocs.totalHits.relation()), scoreDocs);
     }
 
     abstract TopDocs approximateSearch(

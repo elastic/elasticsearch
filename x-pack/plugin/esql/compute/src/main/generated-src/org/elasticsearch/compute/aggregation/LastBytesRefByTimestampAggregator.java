@@ -13,14 +13,14 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -34,34 +34,34 @@ import org.elasticsearch.core.Releasables;
 @Aggregator(
     {
         @IntermediateState(name = "timestamps", type = "LONG"),
-        @IntermediateState(name = "values", type = "DOUBLE"),
+        @IntermediateState(name = "values", type = "BYTES_REF"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
+    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") }
 )
-public class LastDoubleByTimestampAggregator {
+public class LastBytesRefByTimestampAggregator {
     public static String describe() {
-        return "last_double_by_timestamp";
+        return "last_BytesRef_by_timestamp";
     }
 
-    public static LongDoubleState initSingle(DriverContext driverContext) {
-        return new LongDoubleState(0, 0);
+    public static LongBytesRefState initSingle(DriverContext driverContext) {
+        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker(), describe());
     }
 
-    public static void first(LongDoubleState current, double value, long timestamp) {
+    public static void first(LongBytesRefState current, BytesRef value, long timestamp) {
         current.v1(timestamp);
         current.v2(value);
     }
 
-    public static void combine(LongDoubleState current, double value, long timestamp) {
+    public static void combine(LongBytesRefState current, BytesRef value, long timestamp) {
         if (timestamp > current.v1()) {
             current.v1(timestamp);
             current.v2(value);
         }
     }
 
-    public static void combineIntermediate(LongDoubleState current, long timestamp, double value, boolean seen) {
+    public static void combineIntermediate(LongBytesRefState current, long timestamp, BytesRef value, boolean seen) {
         if (seen) {
             if (current.seen()) {
                 combine(current, value, timestamp);
@@ -72,15 +72,15 @@ public class LastDoubleByTimestampAggregator {
         }
     }
 
-    public static Block evaluateFinal(LongDoubleState current, DriverContext ctx) {
-        return ctx.blockFactory().newConstantDoubleBlockWith(current.v2(), 1);
+    public static Block evaluateFinal(LongBytesRefState current, DriverContext ctx) {
+        return ctx.blockFactory().newConstantBytesRefBlockWith(current.v2(), 1);
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
-        return new GroupingState(driverContext.bigArrays());
+        return new GroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(GroupingState current, int groupId, double value, long timestamp) {
+    public static void combine(GroupingState current, int groupId, BytesRef value, long timestamp) {
         current.collectValue(groupId, timestamp, value);
     }
 
@@ -88,7 +88,7 @@ public class LastDoubleByTimestampAggregator {
         GroupingState current,
         int groupId,
         LongBlock timestamps, // stylecheck
-        DoubleBlock values,
+        BytesRefBlock values,
         int otherPosition
     ) {
         // TODO seen should probably be part of the intermediate representation
@@ -96,8 +96,9 @@ public class LastDoubleByTimestampAggregator {
         if (valueCount > 0) {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
             int firstIndex = values.getFirstValueIndex(otherPosition);
+            BytesRef bytesScratch = new BytesRef();
             for (int i = 0; i < valueCount; i++) {
-                current.collectValue(groupId, timestamp, values.getDouble(firstIndex + i));
+                current.collectValue(groupId, timestamp, values.getBytesRef(firstIndex + i, bytesScratch));
             }
         }
     }
@@ -109,18 +110,20 @@ public class LastDoubleByTimestampAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
         private LongArray timestamps;
-        private DoubleArray values;
+        private ObjectArray<BreakingBytesRefBuilder> values;
+        private final CircuitBreaker breaker;
         private int maxGroupId = -1;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;
+            this.breaker = breaker;
             LongArray timestamps = null;
             try {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
-                this.values = bigArrays.newDoubleArray(1, false);
+                this.values = bigArrays.newObjectArray(1);
                 /*
                  * Enable group id tracking because we use has hasValue in the
                  * collection itself to detect the when a value first arrives.
@@ -134,7 +137,7 @@ public class LastDoubleByTimestampAggregator {
             }
         }
 
-        void collectValue(int groupId, long timestamp, double value) {
+        void collectValue(int groupId, long timestamp, BytesRef value) {
             boolean updated = false;
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
@@ -149,7 +152,12 @@ public class LastDoubleByTimestampAggregator {
             }
             if (updated) {
                 values = bigArrays.grow(values, groupId + 1);
-                values.set(groupId, value);
+                BreakingBytesRefBuilder builder = values.get(groupId);
+                if (builder == null) {
+                    builder = new BreakingBytesRefBuilder(breaker, "Last", value.length);
+                }
+                builder.copyBytes(value);
+                values.set(groupId, builder);
             }
             maxGroupId = Math.max(maxGroupId, groupId);
             trackGroupId(groupId);
@@ -157,6 +165,9 @@ public class LastDoubleByTimestampAggregator {
 
         @Override
         public void close() {
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
             Releasables.close(timestamps, values, super::close);
         }
 
@@ -164,13 +175,13 @@ public class LastDoubleByTimestampAggregator {
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())
+                var valuesBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
                         timestampsBuilder.appendLong(timestamps.get(group));
-                        valuesBuilder.appendDouble(values.get(group));
+                        valuesBuilder.appendBytesRef(values.get(group).bytesRefView());
                     } else {
                         timestampsBuilder.appendNull();
                         valuesBuilder.appendNull();
@@ -182,11 +193,11 @@ public class LastDoubleByTimestampAggregator {
         }
 
         Block evaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-            try (var builder = evalContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
+            try (var builder = evalContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
-                        builder.appendDouble(values.get(group));
+                        builder.appendBytesRef(values.get(group).bytesRefView());
                     } else {
                         builder.appendNull();
                     }

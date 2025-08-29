@@ -17,17 +17,18 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * Aggregator state for a single {@code long} and a single {@code float}.
+ * Aggregator state for a single {@code long} and a single {@code BytesRef}.
  * This class is generated. Edit {@code X-2State.java.st} instead.
  */
-final class LongFloatState implements AggregatorState {
+final class LongBytesRefState implements AggregatorState {
     private long v1;
-    private float v2;
+    private final BreakingBytesRefBuilder v2;
     private boolean seen;
 
-    LongFloatState(long v1, float v2) {
+    LongBytesRefState(long v1, BytesRef v2, CircuitBreaker breaker, String label) {
         this.v1 = v1;
-        this.v2 = v2;
+        this.v2 = new BreakingBytesRefBuilder(breaker, label, v2.length);
+        this.v2.copyBytes(v2);
     }
 
     long v1() {
@@ -38,12 +39,12 @@ final class LongFloatState implements AggregatorState {
         this.v1 = v1;
     }
 
-    float v2() {
-        return v2;
+    BytesRef v2() {
+        return v2.bytesRefView();
     }
 
-    void v2(float v2) {
-        this.v2 = v2;
+    void v2(BytesRef v2) {
+        this.v2.copyBytes(v2);
     }
 
     boolean seen() {
@@ -59,10 +60,12 @@ final class LongFloatState implements AggregatorState {
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         assert blocks.length >= offset + 3;
         blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(v1, 1);
-        blocks[offset + 1] = driverContext.blockFactory().newConstantFloatBlockWith(v2, 1);
+        blocks[offset + 1] = driverContext.blockFactory().newConstantBytesRefBlockWith(v2.bytesRefView(), 1);
         blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        Releasables.close(this.v2);
+    }
 }

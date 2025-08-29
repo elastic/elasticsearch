@@ -222,6 +222,6 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

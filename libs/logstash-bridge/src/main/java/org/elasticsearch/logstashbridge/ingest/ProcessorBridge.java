@@ -178,14 +178,28 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
      * An external bridge for {@link Processor.Factory}
      */
     interface Factory extends StableBridgeAPI<Processor.Factory> {
-        ProcessorBridge create(
+        @Deprecated // supply ProjectId
+        default ProcessorBridge create(
             Map<String, ProcessorBridge.Factory> registry,
             String processorTag,
             String description,
             Map<String, Object> config
+        ) throws Exception {
+            return this.create(registry, processorTag, description, config, ProjectId.DEFAULT);
+        }
+
+        ProcessorBridge create(
+            Map<String, ProcessorBridge.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception;
 
         static Factory fromInternal(final Processor.Factory delegate) {
+            if (delegate instanceof AbstractExternal.InternalProxy internalProxy) {
+                return internalProxy.toExternal();
+            }
             return new ProxyInternal(delegate);
         }
 
@@ -203,23 +217,64 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
                 final Map<String, Factory> registry,
                 final String processorTag,
                 final String description,
-                final Map<String, Object> config
+                final Map<String, Object> config,
+                final ProjectId projectId
             ) throws Exception {
                 final Map<String, Processor.Factory> internalRegistry = StableBridgeAPI.toInternal(registry);
                 final Processor.Factory internalFactory = toInternal();
-                final Processor internalProcessor = internalFactory.create(
-                    internalRegistry,
-                    processorTag,
-                    description,
-                    config,
-                    ProjectId.DEFAULT
-                );
+                final Processor internalProcessor = internalFactory.create(internalRegistry, processorTag, description, config, projectId);
                 return ProcessorBridge.fromInternal(internalProcessor);
             }
 
             @Override
             public Processor.Factory toInternal() {
                 return this.internalDelegate;
+            }
+        }
+
+        /**
+         * The {@code ProcessorBridge.Factory.AbstractExternal} is an abstract base class for implementing
+         * the {@link ProcessorBridge.Factory} externally to the Elasticsearch code-base. It takes care of
+         * the details of maintaining a singular internal-form implementation of {@link Processor.Factory}
+         * that proxies calls to the external implementation.
+         */
+        abstract class AbstractExternal implements Factory {
+            InternalProxy internalDelegate;
+
+            @Override
+            public Processor.Factory toInternal() {
+                if (this.internalDelegate == null) {
+                    internalDelegate = new InternalProxy();
+                }
+                return this.internalDelegate;
+            }
+
+            private class InternalProxy implements Processor.Factory {
+                @Override
+                public Processor create(
+                    final Map<String, Processor.Factory> processorFactories,
+                    final String tag,
+                    final String description,
+                    final Map<String, Object> config,
+                    final ProjectId projectId
+                ) throws Exception {
+                    final Map<String, ProcessorBridge.Factory> bridgedProcessorFactories = StableBridgeAPI.fromInternal(
+                        processorFactories,
+                        ProcessorBridge.Factory.ProxyInternal::new
+                    );
+                    final ProcessorBridge bridgedProcessor = AbstractExternal.this.create(
+                        bridgedProcessorFactories,
+                        tag,
+                        description,
+                        config,
+                        projectId
+                    );
+                    return bridgedProcessor.toInternal();
+                }
+
+                ProcessorBridge.Factory toExternal() {
+                    return AbstractExternal.this;
+                }
             }
         }
     }

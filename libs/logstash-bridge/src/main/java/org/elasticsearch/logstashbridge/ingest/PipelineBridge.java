@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.logstashbridge.ingest;
 
-import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
@@ -24,7 +24,6 @@ public class PipelineBridge extends StableBridgeAPI.ProxyInternal<Pipeline> {
         return new PipelineBridge(pipeline);
     }
 
-    @FixForMultiProject(description = "should we pass a non-null project ID here?")
     public static PipelineBridge create(
         String id,
         Map<String, Object> config,
@@ -37,7 +36,7 @@ public class PipelineBridge extends StableBridgeAPI.ProxyInternal<Pipeline> {
                 config,
                 StableBridgeAPI.toInternal(processorFactories),
                 StableBridgeAPI.toInternalNullable(scriptServiceBridge),
-                null
+                ProjectId.DEFAULT
             )
         );
     }

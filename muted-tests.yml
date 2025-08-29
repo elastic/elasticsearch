@@ -537,9 +537,6 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testFloatBlock
   issue: https://github.com/elastic/elasticsearch/issues/133621
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:inlinestats.EvalBeforeDoubleInlinestats1}
-  issue: https://github.com/elastic/elasticsearch/issues/133729
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/133077

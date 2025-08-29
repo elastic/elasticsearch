@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -29,6 +28,8 @@ import org.elasticsearch.xpack.core.inference.SerializableStats;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_ENDPOINT_CACHE;
 
 public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagnosticsAction.Response> {
 
@@ -135,7 +136,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             super(in);
 
             connectionPoolStats = new ConnectionPoolStats(in);
-            inferenceEndpointRegistryStats = in.getTransportVersion().onOrAfter(TransportVersion.current())
+            inferenceEndpointRegistryStats = in.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)
                 ? in.readOptionalNamedWriteable(SerializableStats.class)
                 : null;
         }
@@ -144,7 +145,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             connectionPoolStats.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+            if (out.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)) {
                 out.writeOptionalNamedWriteable(inferenceEndpointRegistryStats);
             }
         }

@@ -50,6 +50,8 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_ENDPOINT_CACHE;
+
 /**
  * Clears the cache in {@link InferenceEndpointRegistry}. This uses a master node transport action, even though most requests will originate
  * from the master node (when updating and deleting inference endpoints via REST), because there are some edge cases where deletes can come
@@ -185,7 +187,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return ML_INFERENCE_ENDPOINT_CACHE;
         }
 
         @Override

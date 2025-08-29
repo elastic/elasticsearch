@@ -358,6 +358,7 @@ public class TransportVersions {
     public static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = def(9_145_0_00);
     public static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = def(9_146_0_00);
     public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_147_0_00);
+    public static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = def(9_148_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -87,7 +87,7 @@ ROW value = 5, origin = 10, scale = 10
 | KEEP decay_result;
 
 decay_result:double
-0.0
+1.0
 ;
 
 doubleLinear

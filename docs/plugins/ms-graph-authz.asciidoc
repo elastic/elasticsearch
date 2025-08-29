@@ -5,8 +5,49 @@ The Microsoft Graph Authz plugin uses https://learn.microsoft.com/en-us/graph/ap
 
 This is primarily intended to work around the Microsoft Entra ID maximum group size limit (see https://learn.microsoft.com/en-us/security/zero-trust/develop/configure-tokens-group-claims-app-roles#group-overages[Group overages]).
 
-:plugin_name: microsoft-graph-authz
-include::install_remove.asciidoc[]
+[discrete]
+[id="microsoft-graph-authz-install"]
+==== Installation
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of the Elastic Stack has not yet been released.
+
+endif::[]
+
+If you're using a self-managed Elasticsearch cluster, then this plugin can be installed using the plugin manager:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin install microsoft-graph-authz
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+You can download this plugin for <<plugin-management-custom-url,offline
+install>> from {plugin_url}/microsoft-graph-authz/microsoft-graph-authz-{version}.zip. To verify
+the `.zip` file, use the
+{plugin_url}/microsoft-graph-authz/microsoft-graph-authz-{version}.zip.sha512[SHA hash] or
+{plugin_url}/microsoft-graph-authz/microsoft-graph-authz-{version}.zip.asc[ASC key].
+
+For all other deployment types, refer to <<plugin-management,plugin management>>.
+
+[discrete]
+[id="{plugin_name}-remove"]
+==== Removal
+
+The plugin can be removed with the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin remove {plugin_name}
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+==== Configuration
+To learn how to configure the Microsoft Graph Authz plugin, refer to <<configure-elasticsearch,configuration properties>>.
 
 [[configure-azure]]
 ==== Configure Azure
@@ -39,7 +80,7 @@ image::images/03-get-application-id.png[get your application ID]
 This is needed later, and is only displayed once.
 +
 image::images/04-create-client-secret.png[get your client secret]
-. Under Manage > API permissions, do the following:
+. Under *Manage* > *API permissions*, do the following:
 .. Go to *Add a permission*.
 .. Choose *Microsoft Graph*.
 .. Choose *Application permissions*.
@@ -49,6 +90,7 @@ NOTE: An Azure Admin must approve these permissions before the credentials can b
 +
 image::images/05-configure-api-permissions.png[configure api permissions]
 
+[[configure-elasticsearch]]
 ==== Configuration properties
 
 After the plugin is installed, the following configuration settings are available:

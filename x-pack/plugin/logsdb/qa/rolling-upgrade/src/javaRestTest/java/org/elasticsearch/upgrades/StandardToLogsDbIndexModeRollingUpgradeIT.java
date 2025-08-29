@@ -10,6 +10,7 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -34,7 +35,7 @@ import java.util.function.Supplier;
 /**
  * This test starts with LogsDB disabled, performs an upgrade, enables LogsDB and indexes some documents.
  */
-public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
@@ -61,7 +62,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeWithSec
         .setting("stack.templates.enabled", "false")
         .build();
 
-    public LogsIndexModeRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+    public StandardToLogsDbIndexModeRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
@@ -162,8 +163,10 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeWithSec
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < randomIntBetween(10, 20); i++) {
             sb.append(
-                BULK_INDEX_REQUEST_TEMPLATE
-                    .replace("$timestamp", DateFormatter.forPattern(FormatNames.DATE_TIME.getName()).format(Instant.now()))
+                BULK_INDEX_REQUEST_TEMPLATE.replace(
+                    "$timestamp",
+                    DateFormatter.forPattern(FormatNames.DATE_TIME.getName()).format(Instant.now())
+                )
                     .replace("$hostname", randomFrom("potato.host", "tomato.host"))
                     .replace("$method", randomFrom("PUT", "POST", "GET"))
                     .replace("$ip", NetworkAddress.format(randomIp(randomBoolean())))

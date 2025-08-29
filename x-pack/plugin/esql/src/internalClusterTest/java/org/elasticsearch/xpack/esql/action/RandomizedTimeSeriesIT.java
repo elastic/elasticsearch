@@ -59,7 +59,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private static final Long TIME_RANGE_SECONDS = 3600L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
-    private List<XContentBuilder> documents = null;
+    private List<XContentBuilder> documents;
     private TSDataGenerationHelper dataGenerationHelper;
 
     List<List<Object>> consumeRows(EsqlQueryResponse resp) {
@@ -208,7 +208,21 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     record RateRange(Double lower, Double upper) implements Comparable<RateRange> {
         @Override
         public int compareTo(RateRange o) {
-            return this.lower.compareTo(o.lower);
+            // Compare first by lower bound, then by upper bound
+            int cmp = this.lower.compareTo(o.lower);
+            if (cmp == 0) {
+                return this.upper.compareTo(o.upper);
+            }
+            return cmp;
+        }
+
+        public int compareToFindingMax(RateRange o) {
+            // Compare first by upper bound, then by lower bound
+            int cmp = this.upper.compareTo(o.upper);
+            if (cmp == 0) {
+                return this.lower.compareTo(o.lower);
+            }
+            return cmp;
         }
     }
 
@@ -248,8 +262,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
             // TODO: Remove tolerances since we are already allowing a min-max range
             return new RateRange(
-                counterGrowth / secondsInWindow * 0.95, // Add 5% tolerance to the lower bound
-                counterGrowth / (lastTs.toEpochMilli() / 1000 - firstTs.toEpochMilli() / 1000) * 1.2 // Add 20% tolerance to the upper bound
+                counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
+                1000.0 * counterGrowth / (lastTs.toEpochMilli() - firstTs.toEpochMilli()) * 1.01 // Add 1% tolerance to the upper bound
             );
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
@@ -257,7 +271,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
         return new RateStats(
             (long) allRates.size(),
-            allRates.stream().max(RateRange::compareTo).orElseThrow(),
+            allRates.stream().max(RateRange::compareToFindingMax).orElseThrow(),
             new RateRange(
                 allRates.stream().mapToDouble(r -> r.lower).average().orElseThrow(),
                 allRates.stream().mapToDouble(r -> r.upper).average().orElseThrow()
@@ -319,7 +333,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     void assertNoFailedWindows(List<String> failedWindows, List<List<Object>> rows) {
         // TODO: WE have a 15% tolerance for failed windows. Must remove.
-        if (failedWindows.size() < 0.15 * rows.size()) {
+        if (failedWindows.size() < 0.01 * rows.size()) {
             logger.warn(
                 "Failed " + failedWindows.size() + " windows out of " + rows.size() + ", failures:\n" + String.join("\n", failedWindows)
             );

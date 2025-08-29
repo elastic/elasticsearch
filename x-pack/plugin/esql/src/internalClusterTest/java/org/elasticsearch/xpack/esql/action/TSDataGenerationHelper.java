@@ -54,18 +54,21 @@ class TSDataGenerationHelper {
         // Making a list-to-set-to-list to ensure uniqueness.
         this.numDocs = numDocs;
         var maxAttributes = (int) Math.sqrt(numDocs);
-        attributesForMetrics = List.copyOf(
+        List<String> tempAttributeSet = List.copyOf(
             Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30)))
         );
         var maxTimeSeries = (int) Math.sqrt(numDocs);
         var minTimeSeries = Math.max(1, maxTimeSeries / 4);
         numTimeSeries = ESTestCase.randomIntBetween(minTimeSeries, maxTimeSeries);
+        Set<String> usedAttributeNames = new HashSet<>();
         // allTimeSeries contains the list of dimension-values for each time series.
         List<List<Tuple<String, Object>>> allTimeSeries = IntStream.range(0, numTimeSeries).mapToObj(tsIdx -> {
-            List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(attributesForMetrics);
+            List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(tempAttributeSet);
             // TODO: How do we handle the case when there are no dimensions? (i.e. regular randomSubsetof(...)
+            usedAttributeNames.addAll(dimensionsInMetric);
             return dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toList());
         }).toList();
+        attributesForMetrics = List.copyOf(usedAttributeNames);
 
         // We want to ensure that all documents have different timestamps.
         var timeRangeMs = timeRangeSeconds * 1000;

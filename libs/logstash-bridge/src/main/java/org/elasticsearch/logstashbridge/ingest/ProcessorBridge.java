@@ -21,7 +21,6 @@ import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 import org.elasticsearch.logstashbridge.threadpool.ThreadPoolBridge;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 
 /**
@@ -37,7 +36,18 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
 
     boolean isAsync();
 
-    void execute(IngestDocumentBridge ingestDocumentBridge, BiConsumer<IngestDocumentBridge, Exception> handler);
+    default void execute(IngestDocumentBridge ingestDocumentBridge, BiConsumer<IngestDocumentBridge, Exception> handler) {
+        toInternal().execute(
+            StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
+            (id, exception) -> handler.accept(IngestDocumentBridge.fromInternalNullable(id), exception)
+        );
+    }
+
+    default IngestDocumentBridge execute(IngestDocumentBridge ingestDocumentBridge) throws Exception {
+        IngestDocument internalSourceIngestDocument = ingestDocumentBridge.toInternal();
+        IngestDocument internalResultIngestDocument = toInternal().execute(internalSourceIngestDocument);
+        return IngestDocumentBridge.fromInternalNullable(internalResultIngestDocument);
+    }
 
     static ProcessorBridge fromInternal(final Processor internalProcessor) {
         if (internalProcessor instanceof AbstractExternal.ProxyExternal externalProxy) {
@@ -83,10 +93,7 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
             public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
                 AbstractExternal.this.execute(
                     IngestDocumentBridge.fromInternalNullable(ingestDocument),
-                    (ingestDocumentBridge, e) -> handler.accept(
-                        Objects.isNull(ingestDocumentBridge) ? null : ingestDocumentBridge.toInternal(),
-                        e
-                    )
+                    (ingestDocumentBridge, exception) -> handler.accept(StableBridgeAPI.toInternalNullable(ingestDocumentBridge), exception)
                 );
             }
 
@@ -127,14 +134,6 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
         @Override
         public boolean isAsync() {
             return toInternal().isAsync();
-        }
-
-        @Override
-        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
-            internalDelegate.execute(
-                StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
-                (id, e) -> handler.accept(IngestDocumentBridge.fromInternalNullable(id), e)
-            );
         }
     }
 

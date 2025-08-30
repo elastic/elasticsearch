@@ -134,6 +134,8 @@ ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL description = MV_CONCAT(chain::keyword, " --> ")
 | EVAL top = MV_LAST(chain)
 | EVAL bottom = MV_FIRST(chain)
+| EVAL top = COALESCE(top, null, bottom)
+| EVAL bottom = COALESCE(bottom, null, top)
 | WHERE MV_CONTAINS(chain, top) AND MV_CONTAINS(chain, bottom)
 | KEEP location, top, bottom, chain, description
 ;
@@ -533,6 +535,8 @@ ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL description = MV_CONCAT(chain::keyword, " --> ")
 | EVAL top = MV_LAST(chain)
 | EVAL bottom = MV_FIRST(chain)
+| EVAL top = COALESCE(top, null, bottom)
+| EVAL bottom = COALESCE(bottom, null, top)
 | WHERE MV_CONTAINS(chain, top) AND MV_CONTAINS(chain, bottom)
 | KEEP location, top, bottom, chain, description
 ;
@@ -891,6 +895,8 @@ ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL description = MV_CONCAT(chain::keyword, " --> ")
 | EVAL top = MV_LAST(chain)
 | EVAL bottom = MV_FIRST(chain)
+| EVAL top = COALESCE(top, null, bottom)
+| EVAL bottom = COALESCE(bottom, null, top)
 | WHERE MV_CONTAINS(chain, top) AND MV_CONTAINS(chain, bottom)
 | KEEP location, top, bottom, chain, description
 ;

@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -30,6 +31,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +42,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -495,5 +499,28 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(shallowCopy.routing(), equalTo(bulkRequest.routing()));
         assertThat(shallowCopy.requireAlias(), equalTo(bulkRequest.requireAlias()));
         assertThat(shallowCopy.requireDataStream(), equalTo(bulkRequest.requireDataStream()));
+    }
+
+    public void testScriptParamsAreIncludedInSize() {
+        BulkRequest bulkRequest = new BulkRequest();
+
+        UpdateRequest requestWithEmptyParams = new UpdateRequest("index", "id1");
+        requestWithEmptyParams.script(
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())
+        );
+        bulkRequest.add(requestWithEmptyParams);
+        long sizeWithEmptyParams = bulkRequest.estimatedSizeInBytes();
+
+        UpdateRequest requestWithParams = new UpdateRequest("index", "id2");
+        Map<String, Object> params = new HashMap<>();
+        params.put("param1", "test_value");
+        requestWithParams.script(
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", params)
+        );
+        bulkRequest.add(requestWithParams);
+        long sizeWithParams = bulkRequest.estimatedSizeInBytes();
+
+        assertThat(sizeWithParams, greaterThan(sizeWithEmptyParams));
+        assertThat(sizeWithParams - sizeWithEmptyParams, greaterThanOrEqualTo((long) params.toString().length()));
     }
 }

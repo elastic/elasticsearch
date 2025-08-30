@@ -51,7 +51,20 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         List<String> fields = null;
         String query = null;
         if (randomBoolean()) {
-            fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                // Generate fields with weights
+                fields = randomList(1, 5, () -> {
+                    String field = randomAlphaOfLengthBetween(1, 10);
+                    if (randomBoolean()) {
+                        float weight = randomFloat() * 10 + 0.1f; // Ensure positive
+                        return field + "^" + weight;
+                    }
+                    return field;
+                });
+            } else {
+                // Generate fields without weights
+                fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            }
             query = randomAlphaOfLengthBetween(1, 10);
         }
 
@@ -357,6 +370,116 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             """;
 
         expectParsingException(retrieverAsStringContent, "retriever must be an object");
+    }
+
+    public void testSimplifiedWeightedRRFSyntax() throws IOException {
+        String restContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["name^2", "description^0.5", "category"],
+                  "query": "pizza",
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+        checkRRFRetrieverParsing(restContent);
+    }
+
+    public void testSimplifiedWeightedRRFAllWeighted() throws IOException {
+        String restContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["name^2.5", "description^1.5", "category^0.8"],
+                  "query": "restaurant",
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+        checkRRFRetrieverParsing(restContent);
+    }
+
+    public void testSimplifiedWeightedRRFBasicParsing() throws IOException {
+        // Test parsing succeeds with field weights (validation happens during rewrite, not parsing)
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        String restContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["name^2", "description^0.5"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder parsed = (RRFRetrieverBuilder) source.retriever();
+            // Should parse successfully - validation happens during rewrite phase
+            assertNotNull(parsed);
+        }
+    }
+
+    public void testSimplifiedFieldSyntaxVariations() throws IOException {
+        // Test parsing succeeds with various field^weight syntax variations (validation happens during rewrite, not parsing)
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test all field syntax variations
+        String restContent1 = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["name^2", "description^1"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        String restContent2 = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["name^3", "description", "category^0.5"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        String restContent3 = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["name", "description"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        // All three should parse successfully
+        for (String restContent : List.of(restContent1, restContent2, restContent3)) {
+            try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+                assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+
+                RRFRetrieverBuilder rrfRetrieverBuilder = (RRFRetrieverBuilder) source.retriever();
+                // Should parse successfully - validation happens during rewrite phase
+                assertNotNull(rrfRetrieverBuilder);
+            }
+        }
     }
 
     private void expectParsingException(String restContent, String expectedMessageFragment) throws IOException {

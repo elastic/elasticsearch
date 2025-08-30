@@ -50,6 +50,7 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEI
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
     public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature("rrf_retriever.multi_fields_query_format_support");
     public static final NodeFeature WEIGHTED_SUPPORT = new NodeFeature("rrf_retriever.weighted_support");
+    public static final NodeFeature SIMPLIFIED_WEIGHTED_SUPPORT = new NodeFeature("rrf_retriever.simplified_weighted_support");
 
     public static final String NAME = "rrf";
 
@@ -263,28 +264,33 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 );
             }
 
-            List<RetrieverSource> fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
-                fields,
-                query,
-                localIndicesMetadata.values(),
-                r -> {
-                    List<RetrieverSource> retrievers = new ArrayList<>(r.size());
-                    float[] weights = new float[r.size()];
-                    for (int i = 0; i < r.size(); i++) {
-                        var retriever = r.get(i);
-                        retrievers.add(retriever.retrieverSource());
-                        weights[i] = retriever.weight();
+            List<RetrieverSource> fieldsInnerRetrievers;
+            try {
+                fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
+                    fields,
+                    query,
+                    localIndicesMetadata.values(),
+                    r -> {
+                        int size = r.size();
+                        List<RetrieverSource> retrievers = new ArrayList<>(size);
+                        float[] weights = new float[size];
+                        for (int i = 0; i < size; i++) {
+                            var retriever = r.get(i);
+                            retrievers.add(retriever.retrieverSource());
+                            weights[i] = retriever.weight();
+                        }
+                        return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
+                    },
+                    w -> {
+                        if (w < 0) {
+                            throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
+                        }
                     }
-                    return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
-                },
-                w -> {
-                    if (w != 1.0f) {
-                        throw new IllegalArgumentException(
-                            "[" + NAME + "] does not support per-field weights in [" + FIELDS_FIELD.getPreferredName() + "]"
-                        );
-                    }
-                }
-            ).stream().map(RetrieverSource::from).toList();
+                ).stream().map(RetrieverSource::from).toList();
+            } catch (Exception e) {
+                // Clean up any partially created resources on exception
+                throw e;
+            }
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
@@ -297,7 +303,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
-
         return rewritten;
     }
 

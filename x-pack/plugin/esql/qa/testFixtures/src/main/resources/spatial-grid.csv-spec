@@ -24,12 +24,13 @@ required_capability: spatial_grid_types
 ROW string = "u3bu"
 | EVAL geohash = TO_GEOHASH(string)
 | EVAL geohashLong = TO_LONG(geohash)
+| EVAL geohash2 = TO_GEOHASH(geohash)
 // end::to_geohash_to_long[]
 ;
 
 // tag::to_geohash_to_long-result[]
-string:keyword | geohash:geohash | geohashLong:long
-u3bu           | u3bu            | 13686180
+string:keyword | geohash:geohash | geohashLong:long | geohash2:geohash
+u3bu           | u3bu            | 13686180         | u3bu
 // end::to_geohash_to_long-result[]
 ;
 
@@ -371,12 +372,13 @@ required_capability: spatial_grid_types
 ROW string = "4/8/5"
 | EVAL geotile = TO_GEOTILE(string)
 | EVAL geotileLong = TO_LONG(geotile)
+| EVAL geotile2 = TO_GEOTILE(geotile)
 // end::to_geotile_to_long[]
 ;
 
 // tag::to_geotile_to_long-result[]
-string:keyword | geotile:geotile | geotileLong:long
-4/8/5          | 4/8/5           | 1152921508901814277
+string:keyword | geotile:geotile | geotileLong:long    | geotile2:geotile
+4/8/5          | 4/8/5           | 1152921508901814277 | 4/8/5
 // end::to_geotile_to_long-result[]
 ;
 
@@ -671,12 +673,13 @@ required_capability: spatial_grid_types
 ROW string = "841f059ffffffff"
 | EVAL geohex = TO_GEOHEX(string)
 | EVAL geohexLong = TO_LONG(geohex)
+| EVAL geohex2 = TO_GEOHEX(geohex)
 // end::to_geohex_to_long[]
 ;
 
 // tag::to_geohex_to_long-result[]
-string:keyword  | geohex:geohex   | geohexLong:long
-841f059ffffffff | 841f059ffffffff | 595020895127339007
+string:keyword  | geohex:geohex   | geohexLong:long    | geohex2:geohex
+841f059ffffffff | 841f059ffffffff | 595020895127339007 | 841f059ffffffff
 // end::to_geohex_to_long-result[]
 ;
 

@@ -812,4 +812,71 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertEquals(2, doc.rootDoc().getFields("du._all").size());
 
     }
+
+    public void testCopyToValidationWhenDynamicDisabled() throws IOException {
+        // Test that copy_to to non-existent fields fails when dynamic is set to false
+        DocumentMapper documentMapper = createDocumentMapper("""
+            { "_doc" : { 
+                "dynamic": "false",
+                "properties" : {
+                    "source_field" : { 
+                        "type" : "text",
+                        "copy_to" : "non_existent_field"
+                    }
+                }
+            }}""");
+
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            () -> documentMapper.parse(source("""
+                { "source_field" : "test value" }
+                """))
+        );
+        assertThat(ex.getMessage(), startsWith("Cannot copy_to non-existent field 'non_existent_field' when dynamic mappings are disabled (dynamic=[FALSE])"));
+
+        // Test that copy_to to non-existent fields fails when dynamic is set to strict
+        documentMapper = createDocumentMapper("""
+            { "_doc" : { 
+                "dynamic": "strict",
+                "properties" : {
+                    "source_field" : { 
+                        "type" : "text",
+                        "copy_to" : "another_non_existent_field"
+                    }
+                }
+            }}""");
+
+        ex = expectThrows(
+            DocumentParsingException.class,
+            () -> documentMapper.parse(source("""
+                { "source_field" : "test value" }
+                """))
+        );
+        assertThat(ex.getMessage(), startsWith("Cannot copy_to non-existent field 'another_non_existent_field' when dynamic mappings are disabled (dynamic=[STRICT])"));
+
+        // Test that copy_to to existing fields works when dynamic is disabled
+        documentMapper = createDocumentMapper("""
+            { "_doc" : { 
+                "dynamic": "false",
+                "properties" : {
+                    "source_field" : { 
+                        "type" : "text",
+                        "copy_to" : "target_field"
+                    },
+                    "target_field" : { 
+                        "type" : "text"
+                    }
+                }
+            }}""");
+
+        ParsedDocument doc = documentMapper.parse(source("""
+            { "source_field" : "test value" }
+            """));
+        
+        // Should succeed and copy the value
+        assertThat(doc.rootDoc().getFields("source_field").size(), equalTo(1));
+        assertThat(doc.rootDoc().getFields("target_field").size(), equalTo(1));
+        assertThat(doc.rootDoc().getFields("source_field").get(0).stringValue(), equalTo("test value"));
+        assertThat(doc.rootDoc().getFields("target_field").get(0).stringValue(), equalTo("test value"));
+    }
 }

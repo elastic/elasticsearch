@@ -1,0 +1,65 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.transport;
+
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+
+import java.util.Collection;
+import java.util.List;
+
+public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedProjectConfigService {
+    private final Settings settings;
+    private final ProjectResolver projectResolver;
+
+    @SuppressWarnings("this-escape")
+    public ClusterSettingsLinkedProjectConfigService(Settings settings, ClusterSettings clusterSettings, ProjectResolver projectResolver) {
+        this.settings = settings;
+        this.projectResolver = projectResolver;
+        List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
+            RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
+            RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
+            RemoteClusterSettings.REMOTE_CONNECTION_MODE,
+            RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
+            RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
+            RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
+            RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS,
+            RemoteClusterSettings.ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS,
+            RemoteClusterSettings.ProxyConnectionStrategySettings.SERVER_NAME
+        );
+        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::settingsChangedCallback);
+        clusterSettings.addAffixUpdateConsumer(
+            RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+            this::skipUnavailableChangedCallback,
+            (alias, value) -> {}
+        );
+    }
+
+    @Override
+    public Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs() {
+        return RemoteClusterSettings.getRemoteClusters(settings)
+            .stream()
+            .map(alias -> RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, settings))
+            .toList();
+    }
+
+    private void settingsChangedCallback(String clusterAlias, Settings newSettings) {
+        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
+        final var config = RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings);
+        handleUpdate(config);
+    }
+
+    private void skipUnavailableChangedCallback(String clusterAlias, Boolean skipUnavailable) {
+        handleSkipUnavailableChanged(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, skipUnavailable);
+    }
+}

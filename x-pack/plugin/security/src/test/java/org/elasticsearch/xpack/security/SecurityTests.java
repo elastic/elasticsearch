@@ -73,6 +73,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -262,6 +263,7 @@ public class SecurityTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
+            LinkedProjectConfigService.NOOP,
             TestProjectResolvers.alwaysThrow()
         );
     }

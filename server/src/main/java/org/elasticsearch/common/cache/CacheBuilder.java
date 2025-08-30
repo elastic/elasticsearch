@@ -80,22 +80,12 @@ public class CacheBuilder<K, V> {
     }
 
     public Cache<K, V> build() {
-        Cache<K, V> cache = new Cache<>();
-        if (maximumWeight != -1) {
-            cache.setMaximumWeight(maximumWeight);
-        }
-        if (expireAfterAccessNanos != -1) {
-            cache.setExpireAfterAccessNanos(expireAfterAccessNanos);
-        }
-        if (expireAfterWriteNanos != -1) {
-            cache.setExpireAfterWriteNanos(expireAfterWriteNanos);
-        }
-        if (weigher != null) {
-            cache.setWeigher(weigher);
-        }
-        if (removalListener != null) {
-            cache.setRemovalListener(removalListener);
-        }
+        Cache<K, V> cache = new Cache<>(
+            null,
+            (maximumWeight != -1) ? maximumWeight : null,
+            removalListener,
+            weigher
+        );
         return cache;
     }
 }

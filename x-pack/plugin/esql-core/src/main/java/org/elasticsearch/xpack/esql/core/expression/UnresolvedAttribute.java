@@ -146,6 +146,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
+    public boolean isMetric() {
+        return false;
+    }
+
+    @Override
     public String nodeString() {
         return toString();
     }

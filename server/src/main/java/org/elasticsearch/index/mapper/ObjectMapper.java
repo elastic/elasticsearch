@@ -46,6 +46,8 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_AUTO_EXCLUDE_TYPES_SETTING;
+
 public class ObjectMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(ObjectMapper.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -278,7 +280,7 @@ public class ObjectMapper extends Mapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            parserContext.incrementMappingObjectDepth(); // throws MapperParsingException if depth limit is exceeded
+            parserContext.incrementMappingObjectDepth(name); // throws MapperParsingException if depth limit is exceeded
             Optional<Subobjects> subobjects = parseSubobjects(node);
             Builder builder = new Builder(name, subobjects);
             parseObjectFields(node, parserContext, builder);
@@ -406,6 +408,10 @@ public class ObjectMapper extends Mapper {
                                 + " It might have been created within a future version or requires a plugin to be installed."
                                 + " Check the documentation."
                         );
+                    }
+                    List<String> autoExcludes = INDEX_MAPPER_SOURCE_AUTO_EXCLUDE_TYPES_SETTING.get(parserContext.getSettings());
+                    if (autoExcludes.isEmpty() == false && autoExcludes.contains(type)) {
+                        parserContext.addAutoExclude(parserContext.getPath(fieldName));
                     }
                     Mapper.Builder fieldBuilder;
                     if (objBuilder.subobjects.isPresent() && objBuilder.subobjects.get() != Subobjects.ENABLED) {

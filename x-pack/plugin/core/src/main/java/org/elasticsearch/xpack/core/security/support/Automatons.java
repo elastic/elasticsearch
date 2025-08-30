@@ -100,10 +100,17 @@ public final class Automatons {
         if (cache == null) {
             return maybeRecordPatterns(buildAutomaton(patterns), patterns);
         } else {
+            var patternsSet = Sets.newHashSet(patterns);
+            var automaton = cache.get(patternsSet);
+            if(automaton != null) {
+                return automaton;
+            }
+            // this calls pattern which also uses the cache TODO split cache?
+            var newAutomation = buildAutomaton(patternsSet);
             try {
                 return cache.computeIfAbsent(
                     Sets.newHashSet(patterns),
-                    p -> maybeRecordPatterns(buildAutomaton((Set<String>) p), patterns)
+                    p -> maybeRecordPatterns(newAutomation, patterns)
                 );
             } catch (ExecutionException e) {
                 throw unwrapCacheException(e);

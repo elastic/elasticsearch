@@ -329,13 +329,13 @@ public class Cache<Key, Value> {
      * @param evictions number of cache ections since creation.
      */
     public record Stats(long hits, long misses, long evictions) {
-        long getHits() {
+        public long getHits() {
             return hits;
         }
-        long getMisses() {
+        public long getMisses() {
             return misses;
         }
-        long getEvictions() {
+        public long getEvictions() {
             return evictions;
         }
     }

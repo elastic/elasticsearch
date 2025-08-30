@@ -123,6 +123,7 @@ POINT (12.6493508684508 55.6285017221528) | 13686180      | 427683        | 1336
 
 geohashLiteralMv
 required_capability: spatial_grid_types
+required_capability: fn_mv_contains
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geohash4 = ST_GEOHASH(location, 4),
@@ -133,7 +134,7 @@ ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL description = MV_CONCAT(chain::keyword, " --> ")
 | EVAL top = MV_LAST(chain)
 | EVAL bottom = MV_FIRST(chain)
-//| WHERE MV_CONTAINS(chain, first) AND MV_CONTAINS(chain, last)
+| WHERE MV_CONTAINS(chain, top) AND MV_CONTAINS(chain, bottom)
 | KEEP location, top, bottom, chain, description
 ;
 
@@ -521,6 +522,7 @@ POINT (12.6493508684508 55.6285017221528) | 1152921508901814277 | 86469113060261
 
 geotileLiteralMv
 required_capability: spatial_grid_types
+required_capability: fn_mv_contains
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geotile4 = ST_GEOTILE(location, 4),
@@ -531,7 +533,7 @@ ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL description = MV_CONCAT(chain::keyword, " --> ")
 | EVAL top = MV_LAST(chain)
 | EVAL bottom = MV_FIRST(chain)
-//| WHERE MV_CONTAINS(chain, first) AND MV_CONTAINS(chain, last)
+| WHERE MV_CONTAINS(chain, top) AND MV_CONTAINS(chain, bottom)
 | KEEP location, top, bottom, chain, description
 ;
 
@@ -878,6 +880,7 @@ POINT (12.6493508684508 55.6285017221528) | 595020895127339007 | 590517321269772
 
 geohexLiteralMv
 required_capability: spatial_grid_types
+required_capability: fn_mv_contains
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geohex4 = ST_GEOHEX(location, 4),
@@ -888,7 +891,7 @@ ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL description = MV_CONCAT(chain::keyword, " --> ")
 | EVAL top = MV_LAST(chain)
 | EVAL bottom = MV_FIRST(chain)
-//| WHERE MV_CONTAINS(chain, first) AND MV_CONTAINS(chain, last)
+| WHERE MV_CONTAINS(chain, top) AND MV_CONTAINS(chain, bottom)
 | KEEP location, top, bottom, chain, description
 ;
 

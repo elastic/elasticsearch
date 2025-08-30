@@ -140,7 +140,7 @@ required_capability: spatial_grid_types
 FROM airports
 | EVAL geohash = ST_GEOHASH(location, 1)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohash),
     centroid = ST_CENTROID_AGG(location)
       BY geohash
 | WHERE count >= 10
@@ -179,7 +179,7 @@ FROM airports
 | WHERE ST_GEOHASH(location, 1) == TO_GEOHASH("7")
 | EVAL geohash = ST_GEOHASH(location, 2)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohash),
     centroid = ST_CENTROID_AGG(location)
       BY geohash
 | EVAL geohashString = TO_STRING(geohash)
@@ -202,7 +202,7 @@ FROM airports
 | EVAL geohash = ST_GEOHASH(location, 2, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
 | WHERE geohash IS NOT NULL
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohash),
     centroid = ST_CENTROID_AGG(location)
       BY geohash
 | EVAL geohashString = TO_STRING(geohash)
@@ -232,7 +232,7 @@ FROM airports
 | EVAL geohash = ST_GEOHASH(location, 2, ST_ENVELOPE(TO_GEOSHAPE("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))")))
 | WHERE geohash IS NOT NULL
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohash),
     centroid = ST_CENTROID_AGG(location)
       BY geohash
 | EVAL geohashString = TO_STRING(geohash)
@@ -476,7 +476,7 @@ required_capability: spatial_grid_types
 FROM airports
 | EVAL geotile = ST_GEOTILE(location, 2)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geotile),
     centroid = ST_CENTROID_AGG(location)
       BY geotile
 | EVAL geotileString = TO_STRING(geotile)
@@ -508,7 +508,7 @@ FROM airports
 | WHERE ST_GEOTILE(location, 2) == TO_GEOTILE("2/0/2")
 | EVAL geotile = ST_GEOTILE(location, 3)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geotile),
     centroid = ST_CENTROID_AGG(location)
       BY geotile
 | EVAL geotileString = TO_STRING(geotile)
@@ -528,7 +528,7 @@ FROM airports
 | EVAL geotile = ST_GEOTILE(location, 3, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
 | WHERE geotile IS NOT NULL
 | STATS
-    count = COUNT(*),
+    count = COUNT(geotile),
     centroid = ST_CENTROID_AGG(location)
       BY geotile
 | EVAL geotileString = TO_STRING(geotile)
@@ -549,7 +549,7 @@ FROM airports
 | EVAL geotile = ST_GEOTILE(location, 3, ST_ENVELOPE(TO_GEOSHAPE("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))")))
 | WHERE geotile IS NOT NULL
 | STATS
-    count = COUNT(*),
+    count = COUNT(geotile),
     centroid = ST_CENTROID_AGG(location)
       BY geotile
 | EVAL geotileString = TO_STRING(geotile)
@@ -776,7 +776,7 @@ required_capability: spatial_grid_types
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohex),
     centroid = ST_CENTROID_AGG(location)
       BY geohex
 | WHERE count >= 10
@@ -809,7 +809,7 @@ FROM airports
 | WHERE ST_GEOHEX(location, 1) == TO_GEOHEX("812bbffffffffff")
 | EVAL geohex = ST_GEOHEX(location, 2)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohex),
     centroid = ST_CENTROID_AGG(location)
       BY geohex
 | EVAL geohexString = TO_STRING(geohex)
@@ -833,7 +833,7 @@ FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
 | WHERE geohex IS NOT NULL
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohex),
     centroid = ST_CENTROID_AGG(location)
       BY geohex
 | EVAL geohexString = TO_STRING(geohex)
@@ -863,7 +863,7 @@ FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1, ST_ENVELOPE(TO_GEOSHAPE("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))")))
 | WHERE geohex IS NOT NULL
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohex),
     centroid = ST_CENTROID_AGG(location)
       BY geohex
 | EVAL geohexString = TO_STRING(geohex)

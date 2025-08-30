@@ -32,6 +32,6 @@ public class ToGeohashErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "long or string"));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "geohash or long or string"));
     }
 }

@@ -35,6 +35,7 @@ public class ToGeotileTests extends AbstractScalarFunctionTestCase {
         final String evaluator = "ToGeotileFromStringEvaluator[in=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.GEOTILE, DataType.GEOTILE, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.LONG, DataType.GEOTILE, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.KEYWORD, DataType.GEOTILE, ToGeotileTests::valueOf, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.TEXT, DataType.GEOTILE, ToGeotileTests::valueOf, List.of());

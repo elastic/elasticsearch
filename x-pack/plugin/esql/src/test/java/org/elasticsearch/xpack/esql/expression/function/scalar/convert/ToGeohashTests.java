@@ -35,6 +35,7 @@ public class ToGeohashTests extends AbstractScalarFunctionTestCase {
         final String evaluator = "ToGeohashFromStringEvaluator[in=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.GEOHASH, DataType.GEOHASH, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.LONG, DataType.GEOHASH, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.KEYWORD, DataType.GEOHASH, ToGeohashTests::valueOf, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.TEXT, DataType.GEOHASH, ToGeohashTests::valueOf, List.of());

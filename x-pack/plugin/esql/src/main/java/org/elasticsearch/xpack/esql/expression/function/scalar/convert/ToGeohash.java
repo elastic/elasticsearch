@@ -39,6 +39,7 @@ public class ToGeohash extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(GEOHASH, (source, fieldEval) -> fieldEval),
         Map.entry(LONG, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeohashFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeohashFromStringEvaluator.Factory::new)
@@ -58,7 +59,7 @@ public class ToGeohash extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "long", "keyword", "text" },
+            type = { "geohash", "long", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {

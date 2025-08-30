@@ -35,6 +35,7 @@ public class ToGeohex extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGeohex", ToGeohex::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(GEOHEX, (source, fieldEval) -> fieldEval),
         Map.entry(LONG, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeohexFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeohexFromStringEvaluator.Factory::new)
@@ -54,7 +55,7 @@ public class ToGeohex extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "long", "keyword", "text" },
+            type = { "geohex", "long", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {

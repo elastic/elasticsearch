@@ -8,6 +8,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geohex"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "keyword",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."

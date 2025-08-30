@@ -38,7 +38,7 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
 
     public void testFullHistogram() {
         FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(100);
-        histo.setZeroBucket(new ZeroBucket(0.1234, 42));
+        histo.setZeroBucket(ZeroBucket.create(0.1234, 42));
         histo.resetBuckets(7);
         histo.setSum(1234.56);
         histo.setMin(-321.123);
@@ -63,7 +63,7 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
 
     public void testOnlyZeroThreshold() {
         FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(10);
-        histo.setZeroBucket(new ZeroBucket(5.0, 0));
+        histo.setZeroBucket(ZeroBucket.create(5.0, 0));
         histo.resetBuckets(3);
         histo.setSum(1.1);
         assertThat(toJson(histo), equalTo("{\"scale\":3,\"sum\":1.1,\"zero\":{\"threshold\":5.0}}"));
@@ -71,7 +71,7 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
 
     public void testOnlyZeroCount() {
         FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(10);
-        histo.setZeroBucket(new ZeroBucket(0.0, 7));
+        histo.setZeroBucket(ZeroBucket.create(0.0, 7));
         histo.resetBuckets(2);
         histo.setSum(1.1);
         histo.setMin(0);

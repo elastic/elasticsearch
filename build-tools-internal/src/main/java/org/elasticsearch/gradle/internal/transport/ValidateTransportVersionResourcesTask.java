@@ -16,6 +16,7 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
@@ -53,6 +54,9 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getReferencesFiles();
 
+    @Input
+    public abstract Property<Boolean> getShouldValidateDensity();
+
     private record IdAndDefinition(TransportVersionId id, TransportVersionDefinition definition) {}
 
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
@@ -75,7 +79,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
 
         for (var definition : unreferableDefinitions.values()) {
-            validateUnreferencedDefinition(definition);
+            validateUnreferableDefinition(definition);
         }
 
         for (var entry : idsByBase.entrySet()) {
@@ -158,7 +162,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
                 }
             }
 
-            // check modifications of ids on same branch, ie sharing same base
+            // check modifications of ids on same releaseBranch, ie sharing same base
             TransportVersionId maybeModifiedId = existingIdsByBase.get(id.base());
             if (maybeModifiedId != null && maybeModifiedId.complete() != id.complete()) {
                 throwDefinitionFailure(definition, "modifies existing patch id from " + maybeModifiedId + " to " + id);
@@ -166,7 +170,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
     }
 
-    private void validateUnreferencedDefinition(TransportVersionDefinition definition) {
+    private void validateUnreferableDefinition(TransportVersionDefinition definition) {
         TransportVersionDefinition originalDefinition = getResources().get().getUnreferableDefinitionFromMain(definition.name());
         if (originalDefinition != null) {
             validateIdenticalPrimaryId(definition, originalDefinition);
@@ -223,7 +227,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             );
         }
 
-        TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromMain(upperBound.branch());
+        TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromMain(upperBound.releaseBranch());
         if (existingUpperBound != null) {
             if (upperBound.id().patch() != 0 && upperBound.id().base() != existingUpperBound.id().base()) {
                 throwUpperBoundFailure(
@@ -248,7 +252,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
                 );
             }
 
-            if (previous.id().complete() - 1 != current.id().complete()) {
+            if (getShouldValidateDensity().get() && previous.id().complete() - 1 != current.id().complete()) {
                 throw new IllegalStateException(
                     "Transport version base id " + base + " is missing patch ids between " + current.id() + " and " + previous.id()
                 );

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -54,6 +56,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all transport version resources are internally consistent with each other");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
+                t.getShouldValidateDensity().convention(true);
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
@@ -66,6 +69,18 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
             t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
+
+        var generateDefinitionsTask = project.getTasks()
+            .register("generateTransportVersionDefinition", GenerateTransportVersionDefinitionTask.class, t -> {
+                t.setGroup("Transport Versions");
+                t.setDescription("(Re)generates a transport version definition file");
+                t.getReferencesFiles().setFrom(tvReferencesConfig);
+                t.getPrimaryIncrement().convention(1000);
+                Version esVersion = VersionProperties.getElasticsearchVersion();
+                t.getMainReleaseBranch().convention(esVersion.getMajor() + "." + esVersion.getMinor());
+            });
+
+        validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
     }
 
     private static String getResourceRoot(Project project) {

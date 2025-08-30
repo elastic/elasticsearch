@@ -10,6 +10,8 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
@@ -29,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -45,10 +48,12 @@ import javax.inject.Inject;
  *     <li><b>/transport/definitions/unreferable/</b>
  *     - Definitions which contain ids that are known at runtime, but cannot be looked up by name.</li>
  *     <li><b>/transport/upper_bounds/</b>
- *     - The maximum transport version definition that will be loaded for each release branch.</li>
+ *     - The maximum transport version definition that will be loaded for each release releaseBranch.</li>
  * </ul>
  */
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
+
+    private static final Logger logger = Logging.getLogger(TransportVersionResourcesService.class);
 
     public interface Parameters extends BuildServiceParameters {
         DirectoryProperty getTransportResourcesDirectory();
@@ -107,6 +112,19 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return getMainFile(resourcePath, TransportVersionDefinition::fromString);
     }
 
+    List<String> getChangedReferableDefinitionNames() {
+        List<String> changedDefinitions = new ArrayList<>();
+        String referablePrefix = REFERABLE_DIR.toString();
+        for (String changedPath : getChangedResources()) {
+            if (changedPath.contains(referablePrefix) == false) {
+                continue;
+            }
+            String name = changedPath.substring(referablePrefix.length() + 1 /* skip slash */, changedPath.length() - 4 /* .csv */);
+            changedDefinitions.add(name);
+        }
+        return changedDefinitions;
+    }
+
     /** Test whether the given referable definition exists */
     boolean referableDefinitionExists(String name) {
         return Files.exists(transportResourcesDir.resolve(getReferableDefinitionRelativePath(name)));
@@ -115,6 +133,21 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     /** Return the path within the repository of the given named definition */
     Path getReferableDefinitionRepositoryPath(TransportVersionDefinition definition) {
         return rootDir.relativize(transportResourcesDir.resolve(getReferableDefinitionRelativePath(definition.name())));
+    }
+
+    void writeReferableDefinition(TransportVersionDefinition definition) throws IOException {
+        Path path = transportResourcesDir.resolve(getReferableDefinitionRelativePath(definition.name()));
+        logger.debug("Writing referable definition [" + definition + "] to [" + path + "]");
+        Files.writeString(
+            path,
+            definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
+            StandardCharsets.UTF_8
+        );
+    }
+
+    void deleteReferableDefinition(String name) throws IOException {
+        Path path = transportResourcesDir.resolve(getReferableDefinitionRelativePath(name));
+        Files.deleteIfExists(path);
     }
 
     // return the path, relative to the resources dir, of an unreferable definition
@@ -138,28 +171,49 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return rootDir.relativize(transportResourcesDir.resolve(getUnreferableDefinitionRelativePath(definition.name())));
     }
 
-    /** Read all upper bound files and return them mapped by their release branch */
+    /** Read all upper bound files and return them mapped by their release releaseBranch */
     Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
         Map<String, TransportVersionUpperBound> upperBounds = new HashMap<>();
         try (var stream = Files.list(transportResourcesDir.resolve(UPPER_BOUNDS_DIR))) {
             for (var latestFile : stream.toList()) {
                 String contents = Files.readString(latestFile, StandardCharsets.UTF_8).strip();
                 var upperBound = TransportVersionUpperBound.fromString(latestFile, contents);
-                upperBounds.put(upperBound.branch(), upperBound);
+                upperBounds.put(upperBound.releaseBranch(), upperBound);
             }
         }
         return upperBounds;
     }
 
-    /** Retrieve the latest transport version for the given release branch on main */
+    /** Retrieve the upper bound for the given release releaseBranch on main */
     TransportVersionUpperBound getUpperBoundFromMain(String releaseBranch) {
         Path resourcePath = getUpperBoundRelativePath(releaseBranch);
         return getMainFile(resourcePath, TransportVersionUpperBound::fromString);
     }
 
+    /** Retrieve all upper bounds that exist on main */
+    List<TransportVersionUpperBound> getUpperBoundsFromMain() throws IOException {
+        List<TransportVersionUpperBound> upperBounds = new ArrayList<>();
+        for (String mainPathString : getMainResources()) {
+            Path mainPath = Path.of(mainPathString);
+            if (mainPath.startsWith(UPPER_BOUNDS_DIR) == false) {
+                continue;
+            }
+            TransportVersionUpperBound upperBound = getMainFile(mainPath, TransportVersionUpperBound::fromString);
+            upperBounds.add(upperBound);
+        }
+        return upperBounds;
+    }
+
+    /** Write the given upper bound to a file in the transport resources */
+    void writeUpperBound(TransportVersionUpperBound upperBound) throws IOException {
+        Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.releaseBranch()));
+        logger.debug("Writing upper bound [" + upperBound + "] to [" + path + "]");
+        Files.writeString(path, upperBound.name() + "," + upperBound.id().complete() + "\n", StandardCharsets.UTF_8);
+    }
+
     /** Return the path within the repository of the given latest */
     Path getUpperBoundRepositoryPath(TransportVersionUpperBound latest) {
-        return rootDir.relativize(transportResourcesDir.resolve(getUpperBoundRelativePath(latest.branch())));
+        return rootDir.relativize(transportResourcesDir.resolve(getUpperBoundRelativePath(latest.releaseBranch())));
     }
 
     private Path getUpperBoundRelativePath(String releaseBranch) {
@@ -184,17 +238,25 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     private Set<String> getChangedResources() {
         if (changedResources.get() == null) {
             synchronized (changedResources) {
-                String output = gitCommand("diff", "--name-only", "main", ".");
-
                 HashSet<String> resources = new HashSet<>();
-                Collections.addAll(resources, output.split("\n")); // git always outputs LF
+
+                String diffOutput = gitCommand("diff", "--name-only", "main", ".");
+                if (diffOutput.strip().isEmpty() == false) {
+                    Collections.addAll(resources, diffOutput.split("\n")); // git always outputs LF
+                }
+
+                String untrackedOutput = gitCommand("ls-files", "--others", "--exclude-standard");
+                if (untrackedOutput.strip().isEmpty() == false) {
+                    Collections.addAll(resources, untrackedOutput.split("\n")); // git always outputs LF
+                }
+
                 changedResources.set(resources);
             }
         }
         return changedResources.get();
     }
 
-    // Read a transport version resource from the main branch, or return null if it doesn't exist on main
+    // Read a transport version resource from the main releaseBranch, or return null if it doesn't exist on main
     private <T> T getMainFile(Path resourcePath, BiFunction<Path, String, T> parser) {
         String pathString = resourcePath.toString().replace('\\', '/'); // normalize to forward slash that git uses
         if (getMainResources().contains(pathString) == false) {

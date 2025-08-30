@@ -43,6 +43,36 @@ public class MappingParserContext {
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
+
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        IndexVersion indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        IdFieldMapper idFieldMapper,
+        Function<Query, BitSetProducer> bitSetProducer,
+        RootObjectMapperNamespaceValidator namespaceValidator
+    ) {
+        this.similarityLookupService = similarityLookupService;
+        this.typeParsers = typeParsers;
+        this.runtimeFieldParsers = runtimeFieldParsers;
+        this.indexVersionCreated = indexVersionCreated;
+        this.clusterTransportVersion = clusterTransportVersion;
+        this.searchExecutionContextSupplier = searchExecutionContextSupplier;
+        this.scriptCompiler = scriptCompiler;
+        this.indexAnalyzers = indexAnalyzers;
+        this.indexSettings = indexSettings;
+        this.idFieldMapper = idFieldMapper;
+        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
+        this.bitSetProducer = bitSetProducer;
+        this.namespaceValidator = namespaceValidator;
+    }
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -57,18 +87,24 @@ public class MappingParserContext {
         IdFieldMapper idFieldMapper,
         Function<Query, BitSetProducer> bitSetProducer
     ) {
-        this.similarityLookupService = similarityLookupService;
-        this.typeParsers = typeParsers;
-        this.runtimeFieldParsers = runtimeFieldParsers;
-        this.indexVersionCreated = indexVersionCreated;
-        this.clusterTransportVersion = clusterTransportVersion;
-        this.searchExecutionContextSupplier = searchExecutionContextSupplier;
-        this.scriptCompiler = scriptCompiler;
-        this.indexAnalyzers = indexAnalyzers;
-        this.indexSettings = indexSettings;
-        this.idFieldMapper = idFieldMapper;
-        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
-        this.bitSetProducer = bitSetProducer;
+        this(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            idFieldMapper,
+            bitSetProducer,
+            null
+        );
+    }
+
+    public RootObjectMapperNamespaceValidator getNamespaceValidator() {
+        return namespaceValidator;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -170,7 +206,8 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.namespaceValidator
             );
         }
 
@@ -200,7 +237,8 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.namespaceValidator
             );
             this.dateFormatter = dateFormatter;
         }

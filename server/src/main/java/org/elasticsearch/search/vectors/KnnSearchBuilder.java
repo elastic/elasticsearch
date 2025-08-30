@@ -49,6 +49,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
+    public static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
@@ -63,11 +64,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         // TODO optimize parsing for when BYTE values are provided
         return new Builder().field((String) args[0])
             .queryVector((VectorData) args[1])
-            .queryVectorBuilder((QueryVectorBuilder) args[4])
+            .queryVectorBuilder((QueryVectorBuilder) args[5])
             .k((Integer) args[2])
             .numCandidates((Integer) args[3])
-            .similarity((Float) args[5])
-            .rescoreVectorBuilder((RescoreVectorBuilder) args[6]);
+            .visitPercentage((Float) args[4])
+            .similarity((Float) args[6])
+            .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
     });
 
     static {
@@ -80,6 +82,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         );
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
@@ -118,6 +121,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     private final Supplier<float[]> querySupplier;
     final int k;
     final int numCands;
+    final float visitPercentage;
     final Float similarity;
     final List<QueryBuilder> filterQueries;
     String queryName;
@@ -139,6 +143,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         float[] queryVector,
         int k,
         int numCands,
+        float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -148,6 +153,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             null,
             k,
             numCands,
+            visitPercentage,
             rescoreVectorBuilder,
             similarity
         );
@@ -166,10 +172,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         VectorData queryVector,
         int k,
         int numCands,
+        float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
-        this(field, queryVector, null, k, numCands, rescoreVectorBuilder, similarity);
+        this(field, queryVector, null, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
     }
 
     /**
@@ -185,6 +192,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         QueryVectorBuilder queryVectorBuilder,
         int k,
         int numCands,
+        float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -194,6 +202,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             Objects.requireNonNull(queryVectorBuilder, format("[%s] cannot be null", QUERY_VECTOR_BUILDER_FIELD.getPreferredName())),
             k,
             numCands,
+            visitPercentage,
             rescoreVectorBuilder,
             similarity
         );
@@ -205,6 +214,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         QueryVectorBuilder queryVectorBuilder,
         int k,
         int numCands,
+        float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -215,6 +225,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             new ArrayList<>(),
             k,
             numCands,
+            visitPercentage,
             rescoreVectorBuilder,
             similarity,
             null,
@@ -228,6 +239,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         Supplier<float[]> querySupplier,
         Integer k,
         Integer numCands,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         List<QueryBuilder> filterQueries,
         Float similarity
@@ -237,6 +249,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVectorBuilder = null;
         this.k = k;
         this.numCands = numCands;
+        this.visitPercentage = visitPercentage;
         this.filterQueries = filterQueries;
         this.querySupplier = querySupplier;
         this.similarity = similarity;
@@ -250,6 +263,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         List<QueryBuilder> filterQueries,
         int k,
         int numCandidates,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity,
         InnerHitBuilder innerHitBuilder,
@@ -266,6 +280,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         if (numCandidates > NUM_CANDS_LIMIT) {
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
+        }
+        if (visitPercentage < 0.0f || visitPercentage > 100.0f) {
+            throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
         }
         if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
@@ -290,6 +307,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCandidates;
+        this.visitPercentage = visitPercentage;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
         this.innerHitBuilder = innerHitBuilder;
         this.similarity = similarity;
@@ -303,6 +321,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.field = in.readString();
         this.k = in.readVInt();
         this.numCands = in.readVInt();
+        this.visitPercentage = in.readFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
@@ -342,6 +361,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     public int getNumCands() {
         return numCands;
+    }
+
+    public float getVisitPercentage() {
+        return visitPercentage;
     }
 
     public RescoreVectorBuilder getRescoreVectorBuilder() {
@@ -416,10 +439,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             if (querySupplier.get() == null) {
                 return this;
             }
-            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, rescoreVectorBuilder, similarity).boost(boost)
-                .queryName(queryName)
-                .addFilterQueries(filterQueries)
-                .innerHit(innerHitBuilder);
+            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
+                boost
+            ).queryName(queryName).addFilterQueries(filterQueries).innerHit(innerHitBuilder);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
@@ -439,7 +461,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 }
                 ll.onResponse(null);
             })));
-            return new KnnSearchBuilder(field, toSet::get, k, numCands, rescoreVectorBuilder, filterQueries, similarity).boost(boost)
+            return new KnnSearchBuilder(field, toSet::get, k, numCands, visitPercentage, rescoreVectorBuilder, filterQueries, similarity)
+                .boost(boost)
                 .queryName(queryName)
                 .innerHit(innerHitBuilder);
         }
@@ -453,7 +476,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             rewrittenQueries.add(rewrittenQuery);
         }
         if (changed) {
-            return new KnnSearchBuilder(field, queryVector, k, numCands, rescoreVectorBuilder, similarity).boost(boost)
+            return new KnnSearchBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
                 .queryName(queryName)
                 .addFilterQueries(rewrittenQueries)
                 .innerHit(innerHitBuilder);
@@ -465,9 +488,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, rescoreVectorBuilder, similarity).boost(boost)
-            .queryName(queryName)
-            .addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
+            boost
+        ).queryName(queryName).addFilterQueries(filterQueries);
     }
 
     public Float getSimilarity() {
@@ -481,6 +504,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         KnnSearchBuilder that = (KnnSearchBuilder) o;
         return k == that.k
             && numCands == that.numCands
+            && visitPercentage == that.visitPercentage
             && Objects.equals(rescoreVectorBuilder, that.rescoreVectorBuilder)
             && Objects.equals(field, that.field)
             && Objects.equals(queryVector, that.queryVector)
@@ -499,6 +523,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             field,
             k,
             numCands,
+            visitPercentage,
             querySupplier,
             queryVectorBuilder,
             rescoreVectorBuilder,
@@ -516,6 +541,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
+
+        if (visitPercentage != 0.0f) {
+            builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
+        }
 
         if (queryVectorBuilder != null) {
             builder.startObject(QUERY_VECTOR_BUILDER_FIELD.getPreferredName());
@@ -561,6 +590,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeString(field);
         out.writeVInt(k);
         out.writeVInt(numCands);
+        out.writeFloat(visitPercentage);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {
@@ -601,6 +631,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         private QueryVectorBuilder queryVectorBuilder;
         private Integer k;
         private Integer numCandidates;
+        private Float visitPercentage;
         private Float similarity;
         private final List<QueryBuilder> filterQueries = new ArrayList<>();
         private String queryName;
@@ -654,6 +685,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             return this;
         }
 
+        public Builder visitPercentage(Float visitPercentage) {
+            this.visitPercentage = visitPercentage;
+            return this;
+        }
+
         public Builder similarity(Float similarity) {
             this.similarity = similarity;
             return this;
@@ -670,6 +706,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             int adjustedNumCandidates = numCandidates == null
                 ? Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK))
                 : numCandidates;
+            float adjustedVisitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
             return new KnnSearchBuilder(
                 field,
                 queryVectorBuilder,
@@ -677,6 +714,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 filterQueries,
                 adjustedK,
                 adjustedNumCandidates,
+                adjustedVisitPercentage,
                 rescoreVectorBuilder,
                 similarity,
                 innerHitBuilder,

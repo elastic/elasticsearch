@@ -53,7 +53,16 @@ public class KnnQuery extends Query {
         }
         Float vectorSimilarity = (Float) options.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
 
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(field, query, k, numCands, rescoreVectorBuilder, vectorSimilarity);
+        // TODO: expose visit_percentage in ESQL
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(
+            field,
+            query,
+            k,
+            numCands,
+            null,
+            rescoreVectorBuilder,
+            vectorSimilarity
+        );
         for (QueryBuilder filter : filterQueries) {
             queryBuilder.addFilterQuery(filter);
         }

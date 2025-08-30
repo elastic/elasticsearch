@@ -138,8 +138,11 @@ public final class Mapping implements ToXContentFragment {
      * @return a {@link SourceLoader.SyntheticVectorsLoader} for extracting synthetic vectors,
      *         potentially using the provided filter
      */
-    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(@Nullable SourceFilter filter) {
-        return root.syntheticVectorsLoader(filter);
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(
+        @Nullable SourceFilter filter,
+        SourceLoader.SyntheticVectorsLoader.AutoHybridChecker checker
+    ) {
+        return root.syntheticVectorsLoader(filter, checker);
     }
 
     private boolean isSourceSynthetic() {

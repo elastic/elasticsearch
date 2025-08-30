@@ -13,7 +13,7 @@ tasks.named("dependencyLicenses").configure {
 group = 'org.elasticsearch.entitlement.tools'
 
 ext {
-  javaMainClass = "org.elasticsearch.entitlement.tools.publiccallersfinder.Main"
+  javaMainClass = "org.elasticsearch.entitlement.tools.jdkapi.JdkApiExtractor"
 }
 
 application {

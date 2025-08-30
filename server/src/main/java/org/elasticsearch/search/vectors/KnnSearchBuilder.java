@@ -281,7 +281,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (numCandidates > NUM_CANDS_LIMIT) {
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
-        if (visitPercentage < 0f || visitPercentage > 100f) {
+        if (visitPercentage < 0.0f || visitPercentage > 100.0f) {
             throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
         }
         if (queryVector == null && queryVectorBuilder == null) {
@@ -542,7 +542,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
-        if (visitPercentage != 0f) {
+        if (visitPercentage != 0.0f) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
         }
 
@@ -706,7 +706,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             int adjustedNumCandidates = numCandidates == null
                 ? Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK))
                 : numCandidates;
-            float adjustedVisitPercentage = visitPercentage == null ? 0f : visitPercentage;
+            float adjustedVisitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
             return new KnnSearchBuilder(
                 field,
                 queryVectorBuilder,

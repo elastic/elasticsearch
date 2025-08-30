@@ -57,7 +57,6 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
-import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -85,7 +84,6 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(NUM_CANDS_FIELD.getPreferredName(), INTEGER),
-        entry(VISIT_PERCENTAGE_FIELD.getPreferredName(), FLOAT),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)
@@ -131,16 +129,6 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                     description = "The number of nearest neighbor candidates to consider per shard while doing knn search. "
                         + "Cannot exceed 10,000. Increasing num_candidates tends to improve the accuracy of the final results. "
                         + "Defaults to 1.5 * k"
-                ),
-                @MapParam.MapParamEntry(
-                    name = "visit_percentage",
-                    type = "float",
-                    valueHint = { "10.0" },
-                    description = "(Optional, float) The percentage of vectors to explore per shard while doing knn search "
-                        + "with `bbq_disk`.  Must be between 1 and 100.  0 will default to using `num_candidates` for calculating "
-                        + "the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  "
-                        + "If `visit_percentage` is set is set for `bbq_disk`, `num_candidates` is ignored. "
-                        + "Defaults to a reasonable percent per shard of ~1% for every 1 million vectors."
                 ),
                 @MapParam.MapParamEntry(
                     name = "similarity",

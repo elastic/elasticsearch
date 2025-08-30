@@ -244,7 +244,7 @@ public class KnnSearchRequestParser {
             this.queryVector = queryVector;
             this.k = k;
             this.numCands = numCands;
-            this.visitPercentage = visitPercentage == null ? 0f : visitPercentage;
+            this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
         }
 
         public KnnVectorQueryBuilder toQueryBuilder() {

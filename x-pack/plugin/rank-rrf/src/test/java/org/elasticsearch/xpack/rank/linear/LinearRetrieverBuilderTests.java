@@ -336,6 +336,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             null,
             10,
             100,
+            10f,
             null,
             null
         );
@@ -365,6 +366,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             null,
             10,
             100,
+            10f,
             null,
             null
         );

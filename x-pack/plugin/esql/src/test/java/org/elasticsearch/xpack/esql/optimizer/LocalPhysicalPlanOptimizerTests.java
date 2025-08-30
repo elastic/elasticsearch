@@ -1394,7 +1394,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new float[] { 0.1f, 0.2f, 0.3f },
             5,
             10,
-            10f,
+            null,
             new RescoreVectorBuilder(7),
             0.001f
         ).boost(3.5f);

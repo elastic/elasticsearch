@@ -21,8 +21,6 @@ package org.elasticsearch.index.codec.postings;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CompetitiveImpactAccumulator;
-import org.apache.lucene.codecs.lucene90.blocktree.FieldReader;
-import org.apache.lucene.codecs.lucene90.blocktree.Stats;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
@@ -37,6 +35,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BasePostingsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.index.codec.postings.terms.FieldReader;
+import org.elasticsearch.index.codec.postings.terms.Stats;
 
 import java.io.IOException;
 import java.util.Arrays;

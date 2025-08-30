@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -687,7 +686,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "id",
                 TaskType.CHAT_COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("my-model-id", new RateLimitSettings(100)),
+                new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
@@ -1382,7 +1381,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "id",
                 TaskType.COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
+                new ElasticInferenceServiceCompletionServiceSettings("model_id"),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)

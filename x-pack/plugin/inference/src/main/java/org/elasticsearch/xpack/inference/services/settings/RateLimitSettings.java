@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,15 +27,14 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String FIELD_NAME = "rate_limit";
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
-
-    private final long requestsPerTimeUnit;
-    private final TimeUnit timeUnit;
+    public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
 
     public static RateLimitSettings of(
         Map<String, Object> map,
@@ -51,6 +51,12 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         }
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
+    }
+
+    public static RateLimitSettings disabledRateLimiting(Map<String, Object> map) {
+        removeFromMap(map, FIELD_NAME);
+
+        return DISABLED_INSTANCE;
     }
 
     public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(
@@ -75,6 +81,10 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         return RateLimitSettings.toSettingsConfigurationWithDescription("Minimize the number of rate limit errors.", supportedTaskTypes);
     }
 
+    private final long requestsPerTimeUnit;
+    private final TimeUnit timeUnit;
+    private final boolean enabled;
+
     /**
      * Defines the settings in requests per minute
      * @param requestsPerMinute _
@@ -84,6 +94,8 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     }
 
     /**
+     * This should only be used for testing.
+     *
      * Defines the settings in requests per the time unit provided
      * @param requestsPerTimeUnit number of requests
      * @param timeUnit _
@@ -91,16 +103,27 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
      * Note: The time unit is not serialized
      */
     public RateLimitSettings(long requestsPerTimeUnit, TimeUnit timeUnit) {
+        this(requestsPerTimeUnit, timeUnit, true);
+    }
+
+    // This should only be used for testing.
+    RateLimitSettings(long requestsPerTimeUnit, TimeUnit timeUnit, boolean enabled) {
         if (requestsPerTimeUnit <= 0) {
             throw new IllegalArgumentException("requests per minute must be positive");
         }
         this.requestsPerTimeUnit = requestsPerTimeUnit;
         this.timeUnit = Objects.requireNonNull(timeUnit);
+        this.enabled = enabled;
     }
 
     public RateLimitSettings(StreamInput in) throws IOException {
         requestsPerTimeUnit = in.readVLong();
         timeUnit = TimeUnit.MINUTES;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+            enabled = in.readBoolean();
+        } else {
+            enabled = true;
+        }
     }
 
     public long requestsPerTimeUnit() {
@@ -111,8 +134,16 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         return timeUnit;
     }
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (enabled == false) {
+            return builder;
+        }
+
         builder.startObject(FIELD_NAME);
         builder.field(REQUESTS_PER_MINUTE_FIELD, requestsPerTimeUnit);
         builder.endObject();
@@ -122,6 +153,9 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(requestsPerTimeUnit);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+            out.writeBoolean(enabled);
+        }
     }
 
     @Override
@@ -129,11 +163,13 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RateLimitSettings that = (RateLimitSettings) o;
-        return Objects.equals(requestsPerTimeUnit, that.requestsPerTimeUnit) && Objects.equals(timeUnit, that.timeUnit);
+        return Objects.equals(requestsPerTimeUnit, that.requestsPerTimeUnit)
+            && Objects.equals(timeUnit, that.timeUnit)
+            && enabled == that.enabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestsPerTimeUnit, timeUnit);
+        return Objects.hash(requestsPerTimeUnit, timeUnit, enabled);
     }
 }

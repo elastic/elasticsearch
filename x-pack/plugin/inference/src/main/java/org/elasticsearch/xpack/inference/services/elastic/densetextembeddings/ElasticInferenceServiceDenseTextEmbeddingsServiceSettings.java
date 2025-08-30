@@ -19,7 +19,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -42,8 +41,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         ElasticInferenceServiceRateLimitServiceSettings {
 
     public static final String NAME = "elastic_inference_service_dense_embeddings_service_settings";
-
-    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     private final String modelId;
     private final SimilarityMeasure similarity;
@@ -68,13 +65,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            ElasticInferenceService.NAME,
-            context
-        );
+        RateLimitSettings.disabledRateLimiting(map);
 
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
@@ -84,7 +75,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             throw validationException;
         }
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens, rateLimitSettings);
+        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
     }
 
     private static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromPersistentMap(
@@ -94,13 +85,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            ElasticInferenceService.NAME,
-            context
-        );
+        RateLimitSettings.disabledRateLimiting(map);
 
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
@@ -110,21 +95,20 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             throw validationException;
         }
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens, rateLimitSettings);
+        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
     }
 
     public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
         String modelId,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens,
-        RateLimitSettings rateLimitSettings
+        @Nullable Integer maxInputTokens
     ) {
         this.modelId = modelId;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
     }
 
     public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -132,7 +116,11 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
-        this.rateLimitSettings = new RateLimitSettings(in);
+        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
+
+        if (in.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+            new RateLimitSettings(in);
+        }
     }
 
     @Override
@@ -221,7 +209,9 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
-        rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override

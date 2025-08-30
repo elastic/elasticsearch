@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.rerank;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -22,8 +24,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class ElasticInferenceServiceRerankServiceSettingsTests extends AbstractWireSerializingTestCase<
+public class ElasticInferenceServiceRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     ElasticInferenceServiceRerankServiceSettings> {
 
     @Override
@@ -50,27 +53,54 @@ public class ElasticInferenceServiceRerankServiceSettingsTests extends AbstractW
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings, is(new ElasticInferenceServiceRerankServiceSettings(modelId, null)));
+        assertThat(serviceSettings, is(new ElasticInferenceServiceRerankServiceSettings(modelId)));
+        assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
+        assertFalse(serviceSettings.rateLimitSettings().isEnabled());
+    }
+
+    public void testFromMap_RemovesRateLimitingField() {
+        var modelId = "my-model-id";
+
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                modelId,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+            )
+        );
+        var serviceSettings = ElasticInferenceServiceRerankServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(serviceSettings, is(new ElasticInferenceServiceRerankServiceSettings(modelId)));
+        assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
+        assertFalse(serviceSettings.rateLimitSettings().isEnabled());
     }
 
     public void testToXContent_WritesAllFields() throws IOException {
         var modelId = ".rerank-v1";
-        var rateLimitSettings = new RateLimitSettings(100L);
-        var serviceSettings = new ElasticInferenceServiceRerankServiceSettings(modelId, rateLimitSettings);
+        var serviceSettings = new ElasticInferenceServiceRerankServiceSettings(modelId);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is(Strings.format("""
-            {"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""", modelId, rateLimitSettings.requestsPerTimeUnit())));
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {"model_id":"%s"}""", modelId))));
     }
 
     public static ElasticInferenceServiceRerankServiceSettings createRandom() {
-        return new ElasticInferenceServiceRerankServiceSettings(randomRerankModel(), null);
+        return new ElasticInferenceServiceRerankServiceSettings(randomRerankModel());
     }
 
     private static String randomRerankModel() {
         return randomFrom(".rerank-v1", ".rerank-v2");
+    }
+
+    @Override
+    protected ElasticInferenceServiceRerankServiceSettings mutateInstanceForVersion(
+        ElasticInferenceServiceRerankServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

@@ -70,6 +70,8 @@ public interface XContentProvider {
      */
     JsonStringEncoder getJsonStringEncoder();
 
+    SymbolTable newSymbolTable();
+
     /**
      * Returns the located provider instance.
      */

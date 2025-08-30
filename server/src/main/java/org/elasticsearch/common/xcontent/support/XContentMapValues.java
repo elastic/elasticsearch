@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.ingest.ESONIndexed;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -337,7 +338,12 @@ public class XContentMapValues {
                 continue;
             }
 
-            Object value = entry.getValue();
+            Object value;
+            if (entry instanceof ESONIndexed.ESONObject.LazyEntry lazyEntry && lazyEntry.isUTF8Bytes()) {
+                value = lazyEntry.utf8Bytes();
+            } else {
+                value = entry.getValue();
+            }
 
             CharacterRunAutomaton subIncludeAutomaton = includeAutomaton;
             int subIncludeState = includeState;

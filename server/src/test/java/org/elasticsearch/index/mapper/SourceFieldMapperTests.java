@@ -81,7 +81,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             )
         );
 
-        assertThat(XContentHelper.xContentType(doc.source()), equalTo(XContentType.JSON));
+        assertThat(XContentHelper.xContentType(doc.bytesSource()), equalTo(XContentType.JSON));
 
         doc = documentMapper.parse(
             new SourceToParse(
@@ -91,7 +91,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             )
         );
 
-        assertThat(XContentHelper.xContentType(doc.source()), equalTo(XContentType.SMILE));
+        assertThat(XContentHelper.xContentType(doc.bytesSource()), equalTo(XContentType.SMILE));
     }
 
     public void testIncludes() throws Exception {

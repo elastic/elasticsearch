@@ -417,7 +417,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 yield vectors;
             }
-            case FLOAT -> {
+            case FLOAT, BFLOAT16 -> {
                 float[][] vectors = new float[numVectors][vectorFieldType.getVectorDimensions()];
                 for (int i = 0; i < numVectors; i++) {
                     for (int j = 0; j < vectorFieldType.getVectorDimensions(); j++) {
@@ -473,7 +473,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
             Object value = switch (elementType) {
                 case BYTE, BIT:
                     yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
-                case FLOAT:
+                case FLOAT, BFLOAT16:
                     yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
             };
             return new SyntheticSourceExample(value, value, this::mapping);

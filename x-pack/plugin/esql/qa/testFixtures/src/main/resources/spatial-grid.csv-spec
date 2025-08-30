@@ -173,6 +173,47 @@ count:long | centroid:geo_point                             | geohashString:keyw
 // end::st_geohash-grid-result[]
 ;
 
+gridGeohashCase
+required_capability: spatial_grid_types
+
+// tag::st_geohash-case[]
+FROM airports
+| EVAL geohash = ST_GEOHASH(location, 2)
+| STATS
+    count = COUNT(geohash),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohash
+| WHERE count >= 10
+| EVAL parent = ST_GEOHASH(centroid, 1)
+| EVAL level = CASE(
+    parent == "u"::geohash, "high",
+    parent == "d"::geohash, "medium",
+    parent == "9"::geohash, "low",
+    "other"
+  )
+| EVAL geohashString = TO_STRING(geohash)
+| KEEP count, centroid, geohashString, parent, level
+| SORT count DESC, geohashString ASC
+// end::st_geohash-case[]
+;
+
+// tag::st_geohash-case-result[]
+count:long | centroid:geo_point                             | geohashString:keyword | parent:geohash | level:keyword
+19         | POINT (6.360728044651057 47.94084087577894)    | u0                    | u              | high
+17         | POINT (-3.5034258844440473 53.25306422789307)  | gc                    | g              | other
+16         | POINT (-84.3847085541347 41.85195600060979)    | dp                    | d              | medium
+13         | POINT (-74.08679279498756 42.10354745746232)   | dr                    | d              | medium
+12         | POINT (-83.732457049191 36.367889943066984)    | dn                    | d              | medium
+12         | POINT (74.7963257250376 31.238017017021775)    | tt                    | t              | other
+12         | POINT (84.32237566681579 24.78583392337896)    | tu                    | t              | other
+11         | POINT (-94.80821384032342 31.166376347060908)  | 9v                    | 9              | low
+10         | POINT (-49.814146178774536 -24.70176063431427) | 6g                    | 6              | other
+10         | POINT (-97.22507307864726 19.70557357929647)   | 9g                    | 9              | low
+10         | POINT (15.350638423115015 47.80751353036612)   | u2                    | u              | high
+10         | POINT (128.12597772292793 36.5161985848099)    | wy                    | w              | other
+// end::st_geohash-case-result[]
+;
+
 gridGeohashQuery
 required_capability: spatial_grid_types
 
@@ -503,6 +544,42 @@ count:long | centroid:geo_point                              | geotileString:key
 // end::st_geotile-grid-result[]
 ;
 
+gridGeotileCase
+required_capability: spatial_grid_types
+
+// tag::st_geotile-case[]
+FROM airports
+| EVAL geotile = ST_GEOTILE(location, 2)
+| STATS
+    count = COUNT(geotile),
+    centroid = ST_CENTROID_AGG(location)
+      BY geotile
+| WHERE count >= 10
+| EVAL parent = ST_GEOTILE(centroid, 1)
+| EVAL level = CASE(
+    parent == "1/0/0"::geotile, "high",
+    parent == "1/1/0"::geotile, "medium",
+    parent == "1/1/1"::geotile, "low",
+    "other"
+  )
+| EVAL geotileString = TO_STRING(geotile)
+| KEEP count, centroid, geotileString, parent, level
+| SORT count DESC, geotileString ASC
+// end::st_geotile-case[]
+;
+
+// tag::st_geotile-case-result[]
+count:long | centroid:geo_point                              | geotileString:keyword | parent:geotile | level:keyword
+286        | POINT (39.31202001609169 35.149993664386415)    | 2/2/1                 | 1/1/0          | medium
+197        | POINT (-55.387361375756825 31.952955322292855)  | 2/1/1                 | 1/0/0          | high
+136        | POINT (-110.97162496141048 36.87185255084734)   | 2/0/1                 | 1/0/0          | high
+106        | POINT (119.35907618669827 25.46263281488791)    | 2/3/1                 | 1/1/0          | medium
+67         | POINT (-58.031108492373754 -22.624166105151065) | 2/1/2                 | 1/0/1          | other
+46         | POINT (142.95455511274707 -20.581492295427978)  | 2/3/2                 | 1/1/1          | low
+34         | POINT (31.38476753634784 -14.64374022804858)    | 2/2/2                 | 1/1/1          | low
+// end::st_geotile-case-result[]
+;
+
 gridGeotileQuery
 required_capability: spatial_grid_types
 
@@ -803,6 +880,40 @@ count:long | centroid:geo_point                             | geohexString:keywo
 11         | POINT (-99.4237939513881 27.100012352774765)   | 8148bffffffffff
 10         | POINT (128.01009018346667 35.8699960866943)    | 8130fffffffffff
 // end::st_geohex-grid-result[]
+;
+
+gridGeohexCase
+required_capability: spatial_grid_types
+
+// tag::st_geohex-case[]
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 2)
+| STATS
+    count = COUNT(geohex),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohex
+| WHERE count >= 5
+| EVAL parent = ST_GEOHEX(centroid, 1)
+| EVAL level = CASE(
+    parent == "811fbffffffffff"::geohex, "high",
+    parent == "81197ffffffffff"::geohex, "medium",
+    parent == "8129bffffffffff"::geohex, "low",
+    "other"
+  )
+| EVAL geohexString = TO_STRING(geohex)
+| KEEP count, centroid, geohexString, parent, level
+| SORT count DESC, geohexString ASC
+// end::st_geohex-case[]
+;
+
+// tag::st_geohex-case-result[]
+count:long | centroid:geo_point                             | geohexString:keyword | parent:geohex   | level:keyword
+6          | POINT (5.582276992499828 50.72238312335685)    | 821fa7fffffffff      | 811fbffffffffff | high
+5          | POINT (-1.7227098606526852 51.717823022045195) | 82195ffffffffff      | 81197ffffffffff | medium
+5          | POINT (8.6918301936239 45.19817395694554)      | 821f9ffffffffff      | 811fbffffffffff | high
+5          | POINT (-117.60585453920066 33.392433090135455) | 8229a7fffffffff      | 8129bffffffffff | low
+5          | POINT (-82.21536266617477 42.29504897072911)   | 822ab7fffffffff      | 812abffffffffff | other
+// end::st_geohex-case-result[]
 ;
 
 gridGeohexQuery

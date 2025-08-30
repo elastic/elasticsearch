@@ -277,7 +277,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 (S3BlobContainer) sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                randomBoolean()
             );
 
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();

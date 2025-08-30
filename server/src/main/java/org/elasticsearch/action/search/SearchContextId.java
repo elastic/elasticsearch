@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -39,7 +40,7 @@ public final class SearchContextId {
     private final Map<String, AliasFilter> aliasFilter;
     private final transient Set<ShardSearchContextId> contextIds;
 
-    SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
+    public SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
         this.shards = shards;
         this.aliasFilter = aliasFilter;
         this.contextIds = shards.values().stream().map(SearchContextIdForNode::getSearchContextId).collect(Collectors.toSet());
@@ -57,8 +58,8 @@ public final class SearchContextId {
         return contextIds.contains(contextId);
     }
 
-    public static BytesReference encode(
-        List<SearchPhaseResult> searchPhaseResults,
+    public static <SPR extends SearchPhaseResult> BytesReference encode(
+        List<SPR> searchPhaseResults,
         Map<String, AliasFilter> aliasFilter,
         TransportVersion version,
         ShardSearchFailure[] shardFailures
@@ -141,5 +142,19 @@ public final class SearchContextId {
             }
         }
         return indices.toArray(String[]::new);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchContextId that = (SearchContextId) o;
+        return Objects.equals(shards, that.shards)
+            && Objects.equals(aliasFilter, that.aliasFilter)
+            && Objects.equals(contextIds, that.contextIds);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shards, aliasFilter, contextIds);
     }
 }

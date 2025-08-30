@@ -40,7 +40,7 @@ public class MockSearchService extends SearchService {
      */
     public static class TestPlugin extends Plugin {}
 
-    private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+    private static final Map<ReaderContextId, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     private Consumer<ReaderContext> onPutContext = context -> {};
     private Consumer<ReaderContext> onRemoveContext = context -> {};
@@ -51,7 +51,7 @@ public class MockSearchService extends SearchService {
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
-        final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
+        final Map<ReaderContextId, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
             throw new AssertionError(
                 "There are still ["
@@ -65,14 +65,14 @@ public class MockSearchService extends SearchService {
     /**
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
-    static void addActiveContext(ReaderContext context) {
+    static void addActiveContext(ReaderContextId context) {
         ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(context.toString()));
     }
 
     /**
      * Clear an active search context from the list of tracked contexts. Package private for testing.
      */
-    static void removeActiveContext(ReaderContext context) {
+    static void removeActiveContext(ReaderContextId context) {
         ACTIVE_SEARCH_CONTEXTS.remove(context);
     }
 
@@ -105,16 +105,16 @@ public class MockSearchService extends SearchService {
     @Override
     protected void putReaderContext(ReaderContext context) {
         onPutContext.accept(context);
-        addActiveContext(context);
+        addActiveContext(context.readerContextId());
         super.putReaderContext(context);
     }
 
     @Override
-    protected ReaderContext removeReaderContext(long id) {
+    protected ReaderContext removeReaderContext(ReaderContextId id) {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
             onRemoveContext.accept(removed);
-            removeActiveContext(removed);
+            removeActiveContext(removed.readerContextId());
         }
         return removed;
     }

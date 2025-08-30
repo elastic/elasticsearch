@@ -414,6 +414,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (ResourceLeakDetector.isEnabled()) {
                 ch.pipeline().addLast(new Netty4LeakDetectionHandler());
             }
+            ch.pipeline().addLast(new Netty4EmptyChunkHandler());
             // See https://github.com/netty/netty/issues/15053: the combination of FlowControlHandler and HttpContentDecompressor above
             // can emit multiple chunks per read, but HttpBody.Stream requires chunks to arrive one-at-a-time so until that issue is
             // resolved we must add another flow controller here:

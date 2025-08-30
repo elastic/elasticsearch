@@ -67,10 +67,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction, PostAnalysisPlanVerificationAware {
+
+    private static final String[] ACCEPTED_FIELD_TYPES = { "dense_vector", "semantic_text" };
     private final Logger log = LogManager.getLogger(getClass());
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
@@ -209,7 +212,11 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     private TypeResolution resolveField() {
-        return isNotNull(field(), sourceText(), FIRST).and(isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"));
+        return isNotNull(field(), sourceText(), FIRST).and(
+            isType(field(), dt -> dt == TEXT, sourceText(), FIRST, ACCEPTED_FIELD_TYPES).or(
+                isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, ACCEPTED_FIELD_TYPES)
+            )
+        );
     }
 
     private TypeResolution resolveQuery() {

@@ -10,7 +10,7 @@ FROM airports
     centroid = ST_CENTROID_AGG(location)
       BY geohash
 | WHERE count >= 10
-| EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)
+| EVAL geohashString = TO_STRING(geohash)
 | KEEP count, centroid, geohashString
 | SORT count DESC, geohashString ASC
 ```

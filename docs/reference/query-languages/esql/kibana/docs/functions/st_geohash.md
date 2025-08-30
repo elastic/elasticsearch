@@ -2,7 +2,9 @@
 
 ### ST GEOHASH
 Calculates the `geohash` of the supplied geo_point at the specified precision.
-The result is long encoded. Use [ST_GEOHASH_TO_STRING](#esql-st_geohash_to_string) to convert the result to a string.
+The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
+[TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](esql-to_geoshape.md) to calculate
+the `geo_shape` bounding geometry.
 
 These functions are related to the [`geo_grid` query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
 and the [`geohash_grid` aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation).
@@ -15,7 +17,7 @@ FROM airports
     centroid = ST_CENTROID_AGG(location)
       BY geohash
 | WHERE count >= 10
-| EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)
+| EVAL geohashString = TO_STRING(geohash)
 | KEEP count, centroid, geohashString
 | SORT count DESC, geohashString ASC
 ```

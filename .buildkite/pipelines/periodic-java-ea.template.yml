@@ -30,13 +30,12 @@ steps:
       buildDirectory: /dev/shm/bk
   - group: java-matrix
     steps:
-      - label: "{{matrix.GRADLE_TASK}} / java-ea"
+      - label: "{{matrix.GRADLE_TASK}} / {{matrix.image}} "
         command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
             image:
-              - windows-2025
               - ubuntu-2404
             GRADLE_TASK:
               - checkPart1
@@ -52,6 +51,30 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+      - label: "{{matrix.GRADLE_TASK}} / {{matrix.image}} "
+        command: |
+          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - windows-2025
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - checkPart4
+              - checkPart5
+              - checkPart6
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          GRADLE_PARAMS: "-Druntime.java=$$JAVA_EA_VERSION"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
       - label: "{{matrix.BWC_VERSION}} / matrix-bwc"
         command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION  -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest

@@ -42,7 +42,7 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -113,7 +113,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-        List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
+        List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsServiceUtils.currentSnapshots(
             snapshotsInProgress,
             request.repository(),
             Arrays.asList(request.snapshots())

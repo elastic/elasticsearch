@@ -18,7 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.hnsw.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
@@ -192,6 +192,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final int maxChildrenSize = centroids.readVInt();
         final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
         final int bufferSize = (int) Math.max(numCentroids * CENTROID_SAMPLING_PERCENTAGE, 1);
+        final long[] buffer = new long[bufferSize];
         final NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
         // score the parents
         final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
@@ -225,11 +226,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 globalCentroidDp,
                 scores
             );
-            while (currentParentQueue.size() > 0 && neighborQueue.size() < bufferSize) {
-                final float score = currentParentQueue.topScore();
-                final int children = currentParentQueue.pop();
-                neighborQueue.add(children, score);
-            }
+            int limit = bufferSize - neighborQueue.size();
+            neighborQueue.bulkTransfer(limit, buffer, currentParentQueue);
         }
         final long childrenFileOffsets = childrenOffset + centroidQuantizeSize * numCentroids;
         return new CentroidIterator() {
@@ -251,9 +249,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             private void updateQueue() throws IOException {
                 if (currentParentQueue.size() > 0) {
                     // add a children from the current parent queue
-                    float score = currentParentQueue.topScore();
-                    int children = currentParentQueue.pop();
-                    neighborQueue.add(children, score);
+                    neighborQueue.addRaw(currentParentQueue.rawPop());
                 } else if (parentsQueue.size() > 0) {
                     // add a new parent from the current parent queue
                     int pop = parentsQueue.pop();

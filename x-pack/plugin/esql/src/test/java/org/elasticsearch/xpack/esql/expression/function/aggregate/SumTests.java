@@ -51,7 +51,7 @@ public class SumTests extends AbstractAggregationTestCase {
                     List.of(DataType.INTEGER),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200), DataType.INTEGER, "field")),
-                        "Sum[field=Attribute[channel=0]]",
+                        "SumInt",
                         DataType.LONG,
                         equalTo(200L)
                     )
@@ -60,7 +60,7 @@ public class SumTests extends AbstractAggregationTestCase {
                     List.of(DataType.LONG),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.LONG, "field")),
-                        "Sum[field=Attribute[channel=0]]",
+                        "SumLong",
                         DataType.LONG,
                         equalTo(200L)
                     )
@@ -69,7 +69,7 @@ public class SumTests extends AbstractAggregationTestCase {
                     List.of(DataType.DOUBLE),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200.), DataType.DOUBLE, "field")),
-                        "Sum[field=Attribute[channel=0]]",
+                        "SumDouble",
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
@@ -126,7 +126,12 @@ public class SumTests extends AbstractAggregationTestCase {
                 ? DataType.DOUBLE
                 : DataType.LONG;
 
-            return new TestCaseSupplier.TestCase(List.of(fieldTypedData), "Sum[field=Attribute[channel=0]]", dataType, equalTo(expected));
+            return new TestCaseSupplier.TestCase(
+                List.of(fieldTypedData),
+                standardAggregatorName("Sum", fieldSupplier.type()),
+                dataType,
+                equalTo(expected)
+            );
         });
     }
 }

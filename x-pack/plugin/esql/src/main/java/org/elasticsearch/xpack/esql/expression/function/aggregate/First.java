@@ -96,6 +96,10 @@ public class First extends AggregateFunction implements ToAggregator {
         return new First(source(), field(), filter, sort);
     }
 
+    public Expression sort() {
+        return sort;
+    }
+
     @Override
     public DataType dataType() {
         return field().dataType().noText();

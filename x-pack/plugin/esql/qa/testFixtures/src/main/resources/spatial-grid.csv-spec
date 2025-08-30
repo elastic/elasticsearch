@@ -121,6 +121,26 @@ location:geo_point                        | geohash4:long | geohash3:long | geoh
 POINT (12.6493508684508 55.6285017221528) | 13686180      | 427683        | 13362         | 417
 ;
 
+geohashLiteralMv
+required_capability: spatial_grid_types
+
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geohash4 = ST_GEOHASH(location, 4),
+       geohash3 = ST_GEOHASH(location, 3),
+       geohash2 = ST_GEOHASH(location, 2),
+       geohash1 = ST_GEOHASH(location, 1)
+| EVAL chain = MV_APPEND(geohash4, MV_APPEND(geohash3, MV_APPEND(geohash2, geohash1)))
+| EVAL description = MV_CONCAT(chain::keyword, " --> ")
+| EVAL top = MV_LAST(chain)
+| EVAL bottom = MV_FIRST(chain)
+//| WHERE MV_CONTAINS(chain, first) AND MV_CONTAINS(chain, last)
+| KEEP location, top, bottom, chain, description
+;
+
+location:geo_point                        | top:geohash  | bottom:geohash | chain:geohash      | description:keyword
+POINT(12.6493508684508 55.6285017221528)  | u            | u3bu           | [u3bu, u3b, u3, u] | u3bu --> u3b --> u3 --> u
+;
+
 geohashField
 required_capability: spatial_grid_types
 
@@ -499,6 +519,26 @@ location:geo_point                        | geotile4:long       | geotile3:long 
 POINT (12.6493508684508 55.6285017221528) | 1152921508901814277 | 864691130602618882 | 576460753377165313 | 288230376688582656
 ;
 
+geotileLiteralMv
+required_capability: spatial_grid_types
+
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geotile4 = ST_GEOTILE(location, 4),
+       geotile3 = ST_GEOTILE(location, 3),
+       geotile2 = ST_GEOTILE(location, 2),
+       geotile1 = ST_GEOTILE(location, 1)
+| EVAL chain = MV_APPEND(geotile4, MV_APPEND(geotile3, MV_APPEND(geotile2, geotile1)))
+| EVAL description = MV_CONCAT(chain::keyword, " --> ")
+| EVAL top = MV_LAST(chain)
+| EVAL bottom = MV_FIRST(chain)
+//| WHERE MV_CONTAINS(chain, first) AND MV_CONTAINS(chain, last)
+| KEEP location, top, bottom, chain, description
+;
+
+location:geo_point                        | top:geotile | bottom:geotile | chain:geotile                | description:keyword
+POINT (12.6493508684508 55.6285017221528) | 1/1/0       | 4/8/5          | [4/8/5, 3/4/2, 2/2/1, 1/1/0] | 4/8/5 --> 3/4/2 --> 2/2/1 --> 1/1/0
+;
+
 geotileField
 required_capability: spatial_grid_types
 
@@ -834,6 +874,26 @@ ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 
 location:geo_point                        | geohex4:long       | geohex3:long       | geohex2:long       | geohex1:long
 POINT (12.6493508684508 55.6285017221528) | 595020895127339007 | 590517321269772287 | 586013859081355263 | 581514107744681983
+;
+
+geohexLiteralMv
+required_capability: spatial_grid_types
+
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geohex4 = ST_GEOHEX(location, 4),
+       geohex3 = ST_GEOHEX(location, 3),
+       geohex2 = ST_GEOHEX(location, 2),
+       geohex1 = ST_GEOHEX(location, 1)
+| EVAL chain = MV_APPEND(geohex4, MV_APPEND(geohex3, MV_APPEND(geohex2, geohex1)))
+| EVAL description = MV_CONCAT(chain::keyword, " --> ")
+| EVAL top = MV_LAST(chain)
+| EVAL bottom = MV_FIRST(chain)
+//| WHERE MV_CONTAINS(chain, first) AND MV_CONTAINS(chain, last)
+| KEEP location, top, bottom, chain, description
+;
+
+location:geo_point                        | top:geohex      | bottom:geohex   | chain:geohex                                                         | description:keyword
+POINT (12.6493508684508 55.6285017221528) | 811f3ffffffffff | 841f059ffffffff | [841f059ffffffff, 831f05fffffffff, 821f07fffffffff, 811f3ffffffffff] | 841f059ffffffff --> 831f05fffffffff --> 821f07fffffffff --> 811f3ffffffffff
 ;
 
 geohexField

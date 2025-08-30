@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -416,6 +418,7 @@ public class RBACEngine implements AuthorizationEngine {
             indicesAsyncSupplier.getAsync().addListener(listener.delegateFailureAndWrap((delegateListener, resolvedIndices) -> {
                 assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+                maybeAddExceptions(request);
                 // all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                 // '-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
@@ -435,6 +438,7 @@ public class RBACEngine implements AuthorizationEngine {
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
 
                     IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, metadata);
+
                     if (requestInfo.getAuthentication().isCrossClusterAccess()
                         && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
                         && shardsRequest.shards() != null) {
@@ -451,6 +455,28 @@ public class RBACEngine implements AuthorizationEngine {
             return listener;
         } else {
             return SubscribableListener.newSucceeded(IndexAuthorizationResult.DENIED);
+        }
+    }
+
+    private static void maybeAddExceptions(TransportRequest request) {
+        if (request instanceof IndicesRequest.Replaceable replaceable
+            && replaceable.getReplacedIndexExpressions() instanceof IndicesRequest.CompleteReplacedIndexExpressions(Map<
+                String,
+                IndicesRequest.ReplacedIndexExpression> replacedExpressionMap)) {
+            if (replacedExpressionMap == null) {
+                return;
+            }
+            for (var replacedExpression : replacedExpressionMap.values()) {
+                if (false == replacedExpression.authorized()) {
+                    // TODO actual security exception with details here
+                    replacedExpression.setAuthorizationError(
+                        new ElasticsearchSecurityException(
+                            "unauthorized to access [" + replacedExpression.original() + "]",
+                            RestStatus.FORBIDDEN
+                        )
+                    );
+                }
+            }
         }
     }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -130,6 +131,14 @@ public interface SecurityExtension {
     }
 
     default CustomApiKeyAuthenticator getCustomApiKeyAuthenticator(SecurityComponents components) {
+        return null;
+    }
+
+    default AuthorizedProjectsSupplier getCrossProjectTargetResolver(SecurityComponents components) {
+        return null;
+    }
+
+    default CrossProjectRemoteServerTransportInterceptor getCustomRemoteServerTransportInterceptor(SecurityComponents components) {
         return null;
     }
 

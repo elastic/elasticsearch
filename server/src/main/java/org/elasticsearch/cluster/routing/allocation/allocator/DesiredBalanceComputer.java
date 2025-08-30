@@ -12,9 +12,11 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -77,6 +80,8 @@ public class DesiredBalanceComputer {
     private long lastConvergedTimeMillis;
     private long lastNotConvergedLogMessageTimeMillis;
     private Level convergenceLogMsgLevel;
+    private ClusterInfo lastClusterInfo;
+    private Map<ShardForSimulation, ShardRouting> shardsStartedByAllocate;
 
     public DesiredBalanceComputer(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
@@ -113,12 +118,21 @@ public class DesiredBalanceComputer {
             logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
         }
 
+        // A new ClusterInfo has arrived, clear the tracking for started shards
+        if (lastClusterInfo != desiredBalanceInput.routingAllocation().clusterInfo()) {
+            lastClusterInfo = desiredBalanceInput.routingAllocation().clusterInfo();
+            shardsStartedByAllocate = new HashMap<>();
+        }
+
+        final var alreadySimulatedStartedShards = new HashSet<ShardForSimulation>();
+
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
         final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
         final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
+
         DesiredBalance.ComputationFinishReason finishReason = DesiredBalance.ComputationFinishReason.CONVERGED;
 
         if (routingNodes.size() == 0) {
@@ -131,6 +145,7 @@ public class DesiredBalanceComputer {
                 if (shardRouting.initializing()) {
                     clusterInfoSimulator.simulateShardStarted(shardRouting);
                     routingNodes.startShard(shardRouting, changes, 0L);
+                    alreadySimulatedStartedShards.add(ShardForSimulation.from(shardRouting));
                 }
             }
         }
@@ -210,6 +225,7 @@ public class DesiredBalanceComputer {
                         final var shardToRelocate = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
                         clusterInfoSimulator.simulateShardStarted(shardToRelocate);
                         routingNodes.startShard(shardToRelocate, changes, 0L);
+                        alreadySimulatedStartedShards.add(ShardForSimulation.from(shardToRelocate));
                         continue relocateToDesiredLocation;
                     }
                 }
@@ -241,6 +257,7 @@ public class DesiredBalanceComputer {
                         final var shardToInitialize = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
                         clusterInfoSimulator.simulateShardStarted(shardToInitialize);
                         routingNodes.startShard(shardToInitialize, changes, 0L);
+                        alreadySimulatedStartedShards.add(ShardForSimulation.from(shardToInitialize));
                     }
                 }
             }
@@ -261,8 +278,44 @@ public class DesiredBalanceComputer {
                         final var shardToInitialize = unassignedReplicaIterator.initialize(nodeId, null, 0L, changes);
                         clusterInfoSimulator.simulateShardStarted(shardToInitialize);
                         routingNodes.startShard(shardToInitialize, changes, 0L);
+                        alreadySimulatedStartedShards.add(ShardForSimulation.from(shardToInitialize));
                     }
                 }
+            }
+        }
+
+        // These are the shards that were initialized by previous `delegateAllocator.allocate` calls and no longer initializing, e.g.
+        // they may have started on the new node.
+        final Set<ShardForSimulation> startedShards = Sets.difference(shardsStartedByAllocate.keySet(), alreadySimulatedStartedShards);
+        logger.debug(
+            "simulating [{}] already started shards (from [{}] excluding [{}])",
+            startedShards.size(),
+            shardsStartedByAllocate.keySet(),
+            alreadySimulatedStartedShards
+        );
+        for (var shardForSimulation : startedShards) {
+            // Check whether the shard has actually started on the target node
+            final var startedShard = routingNodes.assignedShards(shardForSimulation.shardId())
+                .stream()
+                .filter(
+                    shard -> shard.started()
+                        && shard.primary() == shardForSimulation.primary()
+                        && shard.currentNodeId().equals(shardForSimulation.currentNodeId())
+                )
+                .findFirst()
+                .orElse(null);
+
+            if (startedShard != null) {
+                clusterInfoSimulator.simulateShardStarted(shardsStartedByAllocate.get(shardForSimulation));
+            } else {
+                // If no such started shard is found, the shard is either
+                // (1) Initialized in a previous desired balance which got reset before the change is reconciled.
+                // (2) The shard failed to start or was deleted before start.
+                // (3) The shard is moved again within one ClusterInfo polling cycle
+                // Remove it from the tracking since it is no longer needed for (1) and failed shard in (2) will go through
+                // a new allocation. For (3) the new move should be accounted for. For both (2) and (3), we could technically
+                // take the load off the source node (if it is relocation). But skip for now as they are very much edge cases.
+                shardsStartedByAllocate.remove(shardForSimulation);
             }
         }
 
@@ -328,6 +381,8 @@ public class DesiredBalanceComputer {
                         }
                         clusterInfoSimulator.simulateShardStarted(shardRouting);
                         routingNodes.startShard(shardRouting, changes, 0L);
+                        // TODO: may need to cap the map size?
+                        shardsStartedByAllocate.put(ShardForSimulation.from(shardRouting), shardRouting);
                     }
                 }
             }
@@ -464,6 +519,28 @@ public class DesiredBalanceComputer {
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
+    }
+
+    // A pared down record of ShardRouting because the later is not directly comparable for simulation purpose due to
+    // different allocationId, i.e. the same shard is started multiple times for simulation.
+    private record ShardForSimulation(
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        String relocationId
+    ) {
+        static ShardForSimulation from(ShardRouting shardRouting) {
+            return new ShardForSimulation(
+                shardRouting.shardId(),
+                shardRouting.currentNodeId(),
+                shardRouting.relocatingNodeId(),
+                shardRouting.primary(),
+                shardRouting.state(),
+                shardRouting.allocationId().getRelocationId()
+            );
+        }
     }
 
     // visible for testing

@@ -26,7 +26,7 @@ For the most up-to-date API details, refer to [Index APIs](https://www.elastic.c
 
 ## {{api-prereq-title}} [indices-create-index-from-source-api-prereqs]
 
-* If the {{es}} {{security-features}} are enabled, you must have the `manage` [index privilege](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/elasticsearch-privileges.md#privileges-list-indices) for the index.
+* If the {{es}} {{security-features}} are enabled, you must have the `manage` [index privilege](/reference/elasticsearch/security-privileges.md#privileges-list-indices) for the index.
 
 
 ## {{api-description-title}} [indices-create-index-from-source-api-desc]

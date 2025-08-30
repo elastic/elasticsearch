@@ -31,7 +31,7 @@ Certain audit events require the `security_config_change` event type to log the 
 $$$event-access-denied$$$
 
 `access_denied`
-:   Logged when an authenticated user attempts to execute an action they do not have the necessary [privilege](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/elasticsearch-privileges.md) to perform.
+:   Logged when an authenticated user attempts to execute an action they do not have the necessary [privilege](/reference/elasticsearch/security-privileges.md) to perform.
 
     ::::{dropdown} Example
     ```js
@@ -510,7 +510,7 @@ $$$event-realm-auth-failed$$$
 $$$event-runas-denied$$$
 
 `run_as_denied`
-:   Logged when an authenticated user attempts to [run as](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/submitting-requests-on-behalf-of-other-users.md) another user that they do not have the necessary [privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/elasticsearch-privileges.md) to do so.
+:   Logged when an authenticated user attempts to [run as](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/submitting-requests-on-behalf-of-other-users.md) another user that they do not have the necessary [privileges](/reference/elasticsearch/security-privileges.md) to do so.
 
     ::::{dropdown} Example
     ```js

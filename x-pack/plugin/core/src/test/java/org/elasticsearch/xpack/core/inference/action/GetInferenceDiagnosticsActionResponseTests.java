@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.apache.http.pool.PoolStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,7 +37,13 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractWireSeri
         var poolStats = new PoolStats(1, 2, 3, 4);
         var entity = new GetInferenceDiagnosticsAction.Response(
             ClusterName.DEFAULT,
-            List.of(new GetInferenceDiagnosticsAction.NodeResponse(node, poolStats)),
+            List.of(
+                new GetInferenceDiagnosticsAction.NodeResponse(
+                    node,
+                    poolStats,
+                    new GetInferenceDiagnosticsActionNodeResponseTests.TestStats(5)
+                )
+            ),
             List.of()
         );
 
@@ -46,7 +53,7 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractWireSeri
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"id":{"connection_pool_stats":{"leased_connections":1,"pending_connections":2,"available_connections":3,""" + """
-            "max_connections":4}}}"""));
+            "max_connections":4},"inference_endpoint_registry":{"count":5}}}"""));
     }
 
     @Override
@@ -66,5 +73,10 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractWireSeri
             instance.getNodes().subList(1, instance.getNodes().size()),
             List.of()
         );
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return GetInferenceDiagnosticsActionNodeResponseTests.registryWithTestStats();
     }
 }

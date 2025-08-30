@@ -25,7 +25,6 @@ import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,7 +41,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
 import java.io.IOException;
@@ -79,7 +78,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
     private static final String STREAMING_TASK_ACTION = "xpack/inference/streaming_inference[n]";
     private final XPackLicenseState licenseState;
-    private final ModelRegistry modelRegistry;
+    private final InferenceEndpointRegistry endpointRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
     private final StreamingTaskManager streamingTaskManager;
@@ -94,7 +93,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         TransportService transportService,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
-        ModelRegistry modelRegistry,
+        InferenceEndpointRegistry endpointRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
@@ -105,7 +104,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     ) {
         super(inferenceActionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseState = licenseState;
-        this.modelRegistry = modelRegistry;
+        this.endpointRegistry = endpointRegistry;
         this.serviceRegistry = serviceRegistry;
         this.inferenceStats = inferenceStats;
         this.streamingTaskManager = streamingTaskManager;
@@ -116,9 +115,9 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         this.random = Randomness.get();
     }
 
-    protected abstract boolean isInvalidTaskTypeForInferenceEndpoint(Request request, UnparsedModel unparsedModel);
+    protected abstract boolean isInvalidTaskTypeForInferenceEndpoint(Request request, Model model);
 
-    protected abstract ElasticsearchStatusException createInvalidTaskTypeException(Request request, UnparsedModel unparsedModel);
+    protected abstract ElasticsearchStatusException createInvalidTaskTypeException(Request request, Model model);
 
     protected abstract void doInference(
         Model model,
@@ -136,13 +135,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
         var timer = InferenceTimer.start();
 
-        var getModelListener = ActionListener.wrap((UnparsedModel unparsedModel) -> {
-            var serviceName = unparsedModel.service();
+        var getModelListener = ActionListener.wrap((Model model) -> {
+            var serviceName = model.getConfigurations().getService();
 
             try {
-                validateRequest(request, unparsedModel);
+                validateRequest(request, model);
             } catch (Exception e) {
-                recordRequestDurationMetrics(unparsedModel, timer, e);
+                recordRequestDurationMetrics(model, timer, e);
                 listener.onFailure(e);
                 return;
             }
@@ -162,15 +161,9 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
             var service = serviceRegistry.getService(serviceName).get();
             var localNodeId = nodeClient.getLocalNodeId();
-            var routingDecision = determineRouting(serviceName, request, unparsedModel, localNodeId);
+            var routingDecision = determineRouting(serviceName, request, model.getTaskType(), localNodeId);
 
             if (routingDecision.currentNodeShouldHandleRequest()) {
-                var model = service.parsePersistedConfigWithSecrets(
-                    unparsedModel.inferenceEntityId(),
-                    unparsedModel.taskType(),
-                    unparsedModel.settings(),
-                    unparsedModel.secrets()
-                );
                 inferOnServiceWithMetrics(model, request, service, timer, localNodeId, listener);
             } else {
                 // Reroute request
@@ -186,28 +179,23 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             listener.onFailure(e);
         });
 
-        modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
+        endpointRegistry.getEndpoint(request.getInferenceEntityId(), getModelListener);
     }
 
-    private void validateRequest(Request request, UnparsedModel unparsedModel) {
-        var serviceName = unparsedModel.service();
+    private void validateRequest(Request request, Model model) {
+        var serviceName = model.getConfigurations().getService();
         var requestTaskType = request.getTaskType();
         var service = serviceRegistry.getService(serviceName);
 
         validationHelper(service::isEmpty, () -> unknownServiceException(serviceName, request.getInferenceEntityId()));
         validationHelper(
-            () -> request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false,
-            () -> requestModelTaskTypeMismatchException(requestTaskType, unparsedModel.taskType())
+            () -> request.getTaskType().isAnyOrSame(model.getTaskType()) == false,
+            () -> requestModelTaskTypeMismatchException(requestTaskType, model.getTaskType())
         );
-        validationHelper(
-            () -> isInvalidTaskTypeForInferenceEndpoint(request, unparsedModel),
-            () -> createInvalidTaskTypeException(request, unparsedModel)
-        );
+        validationHelper(() -> isInvalidTaskTypeForInferenceEndpoint(request, model), () -> createInvalidTaskTypeException(request, model));
     }
 
-    private NodeRoutingDecision determineRouting(String serviceName, Request request, UnparsedModel unparsedModel, String localNodeId) {
-        var modelTaskType = unparsedModel.taskType();
-
+    private NodeRoutingDecision determineRouting(String serviceName, Request request, TaskType modelTaskType, String localNodeId) {
         // Rerouting not supported or request was already rerouted
         if (inferenceServiceRateLimitCalculator.isTaskTypeReroutingSupported(serviceName, modelTaskType) == false
             || request.hasBeenRerouted()) {
@@ -274,7 +262,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         );
     }
 
-    private void recordRequestDurationMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
+    private void recordRequestDurationMetrics(Model model, InferenceTimer timer, @Nullable Throwable t) {
         Map<String, Object> metricAttributes = new HashMap<>();
         metricAttributes.putAll(modelAttributes(model));
         metricAttributes.putAll(responseAttributes(unwrapCause(t)));

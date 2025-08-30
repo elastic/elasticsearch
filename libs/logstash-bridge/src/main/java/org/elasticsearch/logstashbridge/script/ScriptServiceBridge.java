@@ -8,8 +8,10 @@
  */
 package org.elasticsearch.logstashbridge.script;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.ingest.common.ProcessorsWhitelistExtension;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
@@ -68,9 +70,8 @@ public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptSer
             MustacheScriptEngine.NAME,
             new MustacheScriptEngine(settings)
         );
-        @FixForMultiProject // Should this be non-null?
-        final ProjectResolver projectResolver = null;
-        return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider, projectResolver);
+
+        return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider, ProjectIdResolverBridge.INSTANCE);
     }
 
     private static List<Whitelist> getPainlessBaseWhiteList() {
@@ -111,5 +112,28 @@ public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptSer
     @Override
     public void close() throws IOException {
         this.internalDelegate.close();
+    }
+
+    @FixForMultiProject
+    // Logstash resolves and runs ingest pipelines based on the datastream.
+    // How should ProjectIdResolverBridge behave in this case?
+    // In other words, it looks we need to find a way to figure out which ingest pipeline belongs to which project.
+    static class ProjectIdResolverBridge implements ProjectResolver {
+
+        public static final ProjectIdResolverBridge INSTANCE = new ProjectIdResolverBridge();
+
+        @Override
+        public ProjectId getProjectId() {
+            return ProjectId.DEFAULT;
+        }
+
+        @Override
+        public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+            if (projectId.equals(ProjectId.DEFAULT)) {
+                body.run();
+            } else {
+                throw new IllegalArgumentException("Cannot execute on a project other than [" + ProjectId.DEFAULT + "]");
+            }
+        }
     }
 }

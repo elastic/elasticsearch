@@ -56,6 +56,9 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.GEO_POINT,
             DataType.CARTESIAN_SHAPE,
             DataType.GEO_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX,
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {

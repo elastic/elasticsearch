@@ -20,6 +20,12 @@
 | boolean | geo_point | | geo_point |
 | boolean | geo_shape | geo_shape | geo_shape |
 | boolean | geo_shape | | geo_shape |
+| boolean | geohash | geohash | geohash |
+| boolean | geohash | | geohash |
+| boolean | geohex | geohex | geohex |
+| boolean | geohex | | geohex |
+| boolean | geotile | geotile | geotile |
+| boolean | geotile | | geotile |
 | boolean | integer | integer | integer |
 | boolean | integer | | integer |
 | boolean | ip | ip | ip |

@@ -59,7 +59,10 @@ public class SampleTests extends AbstractAggregationTestCase {
                 MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO)
+                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+                MultiRowTestCaseSupplier.geohashCases(1, 1000),
+                MultiRowTestCaseSupplier.geotileCases(1, 1000),
+                MultiRowTestCaseSupplier.geohexCases(1, 1000)
             )
                 .flatMap(List::stream)
                 .map(fieldCaseSupplier -> makeSupplier(fieldCaseSupplier, limitCaseSupplier))

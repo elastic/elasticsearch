@@ -18,6 +18,9 @@ import java.net.URLClassLoader;
 import java.util.Locale;
 import java.util.TimeZone;
 
+import javax.xml.parsers.SAXParserFactory;
+
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
@@ -78,6 +81,13 @@ class JvmActions {
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void thread$$setDefaultUncaughtExceptionHandler() {
         Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void useJavaXmlParser() {
+        // java.xml is part of the jdk, but not a system module. this checks it's actually usable
+        // as it needs to read classes from the jdk which is not generally allowed
+        SAXParserFactory.newInstance();
     }
 
     private JvmActions() {}

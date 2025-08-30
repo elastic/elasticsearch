@@ -174,7 +174,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testVersionConstantPresent() {
-        Set<TransportVersion> ignore = Set.of(TransportVersions.ZERO, TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
+        Set<TransportVersion> ignore = Set.of(TransportVersion.zero(), TransportVersion.current(), TransportVersion.minimumCompatible());
         assertThat(TransportVersion.current(), sameInstance(TransportVersion.fromId(TransportVersion.current().id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {

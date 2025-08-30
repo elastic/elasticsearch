@@ -194,6 +194,6 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

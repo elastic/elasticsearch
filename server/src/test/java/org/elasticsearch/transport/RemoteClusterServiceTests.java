@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -1226,7 +1225,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             );
         }
 
-        AbstractScopedSettings service = new ClusterSettings(
+        ClusterSettings service = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(
                 Arrays.asList(SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS, RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE)

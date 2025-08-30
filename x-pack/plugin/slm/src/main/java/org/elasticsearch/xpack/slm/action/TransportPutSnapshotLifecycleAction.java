@@ -12,12 +12,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeProjectAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -42,9 +45,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeAction<
-    PutSnapshotLifecycleAction.Request,
-    AcknowledgedResponse> {
+public class TransportPutSnapshotLifecycleAction extends AcknowledgedTransportMasterNodeProjectAction<PutSnapshotLifecycleAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
 
@@ -53,7 +54,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             PutSnapshotLifecycleAction.NAME,
@@ -62,7 +64,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             PutSnapshotLifecycleAction.Request::new,
-            AcknowledgedResponse::readFrom,
+            projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
@@ -71,22 +73,25 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     protected void masterOperation(
         final Task task,
         final PutSnapshotLifecycleAction.Request request,
-        final ClusterState state,
+        final ProjectState projectState,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
-        SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
+        SnapshotLifecycleService.validateRepositoryExists(projectState.metadata(), request.getLifecycle().getRepository());
+        SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), projectState.cluster());
 
         // headers from the thread context stored by the AuthenticationService to be shared between the
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
+        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            projectState.cluster()
+        );
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
 
         submitUnbatchedTask(
             "put-snapshot-lifecycle-" + request.getLifecycleId(),
-            new UpdateSnapshotPolicyTask(request, listener, filteredHeaders)
+            new UpdateSnapshotPolicyTask(projectState.projectId(), request, listener, filteredHeaders)
         );
     }
 
@@ -95,15 +100,18 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
      * implementation, so that the execute() transformation can be reused for {@link ReservedSnapshotAction}
      */
     public static class UpdateSnapshotPolicyTask extends AckedClusterStateUpdateTask {
+        private final ProjectId projectId;
         private final PutSnapshotLifecycleAction.Request request;
         private final Map<String, String> filteredHeaders;
 
         UpdateSnapshotPolicyTask(
+            ProjectId projectId,
             PutSnapshotLifecycleAction.Request request,
             ActionListener<AcknowledgedResponse> listener,
             Map<String, String> filteredHeaders
         ) {
             super(request, listener);
+            this.projectId = projectId;
             this.request = request;
             this.filteredHeaders = filteredHeaders;
         }
@@ -112,17 +120,18 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
          * Used by the {@link ReservedClusterStateHandler} for SLM
          * {@link ReservedSnapshotAction}
          */
-        UpdateSnapshotPolicyTask(PutSnapshotLifecycleAction.Request request) {
+        UpdateSnapshotPolicyTask(ProjectId projectId, PutSnapshotLifecycleAction.Request request) {
             super(request, null);
+            this.projectId = projectId;
             this.request = request;
             this.filteredHeaders = Map.of();
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            final var project = currentState.metadata().getProject();
+            final var project = currentState.metadata().getProject(projectId);
             SnapshotLifecycleMetadata snapMeta = project.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
-            var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
+            var currentMode = LifecycleOperationMetadata.currentSLMMode(project);
             final SnapshotLifecyclePolicyMetadata existingPolicyMetadata = snapMeta.getSnapshotConfigurations()
                 .get(request.getLifecycleId());
 
@@ -158,7 +167,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutSnapshotLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutSnapshotLifecycleAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 

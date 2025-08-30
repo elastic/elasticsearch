@@ -140,6 +140,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexService.getIndexSettings()).thenReturn(indexSettings);
+        when(indexService.getMetadata()).thenReturn(indexMetadata);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(indexSettings.getIndexVersionCreated());

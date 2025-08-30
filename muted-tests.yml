@@ -393,12 +393,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
-- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
-  method: testLoadLongShuffledManySegments
-  issue: https://github.com/elastic/elasticsearch/issues/132258
-- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
-  method: testLoadLongManySegments
-  issue: https://github.com/elastic/elasticsearch/issues/132258
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437

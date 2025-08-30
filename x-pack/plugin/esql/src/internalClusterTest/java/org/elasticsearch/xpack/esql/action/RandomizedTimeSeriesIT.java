@@ -427,7 +427,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     public void testGaugeGroupByRandomAndRandomAgg() {
         // TODO: randomize window size as well!
         var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
-        var dimensionsStr = dimensions.isEmpty() ? "" : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+        var dimensionsStr = dimensions.isEmpty()
+            ? ""
+            : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
         var aggs = Agg.values();
         var metricName = ESTestCase.randomFrom(List.of("gaugel_hdd.bytes.used", "gauged_cpu.percent"));
         var selectedAggs = ESTestCase.randomSubsetOf(2, aggs);
@@ -472,7 +474,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     throw new AssertionError(
                         "Failed for aggregations:\n"
                             + selectedAggs
-                            + " with total dimensions for grouping: " + dimensions.size()
+                            + " with total dimensions for grouping: "
+                            + dimensions.size()
                             + " on metric "
                             + metricName
                             + "\nWanted val: "

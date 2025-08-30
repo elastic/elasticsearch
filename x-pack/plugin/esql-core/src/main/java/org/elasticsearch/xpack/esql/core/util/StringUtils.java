@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -412,6 +413,22 @@ public final class StringUtils {
     public static BytesRef parseIP(String string) {
         var inetAddress = InetAddresses.forString(string);
         return new BytesRef(InetAddressPoint.encode(inetAddress));
+    }
+
+    // Temporary toy implementation - parses pairs like "123-130".
+    // TODO:
+    // 1) decide on the syntax. We have previous existing examples (decades.csv) which looks like
+    // {"gte": "1900-01-01"\, "lt":"1910-01-01"}
+    // 2) Error handling?
+    public static BytesRef parseDateRange(String s) {
+        var nums = s.split("-");
+        assert nums.length == 2 : "Expected two numbers in the date range string: " + s;
+        var from = Long.parseLong(nums[0].trim());
+        var to = Long.parseLong(nums[1].trim());
+        byte[] arr = new byte[2 * Long.BYTES];
+        ByteUtils.writeLongBE(from, arr, 0);
+        ByteUtils.writeLongBE(to, arr, Long.BYTES);
+        return new BytesRef(arr);
     }
 
     public static String ordinal(int i) {

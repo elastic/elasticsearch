@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -136,6 +137,10 @@ public final class ResponseValueUtils {
                 ((BytesRefBlock) block).getBytesRef(offset, scratch)
             );
             case AGGREGATE_METRIC_DOUBLE -> aggregateMetricDoubleBlockToString((AggregateMetricDoubleBlock) block, offset);
+            case DATE_RANGE -> {
+                BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
+                yield EsqlDataTypeConverter.dateRangeToString(val);
+            }
             case UNSUPPORTED -> (String) null;
             case SOURCE -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);

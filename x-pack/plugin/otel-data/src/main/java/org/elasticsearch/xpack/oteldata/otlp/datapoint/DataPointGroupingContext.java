@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ScopeTsidFunnel;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -68,12 +68,14 @@ public class DataPointGroupingContext {
                             scopeGroup.addDataPoints(metric, metric.getGauge().getDataPointsList(), DataPoint.Number::new);
                             break;
                         case EXPONENTIAL_HISTOGRAM:
-                            ignoredDataPoints += metric.getExponentialHistogram().getDataPointsCount();
-                            ignoredDataPointMessages.add("Exponential histogram is not supported yet. Dropping " + metric.getName());
+                            scopeGroup.addDataPoints(
+                                metric,
+                                metric.getExponentialHistogram().getDataPointsList(),
+                                DataPoint.ExponentialHistogram::new
+                            );
                             break;
                         case HISTOGRAM:
-                            ignoredDataPoints += metric.getHistogram().getDataPointsCount();
-                            ignoredDataPointMessages.add("Histogram is not supported yet. Dropping " + metric.getName());
+                            scopeGroup.addDataPoints(metric, metric.getHistogram().getDataPointsList(), DataPoint.Histogram::new);
                             break;
                         case SUMMARY:
                             ignoredDataPoints += metric.getSummary().getDataPointsList().size();

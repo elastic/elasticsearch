@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ReplacedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -371,28 +372,26 @@ public class IndicesAndAliasesResolver {
                 if (indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable crossProjectSearchCapableRequest
                     && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
                     assert crossProjectSearchCapableRequest.allowsRemoteIndices();
-                    // TODO ideally, we'd consolidate this with `resolveIndexAbstractionsCrossProject`
-                    var replaced = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
+                    var crossProjectReplacedIndexExpressions = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
                         remoteClusterResolver,
                         targetProjects,
                         crossProjectSearchCapableRequest
                     );
-                    if (replaced != null) {
+                    if (crossProjectReplacedIndexExpressions != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
-                        // should re-use resolveIndexAbstractions here instead, then reconcile with `replaced`
-                        Map<String, IndicesRequest.ReplacedIndexExpression> replacedExpressions = indexAbstractionResolver
-                            .resolveIndexAbstractionsCrossProject(
-                                replaced,
-                                indicesOptions,
+                        ReplacedIndexExpressions.CompleteReplacedIndexExpressions replacedExpressions = indexAbstractionResolver
+                            .resolveIndexAbstractions(
+                                crossProjectReplacedIndexExpressions.getLocalExpressions(),
+                                lenientIndicesOptions(indicesOptions),
                                 projectMetadata,
                                 authorizedIndices::all,
                                 authorizedIndices::check,
-                                indicesRequest.includeDataStreams()
+                                indicesRequest.includeDataStreams(),
+                                true
                             );
-                        crossProjectSearchCapableRequest.setReplacedIndexExpressions(
-                            new IndicesRequest.CrossProjectReplacedIndexExpressions(replacedExpressions)
-                        );
-                        crossProjectSearchCapableRequest.indices(IndicesRequest.ReplacedIndexExpression.toIndices(replacedExpressions));
+                        crossProjectReplacedIndexExpressions.replaceLocalExpressions(replacedExpressions);
+                        crossProjectSearchCapableRequest.setReplacedIndexExpressions(crossProjectReplacedIndexExpressions);
+                        crossProjectSearchCapableRequest.indices(crossProjectReplacedIndexExpressions.indices());
                         // TODO handle empty case by calling
                         // replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                         return remoteClusterResolver.splitLocalAndRemoteIndexNames(crossProjectSearchCapableRequest.indices());
@@ -419,7 +418,7 @@ public class IndicesAndAliasesResolver {
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                IndicesRequest.CompleteReplacedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
+                ReplacedIndexExpressions.CompleteReplacedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
                     indicesOptions,
                     projectMetadata,
@@ -500,6 +499,14 @@ public class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    // TODO defs does not belong here
+    private static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
+        return IndicesOptions.builder(indicesOptions)
+            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
+            .build();
     }
 
     /**

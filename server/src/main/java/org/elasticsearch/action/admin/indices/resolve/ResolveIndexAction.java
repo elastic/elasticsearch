@@ -12,15 +12,7 @@ package org.elasticsearch.action.admin.indices.resolve;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.action.ResponseWithReplaceableIndices;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -160,9 +152,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
-        public IndicesRequest setReplacedIndexExpressions(ReplacedIndexExpressions replacedIndexExpressions) {
+        public void setReplacedIndexExpressions(ReplacedIndexExpressions replacedIndexExpressions) {
             this.replacedIndexExpressions = replacedIndexExpressions;
-            return this;
         }
 
         @Override
@@ -430,7 +421,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject, ResponseWithReplaceableIndices {
+    public static class Response extends ActionResponse implements ToXContentObject, ResponseWithReplacedIndexExpressions {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
@@ -440,7 +431,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final List<ResolvedAlias> aliases;
         private final List<ResolvedDataStream> dataStreams;
         @Nullable
-        private final Map<String, IndicesRequest.ReplacedIndexExpression> resolvedExpressionMap;
+        private final Map<String, ReplacedIndexExpression> resolvedExpressionMap;
 
         public Response(List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
             this(indices, aliases, dataStreams, null);
@@ -450,7 +441,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams,
-            Map<String, IndicesRequest.ReplacedIndexExpression> resolvedExpressionMap
+            Map<String, ReplacedIndexExpression> resolvedExpressionMap
         ) {
             this.indices = indices;
             this.aliases = aliases;
@@ -466,7 +457,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (in.readBoolean() == false) {
                 this.resolvedExpressionMap = null;
             } else {
-                this.resolvedExpressionMap = in.readMap(StreamInput::readString, IndicesRequest.ReplacedIndexExpression::new);
+                this.resolvedExpressionMap = in.readMap(StreamInput::readString, ReplacedIndexExpression::new);
             }
         }
 
@@ -522,8 +513,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         // Note: this probably shouldn't return IndicesRequest.ReplaceableIndices but merely an "exists" map that tracks
         // for each expression if it resolved to _something_ since that's the only thing we need to generic fan-out error handling
         @Override
-        public IndicesRequest.ReplacedIndexExpressions getReplaceableIndices() {
-            return resolvedExpressionMap == null ? null : new IndicesRequest.CompleteReplacedIndexExpressions(resolvedExpressionMap);
+        public ReplacedIndexExpressions getReplaceableIndices() {
+            return resolvedExpressionMap == null
+                ? null
+                : new ReplacedIndexExpressions.CompleteReplacedIndexExpressions(resolvedExpressionMap);
         }
     }
 

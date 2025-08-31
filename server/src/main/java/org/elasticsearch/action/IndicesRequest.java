@@ -14,22 +14,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-import static org.elasticsearch.action.IndicesRequest.ReplacedIndexExpression.hasCanonicalExpressionForOrigin;
+import static org.elasticsearch.action.ReplacedIndexExpressions.CrossProjectReplacedIndexExpressions.hasCanonicalExpressionForOrigin;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -59,61 +54,17 @@ public interface IndicesRequest {
         return false;
     }
 
-    interface ReplacedIndexExpressions {
-        String[] indices();
-
-        default List<String> indicesAsList() {
-            return List.of(indices());
-        }
-
-        @Nullable
-        default Map<String, ReplacedIndexExpression> asMap() {
-            return null;
-        }
-    }
-
-    record DummyReplacedIndexExpressions(String[] indices) implements ReplacedIndexExpressions {}
-
-    record CompleteReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap)
-        implements
-            ReplacedIndexExpressions {
-        @Override
-        public String[] indices() {
-            return ReplacedIndexExpression.toIndices(replacedExpressionMap);
-        }
-
-        @Override
-        public Map<String, ReplacedIndexExpression> asMap() {
-            return replacedExpressionMap;
-        }
-    }
-
-    record CrossProjectReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap)
-        implements
-            ReplacedIndexExpressions {
-        @Override
-        public String[] indices() {
-            return ReplacedIndexExpression.toIndices(replacedExpressionMap);
-        }
-
-        @Override
-        public Map<String, ReplacedIndexExpression> asMap() {
-            return replacedExpressionMap;
-        }
-    }
-
     interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.
          */
         IndicesRequest indices(String... indices);
 
-        default IndicesRequest setReplacedIndexExpressions(ReplacedIndexExpressions replacedIndexExpressions) {
-            return this;
-        }
+        default void setReplacedIndexExpressions(ReplacedIndexExpressions replacedIndexExpressions) {}
 
+        @Nullable
         default ReplacedIndexExpressions getReplacedIndexExpressions() {
-            return new DummyReplacedIndexExpressions(indices());
+            return null;
         }
 
         /**
@@ -131,7 +82,7 @@ public interface IndicesRequest {
         }
 
         // TODO probably makes more sense on a service class as opposed to the request itself
-        default <T extends ResponseWithReplaceableIndices> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {}
+        default <T extends ResponseWithReplacedIndexExpressions> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {}
     }
 
     interface CrossProjectSearchCapable extends Replaceable {
@@ -146,11 +97,11 @@ public interface IndicesRequest {
         }
 
         default boolean crossProjectMode() {
-            return getReplacedIndexExpressions() instanceof CrossProjectReplacedIndexExpressions;
+            return getReplacedIndexExpressions() instanceof ReplacedIndexExpressions.CrossProjectReplacedIndexExpressions;
         }
 
         @Override
-        default <T extends ResponseWithReplaceableIndices> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {
+        default <T extends ResponseWithReplacedIndexExpressions> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {
             logger.info("Checking if we should throw in flat world for [{}]", getReplacedIndexExpressions());
             // No CPS nothing to do
             if (false == crossProjectMode()) {
@@ -171,7 +122,7 @@ public interface IndicesRequest {
                 String original = replacedIndexExpression.original();
                 List<ElasticsearchException> exceptions = new ArrayList<>();
                 boolean exists = hasCanonicalExpressionForOrigin(replacedIndexExpression.replacedBy())
-                    && replacedIndexExpression.existsAndVisible;
+                    && replacedIndexExpression.existsAndVisible();
                 if (exists) {
                     logger.info("Local cluster has canonical expression for [{}], skipping remote existence check", original);
                     continue;
@@ -185,12 +136,12 @@ public interface IndicesRequest {
                     Map<String, ReplacedIndexExpression> resolved = remoteResponse.getReplaceableIndices().asMap();
                     assert resolved != null;
                     var r = resolved.get(original);
-                    if (r != null && r.existsAndVisible && resolved.get(original).replacedBy().isEmpty() == false) {
+                    if (r != null && r.existsAndVisible() && resolved.get(original).replacedBy().isEmpty() == false) {
                         logger.info("Remote cluster has resolved entries for [{}], skipping further remote existence check", original);
                         exists = true;
                         break;
                     } else if (r != null && r.authorizationError() != null) {
-                        assert r.authorized == false : "we should never get an error if we are authorized";
+                        assert r.authorized() == false : "we should never get an error if we are authorized";
                         exceptions.add(resolved.get(original).authorizationError());
                     }
                 }
@@ -241,121 +192,6 @@ public interface IndicesRequest {
          * remote cluster requests,
          */
         Collection<ShardId> shards();
-    }
-
-    final class ReplacedIndexExpression implements Writeable {
-        private final String original;
-        private final List<String> replacedBy;
-        private final boolean authorized;
-        private final boolean existsAndVisible;
-        @Nullable
-        private ElasticsearchException authorizationError;
-
-        public ReplacedIndexExpression(StreamInput in) throws IOException {
-            this.original = in.readString();
-            this.replacedBy = in.readCollectionAsList(StreamInput::readString);
-            this.authorized = in.readBoolean();
-            this.existsAndVisible = in.readBoolean();
-            this.authorizationError = ElasticsearchException.readException(in);
-        }
-
-        public ReplacedIndexExpression(
-            String original,
-            List<String> replacedBy,
-            boolean authorized,
-            boolean existsAndVisible,
-            @Nullable ElasticsearchException exception
-        ) {
-            this.original = original;
-            this.replacedBy = replacedBy;
-            this.authorized = authorized;
-            this.existsAndVisible = existsAndVisible;
-            this.authorizationError = exception;
-        }
-
-        public static String[] toIndices(Map<String, ReplacedIndexExpression> replacedExpressions) {
-            return replacedExpressions.values()
-                .stream()
-                .flatMap(indexExpression -> indexExpression.replacedBy().stream())
-                .toArray(String[]::new);
-        }
-
-        public ReplacedIndexExpression(String original, List<String> replacedBy) {
-            this(original, replacedBy, true, true, null);
-        }
-
-        public void setAuthorizationError(ElasticsearchException error) {
-            assert authorized == false : "we should never set an error if we are authorized";
-            this.authorizationError = error;
-        }
-
-        // TODO does not belong here
-        public static boolean hasCanonicalExpressionForOrigin(List<String> replacedBy) {
-            return replacedBy.stream().anyMatch(e -> false == CrossProjectUtils.isQualifiedIndexExpression(e));
-        }
-
-        public String original() {
-            return original;
-        }
-
-        public List<String> replacedBy() {
-            return replacedBy;
-        }
-
-        public boolean authorized() {
-            return authorized;
-        }
-
-        public boolean existsAndVisible() {
-            return existsAndVisible;
-        }
-
-        @Nullable
-        public ElasticsearchException authorizationError() {
-            return authorizationError;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            ReplacedIndexExpression that = (ReplacedIndexExpression) o;
-            return authorized == that.authorized
-                && existsAndVisible == that.existsAndVisible
-                && Objects.equals(original, that.original)
-                && Objects.equals(replacedBy, that.replacedBy)
-                && Objects.equals(authorizationError, that.authorizationError);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(original, replacedBy, authorized, existsAndVisible, authorizationError);
-        }
-
-        @Override
-        public String toString() {
-            return "ReplacedExpression{"
-                + "original='"
-                + original
-                + '\''
-                + ", replacedBy="
-                + replacedBy
-                + ", authorized="
-                + authorized
-                + ", existsAndVisible="
-                + existsAndVisible
-                + ", authorizationError="
-                + authorizationError
-                + '}';
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(original);
-            out.writeStringCollection(replacedBy);
-            out.writeBoolean(authorized);
-            out.writeBoolean(existsAndVisible);
-            ElasticsearchException.writeException(authorizationError, out);
-        }
     }
 
 }

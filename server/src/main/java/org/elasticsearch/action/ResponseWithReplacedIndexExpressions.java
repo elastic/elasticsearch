@@ -9,6 +9,6 @@
 
 package org.elasticsearch.action;
 
-public interface ResponseWithReplaceableIndices {
-    IndicesRequest.ReplacedIndexExpressions getReplaceableIndices();
+public interface ResponseWithReplacedIndexExpressions {
+    ReplacedIndexExpressions getReplaceableIndices();
 }

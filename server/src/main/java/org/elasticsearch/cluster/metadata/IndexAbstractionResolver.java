@@ -11,8 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.CrossProjectUtils;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ReplacedIndexExpression;
+import org.elasticsearch.action.ReplacedIndexExpressions;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.UnsupportedSelectorException;
@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.IndicesRequest.ReplacedIndexExpression.hasCanonicalExpressionForOrigin;
+import static org.elasticsearch.action.ReplacedIndexExpressions.CrossProjectReplacedIndexExpressions.hasCanonicalExpressionForOrigin;
 
 public class IndexAbstractionResolver {
 
@@ -45,8 +45,9 @@ public class IndexAbstractionResolver {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
-    public Map<String, IndicesRequest.ReplacedIndexExpression> resolveIndexAbstractionsCrossProject(
-        Map<String, IndicesRequest.ReplacedIndexExpression> rewrittenExpressions,
+    // TODO delete
+    public Map<String, ReplacedIndexExpression> resolveIndexAbstractionsCrossProject(
+        Map<String, ReplacedIndexExpression> rewrittenExpressions,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
         Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
@@ -55,8 +56,8 @@ public class IndexAbstractionResolver {
     ) {
         // TODO handle exclusions
         // TODO consolidate with `resolveIndexAbstractions` somehow, maybe?
-        Map<String, IndicesRequest.ReplacedIndexExpression> finalReplacedExpressions = new LinkedHashMap<>();
-        for (IndicesRequest.ReplacedIndexExpression replacedIndexExpression : rewrittenExpressions.values()) {
+        Map<String, ReplacedIndexExpression> finalReplacedExpressions = new LinkedHashMap<>();
+        for (ReplacedIndexExpression replacedIndexExpression : rewrittenExpressions.values()) {
             // no expressions targeting origin, nothing to rewrite
             if (false == hasCanonicalExpressionForOrigin(replacedIndexExpression.replacedBy())) {
                 logger.info(
@@ -132,18 +133,15 @@ public class IndexAbstractionResolver {
         return finalReplacedExpressions;
     }
 
-    private static IndicesRequest.ReplacedIndexExpression replaceOriginIndices(
-        IndicesRequest.ReplacedIndexExpression rewrittenExpression,
-        Set<String> resolvedIndices
-    ) {
+    private static ReplacedIndexExpression replaceOriginIndices(ReplacedIndexExpression rewrittenExpression, Set<String> resolvedIndices) {
         logger.info("Replacing origin indices for expression [{}] with [{}]", rewrittenExpression, resolvedIndices);
         List<String> qualifiedExpressions = rewrittenExpression.replacedBy()
             .stream()
-            .filter(CrossProjectUtils::isQualifiedIndexExpression)
+            .filter(ReplacedIndexExpressions.CrossProjectReplacedIndexExpressions::isQualifiedIndexExpression)
             .toList();
         List<String> combined = new ArrayList<>(resolvedIndices);
         combined.addAll(qualifiedExpressions);
-        var e = new IndicesRequest.ReplacedIndexExpression(rewrittenExpression.original(), combined);
+        var e = new ReplacedIndexExpression(rewrittenExpression.original(), combined);
         logger.info("Replaced origin indices for expression [{}] with [{}]", rewrittenExpression, e);
         return e;
     }
@@ -168,7 +166,7 @@ public class IndexAbstractionResolver {
             );
     }
 
-    public IndicesRequest.CompleteReplacedIndexExpressions resolveIndexAbstractions(
+    public ReplacedIndexExpressions.CompleteReplacedIndexExpressions resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
@@ -177,7 +175,7 @@ public class IndexAbstractionResolver {
         boolean includeDataStreams,
         boolean ignoreUnavailableBwcBehavior
     ) {
-        final Map<String, IndicesRequest.ReplacedIndexExpression> replaced = new LinkedHashMap<>();
+        final Map<String, ReplacedIndexExpression> replaced = new LinkedHashMap<>();
 
         boolean wildcardSeen = false;
 
@@ -232,7 +230,7 @@ public class IndexAbstractionResolver {
 
                 if (minus) {
                     if (resolvedIndices.isEmpty() == false) {
-                        for (IndicesRequest.ReplacedIndexExpression prior : replaced.values()) {
+                        for (ReplacedIndexExpression prior : replaced.values()) {
                             if (prior.replacedBy().isEmpty()) {
                                 continue;
                             }
@@ -243,13 +241,7 @@ public class IndexAbstractionResolver {
                     resolvedForThisInput.addAll(resolvedIndices);
                     replaced.put(
                         originalIndexExpression,
-                        new IndicesRequest.ReplacedIndexExpression(
-                            originalIndexExpression,
-                            new ArrayList<>(resolvedForThisInput),
-                            true,
-                            true,
-                            null
-                        )
+                        new ReplacedIndexExpression(originalIndexExpression, new ArrayList<>(resolvedForThisInput), true, true, null)
                     );
                 }
             } else {
@@ -258,7 +250,7 @@ public class IndexAbstractionResolver {
 
                 if (minus) {
                     if (resolvedIndices.isEmpty() == false) {
-                        for (IndicesRequest.ReplacedIndexExpression prior : replaced.values()) {
+                        for (ReplacedIndexExpression prior : replaced.values()) {
                             if (prior.replacedBy().isEmpty()) {
                                 continue;
                             }
@@ -275,7 +267,7 @@ public class IndexAbstractionResolver {
                     }
                     replaced.put(
                         originalIndexExpression,
-                        new IndicesRequest.ReplacedIndexExpression(
+                        new ReplacedIndexExpression(
                             originalIndexExpression,
                             new ArrayList<>(resolvedForThisInput),
                             authorized,
@@ -287,7 +279,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        return new IndicesRequest.CompleteReplacedIndexExpressions(replaced);
+        return new ReplacedIndexExpressions.CompleteReplacedIndexExpressions(replaced);
     }
 
     public List<String> resolveIndexAbstractions(

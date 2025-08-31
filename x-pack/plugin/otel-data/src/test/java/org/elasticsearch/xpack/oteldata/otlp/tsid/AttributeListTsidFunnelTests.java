@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.oteldata.otlp.tsid;
 
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValueList;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AttributeListTsidFunnelTests extends ESTestCase {
 
@@ -54,6 +56,18 @@ public class AttributeListTsidFunnelTests extends ESTestCase {
         plainBuilder.addLongDimension("attributes.nested.int", 42);
         plainBuilder.addStringDimension("attributes.foo", "bar");
         assertEquals(plainBuilder.hash(), funnelBuilder.hash());
+    }
+
+    public void testIgnoredAttributes() {
+        funnel.add(
+            List.of(
+                keyValue(TargetIndex.ELASTICSEARCH_INDEX, "index"),
+                keyValue(TargetIndex.DATA_STREAM_DATASET, "dataset"),
+                keyValue(TargetIndex.DATA_STREAM_NAMESPACE, "namespace")
+            ),
+            funnelBuilder
+        );
+        assertThat(funnelBuilder.size(), equalTo(0));
     }
 
 }

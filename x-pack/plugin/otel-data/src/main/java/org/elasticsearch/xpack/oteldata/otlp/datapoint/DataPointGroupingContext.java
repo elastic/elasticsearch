@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
@@ -160,17 +161,33 @@ public class DataPointGroupingContext {
     }
 
     class ScopeGroup {
+        private static final String RECEIVER = "/receiver/";
+        private static final String TYPE_METRICS = "metrics";
+
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
         private final ByteString scopeSchemaUrl;
+        @Nullable
+        private final String receiverName;
         // index -> timestamp -> dataPointGroupHash -> DataPointGroup
-        private final Map<String, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
+        private final Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
 
         ScopeGroup(ResourceGroup resourceGroup, InstrumentationScope scope, ByteString scopeSchemaUrl) {
             this.resourceGroup = resourceGroup;
             this.scope = scope;
             this.scopeSchemaUrl = scopeSchemaUrl;
             this.dataPointGroupsByIndexAndTimestamp = new HashMap<>();
+            this.receiverName = extractReceiverName(scope);
+        }
+
+        private @Nullable String extractReceiverName(InstrumentationScope scope) {
+            String scopeName = scope.getName();
+            int indexOfReceiver = scopeName.indexOf(RECEIVER);
+            if (indexOfReceiver >= 0) {
+                int beginIndex = indexOfReceiver + RECEIVER.length();
+                return scopeName.substring(beginIndex, scopeName.indexOf('/', beginIndex));
+            }
+            return null;
         }
 
         public <T> void addDataPoints(Metric metric, List<T> dataPoints, BiFunction<T, Metric, DataPoint> createDataPoint) {
@@ -194,8 +211,13 @@ public class DataPointGroupingContext {
             Hash128 dataPointGroupHash = dataPointGroupTsidBuilder.hash();
             // in addition to the fields that go into the _tsid, we also need to group by timestamp and start timestamp
             Hash128 timestamp = new Hash128(dataPoint.getTimestampUnixNano(), dataPoint.getStartTimestampUnixNano());
-            // TODO determine based on attributes and scope name
-            String targetIndex = "metrics-generic.otel-default";
+            TargetIndex targetIndex = TargetIndex.route(
+                TYPE_METRICS,
+                dataPoint.getAttributes(),
+                receiverName,
+                scope.getAttributesList(),
+                resourceGroup.resource.getAttributesList()
+            );
             var dataPointGroupsByTimestamp = dataPointGroupsByIndexAndTimestamp.computeIfAbsent(targetIndex, k -> new HashMap<>());
             var dataPointGroups = dataPointGroupsByTimestamp.computeIfAbsent(timestamp, k -> new HashMap<>());
             DataPointGroup dataPointGroup = dataPointGroups.get(dataPointGroupHash);
@@ -234,7 +256,7 @@ public class DataPointGroupingContext {
         private final List<KeyValue> dataPointAttributes;
         private final String unit;
         private final List<DataPoint> dataPoints;
-        private final String targetIndex;
+        private final TargetIndex targetIndex;
         private String metricNamesHash;
 
         public DataPointGroup(
@@ -245,7 +267,7 @@ public class DataPointGroupingContext {
             List<KeyValue> dataPointAttributes,
             String unit,
             List<DataPoint> dataPoints,
-            String targetIndex
+            TargetIndex targetIndex
         ) {
             this.resource = resource;
             this.resourceSchemaUrl = resourceSchemaUrl;
@@ -309,7 +331,7 @@ public class DataPointGroupingContext {
             return dataPoints;
         }
 
-        public String targetIndex() {
+        public TargetIndex targetIndex() {
             return targetIndex;
         }
     }

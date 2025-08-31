@@ -380,7 +380,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeVInt(numCands);
             }
         }
-        out.writeOptionalFloat(visitPercentage);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
+            out.writeOptionalFloat(visitPercentage);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {

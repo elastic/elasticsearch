@@ -418,7 +418,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             vectorData,
             null,
             query.numCands(),
-            query.visitPercentage(),
+            null,
             null,
             null
         ).queryName(query.queryName()).boost(query.boost());
@@ -438,7 +438,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             vectorData,
             null,
             query.numCands(),
-            query.visitPercentage(),
+            null,
             null,
             null
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
@@ -459,7 +459,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             vectorData,
             null,
             query.numCands(),
-            query.visitPercentage(),
+            null,
             null,
             similarity
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
@@ -482,7 +482,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             vectorData,
             k,
             query.numCands(),
-            query.visitPercentage(),
+            null,
             null,
             query.getVectorSimilarity()
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());

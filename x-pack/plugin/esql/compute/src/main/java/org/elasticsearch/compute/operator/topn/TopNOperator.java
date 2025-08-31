@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -252,7 +251,6 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     public record TopNOperatorFactory(
-        IndexedByShardId<? extends RefCounted> refCounteds,
         int topCount,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
@@ -272,7 +270,6 @@ public class TopNOperator implements Operator, Accountable {
             return new TopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
-                refCounteds,
                 topCount,
                 elementTypes,
                 encoders,
@@ -297,7 +294,6 @@ public class TopNOperator implements Operator, Accountable {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
-    private final IndexedByShardId<? extends RefCounted> refCounteds;
     private final Queue inputQueue;
 
     private final int maxPageSize;
@@ -338,7 +334,6 @@ public class TopNOperator implements Operator, Accountable {
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
-        IndexedByShardId<? extends RefCounted> refCounteds,
         int topCount,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
@@ -346,7 +341,6 @@ public class TopNOperator implements Operator, Accountable {
         int maxPageSize
     ) {
         this.blockFactory = blockFactory;
-        this.refCounteds = refCounteds;
         this.breaker = breaker;
         this.maxPageSize = maxPageSize;
         this.elementTypes = elementTypes;
@@ -473,7 +467,6 @@ public class TopNOperator implements Operator, Accountable {
                     for (int b = 0; b < builders.length; b++) {
                         builders[b] = ResultBuilder.resultBuilderFor(
                             blockFactory,
-                            refCounteds,
                             elementTypes.get(b),
                             encoders.get(b).toUnsortable(),
                             channelInKey(sortOrders, b),
@@ -577,6 +570,7 @@ public class TopNOperator implements Operator, Accountable {
          */
         Releasables.closeExpectNoException(
             spare,
+            Releasables.wrap(encoders),
             inputQueue == null ? null : Releasables.wrap(inputQueue),
             output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
         );

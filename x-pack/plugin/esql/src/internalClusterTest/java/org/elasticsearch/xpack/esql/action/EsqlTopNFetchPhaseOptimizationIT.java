@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -23,10 +21,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +35,6 @@ import static org.hamcrest.Matchers.hasSize;
 public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase {
     private static final int SHARD_COUNT = 1;
 
-    @Before
     public void setupIndex() throws Exception {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
 
@@ -51,11 +48,10 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
         mapping.endObject();
         client().admin().indices().prepareCreate("test").setSettings(indexSettings(10, 0)).setMapping(mapping.endObject()).get();
 
-        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 1024; i++) {
-            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("read", i, "sorted", i * 2, "filtered", i * 3));
-        }
-        bulk.get();
+        var builders = IntStream.range(0, 1024)
+            .mapToObj(i -> prepareIndex("test").setId(Integer.toString(i)).setSource("read", i, "sorted", i * 2, "filtered", i * 3))
+            .toList();
+        indexRandom(true, builders);
     }
 
     @SuppressWarnings("unchecked")
@@ -81,6 +77,7 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
     }
 
     private void testLateMaterializationAfterReduceTopN(String query) throws Exception {
+        setupIndex();
         try (var result = sendQuery(query)) {
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));

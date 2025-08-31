@@ -14,6 +14,9 @@ import java.util.function.Function;
  * Ceci n'est pas une List (though it may be backed by one).
  * Using this interface instead of a list makes it explicit that the values are not necessarily continuous by index, especially after the
  * reduce-side top n operation has been run.
+ *
+ * When you see this class, it will usually be parameterized by {@link ShardContext}, its super classes, or one of its variants,
+ * e.g., {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig}.
  */
 public abstract class IndexedByShardId<T> {
     public abstract T get(int shardId);

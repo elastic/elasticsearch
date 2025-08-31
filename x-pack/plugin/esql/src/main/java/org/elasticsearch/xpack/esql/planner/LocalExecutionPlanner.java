@@ -53,6 +53,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
@@ -501,8 +502,9 @@ public class LocalExecutionPlanner {
                 case IP -> TopNEncoder.IP;
                 case TEXT, KEYWORD -> TopNEncoder.UTF8;
                 case VERSION -> TopNEncoder.VERSION;
+                case DOC_DATA_TYPE -> new DocVectorEncoder(context.shardContexts);
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
-                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
+                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
                     AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
@@ -532,14 +534,7 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
         return source.with(
-            new TopNOperatorFactory(
-                context.shardContexts,
-                limit,
-                asList(elementTypes),
-                asList(encoders),
-                orders,
-                context.pageSize(rowSize)
-            ),
+            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
             source.layout
         );
     }

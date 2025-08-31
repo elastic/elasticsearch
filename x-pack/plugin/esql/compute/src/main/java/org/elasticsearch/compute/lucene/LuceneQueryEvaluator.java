@@ -55,7 +55,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     private final LongObjectPagedHashMap<ShardState> perShardState;
 
     protected LuceneQueryEvaluator(BlockFactory blockFactory, IndexedByShardId<ShardConfig> shards) {
-        // assert shards != null && shards.isEmpty() == false : "LuceneQueryEvaluator requires shard information";
+        assert shards != null && shards.isEmpty() == false : "LuceneQueryEvaluator requires shard information";
         this.blockFactory = blockFactory;
         this.shards = shards;
         this.perShardState = new LongObjectPagedHashMap<>(10, blockFactory.bigArrays());

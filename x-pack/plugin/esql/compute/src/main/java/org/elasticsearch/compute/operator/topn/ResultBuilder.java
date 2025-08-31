@@ -11,8 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -42,7 +40,6 @@ interface ResultBuilder extends Releasable {
 
     static ResultBuilder resultBuilderFor(
         BlockFactory blockFactory,
-        IndexedByShardId<? extends RefCounted> refCounteds,
         ElementType elementType,
         TopNEncoder encoder,
         boolean inKey,
@@ -56,7 +53,7 @@ interface ResultBuilder extends Releasable {
             case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
-            case DOC -> new ResultBuilderForDoc(blockFactory, refCounteds, positions);
+            case DOC -> new ResultBuilderForDoc(blockFactory, (DocVectorEncoder) encoder, positions);
             case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
             default -> {
                 assert false : "Result builder for [" + elementType + "]";

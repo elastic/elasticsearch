@@ -144,7 +144,6 @@ public class TopNOperatorTests extends OperatorTestCase {
     @Override
     protected TopNOperator.TopNOperatorFactory simple(SimpleOptions options) {
         return new TopNOperator.TopNOperatorFactory(
-            AlwaysReferencedIndexedByShardId.INSTANCE,
             4,
             List.of(LONG),
             List.of(DEFAULT_UNSORTABLE),
@@ -226,7 +225,6 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext context = driverContext();
         try (
             TopNOperator op = new TopNOperator.TopNOperatorFactory(
-                AlwaysReferencedIndexedByShardId.INSTANCE,
                 topCount,
                 List.of(LONG),
                 List.of(DEFAULT_UNSORTABLE),
@@ -540,7 +538,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 continue;
             }
             elementTypes.add(e);
-            encoders.add(e == BYTES_REF ? UTF8 : DEFAULT_UNSORTABLE);
+            encoders.add(getEncoder(e));
             List<Object> eTop = new ArrayList<>();
             try (Block.Builder builder = e.newBlockBuilder(size, driverContext().blockFactory())) {
                 for (int i = 0; i < size; i++) {
@@ -565,7 +563,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         blockFactory,
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         topCount,
                         elementTypes,
                         encoders,
@@ -612,7 +609,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 continue;
             }
             elementTypes.add(e);
-            encoders.add(e == BYTES_REF ? UTF8 : DEFAULT_SORTABLE);
+            encoders.add(getEncoder(e));
             List<Object> eTop = new ArrayList<>();
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
                 for (int i = 0; i < rows; i++) {
@@ -655,7 +652,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         blockFactory,
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         topCount,
                         elementTypes,
                         encoders,
@@ -671,6 +667,14 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         assertMap(actualTop, matchesList(expectedTop));
         assertDriverContext(driverContext);
+    }
+
+    private static TopNEncoder getEncoder(ElementType elementType) {
+        return switch (elementType) {
+            case BYTES_REF -> UTF8;
+            case DOC -> new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE);
+            default -> DEFAULT_UNSORTABLE;
+        };
     }
 
     private List<Tuple<Long, Long>> topNTwoLongColumns(
@@ -714,7 +718,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        shardRefCounters,
                         limit,
                         sourceOperator.elementTypes(),
                         encoder,
@@ -757,7 +760,6 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testTopNManyDescriptionAndToString() {
         int fixedLength = between(1, 100);
         TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
-            AlwaysReferencedIndexedByShardId.INSTANCE,
             10,
             List.of(BYTES_REF, BYTES_REF),
             List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
@@ -1000,7 +1002,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         topCount,
                         List.of(blockType),
                         List.of(encoder),
@@ -1131,7 +1132,6 @@ public class TopNOperatorTests extends OperatorTestCase {
             new TopNOperator(
                 driverContext.blockFactory(),
                 nonBreakingBigArrays().breakerService().getBreaker("request"),
-                AlwaysReferencedIndexedByShardId.INSTANCE,
                 topCount,
                 elementTypes,
                 encoders,
@@ -1175,7 +1175,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                         new TopNOperator(
                             driverContext.blockFactory(),
                             nonBreakingBigArrays().breakerService().getBreaker("request"),
-                            AlwaysReferencedIndexedByShardId.INSTANCE,
                             ips.size(),
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
@@ -1302,7 +1301,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                         new TopNOperator(
                             driverContext.blockFactory(),
                             nonBreakingBigArrays().breakerService().getBreaker("request"),
-                            AlwaysReferencedIndexedByShardId.INSTANCE,
                             ips.size(),
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
@@ -1390,7 +1388,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         2,
                         List.of(BYTES_REF, INT),
                         List.of(TopNEncoder.UTF8, DEFAULT_UNSORTABLE),
@@ -1430,7 +1427,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        AlwaysReferencedIndexedByShardId.INSTANCE,
                         topCount,
                         List.of(LONG),
                         List.of(DEFAULT_UNSORTABLE),
@@ -1466,7 +1462,6 @@ public class TopNOperatorTests extends OperatorTestCase {
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
                 breaker,
-                AlwaysReferencedIndexedByShardId.INSTANCE,
                 2,
                 List.of(INT),
                 List.of(DEFAULT_UNSORTABLE),
@@ -1490,7 +1485,6 @@ public class TopNOperatorTests extends OperatorTestCase {
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
                 breaker,
-                AlwaysReferencedIndexedByShardId.INSTANCE,
                 10,
                 types,
                 encoders,
@@ -1538,7 +1532,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         },
             shardRefCounters,
             limit,
-            List.of(TopNEncoder.DEFAULT_UNSORTABLE, TopNEncoder.DEFAULT_SORTABLE),
+            List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(1, true, false))
         );
         refCountedList.forEach(RefCounted::decRef);

@@ -23,11 +23,18 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
  * This step is needed since said project will activate {@link InsertFieldExtraction} later on, whereas we wish to perform these
  * extractions in the node reduce driver, after performing multiple Top N operations, thereby reducing the amount of data we need to
  * read from the index.
+ *
+ * The basic strategy here is to cut off the operation right after the last top n, and perform all the removed operations on the
+ * reduce-side, so all the data-side top n operations "feed into" the reduce-side one.
  */
 public class RemoveProjectAfterTopN extends PhysicalOptimizerRules.ParameterizedOptimizerRule<ProjectExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(ProjectExec project, LocalPhysicalOptimizerContext context) {
         if (project.child() instanceof TopNExec topN && isTopNCompatible(topN)) {
+            // Technically, we don't *remove* the project, but rather replace it with a new one that has the exact same expressions as the
+            // underlying TopN. This is to avoid cases where the top n is pushed down to the source in subsequent rules, and thus its output
+            // schema is different from what the reduce-side top n expects as input.
+
             // TODO This isn't necessarily optimal, but it's a very simple way to ensure that the data node's output is equivalent to
             // what the coordinator expects. There are cases where this creates redundancy though, e.g., if a filter is pushed down to
             // source, this project will still cause it to be fetched. We should fix this in the future.

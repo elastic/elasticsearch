@@ -286,7 +286,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
-                    LOGGER.fatal(Strings.format("Error running batch numbers %d-%d", startBatchIndex, endBatchIndex), e);
+                    LOGGER.error(Strings.format("Error running batch numbers %d-%d", startBatchIndex, endBatchIndex), e);
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);

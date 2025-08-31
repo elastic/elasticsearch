@@ -112,7 +112,7 @@ public class ExtractorTests extends ESTestCase {
                         new TestCase(
                             "doc",
                             e,
-                            TopNEncoder.DEFAULT_UNSORTABLE,
+                            new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE),
                             () -> new DocVector(
                                 AlwaysReferencedIndexedByShardId.INSTANCE,
                                 // Shard ID should be small and non-negative.
@@ -192,7 +192,6 @@ public class ExtractorTests extends ESTestCase {
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
             TestBlockFactory.getNonBreakingInstance(),
-            AlwaysReferencedIndexedByShardId.INSTANCE,
             testCase.type,
             testCase.encoder.toUnsortable(),
             false,
@@ -206,7 +205,7 @@ public class ExtractorTests extends ESTestCase {
     }
 
     public void testInKey() {
-        assumeFalse("can't sort with un-sortable encoder", testCase.encoder == TopNEncoder.DEFAULT_UNSORTABLE);
+        assumeFalse("can't sort with un-sortable encoder", testCase.encoder instanceof DefaultUnsortableTopNEncoder);
         Block value = testCase.value.get();
 
         BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();
@@ -220,7 +219,6 @@ public class ExtractorTests extends ESTestCase {
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
             TestBlockFactory.getNonBreakingInstance(),
-            AlwaysReferencedIndexedByShardId.INSTANCE,
             testCase.type,
             testCase.encoder.toUnsortable(),
             true,

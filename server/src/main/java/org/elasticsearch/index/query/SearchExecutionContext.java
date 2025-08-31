@@ -503,14 +503,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            var sourceProvider = createSourceProvider();
+            var sourceProvider = createSourceProvider(null);
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;
     }
 
-    public SourceProvider createSourceProvider() {
-        return SourceProvider.fromLookup(mappingLookup, null, mapperMetrics.sourceFieldMetrics());
+    public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
+        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
     }
 
     /**
@@ -541,6 +541,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
             sourceProvider,
             fieldLookupProvider
         );
+    }
+
+    public SearchLookup copyWithSourceFilter(SourceFilter sourceFilter) {
+        var searchLookup = lookup();
+        var sourceProvider = SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
+        return new SearchLookup(searchLookup, sourceProvider);
     }
 
     public NestedScope nestedScope() {

@@ -34,6 +34,11 @@ public interface SourceProvider {
      * multiple threads.
      */
     static SourceProvider fromLookup(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
-        return new ConcurrentSegmentSourceProvider(lookup.newSourceLoader(filter, metrics), lookup.isSourceSynthetic() == false);
+        return new ConcurrentSegmentSourceProvider(lookup, filter, metrics);
+    }
+
+    default SourceProvider maybeCopyWithSourceFilter(SourceFilter sourceFilter) {
+        assert false : "should not be invoked";
+        return this;
     }
 }

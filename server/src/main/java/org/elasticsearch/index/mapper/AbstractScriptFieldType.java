@@ -27,6 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.time.ZoneId;
@@ -190,7 +191,9 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(searchLookup);
+        String include = name();
+        var copy = searchLookup.maybeCopyWithSourceFilter(new SourceFilter(new String[] { include }, new String[0]));
+        return factory.apply(copy);
     }
 
     /**

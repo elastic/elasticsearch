@@ -266,7 +266,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.numCands = in.readVInt();
         }
-        this.visitPercentage = in.readOptionalFloat();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
+            this.visitPercentage = in.readOptionalFloat();
+        } else {
+            this.visitPercentage = null;
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {

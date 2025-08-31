@@ -321,7 +321,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.field = in.readString();
         this.k = in.readVInt();
         this.numCands = in.readVInt();
-        this.visitPercentage = in.readFloat();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
+            this.visitPercentage = in.readFloat();
+        } else {
+            this.visitPercentage = 0.0f;
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {

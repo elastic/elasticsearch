@@ -24,6 +24,8 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createMetricsReque
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSummaryDataPoint;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSummaryMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 
 public class DataPointGroupingContextTests extends ESTestCase {
@@ -43,11 +45,12 @@ public class DataPointGroupingContextTests extends ESTestCase {
                     List.of(createLongDataPoint(nowUnixNanos, List.of())),
                     true,
                     AGGREGATION_TEMPORALITY_CUMULATIVE
-                )
+                ),
+                createSummaryMetric("summary", "", List.of(createSummaryDataPoint(nowUnixNanos, List.of())))
             )
         );
         context.groupDataPoints(metricsRequest);
-        assertEquals(3, context.totalDataPoints());
+        assertEquals(4, context.totalDataPoints());
         assertEquals(0, context.getIgnoredDataPoints());
         assertEquals("", context.getIgnoredDataPointsMessage());
 

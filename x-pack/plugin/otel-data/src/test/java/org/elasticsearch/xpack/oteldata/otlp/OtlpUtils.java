@@ -19,6 +19,8 @@ import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 import io.opentelemetry.proto.metrics.v1.Sum;
+import io.opentelemetry.proto.metrics.v1.Summary;
+import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
 
 import java.util.ArrayList;
@@ -105,6 +107,14 @@ public class OtlpUtils {
             .build();
     }
 
+    public static Metric createSummaryMetric(String name, String unit, List<SummaryDataPoint> dataPoints) {
+        return Metric.newBuilder()
+            .setName(name)
+            .setUnit(unit)
+            .setSummary(Summary.newBuilder().addAllDataPoints(dataPoints).build())
+            .build();
+    }
+
     public static NumberDataPoint createDoubleDataPoint(long timestamp, List<KeyValue> attributes) {
         return NumberDataPoint.newBuilder()
             .setTimeUnixNano(timestamp)
@@ -120,6 +130,16 @@ public class OtlpUtils {
             .setStartTimeUnixNano(timestamp)
             .addAllAttributes(attributes)
             .setAsInt(randomLong())
+            .build();
+    }
+
+    public static SummaryDataPoint createSummaryDataPoint(long timestamp, List<KeyValue> attributes) {
+        return SummaryDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(timestamp)
+            .addAllAttributes(attributes)
+            .setCount(randomLong())
+            .setSum(randomDouble())
             .build();
     }
 

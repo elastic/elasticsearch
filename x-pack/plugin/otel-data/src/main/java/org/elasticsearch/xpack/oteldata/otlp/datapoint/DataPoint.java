@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
+import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
 import java.util.List;
 import java.util.Set;
@@ -127,6 +128,44 @@ public interface DataPoint {
             } else {
                 return null;
             }
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors) {
+            return true;
+        }
+    }
+
+    record Summary(SummaryDataPoint dataPoint, Metric metric) implements DataPoint {
+
+        @Override
+        public long getTimestampUnixNano() {
+            return dataPoint.getTimeUnixNano();
+        }
+
+        @Override
+        public List<KeyValue> getAttributes() {
+            return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public long getStartTimestampUnixNano() {
+            return dataPoint.getStartTimeUnixNano();
+        }
+
+        @Override
+        public String getUnit() {
+            return metric.getUnit();
+        }
+
+        @Override
+        public String getMetricName() {
+            return metric.getName();
+        }
+
+        @Override
+        public String getDynamicTemplate() {
+            return "summary";
         }
 
         @Override

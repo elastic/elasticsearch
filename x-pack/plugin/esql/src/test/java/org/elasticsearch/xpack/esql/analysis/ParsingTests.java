@@ -104,7 +104,7 @@ public class ParsingTests extends ESTestCase {
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
-                report.field(nameOrAlias, registry.functionName(functionCall.getClass()));
+                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
             }
             report.endObject();
         }

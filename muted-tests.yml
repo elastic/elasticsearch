@@ -558,9 +558,9 @@ tests:
 - class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
   method: testParseAndQuery
   issue: https://github.com/elastic/elasticsearch/issues/133871
-- class: org.elasticsearch.simdvec.internal.vectorization.ES92Int7VectorScorerTests
-  method: testInt7ScoreBulk
-  issue: https://github.com/elastic/elasticsearch/issues/133893
+- class: org.elasticsearch.xpack.ml.integration.InferenceIT
+  method: testInferClassificationModel
+  issue: https://github.com/elastic/elasticsearch/issues/133448
 
 # Examples:
 #

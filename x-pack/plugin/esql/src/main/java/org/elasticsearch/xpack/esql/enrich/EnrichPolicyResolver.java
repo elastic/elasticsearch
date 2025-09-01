@@ -110,11 +110,26 @@ public class EnrichPolicyResolver {
     /**
      * Resolves a set of enrich policies
      *
-     * @param unresolvedPolicies the unresolved policies
+     * @param enriches           the unresolved policies
      * @param executionInfo      the execution info
      * @param listener           notified with the enrich resolution
      */
-    public void resolvePolicies(
+    public void resolvePolicies(List<Enrich> enriches, EsqlExecutionInfo executionInfo, ActionListener<EnrichResolution> listener) {
+        if (enriches.isEmpty()) {
+            listener.onResponse(new EnrichResolution());
+            return;
+        }
+
+        doResolvePolicies(
+            new HashSet<>(executionInfo.getClusters().keySet()),
+            enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).toList(),
+            executionInfo,
+            listener
+        );
+    }
+
+    protected void doResolvePolicies(
+        Set<String> remoteClusters,
         Collection<UnresolvedPolicy> unresolvedPolicies,
         EsqlExecutionInfo executionInfo,
         ActionListener<EnrichResolution> listener
@@ -124,13 +139,10 @@ public class EnrichPolicyResolver {
             return;
         }
 
-        final Set<String> remoteClusters = new HashSet<>(executionInfo.getClusters().keySet());
         final boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
-
-            Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
-
+            final Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
             for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
                 String clusterAlias = entry.getKey();
                 if (entry.getValue().connectionError != null) {

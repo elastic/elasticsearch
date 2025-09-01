@@ -1268,26 +1268,18 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         long modelMemory = ByteSizeValue.ofMb(200).getBytes();
         long memoryOverhead = ByteSizeValue.ofMb(240).getBytes();
         long JVMOverhead = ByteSizeValue.ofMb(50).getBytes();
-        long nodeMemory = memoryOverhead + modelMemory*2 + JVMOverhead;
+        long nodeMemory = memoryOverhead + modelMemory * 2 + JVMOverhead;
 
         DiscoveryNode node = buildNode("node-1", nodeMemory, 4);
 
         String deploymentId = "model-with-overhead-test";
-        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(
-            deploymentId,
-            deploymentId,
-            modelMemory,
-            1,
-            1
-        );
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(deploymentId, deploymentId, modelMemory, 1, 1);
 
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
 
         // This node has no jobs or models yet, so the overhead should be accounted for
-        nodeLoads.put(node, NodeLoad.builder("node-1")
-            .setMaxMemory(nodeMemory)
-            .build());
+        nodeLoads.put(node, NodeLoad.builder("node-1").setMaxMemory(nodeMemory).build());
 
         TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
             currentMetadata,
@@ -1310,9 +1302,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         DiscoveryNode insufficientNode = buildNode("node-2", insufficientNodeMemory, 4);
 
         Map<DiscoveryNode, NodeLoad> insufficientNodeLoads = Map.of(
-            insufficientNode, NodeLoad.builder("node-2")
-                .setMaxMemory(insufficientNodeMemory)
-                .build()
+            insufficientNode,
+            NodeLoad.builder("node-2").setMaxMemory(insufficientNodeMemory).build()
         );
 
         TrainedModelAssignmentMetadata insufficientResult = new TrainedModelAssignmentRebalancer(
@@ -1320,8 +1311,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             insufficientNodeLoads,
             Map.of(List.of(), List.of(insufficientNode)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1)
-            .rebalance().build();
+            1
+        ).rebalance().build();
 
         TrainedModelAssignment insufficientAssignment = insufficientResult.getDeploymentAssignment(deploymentId);
         assertThat(insufficientAssignment, is(notNullValue()));

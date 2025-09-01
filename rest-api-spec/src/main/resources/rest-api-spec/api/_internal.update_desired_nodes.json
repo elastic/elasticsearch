@@ -2,7 +2,7 @@
   "_internal.update_desired_nodes":{
     "documentation":{
       "url": null,
-      "description": "Updates the desired nodes"
+      "description": "Designed for indirect use by ECE/ESS and ECK, direct use is not supported."
     },
     "stability":"experimental",
     "visibility":"private",

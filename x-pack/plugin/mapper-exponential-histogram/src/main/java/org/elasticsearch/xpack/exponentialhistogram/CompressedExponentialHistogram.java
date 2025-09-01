@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.exponentialhistogram;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.exponentialhistogram.AbstractExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -27,7 +28,7 @@ import java.util.OptionalLong;
  * While this implementation is optimized for a minimal memory footprint, it is still a fully compliant {@link ExponentialHistogram}
  * and can therefore be directly consumed for merging / quantile estimation without requiring any prior copying or decoding.
  */
-public class CompressedExponentialHistogram implements ExponentialHistogram {
+public class CompressedExponentialHistogram extends AbstractExponentialHistogram {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CompressedExponentialHistogram.class);
 
@@ -50,7 +51,7 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
     public ZeroBucket zeroBucket() {
         if (lazyZeroBucket == null) {
             long zeroCount = valueCount - negativeBuckets.valueCount() - positiveBuckets.valueCount();
-            lazyZeroBucket = new ZeroBucket(zeroThreshold, zeroCount);
+            lazyZeroBucket = ZeroBucket.create(zeroThreshold, zeroCount);
         }
         return lazyZeroBucket;
     }
@@ -58,6 +59,11 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
     @Override
     public double sum() {
         return sum;
+    }
+
+    @Override
+    public long valueCount() {
+        return valueCount;
     }
 
     @Override

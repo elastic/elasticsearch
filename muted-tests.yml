@@ -296,9 +296,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
-- class: org.elasticsearch.compute.operator.LimitOperatorTests
-  method: testEarlyTermination
-  issue: https://github.com/elastic/elasticsearch/issues/128721
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsMixedCaseAccess
   issue: https://github.com/elastic/elasticsearch/issues/129167
@@ -537,15 +534,33 @@ tests:
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testFloatBlock
   issue: https://github.com/elastic/elasticsearch/issues/133621
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:inlinestats.EvalBeforeDoubleInlinestats1}
-  issue: https://github.com/elastic/elasticsearch/issues/133729
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/133077
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncSubmitAndFetchIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133840
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133841
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133842
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testHighNodeWriteLoadPreventsNewShardAllocation
+  issue: https://github.com/elastic/elasticsearch/issues/133857
+- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
+  method: testParseOrQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133863
+- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
+  method: testParseAndQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133871
+- class: org.elasticsearch.simdvec.internal.vectorization.ES92Int7VectorScorerTests
+  method: testInt7ScoreBulk
+  issue: https://github.com/elastic/elasticsearch/issues/133893
 
 # Examples:
 #

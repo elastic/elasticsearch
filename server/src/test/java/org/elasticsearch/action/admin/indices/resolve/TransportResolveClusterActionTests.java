@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -54,7 +53,7 @@ public class TransportResolveClusterActionTests extends ESTestCase {
             .build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        TransportVersion nextTransportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
+        TransportVersion nextTransportVersion = TransportVersionUtils.getNextVersion(TransportVersion.minimumCCSVersion(), true);
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,

@@ -117,9 +117,7 @@ public class OtlpUtils {
         return Metric.newBuilder()
             .setName(name)
             .setUnit(unit)
-            .setHistogram(
-                Histogram.newBuilder().setAggregationTemporality(temporality).addAllDataPoints(dataPoints).build()
-            )
+            .setHistogram(Histogram.newBuilder().setAggregationTemporality(temporality).addAllDataPoints(dataPoints).build())
             .build();
     }
 

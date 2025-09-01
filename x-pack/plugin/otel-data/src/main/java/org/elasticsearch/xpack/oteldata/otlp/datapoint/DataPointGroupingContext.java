@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ScopeTsidFunnel;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;

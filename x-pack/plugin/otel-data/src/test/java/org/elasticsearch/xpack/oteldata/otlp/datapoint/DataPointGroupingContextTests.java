@@ -30,7 +30,6 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetr
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
-import static org.hamcrest.Matchers.containsString;
 
 public class DataPointGroupingContextTests extends ESTestCase {
 

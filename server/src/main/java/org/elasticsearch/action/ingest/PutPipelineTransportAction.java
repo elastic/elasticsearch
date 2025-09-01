@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
@@ -80,7 +81,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         super.validateForReservedState(request, state);
 
         validateForReservedState(
-            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
             request.toString()

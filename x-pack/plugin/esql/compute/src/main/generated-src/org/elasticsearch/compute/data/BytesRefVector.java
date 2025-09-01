@@ -41,6 +41,19 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     @Override
     BytesRefBlock keepMask(BooleanVector mask);
 
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BytesRefVector deepCopy(BlockFactory blockFactory) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
     @Override
     ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 

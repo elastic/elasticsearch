@@ -1,0 +1,176 @@
+---
+teardown:
+  - do:
+      streams.logs_disable: { }
+
+---
+"Check User Can't Write To Substream Directly":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs.foo" } }
+          { "foo": "bar" }
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: "illegal_argument_exception" }
+  - match: { items.0.index.error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs] stream instead" }
+
+---
+"Check User Can't Write To Substream Directly With Single Doc":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      catch: bad_request
+      index:
+        index: logs.foo
+        id: "1"
+        body:
+          foo: bar
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs] stream instead" }
+
+---
+"Check Bulk Index With Reroute Processor To Substream Is Rejected":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      ingest.put_pipeline:
+        id: "reroute-to-logs-foo"
+        body:
+          processors:
+            - reroute:
+                destination: "logs.foo"
+  - do:
+      indices.create:
+        index: "bad-index"
+        body:
+          settings:
+            index.default_pipeline: "reroute-to-logs-foo"
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "bad-index" } }
+          { "foo": "bar" }
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: "illegal_argument_exception" }
+  - match: { items.0.index.error.reason: "Pipeline [reroute-to-logs-foo] can't change the target index (from [bad-index] to [logs] child stream [logs.foo]) History: [bad-index]" }
+
+  - do:
+      indices.delete:
+        index: bad-index
+
+---
+"Check Bulk Index With Script Processor To Substream Is Rejected":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      ingest.put_pipeline:
+        id: "script-to-logs-foo"
+        body:
+          processors:
+            - script:
+                source: "ctx._index = 'logs.foo'"
+  - do:
+      indices.create:
+        index: "bad-index-script"
+        body:
+          settings:
+            index.default_pipeline: "script-to-logs-foo"
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "bad-index-script" } }
+          { "foo": "bar" }
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: "illegal_argument_exception" }
+  - match: { items.0.index.error.reason: "Pipeline [script-to-logs-foo] can't change the target index (from [bad-index-script] to [logs] child stream [logs.foo]) History: [bad-index-script]" }
+
+  - do:
+      indices.delete:
+        index: bad-index-script
+
+---
+"Check Delete By Query Directly On Substream After Reroute Succeeds":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      ingest.put_pipeline:
+        id: "reroute-to-logs-foo-success"
+        body:
+          processors:
+            - reroute:
+                destination: "logs.foo"
+  - do:
+      indices.create:
+        index: "logs"
+        body:
+          settings:
+            index.default_pipeline: "reroute-to-logs-foo-success"
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs" } }
+          { "foo": "bar", "baz": "qux" }
+  - match: { errors: false }
+  - match: { items.0.index.status: 201 }
+
+  - do:
+      indices.refresh:
+        index: logs.foo
+
+  - do:
+      delete_by_query:
+        index: logs.foo
+        refresh: true
+        body:
+          query:
+            match:
+              foo: "bar"
+  - match: { deleted: 1 }
+  - match: { total: 1 }
+
+  - do:
+      search:
+        index: logs.foo
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total.value: 0 }
+
+  - do:
+      indices.delete:
+        index: logs

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.single_node;
+package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
@@ -16,9 +16,10 @@ import org.junit.ClassRule;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class KnnSemanticTextIT extends KnnSemanticTextTestCase {
-
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        spec -> spec.module("x-pack-inference").plugin("inference-service-test")
+    );
 
     @Override
     protected String getTestRestCluster() {

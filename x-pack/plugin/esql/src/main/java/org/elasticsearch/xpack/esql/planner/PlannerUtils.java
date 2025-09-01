@@ -159,6 +159,15 @@ public class PlannerUtils {
         return indices.toArray(String[]::new);
     }
 
+    public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
+        return plan.anyMatch(e -> {
+            if (e instanceof FragmentExec f) {
+                return f.fragment().anyMatch(l -> l instanceof EsRelation r && r.indexMode() == IndexMode.TIME_SERIES);
+            }
+            return false;
+        });
+    }
+
     private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
@@ -296,7 +305,7 @@ public class PlannerUtils {
      * This specifically excludes spatial data types, which are not themselves sortable.
      */
     public static ElementType toSortableElementType(DataType dataType) {
-        if (DataType.isSpatial(dataType)) {
+        if (DataType.isSpatialOrGrid(dataType)) {
             return ElementType.UNKNOWN;
         }
         return toElementType(dataType);
@@ -317,7 +326,7 @@ public class PlannerUtils {
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
 
         return switch (dataType) {
-            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG, GEOHASH, GEOTILE, GEOHEX -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef

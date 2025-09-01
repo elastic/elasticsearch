@@ -27,6 +27,9 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
 
+/**
+ * Tests kNN queries on semantic_text fields. Mostly checks errors on the data node that can't be checked in other tests.
+ */
 public class KnnSemanticTextTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)

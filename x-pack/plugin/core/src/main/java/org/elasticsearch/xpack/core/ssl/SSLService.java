@@ -232,7 +232,7 @@ public class SSLService {
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
      * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #profile(String)}
-     * and {@link SslProfile#ioSessionStrategy4()}
+     * and {@link SslProfile#ioSessionStrategy()}
      * (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
@@ -735,7 +735,7 @@ public class SSLService {
         }
 
         @Override
-        public SSLIOSessionStrategy ioSessionStrategy4() {
+        public SSLIOSessionStrategy ioSessionStrategy() {
             return SSLIOSessionStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
         }
 

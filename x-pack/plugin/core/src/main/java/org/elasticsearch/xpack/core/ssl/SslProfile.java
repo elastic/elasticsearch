@@ -41,7 +41,7 @@ public interface SslProfile {
     /**
      * @return An object that is useful for configuring Apache Http Client v4.x
      */
-    SSLIOSessionStrategy ioSessionStrategy4();
+    SSLIOSessionStrategy ioSessionStrategy();
 
     /**
      * @return An object that is useful for configuring Apache Http Client v5.x

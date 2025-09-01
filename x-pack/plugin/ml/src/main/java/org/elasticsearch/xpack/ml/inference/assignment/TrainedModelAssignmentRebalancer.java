@@ -300,9 +300,7 @@ class TrainedModelAssignmentRebalancer {
                         nodes.add(
                             new AssignmentPlan.Node(
                                 discoveryNode.getId(),
-                                // We subtract native inference memory as the planner expects available memory for
-                                // native inference including current assignments.
-                                getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
+                                load.getFreeMemoryExcludingPerNodeOverhead(),
                                 MlProcessors.get(discoveryNode, allocatedProcessorsScale).roundUp()
                             )
                         );
@@ -317,17 +315,6 @@ class TrainedModelAssignmentRebalancer {
             }
             return nodes;
         }));
-    }
-
-    private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
-        // load.getFreeMemoryExcludingPerNodeOverhead() = maxMemory - assignedJobMemoryExcludingPerNodeOverhead - 30MB native executable
-        // code overhead
-        // assignedJobMemoryExcludingPerNodeOverhead = assignedAnomalyDetectorMemory + assignedDataFrameAnalyticsMemory +
-        // assignedNativeInferenceMemory
-        // load.getAssignedNativeInferenceMemory() = assignedNativeInferenceMemory
-        // TODO: (valeriy) assignedNativeInferenceMemory is double counted in the current calculation.
-        return load.getFreeMemoryExcludingPerNodeOverhead()/* - load.getAssignedNativeInferenceMemory()*/;
-
     }
 
     private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {

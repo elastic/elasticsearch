@@ -226,6 +226,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         // execution for shards on the coordinating node itself
         if (mergeResult != null) {
             consumePartialMergeResult(mergeResult, topDocsList, aggsList);
+            addEstimateAndMaybeBreak(mergeResult.estimatedSize);
         }
         Tuple<TopDocsStats, MergeResult> batchedResult;
         while ((batchedResult = batchedResults.poll()) != null) {

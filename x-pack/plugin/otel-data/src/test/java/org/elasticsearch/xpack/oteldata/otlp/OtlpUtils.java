@@ -23,6 +23,8 @@ import io.opentelemetry.proto.metrics.v1.Summary;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
 
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -38,6 +40,10 @@ public class OtlpUtils {
 
     public static KeyValue keyValue(String key, String value) {
         return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setStringValue(value).build()).build();
+    }
+
+    public static List<KeyValue> mappingHints(String... mappingHints) {
+        return List.of(keyValue(MappingHints.MAPPING_HINTS, mappingHints));
     }
 
     public static KeyValue keyValue(String key, String... values) {

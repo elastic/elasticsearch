@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
+import com.google.protobuf.ByteString;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.resource.v1.Resource;
-
-import com.google.protobuf.ByteString;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
@@ -51,17 +49,25 @@ public class MetricDocumentBuilder {
         buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
         builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash());
 
+        long docCount = 0;
         builder.startObject("metrics");
         for (int i = 0, dataPointsSize = dataPoints.size(); i < dataPointsSize; i++) {
             DataPoint dataPoint = dataPoints.get(i);
             builder.field(dataPoint.getMetricName());
-            dataPoint.buildMetricValue(builder);
-            String dynamicTemplate = dataPoint.getDynamicTemplate(MappingHints.empty());
+            MappingHints mappingHints = MappingHints.fromAttributes(dataPoint.getAttributes());
+            dataPoint.buildMetricValue(mappingHints, builder);
+            String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
                 dynamicTemplates.put("metrics." + dataPoint.getMetricName(), dynamicTemplate);
             }
+            if (mappingHints.docCount()) {
+                docCount = dataPoint.getDocCount();
+            }
         }
         builder.endObject();
+        if (docCount > 0) {
+            builder.field("_doc_count", docCount);
+        }
         builder.endObject();
         return dynamicTemplates;
     }

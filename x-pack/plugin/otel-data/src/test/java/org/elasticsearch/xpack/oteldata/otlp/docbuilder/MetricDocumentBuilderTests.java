@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoin
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSummaryMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.mappingHints;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -203,6 +204,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             .setStartTimeUnixNano(startTimestamp)
             .setCount(1)
             .setSum(42.0)
+            .addAllAttributes(mappingHints(MappingHints.DOC_COUNT))
             .build();
         Metric metric = createSummaryMetric("summary", "", List.of());
         List<DataPoint> dataPoints = List.of(new DataPoint.Summary(dataPoint, metric));
@@ -224,6 +226,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         assertThat(doc.evaluate("metrics.summary.sum"), equalTo(42.0));
         assertThat(doc.evaluate("metrics.summary.value_count"), equalTo(1));
+        assertThat(doc.evaluate("_doc_count"), equalTo(1));
         assertThat(dynamicTemplates, hasEntry("metrics.summary", "summary"));
     }
 }

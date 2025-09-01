@@ -5,11 +5,15 @@ applies_to:
   stack: all
 ---
 
-# Roles [built-in-roles]
+# Available roles [built-in-roles]
 
 This section provides detailed **reference information** for Elasticsearch privileges.
 
+:::{tip}
 If you're using a stack-versioned deployment such as a self-managed cluster, {{ech}}, {{eck}}, or {{ece}}, then refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) for more information on how role-based access control works.
+
+If you're using {{serverless-full}}, refer to [Elastic Cloud Serverless predefined roles](docs-content://deploy-manage/users-roles/cloud-organization/user-roles.md#general-assign-user-roles-table) to learn about the predefined roles available in {{serverless-short}} projects.
+:::
 
 The {{stack-security-features}} apply a default role to all users, including [anonymous users](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/anonymous-access.md). The default role enables users to access the authenticate endpoint, change their own passwords, and get information about themselves.
 
@@ -68,7 +72,7 @@ $$$built-in-roles-ingest-user$$$ `ingest_admin`
 
 
 $$$built-in-roles-kibana-dashboard$$$ `kibana_dashboard_only_user` {applies_to}`stack: deprecated`
-:   This role is deprecated, use [{{kib}} feature privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md#kibana-feature-privileges) instead. Grants read-only access to the {{kib}} Dashboard in every [space in {{kib}}](docs-content://deploy-manage/manage-spaces.md). This role does not have access to editing tools in {{kib}}.
+:   This role is deprecated. Use [{{kib}} feature privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md#kibana-feature-privileges) instead. Grants read-only access to the {{kib}} Dashboard in every [space in {{kib}}](docs-content://deploy-manage/manage-spaces.md). This role does not have access to editing tools in {{kib}}.
 
 $$$built-in-roles-kibana-system$$$ `kibana_system`
 :   Grants access necessary for the {{kib}} system user to read from and write to the {{kib}} indices, manage index templates and tokens, and check the availability of the {{es}} cluster. It also permits activating, searching, and retrieving user profiles, as well as updating user profile data for the `kibana-*` namespace. This role grants read access to the `.monitoring-*` indices and read and write access to the `.reporting-*` indices. For more information, see [Configuring Security in {{kib}}](docs-content://deploy-manage/security/secure-your-cluster-deployment.md).
@@ -82,7 +86,7 @@ $$$built-in-roles-kibana-admin$$$ `kibana_admin`
 :   Grants access to all {{kib}} features in all spaces. For more information on {{kib}} authorization, see [Kibana authorization](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-roles.md).
 
 $$$built-in-roles-kibana-user$$$ `kibana_user` {applies_to}`stack: deprecated`
-:   This role is deprecated, use the [`kibana_admin`](#built-in-roles-kibana-admin) role instead. Grants access to all features in {{kib}}.
+:   This role is deprecated. Use the [`kibana_admin`](#built-in-roles-kibana-admin) role instead. Grants access to all features in {{kib}}.
 
     For more information on {{kib}} authorization, see [Kibana authorization](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-roles.md).
 

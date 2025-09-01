@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
@@ -262,12 +263,15 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
                 if (request.multiproject() == false) {
                     ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(currentState);
                     if (projectStateRegistry.size() > 1) {
-                        throw new Metadata.MultiProjectPendingException("There are multiple projects " + projectStateRegistry.knownProjects());
+                        throw new Metadata.MultiProjectPendingException(
+                            "There are multiple projects " + projectStateRegistry.knownProjects()
+                        );
                     }
                     var reservedStateMetadata = new HashMap<>(currentState.metadata().reservedStateMetadata());
                     var singleProjectReservedStateMetadata = projectStateRegistry.reservedStateMetadata(projectResolver.getProjectId());
-                    singleProjectReservedStateMetadata.forEach((key, value) ->
-                        reservedStateMetadata.merge(key, value, this::mergeReservedStateMetadata));
+                    singleProjectReservedStateMetadata.forEach(
+                        (key, value) -> reservedStateMetadata.merge(key, value, this::mergeReservedStateMetadata)
+                    );
 
                     mdBuilder.put(reservedStateMetadata);
                 }
@@ -325,6 +329,13 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
     }
 
     private ReservedStateMetadata mergeReservedStateMetadata(ReservedStateMetadata metadata1, ReservedStateMetadata metadata2) {
+        if (Objects.equals(metadata1.version(), metadata2.version()) == false) {
+            logger.warn(
+                "Reserved state metadata version is different for Metadata ({}) and the only project ({})",
+                metadata2.version(),
+                metadata1.version()
+            );
+        }
         ReservedStateMetadata.Builder builder = ReservedStateMetadata.builder(metadata1.namespace())
             .version(Math.max(metadata1.version(), metadata2.version()));
 

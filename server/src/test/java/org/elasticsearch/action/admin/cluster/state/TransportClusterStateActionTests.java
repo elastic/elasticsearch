@@ -272,10 +272,11 @@ public class TransportClusterStateActionTests extends ESTestCase {
 
     private static ClusterState buildClusterState(ProjectMetadata.Builder... projects) {
         final Metadata.Builder metadataBuilder = Metadata.builder();
-        metadataBuilder.put(ReservedStateMetadata.builder("file_settings")
-            .version(43L)
-            .putHandler(new ReservedStateHandlerMetadata("cluster_settings", Set.of("setting_1", "setting_2")))
-            .build()
+        metadataBuilder.put(
+            ReservedStateMetadata.builder("file_settings")
+                .version(43L)
+                .putHandler(new ReservedStateHandlerMetadata("cluster_settings", Set.of("setting_1", "setting_2")))
+                .build()
         );
         Arrays.stream(projects).forEach(metadataBuilder::put);
         final var metadata = metadataBuilder.build();
@@ -283,12 +284,13 @@ public class TransportClusterStateActionTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 12)));
         ProjectStateRegistry.Builder psBuilder = ProjectStateRegistry.builder();
         for (ProjectMetadata.Builder project : projects) {
-            psBuilder
-                .putReservedStateMetadata(project.getId(), ReservedStateMetadata.builder("file_settings")
+            psBuilder.putReservedStateMetadata(
+                project.getId(),
+                ReservedStateMetadata.builder("file_settings")
                     .version(43L)
                     .putHandler(new ReservedStateHandlerMetadata("project_settings", Set.of("setting_1")))
-                    .build())
-                .putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
+                    .build()
+            ).putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
         }
         return csBuilder.metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))

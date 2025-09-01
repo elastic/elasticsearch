@@ -46,6 +46,9 @@ public class MetricDocumentBuilder {
             builder.field("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
         buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
+        if (dataPointGroup.targetIndex().isDataStream()) {
+            buildDataStream(builder, dataPointGroup.targetIndex());
+        }
         buildScope(builder, dataPointGroup.scopeSchemaUrl(), dataPointGroup.scope());
         buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
         builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash());
@@ -105,6 +108,17 @@ public class MetricDocumentBuilder {
         if (Strings.hasLength(unit)) {
             builder.field("unit", unit);
         }
+    }
+
+    private void buildDataStream(XContentBuilder builder, TargetIndex targetIndex) throws IOException {
+        if (targetIndex.isDataStream() == false) {
+            return;
+        }
+        builder.startObject("data_stream");
+        builder.field("type", targetIndex.type());
+        builder.field("dataset", targetIndex.dataset());
+        builder.field("namespace", targetIndex.namespace());
+        builder.endObject();
     }
 
     private void buildAttributes(XContentBuilder builder, List<KeyValue> attributes) throws IOException {

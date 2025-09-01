@@ -542,7 +542,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(index);
 
-
         Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
         Response response = client().performRequest(getSnaps);
         Map<String, Object> responseMap;

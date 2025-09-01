@@ -315,6 +315,7 @@ c:long
 
 testKnnWithRerank
 required_capability: knn_function_v4
+required_capability: rerank
 
 from colors metadata _score 
 | where knn(rgb_vector, [128,128,0])

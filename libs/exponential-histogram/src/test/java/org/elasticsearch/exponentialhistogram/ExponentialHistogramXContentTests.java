@@ -89,7 +89,10 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
         histo.setMax(2.5);
         histo.tryAddBucket(-1, 3, true);
         histo.tryAddBucket(2, 5, true);
-        assertThat(toJson(histo), equalTo("{\"scale\":4,\"sum\":1.1,\"min\":0.5,\"max\":2.5,\"positive\":{\"indices\":[-1,2],\"counts\":[3,5]}}"));
+        assertThat(
+            toJson(histo),
+            equalTo("{\"scale\":4,\"sum\":1.1,\"min\":0.5,\"max\":2.5,\"positive\":{\"indices\":[-1,2],\"counts\":[3,5]}}")
+        );
     }
 
     public void testOnlyNegativeBuckets() {
@@ -100,7 +103,10 @@ public class ExponentialHistogramXContentTests extends ExponentialHistogramTestC
         histo.setMax(-0.25);
         histo.tryAddBucket(-1, 4, false);
         histo.tryAddBucket(2, 6, false);
-        assertThat(toJson(histo), equalTo("{\"scale\":5,\"sum\":1.1,\"min\":-0.5,\"max\":-0.25,\"negative\":{\"indices\":[-1,2],\"counts\":[4,6]}}"));
+        assertThat(
+            toJson(histo),
+            equalTo("{\"scale\":5,\"sum\":1.1,\"min\":-0.5,\"max\":-0.25,\"negative\":{\"indices\":[-1,2],\"counts\":[4,6]}}")
+        );
     }
 
     private static String toJson(ExponentialHistogram histo) {

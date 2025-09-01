@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.List;
 
@@ -28,12 +29,12 @@ public class DataPointNumberTests extends ESTestCase {
             createDoubleDataPoint(nowUnixNanos),
             createGaugeMetric("system.cpu.usage", "", List.of())
         );
-        assertThat(doubleGauge.getDynamicTemplate(), equalTo("gauge_double"));
+        assertThat(doubleGauge.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_double"));
         DataPoint.Number longGauge = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createGaugeMetric("system.cpu.usage", "", List.of())
         );
-        assertThat(longGauge.getDynamicTemplate(), equalTo("gauge_long"));
+        assertThat(longGauge.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_long"));
     }
 
     public void testCounterTemporality() {
@@ -41,22 +42,22 @@ public class DataPointNumberTests extends ESTestCase {
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_CUMULATIVE)
         );
-        assertThat(doubleCumulative.getDynamicTemplate(), equalTo("counter_double"));
+        assertThat(doubleCumulative.getDynamicTemplate(MappingHints.empty()), equalTo("counter_double"));
         DataPoint.Number longCumulative = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_CUMULATIVE)
         );
-        assertThat(longCumulative.getDynamicTemplate(), equalTo("counter_long"));
+        assertThat(longCumulative.getDynamicTemplate(MappingHints.empty()), equalTo("counter_long"));
         DataPoint.Number doubleDelta = new DataPoint.Number(
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(doubleDelta.getDynamicTemplate(), equalTo("gauge_double"));
+        assertThat(doubleDelta.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_double"));
         DataPoint.Number longDelta = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(longDelta.getDynamicTemplate(), equalTo("gauge_long"));
+        assertThat(longDelta.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_long"));
     }
 
     public void testCounterNonMonotonic() {
@@ -64,12 +65,12 @@ public class DataPointNumberTests extends ESTestCase {
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), false, AGGREGATION_TEMPORALITY_CUMULATIVE)
         );
-        assertThat(doubleNonMonotonic.getDynamicTemplate(), equalTo("gauge_double"));
+        assertThat(doubleNonMonotonic.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_double"));
         DataPoint.Number longNonMonotonic = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), false, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(longNonMonotonic.getDynamicTemplate(), equalTo("gauge_long"));
+        assertThat(longNonMonotonic.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_long"));
     }
 
 }

@@ -48,6 +48,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -96,7 +97,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         );
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
+        if (IVF_FORMAT.isEnabled()) {
+            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
+        }
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY_FIELD);
         PARSER.declareNamedObject(
             optionalConstructorArg(),

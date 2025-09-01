@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -218,7 +219,9 @@ public class KnnSearchRequestParser {
             PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
             PARSER.declareInt(constructorArg(), K_FIELD);
             PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
-            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
+            if (IVF_FORMAT.isEnabled()) {
+                PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
+            }
         }
 
         public static KnnSearch parse(XContentParser parser) throws IOException {

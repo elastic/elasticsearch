@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -91,7 +92,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         );
         PARSER.declareInt(constructorArg(), K_FIELD);
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
+        if (IVF_FORMAT.isEnabled()) {
+            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
+        }
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
         PARSER.declareField(
             optionalConstructorArg(),

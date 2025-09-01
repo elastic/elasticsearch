@@ -198,7 +198,8 @@ public class NodeJoiningIT extends ESIntegTestCase {
             String newNodeName = internalCluster().startDataOnlyNode();
 
             // Assert the master was re-elected
-            assertTrue(masterNodeName.equals(internalCluster().getMasterName()) && originalTerm < getTerm(masterNodeName));
+            assertEquals(masterNodeName, internalCluster().getMasterName());
+            assertTrue(originalTerm < getTerm(masterNodeName));
 
             // Assert all nodes have accepted N into their cluster state
             assertNewNodeIsInAllClusterStates(newNodeName);

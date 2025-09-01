@@ -692,26 +692,27 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                     final var discoveryNodes = event.state().nodes();
                                     // Keep the connection open until the next committed state
                                     if (discoveryNodes.getMasterNode() != null) {
-                                        // Remove this listener to avoid memory leaks
-                                        clusterService.removeListener(this);
-
                                         if (discoveryNodes.nodeExists(joinRequest.getSourceNode().getId())) {
+                                            // Remove this listener to avoid memory leaks
+                                            clusterService.removeListener(this);
                                             ll.onResponse(null);
                                         } else {
+                                            clusterService.removeListener(this);
                                             ll.onFailure(e);
                                         }
                                     }
                                 }
                             };
                             clusterService.addListener(clusterStateListener);
-
-                            // Another node was elected, and doesn't have the node in it
-                            if (clusterService.state().nodes().getMasterNode() != null
-                                && clusterService.state().nodes().nodeExists(joinRequest.getSourceNode().getId()) == false) {
-                                // Remove this listener to avoid memory leaks
-                                clusterService.removeListener(clusterStateListener);
-                                ll.onFailure(e);
-                            }
+                            clusterStateListener.clusterChanged(
+                                new ClusterChangedEvent(
+                                    "Checking if another master has been elected since "
+                                        + joinRequest.getSourceNode().getName()
+                                        + " attempted to join cluster",
+                                    clusterService.state(),
+                                    clusterService.state()
+                                )
+                            );
                         } else {
                             ll.onFailure(e);
                         }

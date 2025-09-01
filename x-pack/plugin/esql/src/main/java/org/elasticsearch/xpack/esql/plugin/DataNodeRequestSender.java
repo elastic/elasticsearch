@@ -134,17 +134,20 @@ abstract class DataNodeRequestSender {
                 var computeListener = new ComputeListener(
                     transportService.getThreadPool(),
                     runOnTaskFailure,
-                    listener.map(
-                        completionInfo -> new ComputeResponse(
+                    listener.map(completionInfo -> {
+                        final int totalSkipShards = targetShards.skippedShards() + skippedShards.get();
+                        final int failedShards = shardFailures.size();
+                        final int successfulShards = targetShards.totalShards() - totalSkipShards - failedShards;
+                        return new ComputeResponse(
                             completionInfo,
                             timeValueNanos(System.nanoTime() - startTimeInNanos),
                             targetShards.totalShards(),
-                            targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
-                            targetShards.skippedShards() + skippedShards.get(),
-                            shardFailures.size(),
+                            successfulShards,
+                            totalSkipShards,
+                            failedShards,
                             selectFailures()
-                        )
-                    )
+                        );
+                    })
                 )
             ) {
                 pendingShardIds.addAll(order(targetShards));

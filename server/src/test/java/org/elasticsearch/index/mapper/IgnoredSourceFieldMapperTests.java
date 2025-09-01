@@ -10,12 +10,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -121,6 +123,15 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             "{}",
             getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { "my_value" }), b -> b.field("my_value", value))
         );
+    }
+
+    public void testIgnoredStringFullUnicode() throws IOException {
+        String value = randomUnicodeOfCodepointLengthBetween(5, 20);
+        String fieldName = randomUnicodeOfCodepointLength(5);
+
+        String expected = Strings.toString(JsonXContent.contentBuilder().startObject().field(fieldName, value).endObject());
+
+        assertEquals(expected, getSyntheticSourceWithFieldLimit(b -> b.field(fieldName, value)));
     }
 
     public void testIgnoredInt() throws IOException {

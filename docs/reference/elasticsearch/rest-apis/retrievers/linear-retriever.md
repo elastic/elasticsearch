@@ -78,7 +78,7 @@ Each entry in the `retrievers` array specifies the following parameters:
     See [normalizers](#linear-retriever-normalizers) for supported values.
     Defaults to `none`.
 
-See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
+See also [this hybrid search example](retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
 ## Normalizers [linear-retriever-normalizers]
 

@@ -1,5 +1,0 @@
-pr: 131113
-summary: Including `max_tokens` through the Service API for Anthropic
-area: Machine Learning
-type: bug
-issues: []

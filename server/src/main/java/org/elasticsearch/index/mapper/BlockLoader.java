@@ -43,7 +43,7 @@ public interface BlockLoader {
         /**
          * Reads the values of all documents in {@code docs}.
          */
-        BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException;
+        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -149,8 +149,8 @@ public interface BlockLoader {
      */
     class ConstantNullsReader implements AllReader {
         @Override
-        public Block read(BlockFactory factory, Docs docs) throws IOException {
-            return factory.constantNulls();
+        public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            return factory.constantNulls(docs.count() - offset);
         }
 
         @Override
@@ -183,8 +183,8 @@ public interface BlockLoader {
             public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
                 return new ColumnAtATimeReader() {
                     @Override
-                    public Block read(BlockFactory factory, Docs docs) {
-                        return factory.constantBytes(value);
+                    public Block read(BlockFactory factory, Docs docs, int offset) {
+                        return factory.constantBytes(value, docs.count() - offset);
                     }
 
                     @Override
@@ -261,8 +261,8 @@ public interface BlockLoader {
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs) throws IOException {
-                    return reader.read(factory, docs);
+                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+                    return reader.read(factory, docs, offset);
                 }
 
                 @Override
@@ -408,13 +408,13 @@ public interface BlockLoader {
         /**
          * Build a block that contains only {@code null}.
          */
-        Block constantNulls();
+        Block constantNulls(int count);
 
         /**
          * Build a block that contains {@code value} repeated
          * {@code size} times.
          */
-        Block constantBytes(BytesRef value);
+        Block constantBytes(BytesRef value, int count);
 
         /**
          * Build a reader for reading keyword ordinals.

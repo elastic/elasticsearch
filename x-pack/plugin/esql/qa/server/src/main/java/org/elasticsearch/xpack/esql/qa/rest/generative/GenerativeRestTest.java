@@ -29,6 +29,9 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_NAME;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_TYPE;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
 
@@ -144,7 +147,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         );
         if (outputValidation.success() == false) {
             for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                if (allowedError.matcher(outputValidation.errorMessage()).matches()) {
+                if (isAllowedError(outputValidation.errorMessage(), allowedError)) {
                     return outputValidation;
                 }
             }
@@ -155,11 +158,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (allowedError.matcher(query.exception().getMessage()).matches()) {
+            if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
+    }
+
+    /**
+     * Long lines in exceptions can be split across several lines. When a newline is inserted, the end of the current line and the beginning
+     * of the new line are marked with a backslash {@code \}; the new line will also have whitespace before the backslash for aligning.
+     */
+    private static final Pattern ERROR_MESSAGE_LINE_BREAK = Pattern.compile("\\\\\n\\s*\\\\");
+
+    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return allowedPattern.matcher(errorWithoutLineBreaks).matches();
     }
 
     @SuppressWarnings("unchecked")
@@ -183,12 +197,23 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
-        List<Map<String, String>> cols = (List<Map<String, String>>) a.get("columns");
+    private static List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
+        List<Map<String, ?>> cols = (List<Map<String, ?>>) a.get("columns");
         if (cols == null) {
             return null;
         }
-        return cols.stream().map(x -> new EsqlQueryGenerator.Column(x.get("name"), x.get("type"))).collect(Collectors.toList());
+        return cols.stream()
+            .map(x -> new EsqlQueryGenerator.Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
+            .collect(Collectors.toList());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> originalTypes(Map<String, ?> x) {
+        List<String> originalTypes = (List<String>) x.get(COLUMN_ORIGINAL_TYPES);
+        if (originalTypes == null) {
+            return List.of();
+        }
+        return originalTypes;
     }
 
     private List<String> availableIndices() throws IOException {

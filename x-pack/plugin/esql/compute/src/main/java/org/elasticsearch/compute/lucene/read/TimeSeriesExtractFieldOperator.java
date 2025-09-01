@@ -198,12 +198,12 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
         }
 
         @Override
-        public BlockLoader.Block constantNulls() {
+        public BlockLoader.Block constantNulls(int count) {
             throw new UnsupportedOperationException("must not be used by column readers");
         }
 
         @Override
-        public BlockLoader.Block constantBytes(BytesRef value) {
+        public BlockLoader.Block constantBytes(BytesRef value, int count) {
             throw new UnsupportedOperationException("must not be used by column readers");
         }
 

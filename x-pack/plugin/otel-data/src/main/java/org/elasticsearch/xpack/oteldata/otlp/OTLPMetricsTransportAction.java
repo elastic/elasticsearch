@@ -127,7 +127,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             var dynamicTemplates = metricDocumentBuilder.buildMetricDocument(xContentBuilder, dataPointGroup);
             bulkRequestBuilder.add(
-                new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
+                new IndexRequest(dataPointGroup.targetIndex()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
                     // TODO uncomment after https://github.com/elastic/elasticsearch/pull/132566 has been merged

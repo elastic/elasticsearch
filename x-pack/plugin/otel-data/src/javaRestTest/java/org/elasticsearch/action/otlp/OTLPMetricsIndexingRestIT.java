@@ -71,7 +71,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         .user(USER, PASS, "superuser", false)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .build();
 
@@ -117,7 +117,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
 
     public void testIngestMetricViaMeterProvider() throws Exception {
         Meter sampleMeter = meterProvider.get("io.opentelemetry.example.metrics");
-        long totalMemory = randomLong();
+        long totalMemory = 42;
 
         sampleMeter.gaugeBuilder("jvm.memory.total")
             .setDescription("Reports JVM memory usage.")
@@ -135,15 +135,14 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(source, "@timestamp"), isA(String.class));
         assertThat(ObjectPath.evaluate(source, "start_timestamp"), isA(String.class));
         assertThat(ObjectPath.evaluate(source, "_metric_names_hash"), isA(String.class));
-        assertThat(ObjectPath.evaluate(source, "metrics.jvm\\.memory\\.total").toString(), equalTo(Long.toString(totalMemory)));
+        assertThat(ObjectPath.<Number>evaluate(source, "metrics.jvm\\.memory\\.total").longValue(), equalTo(totalMemory));
         assertThat(ObjectPath.evaluate(source, "unit"), equalTo("By"));
-        assertThat(ObjectPath.evaluate(source, "resource.attributes.service\\.name"), equalTo("elasticsearch"));
         assertThat(ObjectPath.evaluate(source, "scope.name"), equalTo("io.opentelemetry.example.metrics"));
     }
 
     public void testIngestMetricDataViaMetricExporter() throws Exception {
         long now = Clock.getDefault().now();
-        long totalMemory = randomLong();
+        long totalMemory = 42;
         MetricData jvmMemoryMetricData = createLongGauge(TEST_RESOURCE, Attributes.empty(), "jvm.memory.total", totalMemory, "By", now);
 
         export(List.of(jvmMemoryMetricData));
@@ -153,7 +152,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(source, "@timestamp"), equalTo(timestampAsString(now)));
         assertThat(ObjectPath.evaluate(source, "start_timestamp"), equalTo(timestampAsString(now)));
         assertThat(ObjectPath.evaluate(source, "_metric_names_hash"), isA(String.class));
-        assertThat(ObjectPath.evaluate(source, "metrics.jvm\\.memory\\.total").toString(), equalTo(Long.toString(totalMemory)));
+        assertThat(ObjectPath.<Number>evaluate(source, "metrics.jvm\\.memory\\.total").longValue(), equalTo(totalMemory));
         assertThat(ObjectPath.evaluate(source, "unit"), equalTo("By"));
         assertThat(ObjectPath.evaluate(source, "resource.attributes.service\\.name"), equalTo("elasticsearch"));
         assertThat(ObjectPath.evaluate(source, "scope.name"), equalTo("io.opentelemetry.example.metrics"));

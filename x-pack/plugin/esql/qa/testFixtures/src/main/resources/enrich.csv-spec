@@ -664,7 +664,7 @@ Fyodor Dostoevsky     |1211           |null             |null          |null    
 ;
 
 
-statsAfterRemoteEnrich
+statsAfterRemoteEnrich#[skip:-8.14.99]
 required_capability: enrich_load
 
 FROM sample_data
@@ -680,7 +680,7 @@ messages:long | language_name:keyword
 ;
 
 
-enrichAfterRemoteEnrich
+enrichAfterRemoteEnrich#[skip:-8.14.99]
 required_capability: enrich_load
 
 FROM sample_data
@@ -697,7 +697,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 ;
 
 
-coordinatorEnrichAfterRemoteEnrich
+coordinatorEnrichAfterRemoteEnrich#[skip:-8.14.99]
 required_capability: enrich_load
 
 FROM sample_data
@@ -714,7 +714,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 ;
 
 
-doubleRemoteEnrich
+doubleRemoteEnrich#[skip:-8.14.99]
 required_capability: enrich_load
 
 FROM sample_data
@@ -731,7 +731,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 ;
 
 
-enrichAfterCoordinatorEnrich
+enrichAfterCoordinatorEnrich#[skip:-8.14.99]
 required_capability: enrich_load
 
 FROM sample_data
@@ -748,7 +748,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 ;
 
 
-doubleCoordinatorEnrich
+doubleCoordinatorEnrich#[skip:-8.14.99]
 required_capability: enrich_load
 
 FROM sample_data

@@ -263,7 +263,7 @@ setup:
         name: .kibana-reporting-foo
 
 ---
-"Test wrong data_stream type":
+"Test wrong data_stream type - synthetics and metrics":
 
  - do:
       catch: bad_request
@@ -272,16 +272,6 @@ setup:
         body:
           "@timestamp": "2020-01-01"
           data_stream.type: "logs"
-          data_stream.dataset: "dataset0"
-          data_stream.namespace: "namespace1"
-
- - do:
-      catch: bad_request
-      index:
-        index: logs-dataset0-namespace1
-        body:
-          "@timestamp": "2020-01-01"
-          data_stream.type: "metrics"
           data_stream.dataset: "dataset0"
           data_stream.namespace: "namespace1"
 

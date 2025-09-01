@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -44,7 +45,7 @@ public final class QueryPragmas implements Writeable {
      * the enum {@link DataPartitioning} which has more documentation. Not an
      * {@link Setting#enumSetting} because those can't have {@code null} defaults.
      * {@code null} here means "use the default from the cluster setting
-     * named {@link EsqlPlugin#DEFAULT_DATA_PARTITIONING}."
+     * named {@link PhysicalSettings#DEFAULT_DATA_PARTITIONING}."
      */
     public static final Setting<String> DATA_PARTITIONING = Setting.simpleString("data_partitioning");
 

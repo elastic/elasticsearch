@@ -14,18 +14,16 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasable;
 
 class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements Releasable {
-    private final int pageSize;
     private Block nullBlock;
 
-    ComputeBlockLoaderFactory(BlockFactory factory, int pageSize) {
+    ComputeBlockLoaderFactory(BlockFactory factory) {
         super(factory);
-        this.pageSize = pageSize;
     }
 
     @Override
-    public Block constantNulls() {
+    public Block constantNulls(int count) {
         if (nullBlock == null) {
-            nullBlock = factory.newConstantNullBlock(pageSize);
+            nullBlock = factory.newConstantNullBlock(count);
         }
         nullBlock.incRef();
         return nullBlock;
@@ -39,7 +37,7 @@ class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements 
     }
 
     @Override
-    public BytesRefBlock constantBytes(BytesRef value) {
-        return factory.newConstantBytesRefBlockWith(value, pageSize);
+    public BytesRefBlock constantBytes(BytesRef value, int count) {
+        return factory.newConstantBytesRefBlockWith(value, count);
     }
 }

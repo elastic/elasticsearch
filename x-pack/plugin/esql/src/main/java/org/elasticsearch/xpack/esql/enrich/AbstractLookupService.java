@@ -440,6 +440,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
         return new ValuesSourceReaderOperator(
             driverContext.blockFactory(),
+            Long.MAX_VALUE,
             fields,
             List.of(
                 new ValuesSourceReaderOperator.ShardContext(

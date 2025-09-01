@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
@@ -239,12 +240,17 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         ElementType elementType,
         BlockLoader loader
     ) {
-        return new ValuesSourceReaderOperator.Factory(List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
-            if (shardIdx < 0 || shardIdx >= INDICES.size()) {
-                fail("unexpected shardIdx [" + shardIdx + "]");
-            }
-            return loader;
-        })), shardContexts, 0);
+        return new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
+                if (shardIdx < 0 || shardIdx >= INDICES.size()) {
+                    fail("unexpected shardIdx [" + shardIdx + "]");
+                }
+                return loader;
+            })),
+            shardContexts,
+            0
+        );
     }
 
     protected SourceOperator simpleInput(DriverContext context, int size) {
@@ -491,6 +497,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         // TODO: Add index2
         operators.add(
             new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(testCase.info, fieldInfo(mapperService(indexKey).fieldType("key"), ElementType.INT)),
                 shardContexts,
                 0
@@ -598,6 +605,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         List<Operator> operators = new ArrayList<>();
         operators.add(
             new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(
                     fieldInfo(mapperService("index1").fieldType("key"), ElementType.INT),
                     fieldInfo(mapperService("index1").fieldType("indexKey"), ElementType.BYTES_REF)
@@ -612,7 +620,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             cases.removeAll(b);
             tests.addAll(b);
             operators.add(
-                new ValuesSourceReaderOperator.Factory(b.stream().map(i -> i.info).toList(), shardContexts, 0).get(driverContext)
+                new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1), b.stream().map(i -> i.info).toList(), shardContexts, 0).get(
+                    driverContext
+                )
             );
         }
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -716,7 +726,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
         List<Operator> operators = cases.stream()
-            .map(i -> new ValuesSourceReaderOperator.Factory(List.of(i.info), shardContexts, 0).get(driverContext))
+            .map(i -> new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1), List.of(i.info), shardContexts, 0).get(driverContext))
             .toList();
         if (allInOnePage) {
             input = List.of(CannedSourceOperator.mergePages(input));
@@ -1391,6 +1401,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 simpleInput(driverContext, 10),
                 List.of(
                     new ValuesSourceReaderOperator.Factory(
+                        ByteSizeValue.ofGb(1),
                         List.of(
                             new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
                             new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS)
@@ -1426,6 +1437,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         List<FieldCase> cases = infoAndChecksForEachType(ordering, ordering);
 
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
             cases.stream().map(c -> c.info).toList(),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
             0
@@ -1471,6 +1483,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             // TODO add index2
             MappedFieldType ft = mapperService(indexKey).fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, shardIdx -> {
                     seenShards.add(shardIdx);
                     return ft.blockLoader(blContext());
@@ -1663,6 +1676,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 }
 
                 @Override
+                public long baseRamBytesUsed() {
+                    return 0;
+                }
+
+                @Override
                 public void close() {}
             };
         }
@@ -1687,8 +1705,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs) throws IOException {
-                    Block block = reader.read(factory, docs);
+                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+                    Block block = reader.read(factory, docs, offset);
                     Page page = new Page((org.elasticsearch.compute.data.Block) block);
                     return convertEvaluator.eval(page);
                 }

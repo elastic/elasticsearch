@@ -498,6 +498,7 @@ public class OrdinalsGroupingOperator implements Operator {
         ) {
             this.extractor = new ValuesSourceReaderOperator(
                 driverContext.blockFactory(),
+                Long.MAX_VALUE,
                 List.of(new ValuesSourceReaderOperator.FieldInfo(groupingField, groupingElementType, blockLoaders)),
                 shardContexts,
                 docChannel

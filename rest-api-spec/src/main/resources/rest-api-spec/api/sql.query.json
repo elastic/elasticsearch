@@ -1,8 +1,8 @@
 {
   "sql.query":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-search-api.html",
-      "description":"Executes a SQL request"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/sql-search-api.html",
+      "description":"Get SQL search results"
     },
     "stability":"stable",
     "visibility":"public",

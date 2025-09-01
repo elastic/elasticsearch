@@ -770,16 +770,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             while (submittedMergesCount > 0 && expectedAvailableBudget.get() > 0L) {
                 ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
                 when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
-                doAnswer(mock -> {
-                    Schedule schedule = randomFrom(Schedule.values());
-                    if (schedule == BACKLOG) {
-                        testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                            // re-enqueue backlogged merge task
-                            threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
-                        });
-                    }
-                    return schedule;
-                }).when(mergeTask).schedule();
+                // avoid backlogging and re-enqueing merge tasks in this test because it makes the queue's available budget unsteady
+                when(mergeTask.schedule()).thenReturn(randomFrom(RUN, ABORT));
                 // let some task complete, which will NOT hold up any budget
                 if (randomBoolean()) {
                     // this task will NOT hold up any budget because it runs quickly (it is not blocked)

@@ -15,9 +15,16 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 public enum OS {
-    WINDOWS,
-    MAC,
-    LINUX;
+    WINDOWS("windows"),
+    MAC("darwin"),
+    LINUX("linux");
+
+    public final String javaOsReference;
+
+    OS(String javaOsReference) {
+        // This constructor is intentionally empty, but it can be used to set up any necessary state.
+        this.javaOsReference = javaOsReference;
+    }
 
     public static OS current() {
         String os = System.getProperty("os.name", "");

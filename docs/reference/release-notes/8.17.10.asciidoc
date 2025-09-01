@@ -1,0 +1,23 @@
+[[release-notes-8.17.10]]
+== {es} version 8.17.10
+
+Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[bug-8.17.10]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggs: Add validation to Bucket script pipeline agg {es-pull}132320[#132320] (issue: {es-issue}132272[#132272])
+
+ES|QL::
+* FIx Driver creating status with a live list of operators {es-pull}132260[#132260] (issue: {es-issue}131564[#131564])
+
+[[upgrade-8.17.10]]
+[float]
+=== Upgrades
+
+Ingest Node::
+* Updating tika to 2.9.3 {es-pull}127353[#127353]
+
+

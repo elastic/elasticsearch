@@ -1,8 +1,8 @@
 {
   "security.query_user": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-query-user.html",
-      "description": "Retrieves information for Users using a subset of query DSL"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-query-user.html",
+      "description": "Find users with a query"
     },
     "stability": "stable",
     "visibility": "public",

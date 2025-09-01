@@ -1,8 +1,8 @@
 {
   "connector.check_in": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/check-in-connector-api.html",
-      "description": "Updates the last_seen timestamp in the connector document."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/check-in-connector-api.html",
+      "description": "Check in a connector"
     },
     "stability": "experimental",
     "visibility": "public",

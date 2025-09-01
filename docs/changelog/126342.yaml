@@ -1,5 +1,0 @@
-pr: 126342
-summary: Enable sort optimization on float and `half_float`
-area: Search
-type: enhancement
-issues: []

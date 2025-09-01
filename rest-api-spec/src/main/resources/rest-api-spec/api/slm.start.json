@@ -1,8 +1,8 @@
 {
   "slm.start":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-start.html",
-      "description":"Turns on snapshot lifecycle management (SLM)."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/slm-api-start.html",
+      "description":"Start snapshot lifecycle management"
     },
     "stability":"stable",
     "visibility":"public",

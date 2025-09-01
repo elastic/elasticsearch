@@ -1,8 +1,8 @@
 {
   "ml.put_trained_model_vocabulary":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-model-vocabulary.html",
-      "description":"Creates a trained model vocabulary"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/put-trained-model-vocabulary.html",
+      "description":"Create a trained model vocabulary"
     },
     "stability":"stable",
     "visibility":"public",

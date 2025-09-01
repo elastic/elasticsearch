@@ -882,8 +882,17 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private void initGiantTextField(int docs) throws IOException {
-        logger.info("loading many documents with one big text field");
-        int docsPerBulk = 3;
+        int docsPerBulk = 10;
+        for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
+            for (Object module : (List<?>) nodeInfo.get("modules")) {
+                Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                final String moduleName = moduleInfo.get("name").toString();
+                if (moduleName.startsWith("serverless-")) {
+                    docsPerBulk = 3;
+                }
+            }
+        }
+        logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
         int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
 
         Request request = new Request("PUT", "/bigtext");
@@ -1050,6 +1059,15 @@ public class HeapAttackIT extends ESRestTestCase {
         );
         Response response = client().performRequest(request);
         assertThat(entityAsMap(response), matchesMap().entry("errors", false).extraOk());
+
+        /*
+         * Flush after each bulk to clear the test-time seenSequenceNumbers Map in
+         * TranslogWriter. Without this the server will OOM from time to time keeping
+         * stuff around to run assertions on.
+         */
+        request = new Request("POST", "/" + name + "/_flush");
+        response = client().performRequest(request);
+        assertThat(entityAsMap(response), matchesMap().entry("_shards", matchesMap().extraOk().entry("failed", 0)).extraOk());
     }
 
     private void initIndex(String name, String bulk) throws IOException {

@@ -103,7 +103,7 @@ public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
         Path tempFilePath = createTempFile();
 
         logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, Strings.format(json, version));
         Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 

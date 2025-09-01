@@ -284,19 +284,3 @@ setup:
           data_stream.type: "synthetics"
           data_stream.dataset: "dataset0"
           data_stream.namespace: "namespace1"
-
----
-"Test wrong data_stream type - logs from 9.2.0":
-  - requires:
-      cluster_features: [ "gte_v9.1.99" ]
-      reason: "failure store is enabled by default for log data streams since 9.2.0"
-
-  - do:
-      index:
-        index: logs-dataset0-namespace1
-        body:
-          "@timestamp": "2020-01-01"
-          data_stream.type: "metrics"
-          data_stream.dataset: "dataset0"
-          data_stream.namespace: "namespace1"
-  - match: { failure_store: used }

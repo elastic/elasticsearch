@@ -66,15 +66,21 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     private static final String INDEX = "test_index";
     private static final String MATCH_ONLY_TEXT_FIELD = "field_match_only_text";
     private static final String PATTERNED_TEXT_FIELD = "field_patterned_text";
-    private static final String MAPPING = """
+    private static final String MAPPING_TEMPLATE = """
             {
               "properties": {
                 "@timestamp": { "type": "date" },
                 "field_match_only_text": { "type": "match_only_text" },
-                "field_patterned_text": { "type": "patterned_text" }
+                "field_patterned_text": {
+                    "type": "patterned_text",
+                    "index_options": "%"
+                }
               }
             }
         """;
+
+    private static final String MAPPING_DOCS_ONLY = MAPPING_TEMPLATE.replace("%", "docs");
+    private static final String MAPPING_POSITIONS = MAPPING_TEMPLATE.replace("%", "positions");
 
     @Before
     public void setup() {
@@ -82,7 +88,8 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     }
 
     public void testQueries() throws IOException {
-        var createRequest = new CreateIndexRequest(INDEX).mapping(MAPPING);
+        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
+        var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
 
         assertAcked(admin().indices().create(createRequest));
 
@@ -258,8 +265,12 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     }
 
     private static String randomTimestamp() {
-        long millis = randomMillisUpToYear9999();
-        ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), randomZone());
+        // The random millis are below year 10000 in UTC, but if the date is within 1 day of year 10000, the year can be 10000 in the
+        // selected timezone. Since the date formatter cannot handle years greater than 9999, select another date.
+        var zonedDateTime = randomValueOtherThanMany(
+            t -> t.getYear() == 10000,
+            () -> ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomMillisUpToYear9999()), randomZone())
+        );
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random()));
         return formatter.format(zonedDateTime);
     }

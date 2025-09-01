@@ -65,7 +65,7 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Rese
         ProjectMetadata currentProject = ReservedClusterStateService.getPotentiallyNewProject(currentState, projectId);
         var result = execute(
             ClusterState.builder(currentState).putProjectMetadata(currentProject).build(),
-            currentProject.reservedStateMetadata()
+            ProjectStateRegistry.get(currentState).reservedStateMetadata(projectId)
         );
         if (result == null) {
             return currentState;
@@ -78,8 +78,11 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Rese
         );
         ProjectMetadata updatedProjectMetadata = updatedClusterState.getMetadata().getProject(projectId);
         return ClusterState.builder(currentState)
-            .putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder(updatedProjectStateRegistry).build())
-            .putProjectMetadata(ProjectMetadata.builder(updatedProjectMetadata).put(result.v2()))
+            .putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder(updatedProjectStateRegistry).putReservedStateMetadata(projectId, result.v2()).build()
+            )
+            .putProjectMetadata(updatedProjectMetadata)
             .build();
     }
 }

@@ -35,6 +35,7 @@ public class ToGeohexTests extends AbstractScalarFunctionTestCase {
         final String evaluator = "ToGeohexFromStringEvaluator[in=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.GEOHEX, DataType.GEOHEX, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.LONG, DataType.GEOHEX, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.KEYWORD, DataType.GEOHEX, ToGeohexTests::valueOf, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.TEXT, DataType.GEOHEX, ToGeohexTests::valueOf, List.of());

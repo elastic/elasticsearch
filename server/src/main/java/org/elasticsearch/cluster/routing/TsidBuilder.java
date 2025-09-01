@@ -34,7 +34,15 @@ public class TsidBuilder {
     private static final int MAX_TSID_VALUE_FIELDS = 16;
     private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
 
-    private final List<Dimension> dimensions = new ArrayList<>();
+    private final List<Dimension> dimensions;
+
+    public TsidBuilder() {
+        this.dimensions = new ArrayList<>();
+    }
+
+    public TsidBuilder(int size) {
+        this.dimensions = new ArrayList<>(size);
+    }
 
     public static TsidBuilder newBuilder() {
         return new TsidBuilder();
@@ -279,6 +287,10 @@ public class TsidBuilder {
         ByteUtils.writeLongLE(hash128.h1, buffer, index);
         index += 8;
         return index;
+    }
+
+    public int size() {
+        return dimensions.size();
     }
 
     /**

@@ -13,7 +13,7 @@ and the [`geohex_grid` aggregation](https://www.elastic.co/docs/reference/aggreg
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geohex),
     centroid = ST_CENTROID_AGG(location)
       BY geohex
 | WHERE count >= 10

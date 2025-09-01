@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| geotile | geotile |
 | keyword | geotile |
 | long | geotile |
 | text | geotile |

@@ -39,6 +39,7 @@ public class ToGeotile extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(GEOTILE, (source, fieldEval) -> fieldEval),
         Map.entry(LONG, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeotileFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeotileFromStringEvaluator.Factory::new)
@@ -58,7 +59,7 @@ public class ToGeotile extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "long", "keyword", "text" },
+            type = { "geotile", "long", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {

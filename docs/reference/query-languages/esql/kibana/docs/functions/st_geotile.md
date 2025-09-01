@@ -13,7 +13,7 @@ and the [`geotile_grid` aggregation](https://www.elastic.co/docs/reference/aggre
 FROM airports
 | EVAL geotile = ST_GEOTILE(location, 2)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geotile),
     centroid = ST_CENTROID_AGG(location)
       BY geotile
 | EVAL geotileString = TO_STRING(geotile)

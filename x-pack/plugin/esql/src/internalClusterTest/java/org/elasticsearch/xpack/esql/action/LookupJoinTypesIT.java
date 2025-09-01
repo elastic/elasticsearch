@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -276,16 +277,21 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     /** This test generates documentation for the supported output types of the lookup join. */
     public void testOutputSupportedTypes() throws Exception {
-        Map<List<DocsV3Support.Param>, DataType> signatures = new LinkedHashMap<>();
+        Set<DocsV3Support.TypeSignature> signatures = new LinkedHashSet<>();
         for (TestConfigs configs : testConfigurations.values()) {
             if (configs.group.equals("unsupported") || configs.group.equals("union-types")) {
                 continue;
             }
             for (TestConfig config : configs.configs.values()) {
                 if (config instanceof TestConfigPasses) {
-                    signatures.put(
-                        List.of(new DocsV3Support.Param(config.mainType(), List.of()), new DocsV3Support.Param(config.lookupType(), null)),
-                        null
+                    signatures.add(
+                        new DocsV3Support.TypeSignature(
+                            List.of(
+                                new DocsV3Support.Param(config.mainType(), List.of()),
+                                new DocsV3Support.Param(config.lookupType(), null)
+                            ),
+                            null
+                        )
                     );
                 }
             }
@@ -776,7 +782,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
     }
 
-    private static void saveJoinTypes(Supplier<Map<List<DocsV3Support.Param>, DataType>> signatures) throws Exception {
+    private static void saveJoinTypes(Supplier<Set<DocsV3Support.TypeSignature>> signatures) throws Exception {
         if (System.getProperty("generateDocs") == null) {
             return;
         }

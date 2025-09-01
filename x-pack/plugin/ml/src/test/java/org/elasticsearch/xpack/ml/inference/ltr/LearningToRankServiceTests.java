@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -247,6 +248,12 @@ public class LearningToRankServiceTests extends ESTestCase {
 
     private ScriptService getTestScriptService() {
         ScriptEngine scriptEngine = new MustacheScriptEngine(Settings.EMPTY);
-        return new ScriptService(Settings.EMPTY, Map.of(DEFAULT_TEMPLATE_LANG, scriptEngine), ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            Map.of(DEFAULT_TEMPLATE_LANG, scriptEngine),
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 }

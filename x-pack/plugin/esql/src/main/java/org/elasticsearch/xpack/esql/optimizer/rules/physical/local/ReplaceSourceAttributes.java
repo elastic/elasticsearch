@@ -29,7 +29,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
 
     @Override
     protected PhysicalPlan rule(EsSourceExec plan) {
-        var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        var docId = new FieldAttribute(plan.source(), null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         final List<Attribute> attributes = new ArrayList<>();
         attributes.add(docId);
 
@@ -62,6 +62,16 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             attributes.add(score);
         }
 
-        return new EsQueryExec(plan.source(), plan.indexPattern(), plan.indexMode(), plan.indexNameWithModes(), attributes, plan.query());
+        return new EsQueryExec(
+            plan.source(),
+            plan.indexPattern(),
+            plan.indexMode(),
+            plan.indexNameWithModes(),
+            attributes,
+            null,
+            null,
+            null,
+            List.of(new EsQueryExec.QueryBuilderAndTags(plan.query(), List.of()))
+        );
     }
 }

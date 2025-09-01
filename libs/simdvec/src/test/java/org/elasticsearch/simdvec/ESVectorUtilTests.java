@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
@@ -321,6 +322,74 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         var result = defOrPanamaProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeResult, low, high, bits);
         assertArrayEquals(quantizeExpected, quantizeResult);
         assertEquals(expected, result, 0f);
+    }
+
+    public void testSquareDistanceBulk() {
+        int vectorSize = randomIntBetween(1, 2048);
+        float[] query = generateRandomVector(vectorSize);
+        float[] v0 = generateRandomVector(vectorSize);
+        float[] v1 = generateRandomVector(vectorSize);
+        float[] v2 = generateRandomVector(vectorSize);
+        float[] v3 = generateRandomVector(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, panamaDistances);
+        assertArrayEquals(expectedDistances, panamaDistances, 1e-3f);
+    }
+
+    public void testSoarDistanceBulk() {
+        int vectorSize = randomIntBetween(1, 2048);
+        float deltaEps = 1e-3f * vectorSize;
+        float[] query = generateRandomVector(vectorSize);
+        float[] v0 = generateRandomVector(vectorSize);
+        float[] v1 = generateRandomVector(vectorSize);
+        float[] v2 = generateRandomVector(vectorSize);
+        float[] v3 = generateRandomVector(vectorSize);
+        float[] diff = generateRandomVector(vectorSize);
+        float soarLambda = random().nextFloat();
+        float rnorm = random().nextFloat();
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, panamaDistances);
+        assertArrayEquals(expectedDistances, panamaDistances, deltaEps);
+    }
+
+    public void testPackAsBinary() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(1);
+        }
+        int length = BQVectorUtils.discretize(dims, 64) / 8;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().packAsBinary(toPack, packedLegacy);
+        defOrPanamaProvider.getVectorUtilSupport().packAsBinary(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testTransposeHalfByte() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(15);
+        }
+        int length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().transposeHalfByte(toPack, packedLegacy);
+        defOrPanamaProvider.getVectorUtilSupport().transposeHalfByte(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    private float[] generateRandomVector(int size) {
+        float[] vector = new float[size];
+        for (int i = 0; i < size; ++i) {
+            vector[i] = random().nextFloat();
+        }
+        return vector;
     }
 
     void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {

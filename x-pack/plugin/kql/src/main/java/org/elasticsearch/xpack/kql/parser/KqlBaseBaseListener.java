@@ -241,6 +241,18 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
+    @Override public void enterBooleanFieldQueryValue(KqlBaseParser.BooleanFieldQueryValueContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitBooleanFieldQueryValue(KqlBaseParser.BooleanFieldQueryValueContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
     @Override public void enterFieldName(KqlBaseParser.FieldNameContext ctx) { }
     /**
      * {@inheritDoc}

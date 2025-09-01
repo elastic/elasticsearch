@@ -19,6 +19,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
@@ -29,6 +31,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -54,6 +57,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -153,9 +157,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private volatile ClusterState state;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
+    private final Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
         return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic());
+    }
+
+    private static Consumer<ActionListener<NodesInfoResponse>> createNodeInfoListener(Client client) {
+        // This client is only used to perform an internal implementation detail,
+        // so uses an internal origin context rather than the user context
+        final OriginSettingClient originSettingClient = new OriginSettingClient(client, INGEST_ORIGIN);
+        return (nodeListener) -> {
+            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+            nodesInfoRequest.clear();
+            nodesInfoRequest.addMetric(NodesInfoMetrics.Metric.INGEST.metricName());
+            originSettingClient.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
+        };
     }
 
     public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
@@ -240,7 +257,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         MatcherWatchdog matcherWatchdog,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
-        FeatureService featureService
+        FeatureService featureService,
+        Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -264,6 +282,36 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = failureStoreMetrics;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
+        this.nodeInfoListener = nodeInfoListener;
+    }
+
+    public IngestService(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Environment env,
+        ScriptService scriptService,
+        AnalysisRegistry analysisRegistry,
+        List<IngestPlugin> ingestPlugins,
+        Client client,
+        MatcherWatchdog matcherWatchdog,
+        FailureStoreMetrics failureStoreMetrics,
+        ProjectResolver projectResolver,
+        FeatureService featureService
+    ) {
+        this(
+            clusterService,
+            threadPool,
+            env,
+            scriptService,
+            analysisRegistry,
+            ingestPlugins,
+            client,
+            matcherWatchdog,
+            failureStoreMetrics,
+            projectResolver,
+            featureService,
+            createNodeInfoListener(client)
+        );
     }
 
     /**
@@ -282,6 +330,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
         this.projectResolver = ingestService.projectResolver;
         this.featureService = ingestService.featureService;
+        this.nodeInfoListener = ingestService.nodeInfoListener;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -535,12 +584,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Stores the specified pipeline definition in the request.
      */
-    public void putPipeline(
-        ProjectId projectId,
-        PutPipelineRequest request,
-        ActionListener<AcknowledgedResponse> listener,
-        Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
-    ) throws Exception {
+    public void putPipeline(ProjectId projectId, PutPipelineRequest request, ActionListener<AcknowledgedResponse> listener)
+        throws Exception {
         if (isNoOpPipelineUpdate(state.metadata().getProject(projectId), request)) {
             // existing pipeline matches request pipeline -- no need to update
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -1238,6 +1283,29 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
+                    for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(project)) {
+                        if (streamType.matchesStreamPrefix(newIndex)
+                            && ingestDocument.getIndexHistory().contains(streamType.getStreamName()) == false) {
+                            exceptionHandler.accept(
+                                new IngestPipelineException(
+                                    pipelineId,
+                                    new IllegalArgumentException(
+                                        format(
+                                            "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
+                                                + "History: [%s]",
+                                            pipelineId,
+                                            originalIndex,
+                                            streamType.getStreamName(),
+                                            newIndex,
+                                            String.join(", ", ingestDocument.getIndexHistory())
+                                        )
+                                    )
+                                )
+                            );
+                            return; // document failed!
+                        }
+                    }
+
                     // add the index to the document's index history, and check for cycles in the visited indices
                     boolean cycle = ingestDocument.updateIndexHistory(newIndex) == false;
                     if (cycle) {
@@ -1494,7 +1562,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     processorFactories,
                     scriptService,
                     projectId,
-                    (nodeFeature) -> featureService.clusterHasFeature(clusterService.state(), nodeFeature)
+                    (nodeFeature) -> featureService.clusterHasFeature(state, nodeFeature)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 

@@ -104,7 +104,7 @@ public class ParsingTests extends ESTestCase {
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
-                report.field(nameOrAlias, registry.functionName(functionCall.getClass()));
+                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
             }
             report.endObject();
         }
@@ -135,18 +135,10 @@ public class ParsingTests extends ESTestCase {
         );
     }
 
-    public void testJoinOnMultipleFields() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertEquals(
-            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
-            error("row languages = 1, gender = \"f\" | lookup join test on gender, languages")
-        );
-    }
-
     public void testJoinTwiceOnTheSameField() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
+            "1:66: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [languages]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages, languages")
         );
     }
@@ -154,7 +146,7 @@ public class ParsingTests extends ESTestCase {
     public void testJoinTwiceOnTheSameField_TwoLookups() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:80: JOIN ON clause only supports one field at the moment, found [2]",
+            "1:108: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [gender]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages | eval x = 1 | lookup join test on gender, gender")
         );
     }

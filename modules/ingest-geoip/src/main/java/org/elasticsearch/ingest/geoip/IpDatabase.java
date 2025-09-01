@@ -36,7 +36,13 @@ public interface IpDatabase extends AutoCloseable {
      * @param <RESPONSE> the type of response that will be returned
      */
     @Nullable
-    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider);
+    // TODO: This change requires a one-line change to an implementation in a logstash filter. Coordinate with that team before merging.
+    // See repo https://github.com/elastic/logstash-filter-elastic_integration,
+    // class co.elastic.logstash.filters.elasticintegration.geoip.IpDatabaseAdapter.
+    <RESPONSE extends Response> RESPONSE getResponse(
+        String ipAddress,
+        CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
+    );
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a
@@ -46,4 +52,12 @@ public interface IpDatabase extends AutoCloseable {
      */
     @Override
     void close() throws IOException;
+
+    interface Response {
+
+        // TODO: Remove this default implementation and implement in all implementing classes instead before merging:
+        default long sizeInBytes() {
+            return 0;
+        }
+    }
 }

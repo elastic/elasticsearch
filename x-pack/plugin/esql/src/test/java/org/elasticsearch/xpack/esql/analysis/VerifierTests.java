@@ -2077,7 +2077,9 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_keySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-        List<DataType> unsortableTypes = List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX);
+        List<DataType> unsortableTypes = Build.current().isSnapshot()
+            ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
+            : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
         for (DataType type : sortableTypes) {
             query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
         }
@@ -2092,21 +2094,23 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_valueNumeric() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
-        List<DataType> nonNumericTypes = List.of(
-            BOOLEAN,
-            CARTESIAN_POINT,
-            CARTESIAN_SHAPE,
-            DATE_NANOS,
-            DATETIME,
-            GEO_POINT,
-            GEO_SHAPE,
-            GEOHASH,
-            GEOTILE,
-            GEOHEX,
-            IP,
-            KEYWORD,
-            VERSION
-        );
+        List<DataType> nonNumericTypes = Build.current().isSnapshot()
+            ? List.of(
+                BOOLEAN,
+                CARTESIAN_POINT,
+                CARTESIAN_SHAPE,
+                DATE_NANOS,
+                DATETIME,
+                GEO_POINT,
+                GEO_SHAPE,
+                GEOHASH,
+                GEOTILE,
+                GEOHEX,
+                IP,
+                KEYWORD,
+                VERSION
+            )
+            : List.of(BOOLEAN, CARTESIAN_POINT, CARTESIAN_SHAPE, DATE_NANOS, DATETIME, GEO_POINT, GEO_SHAPE, IP, KEYWORD, VERSION);
         for (DataType type : numericTypes) {
             query(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type));
         }

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.vector.Hamming;
 import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction.SimilarityEvaluatorFunction;
@@ -55,6 +56,9 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             params.add(new Object[] { "v_l2_norm", (SimilarityEvaluatorFunction) L2Norm::calculateSimilarity });
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "v_hamming", (SimilarityEvaluatorFunction) Hamming::calculateSimilarity });
         }
 
         return params;
@@ -127,7 +131,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             valuesList.forEach(values -> {
                 float[] left = readVector((List<Float>) values.get(0));
                 Double similarity = (Double) values.get(1);
-                if (left == null) {
+                if (left == null || randomVector == null) {
                     assertNull(similarity);
                 } else {
                     assertNotNull(similarity);

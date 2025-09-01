@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,6 +71,9 @@ public final class Case extends EsqlScalarFunction {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
@@ -110,6 +114,9 @@ public final class Case extends EsqlScalarFunction {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -364,6 +371,9 @@ public final class Case extends EsqlScalarFunction {
         EvalOperator.ExpressionEvaluator condition,
         EvalOperator.ExpressionEvaluator value
     ) implements Releasable {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, value);
@@ -376,6 +386,10 @@ public final class Case extends EsqlScalarFunction {
 
         public void registerMultivalue() {
             conditionWarnings.registerException(new IllegalArgumentException("CASE expects a single-valued boolean"));
+        }
+
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + condition.baseRamBytesUsed() + value.baseRamBytesUsed();
         }
     }
 
@@ -414,6 +428,9 @@ public final class Case extends EsqlScalarFunction {
         List<ConditionEvaluator> conditions,
         EvalOperator.ExpressionEvaluator elseVal
     ) implements EvalOperator.ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             /*
@@ -462,6 +479,16 @@ public final class Case extends EsqlScalarFunction {
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            for (ConditionEvaluator condition : conditions) {
+                baseRamBytesUsed += condition.baseRamBytesUsed();
+            }
+            baseRamBytesUsed += elseVal.baseRamBytesUsed();
+            return baseRamBytesUsed;
+        }
+
+        @Override
         public void close() {
             Releasables.closeExpectNoException(() -> Releasables.close(conditions), elseVal);
         }
@@ -504,6 +531,9 @@ public final class Case extends EsqlScalarFunction {
         ConditionEvaluator condition,
         EvalOperator.ExpressionEvaluator elseVal
     ) implements EvalOperator.ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             try (BooleanBlock lhsOrRhsBlock = (BooleanBlock) condition.condition.eval(page); ToMask lhsOrRhs = lhsOrRhsBlock.toMask()) {
@@ -540,6 +570,11 @@ public final class Case extends EsqlScalarFunction {
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, elseVal);
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + condition.baseRamBytesUsed() + elseVal.baseRamBytesUsed();
         }
 
         @Override

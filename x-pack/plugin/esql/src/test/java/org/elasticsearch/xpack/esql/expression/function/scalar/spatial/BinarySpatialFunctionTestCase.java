@@ -28,6 +28,9 @@ import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
@@ -49,17 +52,20 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFuncti
 
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType, boolean pointsOnly) {
         if (pointsOnly) {
-            return switch (dataType.esType()) {
-                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).get(0);
-                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).get(0);
+            return switch (dataType) {
+                case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).get(0);
+                case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).get(0);
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         } else {
-            return switch (dataType.esType()) {
-                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).get(0);
-                case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).get(0);
-                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).get(0);
-                case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(() -> false).get(0);
+            return switch (dataType) {
+                case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).get(0);
+                case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).get(0);
+                case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).get(0);
+                case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).get(0);
+                case GEOHASH -> TestCaseSupplier.geoGridCases(GEOHASH, () -> false).get(0);
+                case GEOTILE -> TestCaseSupplier.geoGridCases(GEOTILE, () -> false).get(0);
+                case GEOHEX -> TestCaseSupplier.geoGridCases(GEOHEX, () -> false).get(0);
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         }

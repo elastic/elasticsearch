@@ -25,7 +25,6 @@ module org.elasticsearch.security {
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
-    requires org.apache.log4j;
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
     requires org.apache.lucene.core;

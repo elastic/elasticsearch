@@ -74,6 +74,14 @@ public class IndexResolver {
         this.client = client;
     }
 
+    public void resolveConcreteIndices(String indexPattern, QueryBuilder requestFilter, ActionListener<Set<String>> listener) {
+        client.execute(
+            EsqlResolveFieldsAction.TYPE,
+            createFieldCapsRequest(indexPattern, Set.of("_id"), requestFilter, false),
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(Set.of(response.getIndices())))
+        );
+    }
+
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */

@@ -22,12 +22,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.enableLogsdbByDefault;
-import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.createTemplate;
 import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.formatInstant;
 import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.getIndexSettingsWithDefaults;
 import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.startTrial;
+import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
+import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;

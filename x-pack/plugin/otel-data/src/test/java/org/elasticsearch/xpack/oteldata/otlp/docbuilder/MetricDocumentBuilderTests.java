@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
+import com.google.protobuf.ByteString;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
-
-import com.google.protobuf.ByteString;
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -24,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -90,7 +89,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             dataPointAttributes,
             "{test}",
             dataPoints,
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -141,7 +140,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(),
             "",
             dataPoints,
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -174,7 +173,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(),
             "",
             dataPoints,
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

@@ -20,14 +20,24 @@ import java.util.List;
  */
 public final class TargetIndex {
 
+    public static final String TYPE_METRICS = "metrics";
     public static final String ELASTICSEARCH_INDEX = "elasticsearch.index";
     public static final String DATA_STREAM_DATASET = "data_stream.dataset";
     public static final String DATA_STREAM_NAMESPACE = "data_stream.namespace";
+
+    private static final String DEFAULT_DATASET = "generic";
+    private static final String OTEL_DATASET_SUFFIX = ".otel";
+    private static final String DEFAULT_NAMESPACE = "default";
+    private static final TargetIndex DEFAULT_METRICS_TARGET = evaluate(TYPE_METRICS, List.of(), null, List.of(), List.of());
 
     private String index;
     private String type;
     private String dataset;
     private String namespace;
+
+    public static TargetIndex defaultMetrics() {
+        return DEFAULT_METRICS_TARGET;
+    }
 
     /**
      * Determines the target index for a data point.
@@ -39,7 +49,7 @@ public final class TargetIndex {
      * @param resourceAttributes Attributes associated with the resource.
      * @return A TargetIndex instance representing the target index for the data point.
      */
-    public static TargetIndex route(
+    public static TargetIndex evaluate(
         String type,
         List<KeyValue> attributes,
         @Nullable String receiverName,
@@ -62,19 +72,25 @@ public final class TargetIndex {
             }
             target.dataset = DataStream.sanitizeDataset(target.dataset);
             if (target.dataset == null) {
-                target.dataset = "generic";
+                target.dataset = DEFAULT_DATASET;
             }
             // add otel suffix to match OTel index template
-            target.dataset = target.dataset + ".otel";
+            target.dataset = target.dataset + OTEL_DATASET_SUFFIX;
             target.namespace = DataStream.sanitizeNamespace(target.namespace);
 
             if (target.namespace == null) {
-                target.namespace = "default";
+                target.namespace = DEFAULT_NAMESPACE;
             }
             target.index = target.type + "-" + target.dataset + "-" + target.namespace;
+        } else {
+            target.type = null;
+            target.dataset = null;
+            target.namespace = null;
         }
         return target;
     }
+
+    private TargetIndex() {}
 
     private void populateFrom(List<KeyValue> attributes) {
         if (isPopulated()) {
@@ -84,15 +100,10 @@ public final class TargetIndex {
             KeyValue attr = attributes.get(i);
             if (attr.getKey().equals(ELASTICSEARCH_INDEX)) {
                 index = attr.getValue().getStringValue();
-            }
-            if (isPopulated() == false && dataset == null && attr.getKey().equals(DATA_STREAM_DATASET)) {
+            } else if (dataset == null && attr.getKey().equals(DATA_STREAM_DATASET)) {
                 dataset = attr.getValue().getStringValue();
-            }
-            if (isPopulated() == false && namespace == null && attr.getKey().equals(DATA_STREAM_NAMESPACE)) {
+            } else if (namespace == null && attr.getKey().equals(DATA_STREAM_NAMESPACE)) {
                 namespace = attr.getValue().getStringValue();
-            }
-            if (isPopulated()) {
-                return;
             }
         }
     }

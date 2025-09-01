@@ -162,7 +162,6 @@ public class DataPointGroupingContext {
 
     class ScopeGroup {
         private static final String RECEIVER = "/receiver/";
-        private static final String TYPE_METRICS = "metrics";
 
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
@@ -185,7 +184,11 @@ public class DataPointGroupingContext {
             int indexOfReceiver = scopeName.indexOf(RECEIVER);
             if (indexOfReceiver >= 0) {
                 int beginIndex = indexOfReceiver + RECEIVER.length();
-                return scopeName.substring(beginIndex, scopeName.indexOf('/', beginIndex));
+                int endIndex = scopeName.indexOf('/', beginIndex);
+                if (endIndex < 0) {
+                    endIndex = scopeName.length();
+                }
+                return scopeName.substring(beginIndex, endIndex);
             }
             return null;
         }
@@ -211,8 +214,8 @@ public class DataPointGroupingContext {
             Hash128 dataPointGroupHash = dataPointGroupTsidBuilder.hash();
             // in addition to the fields that go into the _tsid, we also need to group by timestamp and start timestamp
             Hash128 timestamp = new Hash128(dataPoint.getTimestampUnixNano(), dataPoint.getStartTimestampUnixNano());
-            TargetIndex targetIndex = TargetIndex.route(
-                TYPE_METRICS,
+            TargetIndex targetIndex = TargetIndex.evaluate(
+                TargetIndex.TYPE_METRICS,
                 dataPoint.getAttributes(),
                 receiverName,
                 scope.getAttributesList(),

@@ -7,17 +7,16 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
+import com.google.protobuf.ByteString;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.resource.v1.Resource;
-
-import com.google.protobuf.ByteString;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -111,9 +110,26 @@ public class MetricDocumentBuilder {
     private void buildAttributes(XContentBuilder builder, List<KeyValue> attributes) throws IOException {
         for (int i = 0, size = attributes.size(); i < size; i++) {
             KeyValue attribute = attributes.get(i);
-            builder.field(attribute.getKey());
-            attributeValue(builder, attribute.getValue());
+            String key = attribute.getKey();
+            if (isIgnoredAttribute(key) == false) {
+                builder.field(key);
+                attributeValue(builder, attribute.getValue());
+            }
         }
+    }
+
+    /**
+     * Checks if the given attribute key is an ignored attribute.
+     * Ignored attributes are well-known Elastic-specific attributes
+     * that influence how the documents are indexed but are not stored themselves.
+     *
+     * @param attributeKey the attribute key to check
+     * @return true if the attribute is ignored, false otherwise
+     */
+    public static boolean isIgnoredAttribute(String attributeKey) {
+        return attributeKey.equals(TargetIndex.ELASTICSEARCH_INDEX)
+            || attributeKey.equals(TargetIndex.DATA_STREAM_DATASET)
+            || attributeKey.equals(TargetIndex.DATA_STREAM_NAMESPACE);
     }
 
     private void attributeValue(XContentBuilder builder, AnyValue value) throws IOException {

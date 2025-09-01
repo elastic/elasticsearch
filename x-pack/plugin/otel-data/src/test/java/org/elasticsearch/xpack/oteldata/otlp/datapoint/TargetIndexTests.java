@@ -20,14 +20,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TargetIndexTests extends ESTestCase {
 
-    public void testRouteWithExplicitIndex() {
+    public void testEvaluateWithExplicitIndex() {
         List<KeyValue> attributes = List.of(
             createStringAttribute("elasticsearch.index", "custom-index"),
             createStringAttribute("data_stream.dataset", "should-be-ignored"),
             createStringAttribute("data_stream.namespace", "should-be-ignored")
         );
 
-        TargetIndex index = TargetIndex.route("metrics", attributes, null, List.of(), List.of());
+        TargetIndex index = TargetIndex.evaluate("metrics", attributes, null, List.of(), List.of());
 
         assertThat(index.index(), equalTo("custom-index"));
         assertThat(index.isDataStream(), is(false));
@@ -36,13 +36,13 @@ public class TargetIndexTests extends ESTestCase {
         assertThat(index.namespace(), nullValue());
     }
 
-    public void testRouteWithDataStreamAttributes() {
+    public void testEvaluateWithDataStreamAttributes() {
         List<KeyValue> attributes = List.of(
             createStringAttribute("data_stream.dataset", "custom-dataset"),
             createStringAttribute("data_stream.namespace", "custom-namespace")
         );
 
-        TargetIndex index = TargetIndex.route("metrics", attributes, null, List.of(), List.of());
+        TargetIndex index = TargetIndex.evaluate("metrics", attributes, null, List.of(), List.of());
 
         // DataStream.sanitizeDataset replaces hyphens with underscores
         assertThat(index.index(), equalTo("metrics-custom_dataset.otel-custom-namespace"));
@@ -52,13 +52,13 @@ public class TargetIndexTests extends ESTestCase {
         assertThat(index.namespace(), equalTo("custom-namespace"));
     }
 
-    public void testRouteWithScopeAttributes() {
+    public void testEvaluateWithScopeAttributes() {
         List<KeyValue> scopeAttributes = List.of(
             createStringAttribute("data_stream.dataset", "scope-dataset"),
             createStringAttribute("data_stream.namespace", "scope-namespace")
         );
 
-        TargetIndex index = TargetIndex.route("metrics", List.of(), null, scopeAttributes, List.of());
+        TargetIndex index = TargetIndex.evaluate("metrics", List.of(), null, scopeAttributes, List.of());
 
         // DataStream.sanitizeDataset replaces hyphens with underscores
         assertThat(index.index(), equalTo("metrics-scope_dataset.otel-scope-namespace"));
@@ -68,13 +68,13 @@ public class TargetIndexTests extends ESTestCase {
         assertThat(index.namespace(), equalTo("scope-namespace"));
     }
 
-    public void testRouteWithResourceAttributes() {
+    public void testEvaluateWithResourceAttributes() {
         List<KeyValue> resourceAttributes = List.of(
             createStringAttribute("data_stream.dataset", "resource-dataset"),
             createStringAttribute("data_stream.namespace", "resource-namespace")
         );
 
-        TargetIndex index = TargetIndex.route("metrics", List.of(), null, List.of(), resourceAttributes);
+        TargetIndex index = TargetIndex.evaluate("metrics", List.of(), null, List.of(), resourceAttributes);
 
         // DataStream.sanitizeDataset replaces hyphens with underscores
         assertThat(index.index(), equalTo("metrics-resource_dataset.otel-resource-namespace"));
@@ -98,7 +98,7 @@ public class TargetIndexTests extends ESTestCase {
             createStringAttribute("data_stream.namespace", "resource-namespace")
         );
 
-        TargetIndex index = TargetIndex.route("metrics", attributes, null, scopeAttributes, resourceAttributes);
+        TargetIndex index = TargetIndex.evaluate("metrics", attributes, null, scopeAttributes, resourceAttributes);
 
         // DataStream.sanitizeDataset replaces hyphens with underscores
         assertThat(index.index(), equalTo("metrics-attr_dataset.otel-scope-namespace"));
@@ -108,8 +108,8 @@ public class TargetIndexTests extends ESTestCase {
         assertThat(index.namespace(), equalTo("scope-namespace"));
     }
 
-    public void testRouteWithReceiverInScopeName() {
-        TargetIndex index = TargetIndex.route("metrics", List.of(), "hostmetrics-receiver", List.of(), List.of());
+    public void testEvaluateWithReceiverInScopeName() {
+        TargetIndex index = TargetIndex.evaluate("metrics", List.of(), "hostmetrics-receiver", List.of(), List.of());
 
         assertThat(index.index(), equalTo("metrics-hostmetrics_receiver.otel-default"));
         assertThat(index.isDataStream(), is(true));
@@ -118,8 +118,8 @@ public class TargetIndexTests extends ESTestCase {
         assertThat(index.namespace(), equalTo("default"));
     }
 
-    public void testRouteWithDefaultValues() {
-        TargetIndex index = TargetIndex.route("metrics", List.of(), null, List.of(), List.of());
+    public void testEvaluateWithDefaultValues() {
+        TargetIndex index = TargetIndex.evaluate("metrics", List.of(), null, List.of(), List.of());
 
         assertThat(index.index(), equalTo("metrics-generic.otel-default"));
         assertThat(index.isDataStream(), is(true));
@@ -130,15 +130,15 @@ public class TargetIndexTests extends ESTestCase {
 
     public void testDataStreamSanitization() {
         List<KeyValue> attributes = List.of(
-            createStringAttribute("data_stream.dataset", "Invalid-Dataset"),
-            createStringAttribute("data_stream.namespace", "Invalid*Namespace")
+            createStringAttribute("data_stream.dataset", "Some-Dataset"),
+            createStringAttribute("data_stream.namespace", "Some*Namespace")
         );
 
-        TargetIndex index = TargetIndex.route("metrics", attributes, null, List.of(), List.of());
+        TargetIndex index = TargetIndex.evaluate("metrics", attributes, null, List.of(), List.of());
 
         // DataStream.sanitizeDataset and DataStream.sanitizeNamespace should be applied
-        assertThat(index.dataset(), equalTo("invalid_dataset.otel"));
-        assertThat(index.namespace(), equalTo("invalid_namespace"));
+        assertThat(index.dataset(), equalTo("some_dataset.otel"));
+        assertThat(index.namespace(), equalTo("some_namespace"));
     }
 
     private KeyValue createStringAttribute(String key, String value) {

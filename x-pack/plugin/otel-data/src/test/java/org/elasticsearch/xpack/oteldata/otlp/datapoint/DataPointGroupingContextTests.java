@@ -65,9 +65,9 @@ public class DataPointGroupingContextTests extends ESTestCase {
                 createGaugeMetric(
                     "system.cpu.usage",
                     "",
-                    List.of(createDoubleDataPoint(nowUnixNanos, List.of(keyValue(TargetIndex.DATA_STREAM_DATASET, "custom"))))
+                    List.of(createDoubleDataPoint(nowUnixNanos, nowUnixNanos, List.of(keyValue(TargetIndex.DATA_STREAM_DATASET, "custom"))))
                 ),
-                createGaugeMetric("system.memory.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of())))
+                createGaugeMetric("system.memory.usage", "", List.of(createDoubleDataPoint(nowUnixNanos)))
             )
         );
         context.groupDataPoints(metricsRequest);
@@ -216,7 +216,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
                 createScopeMetrics(
                     scopeName,
                     "1.0.0",
-                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))))
+                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))))
                 )
             )
         );
@@ -229,6 +229,29 @@ public class DataPointGroupingContextTests extends ESTestCase {
         List<String> targetIndexes = new ArrayList<>();
         context.consume(dataPointGroup -> targetIndexes.add(dataPointGroup.targetIndex().index()));
         assertThat(targetIndexes, containsInAnyOrder("metrics-hostmetricsreceiver.otel-default"));
+    }
+
+    public void testReceiverBasedRoutingWithoutTrailingSlash() throws Exception {
+        String scopeName = "/receiver/foo";
+        ResourceMetrics resource = createResourceMetrics(
+            List.of(keyValue("service.name", "test-service_1")),
+            List.of(
+                createScopeMetrics(
+                    scopeName,
+                    "1.0.0",
+                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))))
+                )
+            )
+        );
+
+        context.groupDataPoints(ExportMetricsServiceRequest.newBuilder().addAllResourceMetrics(List.of(resource)).build());
+        assertEquals(1, context.totalDataPoints());
+        assertEquals(0, context.getIgnoredDataPoints());
+        assertEquals("", context.getIgnoredDataPointsMessage());
+
+        List<String> targetIndexes = new ArrayList<>();
+        context.consume(dataPointGroup -> targetIndexes.add(dataPointGroup.targetIndex().index()));
+        assertThat(targetIndexes, containsInAnyOrder("metrics-foo.otel-default"));
     }
 
 }

@@ -5,7 +5,7 @@
       "description":"Create an index from a source index"
     },
     "stability":"experimental",
-    "visibility":"private",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

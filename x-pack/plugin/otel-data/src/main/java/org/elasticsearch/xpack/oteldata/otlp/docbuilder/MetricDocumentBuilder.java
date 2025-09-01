@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
+import com.google.protobuf.ByteString;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.resource.v1.Resource;
-
-import com.google.protobuf.ByteString;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
@@ -57,7 +55,7 @@ public class MetricDocumentBuilder {
             DataPoint dataPoint = dataPoints.get(i);
             builder.field(dataPoint.getMetricName());
             dataPoint.buildMetricValue(builder);
-            String dynamicTemplate = dataPoint.getDynamicTemplate();
+            String dynamicTemplate = dataPoint.getDynamicTemplate(MappingHints.empty());
             if (dynamicTemplate != null) {
                 dynamicTemplates.put("metrics." + dataPoint.getMetricName(), dynamicTemplate);
             }
@@ -131,7 +129,8 @@ public class MetricDocumentBuilder {
     public static boolean isIgnoredAttribute(String attributeKey) {
         return attributeKey.equals(TargetIndex.ELASTICSEARCH_INDEX)
             || attributeKey.equals(TargetIndex.DATA_STREAM_DATASET)
-            || attributeKey.equals(TargetIndex.DATA_STREAM_NAMESPACE);
+            || attributeKey.equals(TargetIndex.DATA_STREAM_NAMESPACE)
+            || attributeKey.equals(MappingHints.MAPPING_HINTS);
     }
 
     private void attributeValue(XContentBuilder builder, AnyValue value) throws IOException {

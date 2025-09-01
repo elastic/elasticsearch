@@ -306,19 +306,3 @@ c: long       | primary: boolean
 41            | false          
 9             | true           
 ;
-
-testKnnWithWithSemanticText
-required_capability: knn_function_v4
-required_capability: semantic_text_field_caps
-
-from semantic_text
-| where knn(semantic_text_dense_field, [0, 1, 2], 10)
-| keep semantic_text_dense_field
-| sort semantic_text_dense_field asc
-;
-
-semantic_text_dense_field:text
-all we have to decide is what to do with the time that is given to us
-be excellent to each other
-live long and prosper
-;

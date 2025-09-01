@@ -27,7 +27,7 @@ import java.util.Objects;
 public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPoolUsageStats> threadPoolUsageStatsMap) implements Writeable {
 
     public NodeUsageStatsForThreadPools(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(ThreadPoolUsageStats::new));
+        this(in.readString(), in.readImmutableMap(ThreadPoolUsageStats::new));
     }
 
     @Override

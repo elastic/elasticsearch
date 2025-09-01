@@ -12,7 +12,6 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -254,7 +253,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     TransportVersion transportVersion;
                     if (originalClusterHasTransportVersion == false) {
                         transportVersion = TransportVersion.fromId(
-                            parseLegacyVersion(getOldClusterVersion()).map(Version::id).orElse(TransportVersions.MINIMUM_COMPATIBLE.id())
+                            parseLegacyVersion(getOldClusterVersion()).map(Version::id).orElse(TransportVersion.minimumCompatible().id())
                         );
                     } else {
                         transportVersion = TransportVersion.readVersion(input);

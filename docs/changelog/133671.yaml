@@ -1,0 +1,5 @@
+pr: 133671
+summary: Remove `java.xml` from system modules
+area: Infra/Core
+type: bug
+issues: []

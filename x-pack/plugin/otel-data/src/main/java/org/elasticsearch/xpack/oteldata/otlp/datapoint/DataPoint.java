@@ -13,6 +13,7 @@ import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,9 +82,10 @@ public interface DataPoint {
      * Returns the dynamic template name for the data point based on its type and value.
      * This is used to dynamically map the appropriate field type according to the data point's characteristics.
      *
+     * @param mappingHints hints for building the dynamic template
      * @return the dynamic template name as a string
      */
-    String getDynamicTemplate();
+    String getDynamicTemplate(MappingHints mappingHints);
 
     /**
      * Validates whether the data point can be indexed into Elasticsearch.
@@ -92,6 +94,14 @@ public interface DataPoint {
      * @return true if the data point is valid, false otherwise
      */
     boolean isValid(Set<String> errors);
+
+    /**
+     * Returns the {@code _doc_count} for the data point.
+     * This is used when {@link MappingHints#docCount()} is true.
+     *
+     * @return the {@code _doc_count}
+     */
+    long getDocCount();
 
     record Number(NumberDataPoint dataPoint, Metric metric) implements DataPoint {
 
@@ -129,7 +139,12 @@ public interface DataPoint {
         }
 
         @Override
-        public String getDynamicTemplate() {
+        public long getDocCount() {
+            return 1;
+        }
+
+        @Override
+        public String getDynamicTemplate(MappingHints mappingHints) {
             String type;
             if (metric.hasSum()
                 // TODO add support for delta counters - for now we represent them as gauges

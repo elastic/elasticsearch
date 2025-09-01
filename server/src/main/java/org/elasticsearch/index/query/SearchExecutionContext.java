@@ -543,12 +543,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         );
     }
 
-    public SearchLookup copyWithSourceFilter(SourceFilter sourceFilter) {
-        var searchLookup = lookup();
-        var sourceProvider = SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
-        return new SearchLookup(searchLookup, sourceProvider);
-    }
-
     public NestedScope nestedScope() {
         return nestedScope;
     }

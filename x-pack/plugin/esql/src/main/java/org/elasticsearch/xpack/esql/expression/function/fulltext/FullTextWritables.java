@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
 
 import java.util.ArrayList;
 import java.util.Collections;

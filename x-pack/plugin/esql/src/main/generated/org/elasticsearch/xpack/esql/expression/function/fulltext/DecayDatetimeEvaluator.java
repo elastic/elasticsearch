@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Decay}.

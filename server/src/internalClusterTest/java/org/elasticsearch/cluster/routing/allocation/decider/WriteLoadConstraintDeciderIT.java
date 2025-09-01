@@ -245,7 +245,6 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", firstDataNodeName));
 
         safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            logger.info("Running ***");
             Index index = clusterState.routingTable().index(indexName).getIndex();
             return checkShardAssignment(
                 clusterState.getRoutingNodes(),
@@ -273,15 +272,6 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         int secondDataNodeExpectedNumShards,
         int thirdDataNodeExpectedNumShards
     ) {
-        logger.info(
-            "first {actual={}, expected={}}, second {actual={}, expected={}}, third {actual={}, expected={}}",
-            routingNodes.node(firstDataNodeId).numberOfOwningShardsForIndex(index),
-            firstDataNodeExpectedNumShards,
-            routingNodes.node(secondDataNodeId).numberOfOwningShardsForIndex(index),
-            secondDataNodeExpectedNumShards,
-            routingNodes.node(thirdDataNodeId).numberOfOwningShardsForIndex(index),
-            thirdDataNodeExpectedNumShards
-        );
 
         int firstDataNodeRealNumberOfShards = routingNodes.node(firstDataNodeId).numberOfOwningShardsForIndex(index);
         if (firstDataNodeRealNumberOfShards != firstDataNodeExpectedNumShards) {

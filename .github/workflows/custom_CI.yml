@@ -33,7 +33,7 @@ jobs:
 
       # 5. Run server tests
       - name: Run server tests
-        run: ./gradlew :server:test --stacktrace --no-daemon
+        run: ./gradlew test --stacktrace --no-daemon
 
       # 6. Upload all test reports
       - name: Archive test reports

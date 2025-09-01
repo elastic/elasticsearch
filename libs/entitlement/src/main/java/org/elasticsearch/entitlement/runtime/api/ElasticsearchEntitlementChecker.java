@@ -188,12 +188,12 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls) {
-        policyChecker.checkCreateClassLoader(callerClass);
+        policyManager.checkCreateClassLoader(callerClass);
     }
 
     @Override
     public void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls, ClassLoader parent) {
-        policyChecker.checkCreateClassLoader(callerClass);
+        policyManager.checkCreateClassLoader(callerClass);
     }
 
     @Override

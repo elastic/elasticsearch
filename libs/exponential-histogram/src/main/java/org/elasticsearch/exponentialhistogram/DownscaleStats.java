@@ -30,10 +30,49 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 
 /**
+ * Interface for collecting downscale data by adding bucket pairs and resetting state.
+ */
+interface DownscaleDataCollector {
+    /**
+     * Resets the data structure to its initial state.
+     */
+    void reset();
+
+    /**
+     * Adds a pair of neighboring bucket indices to track for potential merging.
+     *
+     * @param previousBucketIndex the index of the previous bucket
+     * @param currentBucketIndex the index of the current bucket
+     */
+    void add(long previousBucketIndex, long currentBucketIndex);
+}
+
+/**
+ * Interface for querying downscale statistics and computing scale reductions.
+ */
+interface DownscaleQueryProvider {
+    /**
+     * Returns the number of buckets that will be merged after applying the given scale reduction.
+     *
+     * @param reduction the scale reduction factor
+     * @return the number of buckets that will be merged
+     */
+    int getCollapsedBucketCountAfterScaleReduction(int reduction);
+
+    /**
+     * Returns the required scale reduction to reduce the number of buckets by at least the given amount.
+     *
+     * @param desiredCollapsedBucketCount the target number of buckets to collapse
+     * @return the required scale reduction
+     */
+    int getRequiredScaleReductionToReduceBucketCountBy(int desiredCollapsedBucketCount);
+}
+
+/**
  * A data structure for efficiently computing the required scale reduction for a histogram to reach a target number of buckets.
  * This works by examining pairs of neighboring buckets and determining at which scale reduction they would merge into a single bucket.
  */
-class DownscaleStats {
+class DownscaleStats implements DownscaleDataCollector, DownscaleQueryProvider {
 
     static final long SIZE = RamUsageEstimator.shallowSizeOf(DownscaleStats.class) + RamEstimationUtil.estimateIntArray(MAX_INDEX_BITS);
 
@@ -44,7 +83,8 @@ class DownscaleStats {
     /**
      * Resets the data structure to its initial state.
      */
-    void reset() {
+    @Override
+    public void reset() {
         Arrays.fill(collapsedBucketCount, 0);
     }
 
@@ -54,7 +94,8 @@ class DownscaleStats {
      * @param previousBucketIndex the index of the previous bucket
      * @param currentBucketIndex the index of the current bucket
      */
-    void add(long previousBucketIndex, long currentBucketIndex) {
+    @Override
+    public void add(long previousBucketIndex, long currentBucketIndex) {
         assert currentBucketIndex > previousBucketIndex;
         assert previousBucketIndex >= MIN_INDEX && previousBucketIndex <= MAX_INDEX;
         assert currentBucketIndex <= MAX_INDEX;
@@ -84,7 +125,8 @@ class DownscaleStats {
      * @param reduction the scale reduction factor
      * @return the number of buckets that will be merged
      */
-    int getCollapsedBucketCountAfterScaleReduction(int reduction) {
+    @Override
+    public int getCollapsedBucketCountAfterScaleReduction(int reduction) {
         assert reduction >= 0 && reduction <= MAX_INDEX_BITS;
         int totalCollapsed = 0;
         for (int i = 0; i < reduction; i++) {
@@ -99,7 +141,8 @@ class DownscaleStats {
      * @param desiredCollapsedBucketCount the target number of buckets to collapse
      * @return the required scale reduction
      */
-    int getRequiredScaleReductionToReduceBucketCountBy(int desiredCollapsedBucketCount) {
+    @Override
+    public int getRequiredScaleReductionToReduceBucketCountBy(int desiredCollapsedBucketCount) {
         assert desiredCollapsedBucketCount >= 0;
         if (desiredCollapsedBucketCount == 0) {
             return 0;

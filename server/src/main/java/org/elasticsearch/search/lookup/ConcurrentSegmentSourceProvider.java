@@ -44,16 +44,12 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
     }
 
     private ConcurrentSegmentSourceProvider(ConcurrentSegmentSourceProvider source, SourceFilter filter) {
+        assert source.isStoredSource == false;
         this.sourceLoaderProvider = source.sourceLoaderProvider;
         this.isStoredSource = source.isStoredSource;
-        if (isStoredSource) {
-            this.sourceLoader = source.sourceLoader;
-            this.storedFieldLoader = source.storedFieldLoader;
-        } else {
-            this.sourceLoader = source.sourceLoaderProvider.apply(filter);
-            // Also re-initialize stored field loader:
-            this.storedFieldLoader = StoredFieldLoader.create(isStoredSource, sourceLoader.requiredStoredFields(), true);
-        }
+        this.sourceLoader = source.sourceLoaderProvider.apply(filter);
+        // Also re-initialize stored field loader:
+        this.storedFieldLoader = StoredFieldLoader.create(isStoredSource, sourceLoader.requiredStoredFields(), true);
     }
 
     @Override
@@ -77,9 +73,13 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
     }
 
     @Override
-    public SourceProvider maybeCopyWithSourceFilter(SourceFilter sourceFilter) {
+    public SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {
         assert leaves.isEmpty() : "source provider must be unused when applying filter";
-        return new ConcurrentSegmentSourceProvider(this, sourceFilter);
+        if (isStoredSource) {
+            return this;
+        } else {
+            return new ConcurrentSegmentSourceProvider(this, sourceFilter);
+        }
     }
 
     private static class Leaf implements SourceProvider {

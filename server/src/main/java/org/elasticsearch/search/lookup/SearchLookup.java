@@ -153,8 +153,8 @@ public class SearchLookup implements SourceProvider {
         return sourceProvider.getSource(ctx, doc);
     }
 
-    public SearchLookup maybeCopyWithSourceFilter(SourceFilter sourceFilter) {
-        SourceProvider copy = sourceProvider.maybeCopyWithSourceFilter(sourceFilter);
+    public SearchLookup optimizedSourceProvider(SourceFilter sourceFilter) {
+        SourceProvider copy = sourceProvider.optimizedSourceProvider(sourceFilter);
         return new SearchLookup(this, copy);
     }
 }

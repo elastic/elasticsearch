@@ -192,7 +192,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
         String include = name();
-        var copy = searchLookup.maybeCopyWithSourceFilter(new SourceFilter(new String[] { include }, new String[0]));
+        var copy = searchLookup.optimizedSourceProvider(new SourceFilter(new String[] { include }, new String[0]));
         return factory.apply(copy);
     }
 

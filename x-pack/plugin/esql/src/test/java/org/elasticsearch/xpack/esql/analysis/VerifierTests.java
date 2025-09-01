@@ -2258,9 +2258,8 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
-            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2], 10)", "first");
-            checkFullTextFunctionNullArgs("knn(vector, null, 10)", "second");
-            checkFullTextFunctionNullArgs("knn(vector, [0, 1, 2], null)", "third");
+            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
+            checkFullTextFunctionNullArgs("knn(vector, null)", "second");
         }
     }
 

@@ -406,7 +406,20 @@ class TrainedModelAssignmentRebalancer {
             return Optional.of(load.getError());
         }
 
-        if (deployment.memoryBytes() > assignmentPlan.getRemainingNodeMemory(node.getId())) {
+        int existingAllocationsOnNode = assignmentPlan.assignments(deployment)
+            .flatMap(
+                assignments -> assignments.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getKey().id().equals(node.getId()))
+                    .findFirst()
+                    .map(Map.Entry::getValue)
+            )
+            .orElse(0);
+        int notYetAssignedAllocations = deployment.allocations() - assignmentPlan.totalAllocations(deployment);
+        if (deployment.estimateAdditionalMemoryUsageBytes(
+            existingAllocationsOnNode,
+            existingAllocationsOnNode + notYetAssignedAllocations
+        ) > assignmentPlan.getRemainingNodeMemory(node.getId())) {
             // If any ML processes are running on a node we require some space to load the shared libraries.
             // So if none are currently running then this per-node overhead must be added to the requirement.
             // From node load we know if we had any jobs or models assigned before the rebalance.

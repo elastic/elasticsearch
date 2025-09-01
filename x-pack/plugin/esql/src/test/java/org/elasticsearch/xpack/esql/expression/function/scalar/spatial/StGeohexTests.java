@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.hamcrest.Matchers.containsString;
 
@@ -42,7 +44,7 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, new DataType[] { DataType.GEO_POINT }, StGeohexTests::valueOf, StGeohexTests::boundedValueOf);
+        addTestCaseSuppliers(suppliers, new DataType[] { GEO_POINT }, GEOHEX, StGeohexTests::valueOf, StGeohexTests::boundedValueOf);
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 

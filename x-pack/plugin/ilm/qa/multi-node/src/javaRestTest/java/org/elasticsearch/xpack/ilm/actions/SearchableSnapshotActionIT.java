@@ -930,8 +930,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
         assertThat(hotIndexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
 
-        assertOK(client().performRequest(new Request("DELETE", "_data_stream/" + dataStream)));
-        assertOK(client().performRequest(new Request("DELETE", "_ilm/policy/" + policy)));
+        // Wait for the original index to be deleted, to ensure ILM has finished
+        awaitIndexDoesNotExist(firstGenIndex);
     }
 
     // See: https://github.com/elastic/elasticsearch/issues/77269

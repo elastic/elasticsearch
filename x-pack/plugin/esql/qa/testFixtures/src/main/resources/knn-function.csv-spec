@@ -298,3 +298,41 @@ lemon chiffon | false
 white         | true
 cyan          | true
 ;
+
+testKnnWithStats
+required_capability: knn_function_v4
+
+from colors metadata _score 
+| where knn(rgb_vector, [128,128,0])
+| sort _score desc, color asc
+| limit 15
+| stats c = count(*)
+;
+
+c:long
+15
+;
+
+testKnnWithRerank
+required_capability: knn_function_v4
+
+from colors metadata _score 
+| where knn(rgb_vector, [128,128,0])
+| sort _score desc, color asc
+| limit 10
+| rerank "deepest blue" ON color WITH { "inference_id" : "test_reranker" }
+| keep color
+;
+
+color:text
+olive
+sienna
+chocolate
+peru
+golden rod
+brown
+firebrick
+chartreuse
+green
+maroon
+;

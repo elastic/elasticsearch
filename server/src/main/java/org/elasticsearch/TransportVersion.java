@@ -56,12 +56,12 @@ import java.util.stream.Collectors;
  * those two merged commits.
  *
  * <h2>Version compatibility</h2>
- * The earliest compatible version is hardcoded in the {@link TransportVersions#MINIMUM_COMPATIBLE} field. Previously, this was dynamically
+ * The earliest compatible version is hardcoded in the {@link VersionsHolder#MINIMUM_COMPATIBLE} field. Previously, this was dynamically
  * calculated from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version
  * numbers. So the minimum compatible version is hard-coded as the transport version used by the highest minor release of the previous
- * major version. {@link TransportVersions#MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
+ * major version. {@link VersionsHolder#MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
  * <p>
- * The earliest CCS compatible version is hardcoded at {@link TransportVersions#MINIMUM_CCS_VERSION}, as the transport version used by the
+ * The earliest CCS compatible version is hardcoded at {@link VersionsHolder#MINIMUM_CCS_VERSION}, as the transport version used by the
  * previous minor release. This should be updated appropriately whenever a minor release happens.
  *
  * <h2>Scope of usefulness of {@link TransportVersion}</h2>
@@ -105,8 +105,8 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
     /**
      * Constructs a named transport version along with its set of compatible patch versions from x-content.
-     * This method takes in the parameter {@code latest} which is the highest valid transport version id
-     * supported by this node. Versions newer than the current transport version id for this node are discarded.
+     * This method takes in the parameter {@code upperBound} which is the highest transport version id
+     * that will be loaded by this node.
      */
     public static TransportVersion fromBufferedReader(
         String component,
@@ -114,7 +114,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         boolean nameInFile,
         boolean isNamed,
         BufferedReader bufferedReader,
-        Integer latest
+        Integer upperBound
     ) {
         try {
             String line = bufferedReader.readLine();
@@ -152,7 +152,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 if (idIndex > 0 && ids.get(idIndex - 1) <= ids.get(idIndex)) {
                     throw new IllegalStateException("invalid transport version file format [" + toComponentPath(component, path) + "]");
                 }
-                if (ids.get(idIndex) > latest) {
+                if (ids.get(idIndex) > upperBound) {
                     break;
                 }
                 transportVersion = new TransportVersion(name, ids.get(idIndex), transportVersion);
@@ -167,15 +167,15 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         String component,
         String resourceRoot,
         Function<String, InputStream> resourceLoader,
-        String latestFileName
+        String upperBoundFileName
     ) {
-        TransportVersion latest = parseFromBufferedReader(
+        TransportVersion upperBound = parseFromBufferedReader(
             component,
-            resourceRoot + "/latest/" + latestFileName,
+            resourceRoot + "/upper_bounds/" + upperBoundFileName,
             resourceLoader,
             (c, p, br) -> fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
         );
-        if (latest != null) {
+        if (upperBound != null) {
             List<String> versionRelativePaths = parseFromBufferedReader(
                 component,
                 resourceRoot + "/definitions/manifest.txt",
@@ -189,7 +189,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                         component,
                         resourceRoot + "/definitions/" + versionRelativePath,
                         resourceLoader,
-                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("named/"), br, latest.id())
+                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("referable/"), br, upperBound.id())
                     );
                     if (transportVersion != null) {
                         transportVersions.add(transportVersion);
@@ -228,7 +228,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * Finds a {@link TransportVersion} by its name. The parameter {@code name} must be a {@link String}
      * direct value or validation checks will fail. {@code TransportVersion.fromName("direct_value")}.
      * <p>
-     * This will only return the latest known named transport version for a given name and not its
+     * This will only return the latest known referable transport version for a given name and not its
      * patch versions. Patch versions are constructed as a linked list internally and may be found by
      * cycling through them in a loop using {@link TransportVersion#nextPatchVersion()}.
      *
@@ -263,7 +263,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
      */
     public static boolean isCompatible(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE);
+        return version.onOrAfter(VersionsHolder.MINIMUM_COMPATIBLE);
     }
 
     /**
@@ -272,6 +272,29 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      */
     public static TransportVersion current() {
         return VersionsHolder.CURRENT;
+    }
+
+    /**
+     * Sentinel value for lowest possible transport version
+     */
+    public static TransportVersion zero() {
+        return VersionsHolder.ZERO;
+    }
+
+    /**
+     * Reference to the earliest compatible transport version to this version of the codebase.
+     * This should be the transport version used by the highest minor version of the previous major.
+     */
+    public static TransportVersion minimumCompatible() {
+        return VersionsHolder.MINIMUM_COMPATIBLE;
+    }
+
+    /**
+     * Reference to the minimum transport version that can be used with CCS.
+     * This should be the transport version used by the previous minor release.
+     */
+    public static TransportVersion minimumCCSVersion() {
+        return VersionsHolder.MINIMUM_CCS_VERSION;
     }
 
     /**
@@ -290,14 +313,14 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * @return the newest known {@link TransportVersion} which is no older than this instance. Returns {@link TransportVersions#ZERO} if
+     * @return the newest known {@link TransportVersion} which is no older than this instance. Returns {@link VersionsHolder#ZERO} if
      *         there are no such versions.
      */
     public TransportVersion bestKnownVersion() {
         if (isKnown()) {
             return this;
         }
-        TransportVersion bestSoFar = TransportVersions.ZERO;
+        TransportVersion bestSoFar = VersionsHolder.ZERO;
         for (final var knownVersion : VersionsHolder.ALL_VERSIONS_BY_ID.values()) {
             if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
                 bestSoFar = knownVersion;
@@ -340,7 +363,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * and all of its patch ids for compatibility. This replaces the pattern
      * of {@code wireTV.onOrAfter(TV_FEATURE) || wireTV.isPatchFrom(TV_FEATURE_BACKPORT) || ...}
      * for unnamed transport versions with {@code wireTV.supports(TV_FEATURE)} for named
-     * transport versions (since named versions know about their own patch versions).
+     * transport versions (since referable versions know about their own patch versions).
      * <p>
      * The recommended use of this method is to declare a static final {@link TransportVersion}
      * as part of the file that it's used in. This constant is then used in conjunction with
@@ -411,10 +434,10 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * This class holds various data structures for looking up known transport versions both
-     * named and unnamed. While we transition to named transport versions, this class will
+     * This class holds various data structures for loading transport versions, both
+     * named file-based definitions and unnamed. While we transition to file-based transport versions, this class will
      * load and merge unnamed transport versions from {@link TransportVersions} along with
-     * named transport versions specified in a manifest file in resources.
+     * transport version definitions specified in a manifest file in resources.
      */
     private static class VersionsHolder {
 
@@ -422,7 +445,11 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         private static final Map<Integer, TransportVersion> ALL_VERSIONS_BY_ID;
         private static final Map<String, TransportVersion> ALL_VERSIONS_BY_NAME;
         private static final IntFunction<String> VERSION_LOOKUP_BY_RELEASE;
+
         private static final TransportVersion CURRENT;
+        private static final TransportVersion ZERO;
+        private static final TransportVersion MINIMUM_COMPATIBLE;
+        private static final TransportVersion MINIMUM_CCS_VERSION;
 
         static {
             // collect all the transport versions from server and es modules/plugins (defined in server)
@@ -460,7 +487,20 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             ALL_VERSIONS = Collections.unmodifiableList(allVersions);
             ALL_VERSIONS_BY_ID = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
             ALL_VERSIONS_BY_NAME = Collections.unmodifiableMap(allVersionsByName);
+
             CURRENT = ALL_VERSIONS.getLast();
+            ZERO = new TransportVersion(0);
+            MINIMUM_COMPATIBLE = loadConstant("minimum_compatible");
+            MINIMUM_CCS_VERSION = loadConstant("minimum_ccs_version");
+        }
+
+        private static TransportVersion loadConstant(String name) {
+            return parseFromBufferedReader(
+                "<server>",
+                "/transport/constants/" + name + ".csv",
+                TransportVersion.class::getResourceAsStream,
+                (c, p, br) -> fromBufferedReader(c, p, false, false, br, Integer.MAX_VALUE)
+            );
         }
 
         private static List<TransportVersion> addTransportVersions(Collection<TransportVersion> addFrom, List<TransportVersion> addTo) {

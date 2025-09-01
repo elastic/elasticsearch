@@ -8635,6 +8635,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(knn.k(), equalTo(10));
     }
 
+    public void testKnnWithTopN() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            | limit 10
+            """;
+        var optimized = planTypes(query);
+
+        var topN = as(optimized, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.k(), equalTo(10));
+    }
+
     public void testKnnWithMultipleLimits() {
         assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
@@ -8676,6 +8693,47 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var secondAnd = as(firstAnd.left(), And.class);
         var secondKnn = as(secondAnd.left(), Knn.class);
         assertThat(((Literal) secondKnn.query()).value(), is(List.of(0.0f, 1.0f, 2.0f)));
+    }
+
+    public void testKnnWithStats() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        assertThat(
+            typesError("from test | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)"),
+            containsString("Knn function must be used with a LIMIT clause")
+        );
+    }
+
+    public void testKnnWithRerankAmdTopN() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        assertThat(typesError("""
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
+            | sort _score desc
+            | limit 10
+            """), containsString("Knn function must be used with a LIMIT clause"));
+    }
+
+    public void testKnnWithRerankAmdLimit() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
+            | limit 100
+            """;
+
+        var optimized = planTypes(query);
+
+        var rerank = as(optimized, Rerank.class);
+        var limit = as(rerank.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(100));
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.k(), equalTo(100));
     }
 
     private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(List<RuleExecutor.Batch<LogicalPlan>> batches) {

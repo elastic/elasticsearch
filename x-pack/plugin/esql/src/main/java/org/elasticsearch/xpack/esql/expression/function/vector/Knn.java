@@ -15,7 +15,9 @@ import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -67,7 +69,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
-public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction, PostAnalysisPlanVerificationAware {
+public class Knn extends FullTextFunction
+    implements
+        OptionalArgument,
+        VectorFunction,
+        PostAnalysisPlanVerificationAware,
+        PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
@@ -311,6 +318,17 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     @Override
+    public void postOptimizationVerification(Failures failures) {
+        // Check that a k has been set
+        if (k() == null) {
+            failures.add(Failure.fail(
+                this,
+                "Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find"
+            ));
+        }
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Knn(
             source(),
@@ -368,5 +386,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     public int hashCode() {
         return Objects.hash(field(), query(), queryBuilder(), k(), filterExpressions());
     }
+
+
 
 }

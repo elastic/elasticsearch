@@ -137,19 +137,27 @@ public class OtlpUtils {
             .build();
     }
 
-    public static NumberDataPoint createDoubleDataPoint(long timestamp, List<KeyValue> attributes) {
+    public static NumberDataPoint createDoubleDataPoint(long timestamp) {
+        return createDoubleDataPoint(timestamp, timestamp, List.of());
+    }
+
+    public static NumberDataPoint createDoubleDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
         return NumberDataPoint.newBuilder()
-            .setTimeUnixNano(timestamp)
-            .setStartTimeUnixNano(timestamp)
+            .setTimeUnixNano(timeUnixNano)
+            .setStartTimeUnixNano(startTimeUnixNano)
             .addAllAttributes(attributes)
             .setAsDouble(randomDouble())
             .build();
     }
 
-    public static NumberDataPoint createLongDataPoint(long timestamp, List<KeyValue> attributes) {
+    public static NumberDataPoint createLongDataPoint(long timestamp) {
+        return createLongDataPoint(timestamp, timestamp, List.of());
+    }
+
+    public static NumberDataPoint createLongDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
         return NumberDataPoint.newBuilder()
-            .setTimeUnixNano(timestamp)
-            .setStartTimeUnixNano(timestamp)
+            .setTimeUnixNano(timeUnixNano)
+            .setStartTimeUnixNano(startTimeUnixNano)
             .addAllAttributes(attributes)
             .setAsInt(randomLong())
             .build();

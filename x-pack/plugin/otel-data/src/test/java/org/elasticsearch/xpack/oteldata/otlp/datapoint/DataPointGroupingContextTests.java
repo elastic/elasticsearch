@@ -40,12 +40,12 @@ public class DataPointGroupingContextTests extends ESTestCase {
         // Group data points
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
-                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))),
-                createGaugeMetric("system.memory.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))),
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createGaugeMetric("system.memory.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
                 createSumMetric(
                     "http.requests.count",
                     "",
-                    List.of(createLongDataPoint(nowUnixNanos, List.of())),
+                    List.of(createLongDataPoint(nowUnixNanos)),
                     true,
                     AGGREGATION_TEMPORALITY_CUMULATIVE
                 ),
@@ -79,8 +79,8 @@ public class DataPointGroupingContextTests extends ESTestCase {
         // Group data points
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
-                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))),
-                createGaugeMetric("system.memory.usage", "By", List.of(createLongDataPoint(nowUnixNanos, List.of())))
+                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createGaugeMetric("system.memory.usage", "By", List.of(createLongDataPoint(nowUnixNanos)))
             )
         );
         context.groupDataPoints(metricsRequest);
@@ -100,7 +100,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
                 createScopeMetrics(
                     "test",
                     "1.0.0",
-                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))))
+                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))))
                 )
             )
         );
@@ -110,7 +110,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
                 createScopeMetrics(
                     "test",
                     "1.0.0",
-                    List.of(createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos, List.of()))))
+                    List.of(createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos))))
                 )
             )
         );
@@ -132,7 +132,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
                 createScopeMetrics(
                     "test_scope_1",
                     "1.0.0",
-                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))))
+                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))))
                 )
             )
         );
@@ -142,7 +142,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
                 createScopeMetrics(
                     "test_scope_2",
                     "1.0.0",
-                    List.of(createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos, List.of()))))
+                    List.of(createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos))))
                 )
             )
         );
@@ -161,8 +161,8 @@ public class DataPointGroupingContextTests extends ESTestCase {
         // Group data points
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
-                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos + 1, List.of()))),
-                createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos, List.of())))
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos + 1))),
+                createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos)))
             )
         );
         context.groupDataPoints(metricsRequest);
@@ -179,8 +179,12 @@ public class DataPointGroupingContextTests extends ESTestCase {
         // Group data points
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
-                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of(keyValue("core", "cpu0"))))),
-                createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos, List.of())))
+                createGaugeMetric(
+                    "system.cpu.usage",
+                    "",
+                    List.of(createDoubleDataPoint(nowUnixNanos, nowUnixNanos, List.of(keyValue("core", "cpu0"))))
+                ),
+                createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos)))
             )
         );
         context.groupDataPoints(metricsRequest);

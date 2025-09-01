@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -28,9 +29,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjectBuilder;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.StringContains.containsString;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class KnnSemanticTextIT extends ESRestTestCase {
@@ -51,10 +54,11 @@ public class KnnSemanticTextIT extends ESRestTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
     }
 
-    public void testKnnQuery() throws IOException {
+    @SuppressWarnings("unchecked")
+    public void testKnnQueryWithSemanticText() throws IOException {
         String knnQuery = """
             FROM semantic-test METADATA _score
             | WHERE knn(semantic, [0, 1, 2], 10)
@@ -64,9 +68,29 @@ public class KnnSemanticTextIT extends ESRestTestCase {
             """;
 
         Map<String, Object> response = runEsqlQuery(knnQuery);
-        @SuppressWarnings("unchecked")
         List<Map<String, Object>> columns = (List<Map<String, Object>>) response.get("columns");
         assertThat(columns.size(), is(3));
+        List<List<Object>> rows = (List<List<Object>>) response.get("values");
+        assertThat(rows.size(), is(3));
+        for (int row = 0; row < rows.size(); row++) {
+            List<Object> rowData = rows.get(row);
+            Integer id = (Integer) rowData.get(0);
+            assertThat(id, is(3 - row));
+        }
+    }
+
+    public void testKnnQueryOnTextField() throws IOException {
+        String knnQuery = """
+            FROM semantic-test METADATA _score
+            | WHERE knn(text, [0, 1, 2], 10)
+            | KEEP id, _score, semantic
+            | SORT _score DESC
+            | LIMIT 10
+            """;
+
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlQuery(knnQuery));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), is(BAD_REQUEST.getStatus()));
+        assertThat(re.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
     }
 
     @Before
@@ -82,6 +106,10 @@ public class KnnSemanticTextIT extends ESRestTestCase {
                   "semantic": {
                     "type": "semantic_text",
                     "inference_id": "test_dense_inference"
+                  },
+                  "text": {
+                    "type": "text",
+                    "copy_to": "semantic"
                   }
                 }
               },
@@ -99,11 +127,11 @@ public class KnnSemanticTextIT extends ESRestTestCase {
         // 4 documents with a null in the middle, leading to 3 ESQL pages and 3 Arrow batches
         request.setJsonEntity("""
             {"index": {"_id": "1"}}
-            {"id": 1, "semantic": "sample text one"}
+            {"id": 1, "text": "sample text"}
             {"index": {"_id": "2"}}
-            {"id": 2, "semantic": "sample text two"}
+            {"id": 2, "text": "another sample text"}
             {"index": {"_id": "3"}}
-            {"id": 3, "semantic": "sample text three"}
+            {"id": 3, "text": "yet another sample text"}
             """);
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }

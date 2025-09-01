@@ -19,11 +19,12 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {
         Source source = Source.EMPTY;
         String parentName = maxDepth == 0 || randomBoolean() ? null : randomAlphaOfLength(3);
+        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
         EsField field = onlyRepresentable ? randomRepresentableEsField(maxDepth) : AbstractEsFieldTypeTests.randomAnyEsField(maxDepth);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
-        return new FieldAttribute(source, parentName, name, field, nullability, new NameId(), synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, new NameId(), synthetic);
     }
 
     private static EsField randomRepresentableEsField(int maxDepth) {
@@ -43,16 +44,18 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         Source source = instance.source();
         String parentName = instance.parentName();
         String name = instance.name();
+        String qualifier = instance.qualifier();
         EsField field = instance.field();
         Nullability nullability = instance.nullable();
         boolean synthetic = instance.synthetic();
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> parentName = randomValueOtherThan(parentName, () -> randomBoolean() ? null : randomAlphaOfLength(2));
-            case 1 -> name = randomAlphaOfLength(name.length() + 1);
-            case 2 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomAnyEsField(3));
-            case 3 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
-            case 4 -> synthetic = false == synthetic;
+            case 1 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
+            case 2 -> name = randomAlphaOfLength(name.length() + 1);
+            case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomAnyEsField(3));
+            case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 5 -> synthetic = false == synthetic;
         }
-        return new FieldAttribute(source, parentName, name, field, nullability, new NameId(), synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, new NameId(), synthetic);
     }
 }

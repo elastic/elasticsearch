@@ -2063,7 +2063,7 @@ public class MetadataIndexTemplateService {
         validate(name, template.template(), Collections.emptyList(), null);
     }
 
-    private void validate(String name, ComposableIndexTemplate template, Settings systemProvided) {
+    private void validate(String name, ComposableIndexTemplate template, @Nullable Settings systemProvided) {
         validate(name, template.template(), template.indexPatterns(), systemProvided);
     }
 

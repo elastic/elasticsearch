@@ -83,7 +83,8 @@ public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<Geome
             script,
             scriptFactory.isResultDeterministic(),
             meta,
-                false);
+            false
+        );
         this.geoFormatterFactory = geoFormatterFactory;
     }
 

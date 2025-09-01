@@ -40,11 +40,11 @@ public interface SourceProvider {
     /**
      * Optionally returns a new {@link SourceProvider} that is more optimized to load source with the provided source filter in mind.
      * <p>
-     * Currently, if source mode is synthetic, and only a subset of fields are requested, then only loading source for requested fields
-     * is much more efficient.
+     * Currently this is only the case if source mode is synthetic, and only a subset of fields is requested,
+     * then only loading source for requested fields is much more efficient.
      *
      * @param sourceFilter The part of the source caller is actually interested in.
-     * @return a new instance if source can be loaded in optimal a more optimal way, otherwise returns this instance.
+     * @return a new instance if source can be loaded in a more optimal way, otherwise returns this instance.
      */
     default SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {
         return this;

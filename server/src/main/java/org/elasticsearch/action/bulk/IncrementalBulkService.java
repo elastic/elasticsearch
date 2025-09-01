@@ -29,9 +29,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
@@ -62,12 +64,17 @@ public class IncrementalBulkService {
 
     public Handler newBulkRequest() {
         ensureEnabled();
-        return newBulkRequest(null, null, null);
+        return newBulkRequest(null, null, null, emptySet());
     }
 
-    public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
+    public Handler newBulkRequest(
+        @Nullable String waitForActiveShards,
+        @Nullable TimeValue timeout,
+        @Nullable String refresh,
+        Set<String> paramsUsed
+    ) {
         ensureEnabled();
-        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram);
+        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram, paramsUsed);
     }
 
     private void ensureEnabled() {
@@ -105,6 +112,7 @@ public class IncrementalBulkService {
         private final Client client;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
+        private final Set<String> paramsUsed;
         private final String refresh;
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
@@ -125,12 +133,14 @@ public class IncrementalBulkService {
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
             @Nullable String refresh,
-            LongHistogram chunkWaitTimeMillisHistogram
+            LongHistogram chunkWaitTimeMillisHistogram,
+            Set<String> paramsUsed
         ) {
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
+            this.paramsUsed = paramsUsed;
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
@@ -210,7 +220,7 @@ public class IncrementalBulkService {
                         @Override
                         public void onResponse(BulkResponse bulkResponse) {
                             handleBulkSuccess(bulkResponse);
-                            listener.onResponse(combineResponses());
+                            listener.onResponse(BulkResponse.combine(responses));
                         }
 
                         @Override
@@ -252,7 +262,7 @@ public class IncrementalBulkService {
             if (globalFailure) {
                 listener.onFailure(bulkActionLevelFailure);
             } else {
-                listener.onResponse(combineResponses());
+                listener.onResponse(BulkResponse.combine(responses));
             }
         }
 
@@ -310,26 +320,7 @@ public class IncrementalBulkService {
             if (refresh != null) {
                 bulkRequest.setRefreshPolicy(refresh);
             }
-        }
-
-        private BulkResponse combineResponses() {
-            long tookInMillis = 0;
-            long ingestTookInMillis = 0;
-            int itemResponseCount = 0;
-            for (BulkResponse response : responses) {
-                tookInMillis += response.getTookInMillis();
-                ingestTookInMillis += response.getIngestTookInMillis();
-                itemResponseCount += response.getItems().length;
-            }
-            BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemResponseCount];
-            int i = 0;
-            for (BulkResponse response : responses) {
-                for (BulkItemResponse itemResponse : response.getItems()) {
-                    bulkItemResponses[i++] = itemResponse;
-                }
-            }
-
-            return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
+            bulkRequest.requestParamsUsed(paramsUsed);
         }
     }
 }

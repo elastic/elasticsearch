@@ -47,7 +47,7 @@ class MedianAbsoluteDeviationIntAggregator {
         state.add(groupId, inValue);
     }
 
-    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateMedianAbsoluteDeviation(selected, driverContext);
+    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.evaluateMedianAbsoluteDeviation(selected, ctx.driverContext());
     }
 }

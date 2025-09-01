@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -99,10 +100,16 @@ import java.util.stream.Collectors;
  *   processor definitions.
  */
 public class SimulateBulkRequest extends BulkRequest {
+
+    private static final TransportVersion SIMULATE_INGEST_MAPPING_MERGE_TYPE = TransportVersion.fromName(
+        "simulate_ingest_mapping_merge_type"
+    );
+
     private final Map<String, Map<String, Object>> pipelineSubstitutions;
     private final Map<String, Map<String, Object>> componentTemplateSubstitutions;
     private final Map<String, Map<String, Object>> indexTemplateSubstitutions;
     private final Map<String, Object> mappingAddition;
+    private final String mappingMergeType;
 
     /**
      * @param pipelineSubstitutions The pipeline definitions that are to be used in place of any pre-existing pipeline definitions with
@@ -118,7 +125,8 @@ public class SimulateBulkRequest extends BulkRequest {
         Map<String, Map<String, Object>> pipelineSubstitutions,
         Map<String, Map<String, Object>> componentTemplateSubstitutions,
         Map<String, Map<String, Object>> indexTemplateSubstitutions,
-        Map<String, Object> mappingAddition
+        Map<String, Object> mappingAddition,
+        String mappingMergeType
     ) {
         super();
         Objects.requireNonNull(pipelineSubstitutions);
@@ -129,6 +137,7 @@ public class SimulateBulkRequest extends BulkRequest {
         this.componentTemplateSubstitutions = componentTemplateSubstitutions;
         this.indexTemplateSubstitutions = indexTemplateSubstitutions;
         this.mappingAddition = mappingAddition;
+        this.mappingMergeType = mappingMergeType;
     }
 
     @SuppressWarnings("unchecked")
@@ -147,6 +156,11 @@ public class SimulateBulkRequest extends BulkRequest {
         } else {
             mappingAddition = Map.of();
         }
+        if (in.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
+            mappingMergeType = in.readOptionalString();
+        } else {
+            mappingMergeType = null;
+        }
     }
 
     @Override
@@ -159,6 +173,9 @@ public class SimulateBulkRequest extends BulkRequest {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             out.writeGenericValue(mappingAddition);
+        }
+        if (out.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
+            out.writeOptionalString(mappingMergeType);
         }
     }
 
@@ -189,6 +206,10 @@ public class SimulateBulkRequest extends BulkRequest {
         return mappingAddition;
     }
 
+    public String getMappingMergeType() {
+        return mappingMergeType;
+    }
+
     private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) {
         ComponentTemplate componentTemplate;
         try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawTemplate)) {
@@ -215,7 +236,8 @@ public class SimulateBulkRequest extends BulkRequest {
             pipelineSubstitutions,
             componentTemplateSubstitutions,
             indexTemplateSubstitutions,
-            mappingAddition
+            mappingAddition,
+            mappingMergeType
         );
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());

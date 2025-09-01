@@ -11,10 +11,8 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
@@ -32,10 +30,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
      * @param k the number of nearest neighbors to return
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
-     * @param nProbe the number of probes to use for the IVF search strategy
+     * @param visitRatio the ratio of vectors to score for the IVF search strategy
      */
-    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, int nProbe) {
-        super(field, nProbe, k, numCands, filter);
+    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
+        super(field, visitRatio, k, numCands, filter);
         this.query = query;
     }
 
@@ -77,21 +75,24 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         LeafReaderContext context,
         Bits acceptDocs,
         int visitedLimit,
-        KnnCollectorManager knnCollectorManager
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio
     ) throws IOException {
-        KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, searchStrategy, context);
-        if (knnCollector == null) {
-            return NO_RESULTS;
-        }
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
         if (floatVectorValues == null) {
             FloatVectorValues.checkField(reader, field);
             return NO_RESULTS;
         }
-        if (Math.min(knnCollector.k(), floatVectorValues.size()) == 0) {
+        if (floatVectorValues.size() == 0) {
             return NO_RESULTS;
         }
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
+        AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
+        if (knnCollector == null) {
+            return NO_RESULTS;
+        }
+        strategy.setCollector(knnCollector);
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
         TopDocs results = knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;

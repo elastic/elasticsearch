@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
@@ -70,6 +72,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     public static final ResolveIndexAction INSTANCE = new ResolveIndexAction();
     public static final String NAME = "indices:admin/resolve/index";
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
+
+    private static final TransportVersion RESOLVE_INDEX_MODE_ADDED = TransportVersion.fromName("resolve_index_mode_added");
 
     private ResolveIndexAction() {
         super(NAME);
@@ -176,27 +180,35 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
         static final ParseField ATTRIBUTES_FIELD = new ParseField("attributes");
         static final ParseField DATA_STREAM_FIELD = new ParseField("data_stream");
+        static final ParseField MODE_FIELD = new ParseField("mode");
 
         private final String[] aliases;
         private final String[] attributes;
         private final String dataStream;
+        private final IndexMode mode;
 
         ResolvedIndex(StreamInput in) throws IOException {
             setName(in.readString());
             this.aliases = in.readStringArray();
             this.attributes = in.readStringArray();
             this.dataStream = in.readOptionalString();
+            if (in.getTransportVersion().supports(RESOLVE_INDEX_MODE_ADDED)) {
+                this.mode = IndexMode.readFrom(in);
+            } else {
+                this.mode = null;
+            }
         }
 
-        ResolvedIndex(String name, String[] aliases, String[] attributes, @Nullable String dataStream) {
+        ResolvedIndex(String name, String[] aliases, String[] attributes, @Nullable String dataStream, IndexMode mode) {
             super(name);
             this.aliases = aliases;
             this.attributes = attributes;
             this.dataStream = dataStream;
+            this.mode = mode;
         }
 
         public ResolvedIndex copy(String newName) {
-            return new ResolvedIndex(newName, aliases, attributes, dataStream);
+            return new ResolvedIndex(newName, aliases, attributes, dataStream, mode);
         }
 
         public String[] getAliases() {
@@ -211,12 +223,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return dataStream;
         }
 
+        public IndexMode getMode() {
+            return mode;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(getName());
             out.writeStringArray(aliases);
             out.writeStringArray(attributes);
             out.writeOptionalString(dataStream);
+            if (out.getTransportVersion().supports(RESOLVE_INDEX_MODE_ADDED)) {
+                IndexMode.writeTo(mode, out);
+            }
         }
 
         @Override
@@ -230,6 +249,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (Strings.isNullOrEmpty(dataStream) == false) {
                 builder.field(DATA_STREAM_FIELD.getPreferredName(), dataStream);
             }
+            if (mode != null) {
+                builder.field(MODE_FIELD.getPreferredName(), mode.toString());
+            }
             builder.endObject();
             return builder;
         }
@@ -242,12 +264,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return getName().equals(index.getName())
                 && Objects.equals(dataStream, index.dataStream)
                 && Arrays.equals(aliases, index.aliases)
-                && Arrays.equals(attributes, index.attributes);
+                && Arrays.equals(attributes, index.attributes)
+                && Objects.equals(mode, index.mode);
         }
 
         @Override
         public int hashCode() {
             int result = Objects.hash(getName(), dataStream);
+            result = 31 * result + Objects.hashCode(mode);
             result = 31 * result + Arrays.hashCode(aliases);
             result = 31 * result + Arrays.hashCode(attributes);
             return result;
@@ -639,7 +663,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 ia.getName(),
                                 aliasNames,
                                 attributes.stream().map(Enum::name).map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new),
-                                ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName()
+                                ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName(),
+                                writeIndex.getIndexMode() == null ? IndexMode.STANDARD : writeIndex.getIndexMode()
                             )
                         );
                     }

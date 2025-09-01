@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsActi
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
@@ -404,6 +405,7 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
+import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -457,6 +459,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
+    private final ClusterService clusterService;
 
     public ActionModule(
         Settings settings,
@@ -532,6 +535,7 @@ public class ActionModule extends AbstractModule {
             reservedProjectStateHandlers
         );
         this.restExtension = restExtension;
+        this.clusterService = clusterService;
     }
 
     private static <T> T getRestServerComponent(
@@ -629,6 +633,7 @@ public class ActionModule extends AbstractModule {
         ActionRegistry actions = new ActionRegistry();
 
         actions.register(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class);
+        actions.register(TransportNodeUsageStatsForThreadPoolsAction.TYPE, TransportNodeUsageStatsForThreadPoolsAction.class);
         actions.register(TransportRemoteInfoAction.TYPE, TransportRemoteInfoAction.class);
         actions.register(TransportNodesCapabilitiesAction.TYPE, TransportNodesCapabilitiesAction.class);
         actions.register(TransportNodesFeaturesAction.TYPE, TransportNodesFeaturesAction.class);
@@ -670,6 +675,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportDeleteSnapshotAction.TYPE, TransportDeleteSnapshotAction.class);
         actions.register(TransportCreateSnapshotAction.TYPE, TransportCreateSnapshotAction.class);
         actions.register(TransportCloneSnapshotAction.TYPE, TransportCloneSnapshotAction.class);
+        actions.register(TransportUpdateSnapshotStatusAction.TYPE, TransportUpdateSnapshotStatusAction.class);
         actions.register(TransportRestoreSnapshotAction.TYPE, TransportRestoreSnapshotAction.class);
         actions.register(TransportSnapshotsStatusAction.TYPE, TransportSnapshotsStatusAction.class);
         actions.register(SnapshottableFeaturesAction.INSTANCE, TransportSnapshottableFeaturesAction.class);
@@ -923,9 +929,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResolveClusterAction());
         registerHandler.accept(new RestResolveIndexAction());
 
-        registerHandler.accept(new RestIndexAction());
-        registerHandler.accept(new CreateHandler());
-        registerHandler.accept(new AutoIdHandler());
+        registerHandler.accept(new RestIndexAction(clusterService, projectIdResolver));
+        registerHandler.accept(new CreateHandler(clusterService, projectIdResolver));
+        registerHandler.accept(new AutoIdHandler(clusterService, projectIdResolver));
         registerHandler.accept(new RestGetAction());
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));

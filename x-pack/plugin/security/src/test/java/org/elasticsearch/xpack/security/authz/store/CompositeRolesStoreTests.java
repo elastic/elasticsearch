@@ -2313,11 +2313,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Set.of(roleDescriptor));
 
-        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
-        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
-        final ReservedRolesStore reservedRolesStore = mock(ReservedRolesStore.class);
-        doCallRealMethod().when(reservedRolesStore).accept(anySet(), anyActionListener());
-
         final AtomicReference<ProjectId> projectId = new AtomicReference<>(ProjectId.DEFAULT);
         final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId::get);
 
@@ -2325,8 +2320,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Settings.EMPTY,
             clusterService,
             fileRolesStore,
-            nativeRolesStore,
-            reservedRolesStore,
+            null,
+            null,
             null,
             null,
             null,
@@ -3977,7 +3972,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private DocumentSubsetBitsetCache buildBitsetCache() {
-        return new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class));
+        return new DocumentSubsetBitsetCache(Settings.EMPTY);
     }
 
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {

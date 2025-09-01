@@ -81,10 +81,10 @@ Get template_id field:
               values: ["2"]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0.fields: {"foo.template_id": ["iJEgF75EQNk"]} }
+  - match: { hits.hits.0.fields: {"foo.template_id": ["mOVsnxlxdac"]} }
 
 ---
-Sort by template_id index config setting:
+Sort by template_id descending from index config setting:
   - do:
       search:
         index: test
@@ -93,19 +93,19 @@ Sort by template_id index config setting:
           query: { match_all: {} }
 
   - match: { hits.total.value: 5 }
-  - match: { hits.hits.0.fields: {"foo.template_id": ["vSr1YMYPups"]} }
-  - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.1.fields: {"foo.template_id": ["k-2qtjujOCw"]} }
-  - match: { hits.hits.1._id: "4" }
-  - match: { hits.hits.2.fields: {"foo.template_id": ["iJEgF75EQNk"]} }
-  - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.3.fields: {"foo.template_id": ["iJEgF75EQNk"]} }
-  - match: { hits.hits.3._id: "5" }
+  - match: { hits.hits.0.fields: {"foo.template_id": ["mOVsnxlxdac"]} }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1.fields: {"foo.template_id": ["mOVsnxlxdac"]} }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2.fields: {"foo.template_id": ["k-2qtjujOCw"]} }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.3.fields: {"foo.template_id": ["1l_PtCLQ5xY"]} }
+  - match: { hits.hits.3._id: "3" }
   - match: { hits.hits.4.fields: null }
   - match: { hits.hits.4._id: "1" }
 
 ---
-Sort by template_id:
+Sort by template_id ascending from request:
 
   - do:
       search:
@@ -116,14 +116,14 @@ Sort by template_id:
           query: { match_all: {} }
 
   - match: { hits.total.value: 5 }
-  - match: { hits.hits.0.fields: {"foo.template_id": ["iJEgF75EQNk"]} }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1.fields: {"foo.template_id": ["iJEgF75EQNk"]} }
-  - match: { hits.hits.1._id: "5" }
-  - match: { hits.hits.2.fields: {"foo.template_id": ["k-2qtjujOCw"]} }
-  - match: { hits.hits.2._id: "4" }
-  - match: { hits.hits.3.fields: {"foo.template_id": ["vSr1YMYPups"]} }
-  - match: { hits.hits.3._id: "3" }
+  - match: { hits.hits.0.fields: {"foo.template_id": ["1l_PtCLQ5xY"]} }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1.fields: {"foo.template_id": ["k-2qtjujOCw"]} }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.2.fields: {"foo.template_id": ["mOVsnxlxdac"]} }
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.3.fields: {"foo.template_id": ["mOVsnxlxdac"]} }
+  - match: { hits.hits.3._id: "5" }
   - match: { hits.hits.4.fields: null }
   - match: { hits.hits.4._id: "1" }
 
@@ -150,7 +150,7 @@ Match query:
         body:
           query:
             match:
-              foo.template_id: "iJEgF75EQNk"
+              foo.template_id: "mOVsnxlxdac"
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._score: 1.0 }
@@ -165,11 +165,11 @@ Range query:
           query:
             range:
               foo.template_id:
-                gt: "j"
-  # one doc has a null value for template_id and two start with i < j
+                lt: "l"
+  # one doc has a null value for template_id and two start with m > l
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "3" }
 
 ---
 Term aggregation:
@@ -186,11 +186,11 @@ Term aggregation:
 
   - match: { hits.total.value: 5 }
   - length: { aggregations.template_id_agg.buckets: 3 }
-  - match: { aggregations.template_id_agg.buckets.0.key: "iJEgF75EQNk" }
-  - match: { aggregations.template_id_agg.buckets.0.doc_count: 2 }
+  - match: { aggregations.template_id_agg.buckets.0.key: "1l_PtCLQ5xY" }
+  - match: { aggregations.template_id_agg.buckets.0.doc_count: 1 }
   - match: { aggregations.template_id_agg.buckets.1.key: "k-2qtjujOCw" }
   - match: { aggregations.template_id_agg.buckets.1.doc_count: 1 }
-  - match: { aggregations.template_id_agg.buckets.2.key: "vSr1YMYPups" }
-  - match: { aggregations.template_id_agg.buckets.2.doc_count: 1 }
+  - match: { aggregations.template_id_agg.buckets.2.key: "mOVsnxlxdac" }
+  - match: { aggregations.template_id_agg.buckets.2.doc_count: 2 }
 
 

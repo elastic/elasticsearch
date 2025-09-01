@@ -102,7 +102,7 @@ public class SearchLookup implements SourceProvider {
         this.fieldLookupProvider = searchLookup.fieldLookupProvider;
     }
 
-    public SearchLookup(SearchLookup searchLookup, SourceProvider sourceProvider) {
+    private SearchLookup(SearchLookup searchLookup, SourceProvider sourceProvider) {
         this.fieldChain = searchLookup.fieldChain;
         this.sourceProvider = sourceProvider;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;

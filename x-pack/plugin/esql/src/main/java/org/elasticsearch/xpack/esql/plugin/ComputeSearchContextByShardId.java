@@ -24,7 +24,7 @@ import java.util.stream.IntStream;
  * adding immutable elements via the {@link #add} method (which probably <i>should</i> be synchronized, but that's handled by the calling
  * code) it <i>should</i> be fine.
  */
-class ComputeSearchContextByShardId extends IndexedByShardId<ComputeSearchContext> implements Releasable {
+class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchContext>, Releasable {
     private final ComputeSearchContext[] array;
     private int nextAddIndex;
 
@@ -62,7 +62,7 @@ class ComputeSearchContextByShardId extends IndexedByShardId<ComputeSearchContex
      * <ol>
      * <li>{@link #get} fails if the index is out of range.</li>
      * <li>{@link #collection} only returns the elements in the specified range.</li>
-     * <li>{@link #map} only maps the elements in the specified range.</li>
+     * <li>{@link #map} creates a cache in the specified range size.</li>
      * </ol>
      */
     public IndexedByShardId<ComputeSearchContext> subRange(int fromIndex, int toIndex) {
@@ -78,7 +78,7 @@ class ComputeSearchContextByShardId extends IndexedByShardId<ComputeSearchContex
         Releasables.close(collection());
     }
 
-    private static class SubRanged<T> extends IndexedByShardId<T> {
+    private static class SubRanged<T> implements IndexedByShardId<T> {
         private final T[] array;
         private final int from;
         private final int to;
@@ -108,7 +108,7 @@ class ComputeSearchContextByShardId extends IndexedByShardId<ComputeSearchContex
         }
     }
 
-    private static class Mapped<T, S> extends IndexedByShardId<S> {
+    private static class Mapped<T, S> implements IndexedByShardId<S> {
         private final IndexedByShardId<T> original;
         private final S[] cache;
         private final int offset;

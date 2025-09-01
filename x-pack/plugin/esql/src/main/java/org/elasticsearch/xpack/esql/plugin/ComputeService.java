@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -20,7 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -49,24 +48,15 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
@@ -74,14 +64,12 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -260,7 +248,7 @@ public class ComputeService {
                 "main.final",
                 LOCAL_CLUSTER,
                 flags,
-                IndexedByShardId.empty(),
+                EmptyIndexedByShardId.instance(),
                 configuration,
                 foldContext,
                 mainExchangeSource::createExchangeSource,
@@ -365,7 +353,7 @@ public class ComputeService {
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
-                IndexedByShardId.empty(),
+                EmptyIndexedByShardId.instance(),
                 configuration,
                 foldContext,
                 null,
@@ -457,7 +445,7 @@ public class ComputeService {
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
-                            IndexedByShardId.empty(),
+                            EmptyIndexedByShardId.instance(),
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
@@ -745,7 +733,8 @@ public class ComputeService {
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
-                fixTopNSource(flags, configuration, foldCtx, plan).filter(unused -> features == ReductionPlanFeatures.ALL)
+                PlannerUtils.fixTopNSource(flags, configuration, foldCtx, plan)
+                    .filter(unused -> features == ReductionPlanFeatures.ALL)
                     .orElseGet(() -> plan.replaceChildren(List.of(source)));
             case PlannerUtils.ReducedPlan rp -> rp.plan().replaceChildren(List.of(source));
         };
@@ -756,99 +745,6 @@ public class ComputeService {
         ALL,
         WITHOUT_TOP_N,
         DISABLED
-    }
-
-    /** Returns {@code Optional.empty()} if the plan is not a TopN source, or if it references multiple indices. */
-    private static Optional<PhysicalPlan> fixTopNSource(
-        EsqlFlags flags,
-        Configuration configuration,
-        FoldContext foldCtx,
-        ExchangeSinkExec plan
-    ) {
-        FragmentExec fragment = plan.child() instanceof FragmentExec fe ? fe : null;
-        if (fragment == null) {
-            return Optional.empty();
-        }
-        var fakeSearchStats = new SearchStatsHacks();
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
-            new LocalLogicalOptimizerContext(configuration, foldCtx, fakeSearchStats)
-        );
-        ProjectAfterTopN projectAfterTopN = ProjectAfterTopN.KEEP;
-        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, fakeSearchStats, projectAfterTopN)
-        ) {
-            @Override
-            protected List<Batch<PhysicalPlan>> batches() {
-                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */, projectAfterTopN);
-            }
-        };
-        var localPlan = PlannerUtils.localPlan(plan, logicalOptimizer, physicalOptimizer);
-        if (RemoveProjectAfterTopN.isTopNCompatible(localPlan)) {
-            PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
-                var child = topN.child();
-                return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
-            });
-            return Optional.of(((UnaryExec) result).child());
-        }
-        return Optional.empty();
-    }
-
-    // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
-    private static class SearchStatsHacks implements SearchStats {
-        @Override
-        public boolean exists(FieldAttribute.FieldName field) {
-            return true;
-        }
-
-        @Override
-        public boolean isIndexed(FieldAttribute.FieldName field) {
-            return false;
-        }
-
-        @Override
-        public boolean hasDocValues(FieldAttribute.FieldName field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean hasExactSubfield(FieldAttribute.FieldName field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long count() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long count(FieldAttribute.FieldName field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long count(FieldAttribute.FieldName field, BytesRef value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Object min(FieldAttribute.FieldName field) {
-            return null;
-        }
-
-        @Override
-        public Object max(FieldAttribute.FieldName field) {
-            return null;
-        }
-
-        @Override
-        public boolean isSingleValue(FieldAttribute.FieldName field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     String newChildSession(String session) {

@@ -52,8 +52,11 @@ class ValuesFromManyReader extends ValuesReader {
 
     class Run implements Releasable {
         private final Block[] target;
-        // We use a map instead of an array since all shard contexts are shared between all readers in the same data node, and we wish to
-        // avoid creating an array with length the size of all shard contexts!
+        // we use a Map of builders because our index wouldn't start at 0 most of the time, nor would it necessarily be continuous.
+        // This can be called by two kinds of drivers, the data node driver which operates on a batch of, say, 10 shards at once, e.g.,
+        // 0..10, 10..20, etc., and the node-reduce driver which operates on all shards we're targeting on the node—potentially
+        // thousands—but luckily we only need to populate the builder and loader for the documents that we receive, which will never be more
+        // than a Page worth.
         private final LinkedHashMap<Integer, Block.Builder>[] builders;
         private final LinkedHashMap<Integer, BlockLoader>[] converters;
         private final Block.Builder[] fieldTypeBuilders;

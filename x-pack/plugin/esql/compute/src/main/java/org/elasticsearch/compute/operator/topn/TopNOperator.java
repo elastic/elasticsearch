@@ -570,7 +570,6 @@ public class TopNOperator implements Operator, Accountable {
          */
         Releasables.closeExpectNoException(
             spare,
-            Releasables.wrap(encoders),
             inputQueue == null ? null : Releasables.wrap(inputQueue),
             output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
         );

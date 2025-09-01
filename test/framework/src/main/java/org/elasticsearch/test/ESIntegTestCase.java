@@ -2238,7 +2238,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return annotation == null ? true : annotation.autoManageMasterNodes();
     }
 
-    private int getNumDataNodes() {
+    protected int getNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? -1 : annotation.numDataNodes();
     }

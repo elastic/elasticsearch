@@ -23,7 +23,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /** A rather roundabout way of ignoring shard ref counters in tests. */
-public class ConstantShardContextIndexedByShardId extends IndexedByShardId<EsPhysicalOperationProviders.ShardContext> {
+public class ConstantShardContextIndexedByShardId implements IndexedByShardId<EsPhysicalOperationProviders.ShardContext> {
     public static final ConstantShardContextIndexedByShardId INSTANCE = new ConstantShardContextIndexedByShardId();
 
     private ConstantShardContextIndexedByShardId() {}

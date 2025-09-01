@@ -18,16 +18,16 @@ import java.util.function.Function;
  * When you see this class, it will usually be parameterized by {@link ShardContext}, its super classes, or one of its variants,
  * e.g., {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig}.
  */
-public abstract class IndexedByShardId<T> {
-    public abstract T get(int shardId);
+public interface IndexedByShardId<T> {
+    T get(int shardId);
 
     /**
      * This is not necessarily a list of all values visible via get(int), but rather, a list of the relevant values.
      * This is useful when you need to perform an operation over all relevant values, e.g., closing them.
      */
-    public abstract Collection<? extends T> collection();
+    Collection<? extends T> collection();
 
-    public boolean isEmpty() {
+    default boolean isEmpty() {
         return collection().isEmpty();
     }
 
@@ -35,28 +35,5 @@ public abstract class IndexedByShardId<T> {
      * The elements are mapped lazily, i.e., the function would also apply to future elements (as opposed to
      * {@code collection().stream().map}, which only maps the current elements).
      */
-    public abstract <S> IndexedByShardId<S> map(Function<T, S> mapper);
-
-    @SuppressWarnings("unchecked")
-    public static <T> IndexedByShardId<T> empty() {
-        return (IndexedByShardId<T>) EMPTY;
-    }
-
-    private static IndexedByShardId<?> EMPTY = new IndexedByShardId<>() {
-        @Override
-        public Object get(int shardId) {
-            throw new IndexOutOfBoundsException("no shards");
-        }
-
-        @Override
-        public Collection<?> collection() {
-            return java.util.List.of();
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public <S> IndexedByShardId<S> map(Function<Object, S> mapper) {
-            return (IndexedByShardId<S>) this;
-        }
-    };
+    <S> IndexedByShardId<S> map(Function<T, S> mapper);
 }

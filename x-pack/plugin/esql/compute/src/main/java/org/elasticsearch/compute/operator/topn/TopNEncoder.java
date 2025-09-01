@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.core.Releasable;
 
 /**
  * Encodes values for {@link TopNOperator}. Some encoders encode values so sorting
@@ -19,7 +18,7 @@ import org.elasticsearch.core.Releasable;
  * If you don't need the bytes to be sortable you can get an "unsortable" encoder
  * with {@link #toUnsortable()}.
  */
-public interface TopNEncoder extends Releasable {
+public interface TopNEncoder {
     /**
      * An encoder that encodes values such that sorting the bytes sorts the values.
      */
@@ -82,6 +81,4 @@ public interface TopNEncoder extends Releasable {
      * without making the encoded bytes sortable.
      */
     TopNEncoder toUnsortable();
-
-    default void close() {}
 }

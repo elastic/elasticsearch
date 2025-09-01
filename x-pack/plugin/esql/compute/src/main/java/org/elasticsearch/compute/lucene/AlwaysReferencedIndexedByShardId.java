@@ -17,7 +17,7 @@ import java.util.function.Function;
  * An implementation which always returns {@link RefCounted#ALWAYS_REFERENCED} for any shard ID. Used by tests, but defined here so it could
  * also be used by the benchmarks.
  */
-public class AlwaysReferencedIndexedByShardId extends IndexedByShardId<RefCounted> {
+public class AlwaysReferencedIndexedByShardId implements IndexedByShardId<RefCounted> {
     public static final AlwaysReferencedIndexedByShardId INSTANCE = new AlwaysReferencedIndexedByShardId();
 
     private AlwaysReferencedIndexedByShardId() {}

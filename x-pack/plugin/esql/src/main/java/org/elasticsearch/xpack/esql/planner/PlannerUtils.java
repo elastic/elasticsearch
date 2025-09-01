@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -62,6 +65,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -145,6 +149,64 @@ public class PlannerUtils {
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
+    }
+
+    /** Returns {@code Optional.empty()} if the plan is not a TopN source, or if it references multiple indices. */
+    public static Optional<PhysicalPlan> fixTopNSource(
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec plan
+    ) {
+        FragmentExec fragment = plan.child() instanceof FragmentExec fe ? fe : null;
+        if (fragment == null) {
+            return Optional.empty();
+        }
+        var fakeSearchStats = new SearchStatsTopNReplacement();
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, fakeSearchStats)
+        );
+        LocalPhysicalOptimizerContext.ProjectAfterTopN projectAfterTopN = LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP;
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, fakeSearchStats, projectAfterTopN)
+        ) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */, projectAfterTopN);
+            }
+        };
+        var localPlan = PlannerUtils.localPlan(plan, logicalOptimizer, physicalOptimizer);
+        if (RemoveProjectAfterTopN.isTopNCompatible(localPlan)) {
+            PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
+                var child = topN.child();
+                return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
+            });
+            return Optional.of(((UnaryExec) result).child());
+        }
+        return Optional.empty();
+    }
+
+    // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
+    private static class SearchStatsTopNReplacement extends SearchStats.UnsupportedSearchStates {
+        @Override
+        public boolean exists(FieldAttribute.FieldName field) {
+            return true;
+        }
+
+        @Override
+        public boolean isIndexed(FieldAttribute.FieldName field) {
+            return false;
+        }
+
+        @Override
+        public Object min(FieldAttribute.FieldName field) {
+            return null;
+        }
+
+        @Override
+        public Object max(FieldAttribute.FieldName field) {
+            return null;
+        }
     }
 
     private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {

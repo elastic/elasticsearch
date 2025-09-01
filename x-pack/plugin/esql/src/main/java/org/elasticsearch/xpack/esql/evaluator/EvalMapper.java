@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -46,7 +47,7 @@ public final class EvalMapper {
     private EvalMapper() {}
 
     public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout) {
-        return toEvaluator(foldCtx, exp, layout, IndexedByShardId.empty());
+        return toEvaluator(foldCtx, exp, layout, EmptyIndexedByShardId.instance());
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

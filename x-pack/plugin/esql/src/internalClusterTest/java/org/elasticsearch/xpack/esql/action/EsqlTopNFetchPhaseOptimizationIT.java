@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -16,12 +19,12 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -31,9 +34,35 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 // Verifies that the value source reader operator is optimized into the data node instead of the worker node.
-@ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase {
-    private static final int SHARD_COUNT = 1;
+    private final int numDataNodes;
+    private final int shardCount;
+    private final int maxConcurrentNodes;
+    private final int taskConcurrency;
+
+    public EsqlTopNFetchPhaseOptimizationIT(@Name("TestCase") TestCase testCase) {
+        this.numDataNodes = testCase.numDataNodes;
+        this.shardCount = testCase.shardCount;
+        this.maxConcurrentNodes = testCase.maxConcurrentNodes;
+        this.taskConcurrency = testCase.taskConcurrency;
+    }
+
+    public record TestCase(int numDataNodes, int shardCount, int maxConcurrentNodes, int taskConcurrency) {}
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        var result = new ArrayList<Object[]>();
+        for (int numDataNodes : new int[] { 1, 3 }) {
+            for (int shardCount : new int[] { 1, 5 }) {
+                for (int maxConcurrentNodes : new int[] { 1, 5 }) {
+                    for (int taskConcurrency : new int[] { 1, 5 }) {
+                        result.add(new Object[] { new TestCase(numDataNodes, shardCount, maxConcurrentNodes, taskConcurrency) });
+                    }
+                }
+            }
+        }
+        return result;
+    }
 
     public void setupIndex() throws Exception {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
@@ -52,6 +81,11 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
             .mapToObj(i -> prepareIndex("test").setId(Integer.toString(i)).setSource("read", i, "sorted", i * 2, "filtered", i * 3))
             .toList();
         indexRandom(true, builders);
+    }
+
+    @Override
+    protected int getNumDataNodes() {
+        return numDataNodes;
     }
 
     @SuppressWarnings("unchecked")
@@ -106,7 +140,7 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
         return (ValuesSourceReaderOperatorStatus) operatorStatus.status();
     }
 
-    private static EsqlQueryResponse sendQuery(String query) {
+    private EsqlQueryResponse sendQuery(String query) {
         return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
             // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
             .query(query)
@@ -115,9 +149,9 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
                     Settings.builder()
                         // Configured to ensure that there is only one worker handling all the shards, so that we can assert the correct
                         // expected behavior.
-                        .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 3)
-                        .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), SHARD_COUNT)
-                        .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 3)
+                        .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), maxConcurrentNodes)
+                        .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), shardCount)
+                        .put(QueryPragmas.TASK_CONCURRENCY.getKey(), taskConcurrency)
                         .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), true)
                         .build()
                 )

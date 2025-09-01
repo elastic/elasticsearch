@@ -21,7 +21,6 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
@@ -123,7 +122,6 @@ public class TopNBenchmark {
         return new TopNOperator(
             blockFactory,
             breakerService.getBreaker(CircuitBreaker.REQUEST),
-            AlwaysReferencedIndexedByShardId.INSTANCE,
             topCount,
             elementTypes,
             encoders,

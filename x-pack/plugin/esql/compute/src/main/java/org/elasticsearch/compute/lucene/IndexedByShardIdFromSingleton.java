@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 /** A simple implementation when there's only a single value being used. */
-public class IndexedByShardIdFromSingleton<T> extends IndexedByShardId<T> {
+public class IndexedByShardIdFromSingleton<T> implements IndexedByShardId<T> {
     private final T value;
 
     public IndexedByShardIdFromSingleton(T value) {

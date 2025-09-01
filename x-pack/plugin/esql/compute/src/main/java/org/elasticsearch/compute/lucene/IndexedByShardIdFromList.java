@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 /** Used by tests, but placed here so it's visible for all test modules. */
-public class IndexedByShardIdFromList<T> extends IndexedByShardId<T> {
+public class IndexedByShardIdFromList<T> implements IndexedByShardId<T> {
     private final List<T> list;
 
     public IndexedByShardIdFromList(List<T> list) {

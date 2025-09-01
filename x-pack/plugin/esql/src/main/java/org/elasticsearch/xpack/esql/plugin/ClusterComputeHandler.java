@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -279,7 +279,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         "remote_reduce",
                         clusterAlias,
                         flags,
-                        IndexedByShardId.empty(),
+                        EmptyIndexedByShardId.instance(),
                         configuration,
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,

@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -7909,13 +7909,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
-                IndexedByShardId.empty(),
+                EmptyIndexedByShardId.instance(),
                 null,
                 new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
             )
         );
 
-        return planner.plan("test", FoldContext.small(), plan, IndexedByShardId.empty());
+        return planner.plan("test", FoldContext.small(), plan, EmptyIndexedByShardId.instance());
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {

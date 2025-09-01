@@ -193,7 +193,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         if (request.metadata()) {
             assertThat(metadata.getProject(projectId).indices().keySet(), containsInAnyOrder(expectedIndices));
 
-            if (expectedIndices.length == 0) {
+            if (request.indices().length == 0) {
                 Map<String, ReservedStateMetadata> reservedStateMetadataMap = metadata.reservedStateMetadata();
                 assertThat(reservedStateMetadataMap, aMapWithSize(1));
                 ReservedStateMetadata fileSettings = reservedStateMetadataMap.get("file_settings");
@@ -206,7 +206,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
                 assertThat(clusterSettingsHandler.keys(), containsInAnyOrder("setting_1", "setting_2"));
                 ReservedStateHandlerMetadata projectSettingsHandler = handlers.get("project_settings");
                 assertNotNull(projectSettingsHandler);
-                assertThat(projectSettingsHandler.keys(), containsInAnyOrder("setting_1", "setting_2"));
+                assertThat(projectSettingsHandler.keys(), containsInAnyOrder("setting_1"));
             }
         } else {
             assertThat(metadata.getProject(projectId).indices(), anEmptyMap());

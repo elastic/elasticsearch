@@ -49,18 +49,21 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
+    private final boolean isParsedFromSource;
 
     protected AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
         boolean isResultDeterministic,
-        Map<String, String> meta
+        Map<String, String> meta,
+        boolean isParsedFromSource
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
+        this.isParsedFromSource = isParsedFromSource;
     }
 
     @Override
@@ -191,9 +194,13 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        String include = name();
-        var copy = searchLookup.optimizedSourceProvider(new SourceFilter(new String[] { include }, new String[0]));
-        return factory.apply(copy);
+        if (isParsedFromSource) {
+            String include = name();
+            var copy = searchLookup.optimizedSourceProvider(new SourceFilter(new String[] { include }, new String[0]));
+            return factory.apply(copy);
+        } else {
+            return factory.apply(searchLookup);
+        }
     }
 
     /**

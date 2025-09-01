@@ -1,0 +1,194 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+
+import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
+import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
+import org.elasticsearch.gradle.internal.ResolveAllDependencies
+import org.elasticsearch.gradle.VersionProperties
+
+description = "Elasticsearch subproject " + getPath();
+// common maven publishing configuration
+group = "org.elasticsearch"
+version = VersionProperties.getElasticsearch()
+
+
+// enabled by default
+ext.bwc_tests_enabled = true
+
+tasks.register('resolveAllDependencies', ResolveAllDependencies) {
+  def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
+  configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
+  if (project.path == ':') {
+    resolveJavaToolChain = true
+
+    // ensure we have best possible caching of bwc builds
+    dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
+    dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
+    dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
+    dependsOn ":distribution:bwc:bugfix4:buildBwcLinuxTar"
+    dependsOn ":distribution:bwc:bugfix5:buildBwcLinuxTar"
+    dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
+    dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
+    dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
+  }
+  if (project.path.contains("fixture")) {
+    dependsOn tasks.withType(ComposePull)
+  }
+  if (project.path.contains(":distribution:docker")) {
+    enabled = false
+  }
+  if (project.path.contains(":libs:cli")) {
+    // ensure we resolve p2 dependencies for the spotless eclipse formatter
+    dependsOn "spotlessJavaCheck"
+  }
+}
+
+plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
+  project.dependencies {
+    compileOnly project(":server")
+    testImplementation project(":test:framework")
+  }
+}
+
+
+/*
+ * Allow accessing com/sun/net/httpserver in projects that have
+ * configured forbidden apis to allow it.
+ */
+plugins.withType(ForbiddenApisPlugin) {
+  eclipse.classpath.file.whenMerged { classpath ->
+    if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
+      classpath.entries
+        .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
+        .each {
+          it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
+        }
+    }
+  }
+}
+
+ext.withReleaseBuild = { Closure config ->
+  if(buildParams.snapshotBuild == false) {
+    config.call()
+  }
+}
+
+ext.splitForCI = { proj, partString ->
+  proj.tasks.register("check$partString") {
+    dependsOn 'check'
+    withReleaseBuild {
+      dependsOn 'assemble'
+    }
+  }
+}
+
+
+
+plugins.withId('lifecycle-base') {
+  if (project.path.startsWith(":x-pack:")) {
+    if (project.path.contains("security") || project.path.contains(":ml")) {
+      splitForCI(project, "Part4")
+    } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
+      splitForCI(project, "Part3")
+    } else if (project.path.contains("multi-node")) {
+      splitForCI(project, "Part5")
+    } else {
+      splitForCI(project, "Part2")
+    }
+  } else if(project.path.startsWith(":qa:")) {
+    splitForCI(project, "Part6")
+  } else {
+    splitForCI(project, "Part1")
+  }
+  tasks.register('functionalTests') {
+    dependsOn 'check'
+    withReleaseBuild {
+      dependsOn 'assemble'
+    }
+  }
+}
+
+proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
+  if(name.endsWith("#bwcTest$partString")) {
+    proj.project.getTasks().register(name) {
+      task -> task.dependsOn(proj.tasks.named { tskName -> tskName == (name - partString) })
+    }
+  }
+}
+
+proj.tasks.register("bcUpgradeTest$partString") {
+  dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
+  withReleaseBuild {
+    dependsOn 'assemble'
+  }
+}
+
+plugins.withId('lifecycle-base') {
+  if (project.path.startsWith(":x-pack:")) {
+    if (project.path.contains("security") || project.path.contains(":ml")) {
+      tasks.register('checkPart4') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
+    } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
+      tasks.register('checkPart3') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
+    } else if (project.path.contains("multi-node")) {
+      tasks.register('checkPart5') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
+    } else {
+      tasks.register('checkPart2') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
+    }
+  } else {
+    tasks.register('checkPart1') {
+      dependsOn 'check'
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
+  }
+  tasks.register('functionalTests') {
+    dependsOn 'check'
+    withReleaseBuild {
+      dependsOn 'assemble'
+    }
+  }
+}
+
+/*
+ * Remove assemble/dependenciesInfo on all qa projects because we don't
+ * need to publish artifacts for them.
+ */
+if (project.name.equals('qa') || project.path.contains(':qa:')) {
+  maybeConfigure(project.tasks, 'assemble') {
+    it.enabled = false
+  }
+  maybeConfigure(project.tasks, 'dependenciesInfo') {
+    it.enabled = false
+  }
+}

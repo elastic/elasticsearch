@@ -119,7 +119,7 @@ public interface ExponentialHistogram extends Accountable {
     /**
      * Returns maximum of all values represented by this histogram.
      *
-     * @return the minimum, NaN for empty histograms
+     * @return the maximum, NaN for empty histograms
      */
     double max();
 

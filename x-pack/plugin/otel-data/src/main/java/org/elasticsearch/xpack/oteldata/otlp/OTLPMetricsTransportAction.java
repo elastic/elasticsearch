@@ -90,8 +90,8 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
                 return;
             }
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-             MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor);
-             context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
+            MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor);
+            context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 handleEmptyBulk(listener, context);
                 return;
@@ -131,7 +131,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
                     // TODO uncomment after https://github.com/elastic/elasticsearch/pull/132566 has been merged
-                    //.tsid(DataPointGroupTsidFunnel.forDataPointGroup(dataPointGroup).buildTsid())
+                    // .tsid(DataPointGroupTsidFunnel.forDataPointGroup(dataPointGroup).buildTsid())
                     .setDynamicTemplates(dynamicTemplates)
             );
         }

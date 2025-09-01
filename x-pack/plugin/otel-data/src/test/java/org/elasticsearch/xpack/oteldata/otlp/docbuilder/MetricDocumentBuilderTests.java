@@ -197,7 +197,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("unit"), is(nullValue()));
     }
 
-    public void testExponentialHistogram() throws Exception{
+    public void testExponentialHistogram() throws Exception {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
@@ -231,7 +231,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "histogram"));
     }
 
-    public void testHistogram() throws Exception{
+    public void testHistogram() throws Exception {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 

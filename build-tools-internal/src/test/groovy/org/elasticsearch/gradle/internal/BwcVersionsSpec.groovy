@@ -111,7 +111,7 @@ class BwcVersionsSpec extends Specification {
         def bwc = new BwcVersions(v('9.1.0'), versions, [
             branch('main', '9.1.0'),
             branch('9.0', '9.0.0'),
-            branch('8.x', '8.19.0'),
+            branch('8.x', '8.19.0'), // 8.19 is incompatible with 9.0 so it is not listed in unreleased for BwC
             branch('8.18', '8.18.0'),
             branch('8.17', '8.17.1'),
             branch('8.16', '8.16.2'),
@@ -124,7 +124,6 @@ class BwcVersionsSpec extends Specification {
             (v('8.16.2')): new UnreleasedVersionInfo(v('8.16.2'), '8.16', ':distribution:bwc:major4'),
             (v('8.17.1')): new UnreleasedVersionInfo(v('8.17.1'), '8.17', ':distribution:bwc:major3'),
             (v('8.18.0')): new UnreleasedVersionInfo(v('8.18.0'), '8.18', ':distribution:bwc:major2'),
-            (v('8.19.0')): new UnreleasedVersionInfo(v('8.19.0'), '8.x', ':distribution:bwc:major1'),
             (v('9.0.0')): new UnreleasedVersionInfo(v('9.0.0'), '9.0', ':distribution:bwc:minor1'),
             (v('9.1.0')): new UnreleasedVersionInfo(v('9.1.0'), 'main', ':distribution'),
         ]

@@ -82,7 +82,6 @@ class GlobalBuildInfoPluginSpec extends Specification {
             [
                 new DevelopmentBranch("main", Version.fromString("9.1.0")),
                 new DevelopmentBranch("9.0", Version.fromString("9.0.3")),
-                new DevelopmentBranch("8.19", Version.fromString("8.19.1")),
                 new DevelopmentBranch("8.18", Version.fromString("8.18.2")),
             ]
         )
@@ -94,7 +93,33 @@ class GlobalBuildInfoPluginSpec extends Specification {
 
         then:
         bwcVersions != null
-        bwcVersions.unreleased.toSet() == ["9.1.0", "9.0.3", "8.19.1", "8.18.2"].collect { Version.fromString(it) }.toSet()
+        bwcVersions.unreleased.toSet() == ["9.1.0", "9.0.3", "8.18.2"].collect { Version.fromString(it) }.toSet()
+    }
+
+    def "should filter 8.19 version as it is incompatible with 9.0 branch - ONLY ON 9.0 BRANCH"() {
+        given:
+        ProviderFactory providerFactorySpy = Spy(project.getProviders())
+        Path branchesJsonPath = projectRoot.toPath().resolve("myBranches.json")
+        Provider<String> gradleBranchesLocationProvider = project.providers.provider { return branchesJsonPath.toString() }
+        providerFactorySpy.gradleProperty("org.elasticsearch.build.branches-file-location") >> gradleBranchesLocationProvider
+        project.getProviders() >> providerFactorySpy
+        branchesJsonPath.text = branchesJson(
+            [
+                new DevelopmentBranch("main", Version.fromString("9.1.0")),
+                new DevelopmentBranch("9.0", Version.fromString("9.0.3")),
+                new DevelopmentBranch("8.19", Version.fromString("8.19.3")),
+                new DevelopmentBranch("8.18", Version.fromString("8.18.2")),
+            ]
+        )
+
+        when:
+        project.objects.newInstance(GlobalBuildInfoPlugin).apply(project)
+        BuildParameterExtension ext = project.extensions.getByType(BuildParameterExtension)
+        BwcVersions bwcVersions = ext.bwcVersions
+
+        then:
+        bwcVersions != null
+        bwcVersions.unreleased.toSet() == ["9.1.0", "9.0.3", "8.18.2"].collect { Version.fromString(it) }.toSet()
     }
 
     String branchesJson(List<DevelopmentBranch> branches) {

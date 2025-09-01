@@ -5,7 +5,7 @@
       "description":"Get the migration reindexing status"
     },
     "stability":"experimental",
-    "visibility":"private",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

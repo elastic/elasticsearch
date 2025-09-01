@@ -11,6 +11,9 @@ import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
@@ -66,6 +69,14 @@ public interface DataPoint {
     String getMetricName();
 
     /**
+     * Builds the metric value for the data point and writes it to the provided XContentBuilder.
+     *
+     * @param builder the XContentBuilder to write the metric value to
+     * @throws IOException if an I/O error occurs while writing to the builder
+     */
+    void buildMetricValue(XContentBuilder builder) throws IOException;
+
+    /**
      * Returns the dynamic template name for the data point based on its type and value.
      * This is used to dynamically map the appropriate field type according to the data point's characteristics.
      *
@@ -106,6 +117,14 @@ public interface DataPoint {
         @Override
         public String getMetricName() {
             return metric.getName();
+        }
+
+        @Override
+        public void buildMetricValue(XContentBuilder builder) throws IOException {
+            switch (dataPoint.getValueCase()) {
+                case AS_DOUBLE -> builder.value(dataPoint.getAsDouble());
+                case AS_INT -> builder.value(dataPoint.getAsInt());
+            }
         }
 
         @Override

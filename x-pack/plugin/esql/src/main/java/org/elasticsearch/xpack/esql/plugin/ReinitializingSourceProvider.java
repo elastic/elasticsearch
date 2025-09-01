@@ -54,7 +54,6 @@ final class ReinitializingSourceProvider implements SourceProvider {
 
     @Override
     public SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {
-        assert perThreadProvider == null : "source provider must be unused when applying filter";
         return new ReinitializingSourceProvider(sourceFilter, sourceProviderFactory);
     }
 

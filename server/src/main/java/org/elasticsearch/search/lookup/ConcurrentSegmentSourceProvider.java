@@ -74,7 +74,6 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
 
     @Override
     public SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {
-        assert leaves.isEmpty() : "source provider must be unused when applying filter";
         if (isStoredSource) {
             return this;
         } else {

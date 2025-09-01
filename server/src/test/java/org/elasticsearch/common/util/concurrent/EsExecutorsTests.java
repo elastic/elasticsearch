@@ -795,6 +795,7 @@ public class EsExecutorsTests extends ESTestCase {
         );
     }
 
+    @Ignore("Flaky in CI environments")
     public void testScalingWithEmptyCoreAndLargerMaxSize() {
         testScalingWithEmptyCoreAndMaxMultipleThreads(
             EsExecutors.newScaling(

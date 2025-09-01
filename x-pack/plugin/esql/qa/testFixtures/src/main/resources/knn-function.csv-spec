@@ -306,3 +306,74 @@ c: long       | primary: boolean
 41            | false          
 9             | true           
 ;
+
+testKnnWithSemanticText
+required_capability: knn_function_v4
+
+from semantic_text
+| where knn(semantic_text_dense_field, [0, 1, 2], 10)
+| keep semantic_text_dense_field
+| sort semantic_text_dense_field asc
+;
+
+semantic_text_dense_field:text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+testKnnWithSemanticTextAndKeyword
+required_capability: knn_function_v4
+
+from semantic_text
+| where knn(semantic_text_dense_field, [0, 1, 2], 10)
+| keep semantic_text_dense_field, host
+| sort host asc
+;
+
+semantic_text_dense_field:text | host:keyword
+live long and prosper                                                 | host1
+all we have to decide is what to do with the time that is given to us | host2
+be excellent to each other                                            | host3
+
+;
+
+testKnnWithSemanticTextMultiValueField
+required_capability: knn_function_v4
+
+from semantic_text metadata _id
+| where match(st_multi_value, "something") AND match(host, "host1")
+| keep _id, st_multi_value
+;
+
+_id: keyword | st_multi_value:text
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+;
+
+testKnnWithSemanticTextWithEvalsAndOtherFunctionsAndStats
+required_capability: knn_function_v4
+
+from semantic_text
+| where qstr("description:some*")
+| eval size = mv_count(st_multi_value)
+| where knn(semantic_text_dense_field, [0, 1, 2], 10)
+| STATS result = count(*)
+;
+
+result:long
+3
+;
+
+testKnnWithSemanticTextAndKql
+required_capability: knn_function_v4
+required_capability: kql_function
+
+from semantic_text
+| where kql("host:host1") AND knn(semantic_text_dense_field, [0, 1, 2], 10)
+| KEEP host, semantic_text_dense_field
+;
+
+host:keyword | semantic_text_dense_field:text
+"host1"      | live long and prosper
+;
+

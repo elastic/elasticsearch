@@ -138,7 +138,9 @@ class TrainedModelAssignmentRebalancer {
             Map<AssignmentPlan.Node, Integer> sourceNodeAssignments = source.assignments(deployment).orElse(Map.of());
             for (Map.Entry<AssignmentPlan.Node, Integer> sourceAssignment : sourceNodeAssignments.entrySet()) {
                 AssignmentPlan.Node node = originalNodeById.get(sourceAssignment.getKey().id());
-                dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
+                if(dest.canAssign(deployment, node, sourceAssignment.getValue())) {
+                    dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
+                }
             }
         }
     }
@@ -318,7 +320,12 @@ class TrainedModelAssignmentRebalancer {
     }
 
     private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
-        return load.getFreeMemoryExcludingPerNodeOverhead() - load.getAssignedNativeInferenceMemory();
+        // load.getFreeMemoryExcludingPerNodeOverhead() = maxMemory - assignedJobMemoryExcludingPerNodeOverhead - 30MB native executable code overhead
+        // assignedJobMemoryExcludingPerNodeOverhead = assignedAnomalyDetectorMemory + assignedDataFrameAnalyticsMemory + assignedNativeInferenceMemory
+        // load.getAssignedNativeInferenceMemory() = assignedNativeInferenceMemory
+        // TODO: (valeriy) assignedNativeInferenceMemory is double counted in the current calculation.
+        return load.getFreeMemoryExcludingPerNodeOverhead()/* - load.getAssignedNativeInferenceMemory()*/;
+
     }
 
     private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {
@@ -405,8 +412,17 @@ class TrainedModelAssignmentRebalancer {
         if (Strings.isNullOrEmpty(load.getError()) == false) {
             return Optional.of(load.getError());
         }
-
-        if (deployment.memoryBytes() > assignmentPlan.getRemainingNodeMemory(node.getId())) {
+        // TODO (valeriy): this test should be actually true, but it is false, because we use the "naked" deployment footprint
+        // Get existing allocations for this node to avoid double counting
+        int existingAllocationsOnNode = assignmentPlan.assignments(deployment)
+            .flatMap(assignments -> assignments.entrySet().stream()
+                .filter(entry -> entry.getKey().id().equals(node.getId()))
+                .findFirst()
+                .map(Map.Entry::getValue))
+            .orElse(0);
+        int notYetAssignedAllocations = deployment.allocations() - assignmentPlan.totalAllocations(deployment);
+//        if (deployment.estimateMemoryUsageBytes(deployment.allocations() - existingAllocationsOnNode) > assignmentPlan.getRemainingNodeMemory(node.getId())) {
+        if (deployment.estimateAdditionalMemoryUsageBytes(existingAllocationsOnNode, existingAllocationsOnNode + notYetAssignedAllocations) > assignmentPlan.getRemainingNodeMemory(node.getId())) {
             // If any ML processes are running on a node we require some space to load the shared libraries.
             // So if none are currently running then this per-node overhead must be added to the requirement.
             // From node load we know if we had any jobs or models assigned before the rebalance.

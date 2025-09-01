@@ -21,6 +21,7 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.attributes.LibraryElements;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.plugins.JavaPlugin;
@@ -76,10 +77,16 @@ public abstract class ElasticsearchJavaModulePathPlugin implements Plugin<Projec
             it.setCanBeResolved(true);
             it.setCanBeConsumed(false); // we don't want this configuration used by dependent projects
             it.attributes(
-                attrs -> attrs.attribute(
-                    LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
-                    project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES)
-                )
+                attrs -> {
+                    attrs.attribute(
+                        LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+                        project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES)
+                    );
+                    attrs.attribute(
+                        Usage.USAGE_ATTRIBUTE,
+                        project.getObjects().named(Usage.class, Usage.JAVA_API)
+                    );
+                }
             );
         }).getIncoming().artifactView(it -> {
             it.componentFilter(cf -> {

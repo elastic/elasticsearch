@@ -106,23 +106,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             }
             configuration.resolutionStrategy(ResolutionStrategy::failOnVersionConflict);
         });
-
-        // disable transitive dependency management
-        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
-    }
-
-    private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
-        List<String> sourceSetConfigurationNames = List.of(
-            sourceSet.getApiConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
-            sourceSet.getCompileOnlyConfigurationName(),
-            sourceSet.getRuntimeOnlyConfigurationName()
-        );
-
-        project.getConfigurations()
-            .matching(c -> sourceSetConfigurationNames.contains(c.getName()))
-            .configureEach(GradleUtils::disableTransitiveDependencies);
     }
 
     /**

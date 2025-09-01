@@ -758,10 +758,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     // =============== Shard Blobs to Delete Tests =================
 
-    // TODO - Have mocklog warn counts for the tests. I'm thinking we create the verbose warn log, and then everytime
-    // we get a warnn log we add a counter, and then verify this is the value we expected. If this is diffcult,
-    // bung it, or just verify it's thrown at least once and then not at all when there is heap
-
     @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
     public void testShardBlobsToDeleteWithSufficientHeapSpace() {
         // When the heap memory is above 2GB (Integer.MAX_VALUE) then we expect it to be limited to 2GB

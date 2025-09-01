@@ -237,14 +237,6 @@ public abstract class StreamOutput extends OutputStream {
         if (i != 0) {
             byteCount++;
         }
-
-        // TODO - Replace with?
-        /*
-        do {
-            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
-            i >>>= 7;
-        } while ((i & ~0x7F) != 0);
-         */
         return byteCount;
     }
 

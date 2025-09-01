@@ -23,10 +23,24 @@ public class StreamOutputTests extends ESTestCase {
 
     public void testBytesInVInt() {
         // 0..127 should use the single byte shortcut
+        assertEquals(1, bytesInVInt(0));
+        assertEquals(1, bytesInVInt(127));
         assertEquals(1, bytesInVInt(randomIntBetween(0, 127)));
+
+        assertEquals(2, bytesInVInt(128));
+        assertEquals(2, bytesInVInt(16383));
         assertEquals(2, bytesInVInt(randomIntBetween(128, 16383)));
+
+        assertEquals(3, bytesInVInt(16384));
+        assertEquals(3, bytesInVInt(2097151));
         assertEquals(3, bytesInVInt(randomIntBetween(16384, 2097151)));
+
+        assertEquals(4, bytesInVInt(2097152));
+        assertEquals(4, bytesInVInt(268435455));
         assertEquals(4, bytesInVInt(randomIntBetween(2097152, 268435455)));
+
+        assertEquals(5, bytesInVInt(268435456));
+        assertEquals(5, bytesInVInt(Integer.MAX_VALUE));
         assertEquals(5, bytesInVInt(randomIntBetween(268435456, Integer.MAX_VALUE)));
     }
 
@@ -62,7 +76,7 @@ public class StreamOutputTests extends ESTestCase {
             for (int j = 0; j < lengthOfString; j++) {
                 int characterBytes = randomIntBetween(1, 3);
                 if (characterBytes == 1) {
-                    s.append("a");
+                    s.append(randomAlphaOfLength(1));
                 } else if (characterBytes == 2) {
                     s.append("é");
                 } else {

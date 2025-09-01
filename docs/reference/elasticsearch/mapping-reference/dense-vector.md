@@ -55,7 +55,14 @@ In many cases, a brute-force kNN search is not efficient enough. For this reason
 
 Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similariy of `cosine`. You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
-Indexing is enabled by default for dense vector fields and indexed as `bbq_hnsw` if dimensions are greater than or equal to 384, otherwise they are indexed as `int8_hnsw`. When indexing is enabled, you can define the vector similarity to use in kNN search:
+Indexing is enabled by default for dense vector fields and indexed as `bbq_hnsw` if dimensions are greater than or equal to 384, otherwise they are indexed as `int8_hnsw`. {applies_to}`stack: ga 9.1`
+
+:::{note}
+In {{stack}} 9.0, dense vector fields are always indexed as `int8_hnsw`.
+:::
+
+
+When indexing is enabled, you can define the vector similarity to use in kNN search:
 
 ```console
 PUT my-index-2
@@ -106,6 +113,10 @@ The `dense_vector` type supports quantization to reduce the memory footprint req
 When using a quantized format, you may want to oversample and rescore the results to improve accuracy. See [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for more information.
 
 To use a quantized index, you can set your index type to `int8_hnsw`, `int4_hnsw`, or `bbq_hnsw`. When indexing `float` vectors, the current default index type is `bbq_hnsw` for vectors with greater than or equal to 384 dimensions, otherwise it's `int8_hnsw`.
+
+:::{note}
+In {{stack}} 9.0, dense vector fields are always indexed as `int8_hnsw`.
+:::
 
 Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
 
@@ -223,7 +234,7 @@ $$$dense-vector-similarity$$$
 `l2_norm`
 :   Computes similarity based on the L2 distance (also known as Euclidean distance) between the vectors. The document `_score` is computed as `1 / (1 + l2_norm(query, vector)^2)`.
 
-For `bit` vectors, instead of using `l2_norm`, the `hamming` distance between the vectors is used. The `_score` transformation is `(numBits - hamming(a, b)) / numBits`
+    For `bit` vectors, instead of using `l2_norm`, the `hamming` distance between the vectors is used. The `_score` transformation is `(numBits - hamming(a, b)) / numBits`
 
 `dot_product`
 :   Computes the dot product of two unit vectors. This option provides an optimized way to perform cosine similarity. The constraints and computed score are defined by `element_type`.
@@ -255,9 +266,14 @@ $$$dense-vector-index-options$$$
 `type`
 :   (Required, string) The type of kNN algorithm to use. Can be either any of:
     * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
-    * `int8_hnsw` - The default index type for float vectors with less than 384 dimensions. This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `int8_hnsw` - The default index type for some float vectors: 
+      * {applies_to}`stack: ga 9.1` Default for float vectors with less than 384 dimensions. 
+      * {applies_to}`stack: ga 9.0` Default for float all vectors.
+      This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
     * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-    * `bbq_hnsw` - The default index type for float vectors with greater than or equal to 384 dimensions. This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+      
+      {applies_to}`stack: ga 9.1` `bbq_hnsw` is the default index type for float vectors with greater than or equal to 384 dimensions. 
     * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
     * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports `element_type` of `float`.
     * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatically half-byte scalar quantization. Only supports `element_type` of `float`.
@@ -272,25 +288,24 @@ $$$dense-vector-index-options$$$
 `confidence_interval`
 :   (Optional, float) Only applicable to `int8_hnsw`, `int4_hnsw`, `int8_flat`, and `int4_flat` index types. The confidence interval to use when quantizing the vectors. Can be any value between and including `0.90` and `1.0` or exactly `0`. When the value is `0`, this indicates that dynamic quantiles should be calculated for optimized quantization. When between `0.90` and `1.0`, this value restricts the values used when calculating the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored). Defaults to `1/(dims + 1)` for `int8` quantized vectors and `0` for `int4` for dynamic quantile calculation.
 
-
-`rescore_vector`
+`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
 :::::{dropdown} Properties of rescore_vector
 `oversample`
-:   (required, float) The amount to oversample the search results by. This value should be greater than `1.0` and less than `10.0` or exactly `0` to indicate no oversampling & rescoring should occur. The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
+:   (required, float) The amount to oversample the search results by. This value should be one of the following: 
+    * Greater than `1.0` and less than `10.0` 
+    * Exactly `0` to indicate no oversampling and rescoring should occur {applies_to}`stack: ga 9.1`
+    :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
     :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
 :::::
 ::::
 
-
-
 ## Synthetic `_source` [dense-vector-synthetic-source]
 
 `dense_vector` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) .
 
-
-## Indexing & Searching bit vectors [dense-vector-index-bit]
+## Indexing and searching bit vectors [dense-vector-index-bit]
 
 When using `element_type: bit`, this will treat all vectors as bit vectors. Bit vectors utilize only a single bit per dimension and are internally encoded as bytes. This can be useful for very high-dimensional vectors or models.
 
@@ -333,7 +348,6 @@ PUT my-bit-vectors
 
 1. The number of dimensions that represents the number of bits
 
-
 ```console
 POST /my-bit-vectors/_bulk?refresh
 {"index": {"_id" : "1"}}
@@ -344,7 +358,6 @@ POST /my-bit-vectors/_bulk?refresh
 
 1. 5 bytes representing the 40 bit dimensioned vector
 2. A hexidecimal string representing the 40 bit dimensioned vector
-
 
 Then, when searching, you can use the `knn` query to search for similar bit vectors:
 
@@ -391,14 +404,22 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 }
 ```
 
-
 ## Updatable field type [_updatable_field_type]
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):
 
+::::{tab-set}
+:::{tab-item} {{stack}} 9.1+
 ```txt
 flat --> int8_flat --> int4_flat --> bbq_flat --> hnsw --> int8_hnsw --> int4_hnsw --> bbq_hnsw
 ```
+:::
+:::{tab-item} {{stack}} 9.0
+```txt
+flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
+```
+:::
+::::
 
 For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`) the number of connections `m` must either stay the same or increase. For the scalar quantized formats  `int8_flat`, `int4_flat`, `int8_hnsw` and `int4_hnsw` the `confidence_interval` must always be consistent (once defined, it cannot change).
 
@@ -447,5 +468,3 @@ Vectors indexed before this change will keep using the `flat` type (raw float32 
 In order to have all the vectors updated to the new type, either reindexing or force merging should be used.
 
 For debugging purposes, it’s possible to inspect how many segments (and docs) exist for each `type` with the [Index Segments API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-segments).
-
-

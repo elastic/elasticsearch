@@ -89,7 +89,10 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
     public static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
-    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 512;
+    // The maximum batch size for sparse text embeddings is set to 16.
+    // This value was reduced from 512 due to memory constraints; batch sizes above 32 can cause GPU out-of-memory errors.
+    // A batch size of 16 provides optimal throughput and stability, especially on lower-tier instance types.
+    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
 
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
@@ -99,16 +102,18 @@ public class ElasticInferenceService extends SenderService {
     );
     private static final String SERVICE_NAME = "Elastic";
 
-    // TODO: check with team, what makes the most sense
-    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 32;
+    // TODO: revisit this value once EIS supports dense models
+    // The maximum batch size for dense text embeddings is proactively set to 16.
+    // This mirrors the memory constraints observed with sparse embeddings
+    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
     // rainbow-sprinkles
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
     static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
-    // elser-v2
-    static final String DEFAULT_ELSER_MODEL_ID_V2 = "elser-v2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId(DEFAULT_ELSER_MODEL_ID_V2);
+    // elser-2
+    static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
+    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
 
     // multilingual-text-embed
     static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
@@ -174,13 +179,13 @@ public class ElasticInferenceService extends SenderService {
                 ),
                 MinimalServiceSettings.chatCompletion(NAME)
             ),
-            DEFAULT_ELSER_MODEL_ID_V2,
+            DEFAULT_ELSER_2_MODEL_ID,
             new DefaultModelConfig(
                 new ElasticInferenceServiceSparseEmbeddingsModel(
                     DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_MODEL_ID_V2, null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents,
@@ -213,7 +218,6 @@ public class ElasticInferenceService extends SenderService {
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
             ),
-
             DEFAULT_RERANK_MODEL_ID_V1,
             new DefaultModelConfig(
                 new ElasticInferenceServiceRerankModel(

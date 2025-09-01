@@ -60,6 +60,7 @@ public class MockWebServer implements Closeable {
     private final Logger logger;
     private final SSLContext sslContext;
     private final boolean needClientAuth;
+    private final List<String> supportedProtocols;
     private final Set<CountDownLatch> latches = ConcurrentCollections.newConcurrentSet();
     private String hostname;
     private int port;
@@ -77,9 +78,19 @@ public class MockWebServer implements Closeable {
      * @param needClientAuth Should clientAuth be used, which requires a client side certificate
      */
     public MockWebServer(SSLContext sslContext, boolean needClientAuth) {
-        this.needClientAuth = needClientAuth;
+        this(sslContext, needClientAuth, null);
+    }
+
+    /**
+     * Instantiates a webserver with https
+     * @param sslContext The SSL context to be used for encryption
+     * @param needClientAuth Should clientAuth be used, which requires a client side certificate
+     */
+    public MockWebServer(SSLContext sslContext, boolean needClientAuth, List<String> supportedProtocols) {
         this.logger = LogManager.getLogger(this.getClass());
         this.sslContext = sslContext;
+        this.needClientAuth = needClientAuth;
+        this.supportedProtocols = supportedProtocols;
     }
 
     /**
@@ -92,7 +103,13 @@ public class MockWebServer implements Closeable {
         InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
         if (sslContext != null) {
             HttpsServer httpsServer = MockHttpServer.createHttps(address, 0);
-            httpsServer.setHttpsConfigurator(new CustomHttpsConfigurator(sslContext, needClientAuth));
+            httpsServer.setHttpsConfigurator(
+                new CustomHttpsConfigurator(
+                    sslContext,
+                    needClientAuth,
+                    this.supportedProtocols == null ? null : this.supportedProtocols.toArray(String[]::new)
+                )
+            );
             server = httpsServer;
         } else {
             server = MockHttpServer.createHttp(address, 0);
@@ -167,15 +184,20 @@ public class MockWebServer implements Closeable {
     private static final class CustomHttpsConfigurator extends HttpsConfigurator {
 
         private final boolean needClientAuth;
+        private final String[] protocols;
 
-        CustomHttpsConfigurator(SSLContext sslContext, boolean needClientAuth) {
+        CustomHttpsConfigurator(SSLContext sslContext, boolean needClientAuth, String[] protocols) {
             super(sslContext);
             this.needClientAuth = needClientAuth;
+            this.protocols = protocols;
         }
 
         @Override
         public void configure(HttpsParameters params) {
             params.setNeedClientAuth(needClientAuth);
+            if (protocols != null) {
+                params.setProtocols(protocols);
+            }
         }
     }
 

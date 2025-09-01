@@ -23,6 +23,8 @@ module org.elasticsearch.xcore {
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.xcore.templates;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;

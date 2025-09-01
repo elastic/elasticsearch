@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -41,6 +42,11 @@ public interface SslProfile {
      * @return An object that is useful for configuring Apache Http Client v4.x
      */
     SSLIOSessionStrategy ioSessionStrategy4();
+
+    /**
+     * @return An object that is useful for configuring Apache Http Client v5.x
+     */
+    TlsStrategy clientTlsStrategy();
 
     SSLEngine engine(String host, int port);
 }

@@ -51,7 +51,9 @@ public class ForceMergeStep extends AsyncActionStep {
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        String indexName = indexMetadata.getIndex().getName();
+        // Use the cloned index name if we have one, otherwise fall back to the original index name.
+        String clonedIndexName = indexMetadata.getLifecycleExecutionState().forceMergeIndexName();
+        String indexName = clonedIndexName != null ? clonedIndexName : indexMetadata.getIndex().getName();
         ForceMergeRequest request = new ForceMergeRequest(indexName);
         request.maxNumSegments(maxNumSegments);
         getClient(currentState.projectId()).admin().indices().forceMerge(request, listener.delegateFailureAndWrap((l, response) -> {

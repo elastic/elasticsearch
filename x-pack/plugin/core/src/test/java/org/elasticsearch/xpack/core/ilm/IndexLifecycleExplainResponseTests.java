@@ -79,7 +79,9 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
-            randomBoolean()
+            randomBoolean(),
+            // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
+            null
         );
     }
 
@@ -107,7 +109,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
-                randomBoolean()
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             )
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
@@ -144,7 +147,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             null,
             null,
             null,
-            false
+            false,
+            null
         );
         assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
         Long now = 1_000_000L;
@@ -331,7 +335,9 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 stepInfo,
                 previousStepInfo,
                 phaseExecutionInfo,
-                skip
+                skip,
+                // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
+                instance.getForceMergeIndexName()
             );
         } else {
             return switch (between(0, 1)) {

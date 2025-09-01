@@ -141,14 +141,14 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                 logger.debug(
                     "index [{}] using policy [{}] does not have a stored snapshot index name, "
                         + "using our best effort guess of [{}] for the original snapshotted index name",
-                    indexMetadata.getIndex().getName(),
+                    indexName,
                     policyName,
                     indexName
                 );
             } else {
                 indexName = searchableSnapshotMetadata.sourceIndex();
             }
-        } else {
+        } else if (snapshotIndexName.equals(indexName) == false) {
             // Use the name of the snapshot as specified in the metadata, because the current index
             // name not might not reflect the name of the index actually in the snapshot
             logger.debug(
@@ -158,6 +158,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                 policyName,
                 snapshotIndexName
             );
+            // Note: this will update the indexName to the force-merged index name if we performed the force-merge on a cloned index.
             indexName = snapshotIndexName;
         }
 

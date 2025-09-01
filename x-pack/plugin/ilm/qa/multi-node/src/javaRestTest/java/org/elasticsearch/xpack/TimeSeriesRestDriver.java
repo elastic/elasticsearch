@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -411,6 +412,28 @@ public final class TimeSeriesRestDriver {
         );
         changePolicyRequest.setEntity(changePolicyEntity);
         assertOK(client.performRequest(changePolicyRequest));
+    }
+
+    /**
+     * Moves the specified index from the current ILM step to the next step.
+     */
+    public static void moveIndexToStep(RestClient client, String indexName, Step.StepKey currentStep, Step.StepKey nextStep)
+        throws IOException {
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + indexName);
+        moveToStepRequest.setJsonEntity(Strings.format("""
+            {
+              "current_step": {
+                "phase": "%s",
+                "action": "%s",
+                "name": "%s"
+              },
+              "next_step": {
+                "phase": "%s",
+                "action": "%s",
+                "name": "%s"
+              }
+            }""", currentStep.phase(), currentStep.action(), currentStep.name(), nextStep.phase(), nextStep.action(), nextStep.name()));
+        ESRestTestCase.assertAcknowledged(client.performRequest(moveToStepRequest));
     }
 
     @SuppressWarnings("unchecked")

@@ -72,9 +72,12 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
                     + "] cannot continue until the repository is created or the policy is changed"
             );
         }
+        // If we performed the force merge step on the cloned index, we perform the snapshot on that index instead of the original.
+        final String clonedIndexName = lifecycleState.forceMergeIndexName();
+        final String forceMergedIndexName = clonedIndexName != null ? clonedIndexName : index.getName();
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
-        newLifecycleState.setSnapshotIndexName(index.getName());
+        newLifecycleState.setSnapshotIndexName(forceMergedIndexName);
         newLifecycleState.setSnapshotRepository(snapshotRepository);
         if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName

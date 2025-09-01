@@ -222,14 +222,10 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
 
             if (isGeoPoint) {
                 // Geo points: scale should be a distance unit string (e.g. "100km")
-                scaleResolution = isNotNull(scale, sourceText(), THIRD).and(
-                    isType(scale, DataType::isString, sourceText(), THIRD, "keyword or text")
-                );
+                scaleResolution = isType(scale, DataType::isString, sourceText(), THIRD, "keyword or text");
             } else {
                 // Cartesian points: scale should be numeric (e.g. 100.0)
-                scaleResolution = isNotNull(scale, sourceText(), THIRD).and(
-                    isType(scale, DataType::isNumeric, sourceText(), THIRD, "numeric")
-                );
+                scaleResolution = isType(scale, DataType::isNumeric, sourceText(), THIRD, "numeric");
             }
 
             if (scaleResolution.unresolved()) {

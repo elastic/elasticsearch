@@ -567,8 +567,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
         }
         int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, NUM_CANDS_LIMIT)) : numCands;
-
-        // FIXME: how do the other params interact with this?
         float adjustedVisitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
 
         if (fieldType == null) {

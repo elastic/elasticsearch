@@ -136,6 +136,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      * @param queryVector the query vector
      * @param k           the final number of nearest neighbors to return as top hits
      * @param numCands    the number of nearest neighbor candidates to consider per shard
+     * @param visitPercentage percentage of the total number of vectors to visit per shard
      * @param rescoreVectorBuilder rescore vector information
      */
     public KnnSearchBuilder(
@@ -166,6 +167,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      * @param queryVector the query vector
      * @param k           the final number of nearest neighbors to return as top hits
      * @param numCands    the number of nearest neighbor candidates to consider per shard
+     * @param visitPercentage percentage of the total number of vectors to visit per shard
      */
     public KnnSearchBuilder(
         String field,
@@ -186,6 +188,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      * @param queryVectorBuilder the query vector builder
      * @param k                  the final number of nearest neighbors to return as top hits
      * @param numCands           the number of nearest neighbor candidates to consider per shard
+     * @param visitPercentage    percentage of the total number of vectors to visit per shard
      */
     public KnnSearchBuilder(
         String field,

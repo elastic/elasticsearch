@@ -115,8 +115,6 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     private final RescoreVectorBuilder rescoreVectorBuilder;
     private final Float similarity;
 
-    // FIXME: add ctors like this to the other builders
-    // FIXME: from a testing standpoint should we replace this with the ctor below sometimes
     public KnnRetrieverBuilder(
         String field,
         float[] queryVector,

@@ -379,16 +379,15 @@ public class IndicesAndAliasesResolver {
                     );
                     if (crossProjectReplacedIndexExpressions != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
-                        ReplacedIndexExpressions.CompleteReplacedIndexExpressions replacedExpressions = indexAbstractionResolver
-                            .resolveIndexAbstractions(
-                                crossProjectReplacedIndexExpressions.getLocalExpressions(),
-                                lenientIndicesOptions(indicesOptions),
-                                projectMetadata,
-                                authorizedIndices::all,
-                                authorizedIndices::check,
-                                indicesRequest.includeDataStreams(),
-                                true
-                            );
+                        ReplacedIndexExpressions replacedExpressions = indexAbstractionResolver.resolveIndexAbstractions(
+                            crossProjectReplacedIndexExpressions.getLocalExpressions(),
+                            lenientIndicesOptions(indicesOptions),
+                            projectMetadata,
+                            authorizedIndices::all,
+                            authorizedIndices::check,
+                            indicesRequest.includeDataStreams(),
+                            true
+                        );
                         crossProjectReplacedIndexExpressions.replaceLocalExpressions(replacedExpressions);
                         crossProjectSearchCapableRequest.setReplacedIndexExpressions(crossProjectReplacedIndexExpressions);
                         crossProjectSearchCapableRequest.indices(crossProjectReplacedIndexExpressions.indices());
@@ -418,7 +417,7 @@ public class IndicesAndAliasesResolver {
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                ReplacedIndexExpressions.CompleteReplacedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
+                ReplacedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
                     indicesOptions,
                     projectMetadata,

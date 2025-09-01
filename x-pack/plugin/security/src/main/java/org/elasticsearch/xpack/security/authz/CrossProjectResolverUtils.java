@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.AuthorizedProjectsSupplier;
+import org.elasticsearch.action.CrossProjectReplacedIndexExpressions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ReplacedIndexExpression;
-import org.elasticsearch.action.ReplacedIndexExpressions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -30,7 +30,7 @@ public class CrossProjectResolverUtils {
 
     private static final Logger logger = LogManager.getLogger(CrossProjectResolverUtils.class);
 
-    public static ReplacedIndexExpressions.CrossProjectReplacedIndexExpressions maybeRewriteCrossProjectResolvableRequest(
+    public static CrossProjectReplacedIndexExpressions maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
         AuthorizedProjectsSupplier.AuthorizedProjects targetProjects,
         IndicesRequest.CrossProjectSearchCapable request
@@ -71,7 +71,7 @@ public class CrossProjectResolverUtils {
             }
         }
 
-        return new ReplacedIndexExpressions.CrossProjectReplacedIndexExpressions(replacedExpressions);
+        return new CrossProjectReplacedIndexExpressions(replacedExpressions);
     }
 
     private static List<String> rewriteUnqualified(String indexExpression, List<String> projects) {

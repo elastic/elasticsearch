@@ -455,10 +455,8 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static void maybeAddExceptions(TransportRequest request) {
-        if (request instanceof IndicesRequest.Replaceable replaceable
-            && replaceable.getReplacedIndexExpressions() instanceof ReplacedIndexExpressions.CompleteReplacedIndexExpressions(Map<
-                String,
-                ReplacedIndexExpression> replacedExpressionMap)) {
+        if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.getReplacedIndexExpressions() != null) {
+            var replacedExpressionMap = replaceable.getReplacedIndexExpressions().asMap();
             if (replacedExpressionMap == null) {
                 return;
             }

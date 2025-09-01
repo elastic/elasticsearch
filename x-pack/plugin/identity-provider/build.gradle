@@ -248,7 +248,9 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
         'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
         'org.bouncycastle.util.Arrays',
-        'org.bouncycastle.util.io.Streams'
+        'org.bouncycastle.util.io.Streams',
+        // SLF4j
+        'org.slf4j.ext.EventData'
     )
 
   ignoreViolations(

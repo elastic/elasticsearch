@@ -172,8 +172,7 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> errors) {
-            if (metric.getExponentialHistogram()
-                .getAggregationTemporality() != AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA) {
+            if (metric.getExponentialHistogram().getAggregationTemporality() != AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA) {
                 errors.add("cumulative exponential histogram metrics are not supported, ignoring " + metric.getName());
                 return false;
             }

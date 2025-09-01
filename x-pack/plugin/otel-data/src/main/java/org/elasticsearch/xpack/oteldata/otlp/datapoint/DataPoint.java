@@ -1,0 +1,137 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.oteldata.otlp.datapoint;
+
+import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.metrics.v1.Metric;
+import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
+
+import java.util.List;
+import java.util.Set;
+
+import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
+
+/**
+ * Represents a metrics data point in the OpenTelemetry metrics data model.
+ * This interface defines methods to access various properties of a data point,
+ * such as its timestamp, attributes, unit, metric name, and methods to build
+ * the metric value in a specific format.
+ * The reason this class is needed is that the generated classes from the
+ * OpenTelemetry proto definitions don't implement a common interface,
+ * which makes it difficult to handle different types of data points uniformly.
+ */
+public interface DataPoint {
+
+    /**
+     * Returns the timestamp of the data point in Unix nanoseconds.
+     *
+     * @return the timestamp in nanoseconds
+     */
+    long getTimestampUnixNano();
+
+    /**
+     * Returns the start timestamp of the data point in Unix nanoseconds.
+     * This allows detecting when a sequence of  observations is unbroken.
+     * This field indicates to consumers the start time for points with cumulative and delta temporality,
+     * and can support correct rate calculation.
+     *
+     * @return the start timestamp in nanoseconds
+     */
+    long getStartTimestampUnixNano();
+
+    /**
+     * Returns the attributes associated with the data point.
+     *
+     * @return a list of key-value pairs representing the attributes
+     */
+    List<KeyValue> getAttributes();
+
+    /**
+     * Returns the unit of measurement for the data point.
+     *
+     * @return the unit as a string
+     */
+    String getUnit();
+
+    /**
+     * Returns the name of the metric associated with the data point.
+     *
+     * @return the metric name as a string
+     */
+    String getMetricName();
+
+    /**
+     * Returns the dynamic template name for the data point based on its type and value.
+     * This is used to dynamically map the appropriate field type according to the data point's characteristics.
+     *
+     * @return the dynamic template name as a string
+     */
+    String getDynamicTemplate();
+
+    /**
+     * Validates whether the data point can be indexed into Elasticsearch.
+     *
+     * @param errors a set to collect validation error messages
+     * @return true if the data point is valid, false otherwise
+     */
+    boolean isValid(Set<String> errors);
+
+    record Number(NumberDataPoint dataPoint, Metric metric) implements DataPoint {
+
+        @Override
+        public long getTimestampUnixNano() {
+            return dataPoint.getTimeUnixNano();
+        }
+
+        @Override
+        public List<KeyValue> getAttributes() {
+            return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public long getStartTimestampUnixNano() {
+            return dataPoint.getStartTimeUnixNano();
+        }
+
+        @Override
+        public String getUnit() {
+            return metric.getUnit();
+        }
+
+        @Override
+        public String getMetricName() {
+            return metric.getName();
+        }
+
+        @Override
+        public String getDynamicTemplate() {
+            String type;
+            if (metric.hasSum()
+                // TODO add support for delta counters - for now we represent them as gauges
+                && metric.getSum().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE
+                // TODO add support for up/down counters - for now we represent them as gauges
+                && metric.getSum().getIsMonotonic()) {
+                type = "counter_";
+            } else {
+                type = "gauge_";
+            }
+            if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.AS_INT) {
+                return type + "long";
+            } else if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.AS_DOUBLE) {
+                return type + "double";
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors) {
+            return true;
+        }
+    }
+}

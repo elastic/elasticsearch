@@ -386,8 +386,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return runtimeJavaHome(fileProvider, explicitlySet, null, null, bundledJdkMajorVersion);
     }
 
-    private RuntimeJava runtimeJavaHome(Provider<File> fileProvider, boolean explicitlySet, String preReleasePostfix, Integer buildNumber,
-                                        String bundledJdkMajorVersion) {
+    private RuntimeJava runtimeJavaHome(
+        Provider<File> fileProvider,
+        boolean explicitlySet,
+        String preReleasePostfix,
+        Integer buildNumber,
+        String bundledJdkMajorVersion
+    ) {
         Provider<JavaVersion> javaVersion = fileProvider.map(
             javaHome -> determineJavaVersion(
                 "runtime java.home",

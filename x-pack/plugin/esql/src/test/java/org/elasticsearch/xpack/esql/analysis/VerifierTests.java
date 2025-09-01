@@ -1069,18 +1069,16 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
         for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
             String gridFunc = "ST_" + grid.toUpperCase(Locale.ROOT);
-            String error = Build.current().isSnapshot()
-                ? "1:" + (136 + grid.length()) + ": cannot sort on " + grid
-                : "1:95: Unknown function [" + gridFunc + "]";
-            assertThat(grid, error(prefix + "| EVAL grid = " + gridFunc + "(TO_GEOPOINT(wkt),1) | limit 5 | sort grid"), startsWith(error));
-            error = Build.current().isSnapshot()
-                ? "1:" + (63 + grid.length()) + ": cannot sort on " + grid
-                : "1:39: Unknown function [" + gridFunc + "]";
-            assertThat(
-                grid,
-                error("FROM airports | LIMIT 5 | EVAL grid = " + gridFunc + "(location, 1) | sort grid", airports),
-                startsWith(error)
-            );
+            String literalQuery = prefix + "| EVAL grid = " + gridFunc + "(TO_GEOPOINT(wkt),1) | limit 5 | sort grid";
+            String indexQuery = "FROM airports | LIMIT 5 | EVAL grid = " + gridFunc + "(location, 1) | sort grid";
+            String literalError = "1:" + (136 + grid.length()) + ": cannot sort on " + grid;
+            String indexError = "1:" + (63 + grid.length()) + ": cannot sort on " + grid;
+            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+                literalError = "1:95: Unknown function [" + gridFunc + "]";
+                indexError = "1:39: Unknown function [" + gridFunc + "]";
+            }
+            assertThat(grid, error(literalQuery), startsWith(literalError));
+            assertThat(grid, error(indexQuery, airports), startsWith(indexError));
         }
     }
 
@@ -2077,7 +2075,7 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_keySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-        List<DataType> unsortableTypes = Build.current().isSnapshot()
+        List<DataType> unsortableTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
             ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
             : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
         for (DataType type : sortableTypes) {
@@ -2094,7 +2092,7 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_valueNumeric() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
-        List<DataType> nonNumericTypes = Build.current().isSnapshot()
+        List<DataType> nonNumericTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
             ? List.of(
                 BOOLEAN,
                 CARTESIAN_POINT,

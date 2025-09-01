@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -94,8 +93,8 @@ public class ParsingTests extends ESTestCase {
             report.humanReadable(true).prettyPrint();
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (Build.current().isSnapshot() == false) {
-                // Some types do not have a converter in release builds
+            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+                // Some types do not have a converter function if the capability is disabled
                 namesAndAliases.removeAll(List.of("geohash", "geotile", "geohex"));
             }
             Collections.sort(namesAndAliases);

@@ -159,14 +159,18 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
     }
 
+    /**
+     * Adds batches with a high simulated size, expecting the CB to trip before deserialization.
+     */
     public void testBatchedEstimateSizeTooBig() throws Exception {
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("sum")));
 
+        var aggCount = randomIntBetween(1, 10);
         var circuitBreakerLimit = ByteSizeValue.ofMb(256);
         var circuitBreaker = newLimitedBreaker(circuitBreakerLimit);
         // More than what the CircuitBreaker should allow
-        long aggregationEstimatedSize = (long) (circuitBreakerLimit.getBytes() * 1.1);
+        long aggregationEstimatedSize = (long) (circuitBreakerLimit.getBytes() * 1.05 / aggCount);
 
         try (
             QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
@@ -181,29 +185,41 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 e -> {}
             )
         ) {
-            var mergeResult = new QueryPhaseResultConsumer.MergeResult(List.of(), null, new DelegatingDelayableWriteable<>(() -> {
-                fail("This shouldn't be called");
-                return null;
-            }), aggregationEstimatedSize);
-            queryPhaseResultConsumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), mergeResult);
+            for (int i = 0; i < aggCount; i++) {
+                // Add a dummy merge result with a high estimated size
+                var mergeResult = new QueryPhaseResultConsumer.MergeResult(List.of(), null, new DelegatingDelayableWriteable<>(() -> {
+                    fail("This shouldn't be called");
+                    return null;
+                }), aggregationEstimatedSize);
+                queryPhaseResultConsumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), mergeResult);
+            }
 
             try {
                 queryPhaseResultConsumer.reduce();
                 fail("Expecting a circuit breaking exception to be thrown");
             } catch (CircuitBreakingException e) {
+                // The last merge result estimate should break
                 assertThat(e.getBytesWanted(), equalTo(aggregationEstimatedSize));
             }
         }
     }
 
+    /**
+     * Adds batches with a high simulated size, expecting the CB to trip before deserialization.
+     * <p>
+     *     Similar to {@link #testBatchedEstimateSizeTooBig()}, but this tests the extra size
+     * </p>
+     */
     public void testBatchedEstimateSizeTooBigAfterDeserialization() throws Exception {
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("sum")));
 
+        var aggCount = randomIntBetween(1, 10);
         var circuitBreakerLimit = ByteSizeValue.ofMb(256);
         var circuitBreaker = newLimitedBreaker(circuitBreakerLimit);
         // Less than the CB, but more after the 1.5x
-        long aggregationEstimatedSize = (long) (circuitBreakerLimit.getBytes() * 0.75);
+        long aggregationEstimatedSize = (long) (circuitBreakerLimit.getBytes() * 0.75 / aggCount);
+        long totalAggregationsEstimatedSize = aggregationEstimatedSize * aggCount;
 
         try (
             QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
@@ -218,18 +234,22 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 e -> {}
             )
         ) {
-            var mergeResult = new QueryPhaseResultConsumer.MergeResult(List.of(), null, new DelegatingDelayableWriteable<>(() -> {
-                fail("This shouldn't be called");
-                return null;
-            }), aggregationEstimatedSize);
-            queryPhaseResultConsumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), mergeResult);
+            for (int i = 0; i < aggCount; i++) {
+                // Add a dummy merge result with a high estimated size
+                var mergeResult = new QueryPhaseResultConsumer.MergeResult(List.of(), null, new DelegatingDelayableWriteable<>(() -> {
+                    fail("This shouldn't be called");
+                    return null;
+                }), aggregationEstimatedSize);
+                queryPhaseResultConsumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), mergeResult);
+            }
 
             try {
                 queryPhaseResultConsumer.reduce();
                 fail("Expecting a circuit breaking exception to be thrown");
             } catch (CircuitBreakingException e) {
                 assertThat(circuitBreaker.getUsed(), greaterThanOrEqualTo(aggregationEstimatedSize));
-                assertThat(e.getBytesWanted(), equalTo((long) (aggregationEstimatedSize * 0.5)));
+                // A final +0.5x is added to account for the serialized->deserialized extra size
+                assertThat(e.getBytesWanted(), equalTo(Math.round(totalAggregationsEstimatedSize * 0.5)));
             }
         }
     }

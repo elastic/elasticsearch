@@ -35,7 +35,7 @@ the embedding generation, indexing, and query to use.
 
 {applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
-to `bbq_hnsw` automatically.
+to `bbq_hnsw` automatically as long as they have a minimum of 64 dimensions.
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
 `semantic_text` with the following API request:
@@ -444,6 +444,29 @@ PUT test-index
     }
 }
 ```
+
+## Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
+
+If you want to verify that your embeddings look correct, you can view the
+inference data that `semantic_text` typically hides using `fields`.
+
+```console
+POST test-index/_search
+{
+    "query": {
+        "match": {
+            "my_semantic_field": "Which country is Paris in?"
+        },
+        "fields": [
+            "_inference_fields"
+          ]
+    }
+}
+```
+
+This will return verbose chunked embeddings content that is used to perform
+semantic search for `semantic_text` fields.
+
 
 ## Limitations [limitations]
 

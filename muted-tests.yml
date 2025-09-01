@@ -143,10 +143,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
-  issue: https://github.com/elastic/elasticsearch/issues/121165
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/121407
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
@@ -231,9 +227,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTerminateAfter
-  issue: https://github.com/elastic/elasticsearch/issues/126085
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
@@ -330,9 +323,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testFailToStartRequestOnRemoteCluster
-  issue: https://github.com/elastic/elasticsearch/issues/128545
 - class: org.elasticsearch.compute.operator.LimitOperatorTests
   method: testEarlyTermination
   issue: https://github.com/elastic/elasticsearch/issues/128721
@@ -388,26 +378,11 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/119871
-- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
-  method: testRerank
-  issue: https://github.com/elastic/elasticsearch/issues/130009
-- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
-  method: testCohereEmbeddings
-  issue: https://github.com/elastic/elasticsearch/issues/130010
 - class: org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests
   method: testMergeEmptyMappingsIntoTemplateWithNonEmptySettings
   issue: https://github.com/elastic/elasticsearch/issues/130050
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/130067
 - class: geoip.GeoIpMultiProjectIT
   issue: https://github.com/elastic/elasticsearch/issues/130073
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/130067
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
-  issue: https://github.com/elastic/elasticsearch/issues/130205
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/130821
@@ -429,9 +404,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/131481
-- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
-  method: test {p0=downsample-with-security/10_basic/Downsample index}
-  issue: https://github.com/elastic/elasticsearch/issues/131513
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/116866
@@ -450,12 +422,30 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
-- class: org.elasticsearch.xpack.stack.StackYamlIT
-  method: test {yaml=stack/10_basic/Test wrong data_stream type - logs from 9.2.0}
-  issue: https://github.com/elastic/elasticsearch/issues/131803
-- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
-  method: testRelocationWhileForceMerging
-  issue: https://github.com/elastic/elasticsearch/issues/131789
+- class: org.elasticsearch.search.sort.FieldSortIT
+  method: testSortMixedFieldTypes
+  issue: https://github.com/elastic/elasticsearch/issues/129445
+- class: org.elasticsearch.gradle.LoggedExecFuncTest
+  method: failed tasks output logged to console when spooling true
+  issue: https://github.com/elastic/elasticsearch/issues/119509
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test010Install
+  issue: https://github.com/elastic/elasticsearch/issues/131376
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test072RunEsAsDifferentUserAndGroup
+  issue: https://github.com/elastic/elasticsearch/issues/131412
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testRemoteClusterOnlyCCSWithFailuresOnOneShardOnly
+  issue: https://github.com/elastic/elasticsearch/issues/133673
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
+  issue: https://github.com/elastic/elasticsearch/issues/127302
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
+  issue: https://github.com/elastic/elasticsearch/issues/131248
+- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
+  method: testParseAndQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133871
 
 # Examples:
 #

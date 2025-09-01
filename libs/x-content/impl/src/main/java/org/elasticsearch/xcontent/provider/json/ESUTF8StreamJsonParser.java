@@ -112,7 +112,8 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                         return null;
                     }
                     ptr += bytesToSkip;
-                    ++stringLength;
+                    // Code points that require 4 bytes in UTF-8 will use 2 chars in UTF-16.
+                    stringLength += (bytesToSkip == 4 ? 2 : 1);
                 }
                 default -> {
                     return null;

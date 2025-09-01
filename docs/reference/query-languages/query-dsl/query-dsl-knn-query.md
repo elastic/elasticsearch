@@ -97,7 +97,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 :   (Optional, float) The minimum similarity required for a document to be considered a match. The similarity value calculated relates to the raw [`similarity`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) used. Not the document score. The matched documents are then scored according to [`similarity`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) and the provided `boost` is applied.
 
 
-`rescore_vector`
+`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
 ::::{note}
@@ -113,7 +113,9 @@ Rescoring only makes sense for quantized vectors; when [quantization](/reference
     * Retrieve `num_candidates` candidates per shard.
     * From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
     * The top `k` rescored candidates will be returned.
-    Must be >= 1f to indicate oversample factor, or exactly `0` to indicate that no oversampling and rescoring should occur.
+    Must be one of the following values: 
+      * \>= 1f to indicate the oversample factor
+      * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
 
 
 See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.

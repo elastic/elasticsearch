@@ -58,32 +58,6 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         }
     }
 
-    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, String buildNumber) implements JdkBuild {
-        @Override
-        public String url(String os, String arch, String extension) {
-            // example:
-            // http://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+6/openjdk-26-ea+6_linux-aarch64_bin.tar.gz
-            return "http://builds.es-jdk-archive.com/jdks/openjdk/"
-                + languageVersion.asInt()
-                + "/"
-                + "openjdk-"
-                + languageVersion.asInt()
-                + "-ea+"
-                + buildNumber
-                + "/"
-                + "openjdk-"
-                + languageVersion.asInt()
-                + "-ea+"
-                + buildNumber
-                + "_"
-                + os
-                + "-"
-                + arch
-                + "_bin."
-                + extension;
-        }
-    }
-
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
@@ -96,17 +70,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
-        getBundledJdkBuild(VersionProperties.getBundledJdkVersion(), VersionProperties.getBundledJdkMajorVersion()),
-        getEarlyAccessBuild(JavaLanguageVersion.of(25), "3")
+        getBundledJdkBuild(VersionProperties.getBundledJdkVersion(), VersionProperties.getBundledJdkMajorVersion())
     );
-
-    static EarlyAccessJdkBuild getEarlyAccessBuild(JavaLanguageVersion languageVersion, String buildNumber) {
-        // first try the unversioned override, then the versioned override which has higher precedence
-        buildNumber = System.getProperty("runtime.java.build", buildNumber);
-        buildNumber = System.getProperty("runtime.java." + languageVersion.asInt() + ".build", buildNumber);
-
-        return new EarlyAccessJdkBuild(languageVersion, buildNumber);
-    }
 
     static JdkBuild getBundledJdkBuild(String bundledJdkVersion, String bundledJkdMajorVersionString) {
         JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(bundledJkdMajorVersionString);

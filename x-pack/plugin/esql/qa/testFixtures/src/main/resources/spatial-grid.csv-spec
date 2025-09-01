@@ -321,7 +321,7 @@ count:long | centroid:geo_point                            | geohashString:keywo
 ;
 
 gridGeohashDocsFromCell
-required_capability: spatial_grid_types
+required_capability: spatial_grid_intersects
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOHASH("u1"))
@@ -335,7 +335,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeohashLiteralFromCell
-required_capability: spatial_grid_types
+required_capability: spatial_grid_intersects
 
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (6.351574736181647 51.8981519783847)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)
@@ -716,7 +716,7 @@ count:long | centroid:geo_point                           | geotileString:keywor
 ;
 
 gridGeotileDocsFromCell
-required_capability: spatial_grid_types
+required_capability: spatial_grid_intersects
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOTILE("3/4/3"))
@@ -730,7 +730,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeotileLiteralFromCell
-required_capability: spatial_grid_types
+required_capability: spatial_grid_intersects
 
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (24.516750878736943 23.93036561181085)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)
@@ -1178,7 +1178,7 @@ POINT (118.12696884672 24.537192570557)   | 8141bffffffffff | null              
 ;
 
 gridGeohexDocsFromCell
-required_capability: spatial_grid_types
+required_capability: spatial_grid_intersects
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOHEX("81397ffffffffff"))
@@ -1192,7 +1192,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeohexLiteralFromCell
-required_capability: spatial_grid_types
+required_capability: spatial_grid_intersects
 
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (2.475211258445467 41.32352174592337)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)

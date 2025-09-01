@@ -9,106 +9,44 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.RemoteClusterAware;
-
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-/**
- * An interface for requests that have had their index expressions replaced/resolved.
- * TODO: does this actually make sense as an interface?
- */
-public interface ReplacedIndexExpressions {
-    String[] indices();
+public class ReplacedIndexExpressions {
+    protected final Map<String, ReplacedIndexExpression> replacedExpressionMap;
 
-    default List<String> indicesAsList() {
+    public ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap) {
+        this.replacedExpressionMap = replacedExpressionMap;
+    }
+
+    public String[] indices() {
+        return ReplacedIndexExpression.toIndices(replacedExpressionMap);
+    }
+
+    public List<String> indicesAsList() {
         return List.of(indices());
     }
 
-    @Nullable
-    default Map<String, ReplacedIndexExpression> asMap() {
-        return null;
+    public Map<String, ReplacedIndexExpression> asMap() {
+        return replacedExpressionMap;
     }
 
-    record CompleteReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap)
-        implements
-            ReplacedIndexExpressions {
-        @Override
-        public String[] indices() {
-            return ReplacedIndexExpression.toIndices(replacedExpressionMap);
-        }
-
-        @Override
-        public Map<String, ReplacedIndexExpression> asMap() {
-            return replacedExpressionMap;
-        }
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (ReplacedIndexExpressions) obj;
+        return Objects.equals(this.replacedExpressionMap, that.replacedExpressionMap);
     }
 
-    record CrossProjectReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap)
-        implements
-            ReplacedIndexExpressions {
+    @Override
+    public int hashCode() {
+        return Objects.hash(replacedExpressionMap);
+    }
 
-        public static boolean isQualifiedIndexExpression(String indexExpression) {
-            return RemoteClusterAware.isRemoteIndexName(indexExpression);
-        }
-
-        @Override
-        public String[] indices() {
-            return ReplacedIndexExpression.toIndices(replacedExpressionMap);
-        }
-
-        @Override
-        public Map<String, ReplacedIndexExpression> asMap() {
-            return replacedExpressionMap;
-        }
-
-        public List<String> getLocalExpressions() {
-            return replacedExpressionMap.values()
-                .stream()
-                .filter(e -> hasCanonicalExpressionForOrigin(e.replacedBy()))
-                .map(ReplacedIndexExpression::original)
-                .toList();
-        }
-
-        public static boolean hasCanonicalExpressionForOrigin(List<String> replacedBy) {
-            return replacedBy.stream().anyMatch(e -> false == isQualifiedIndexExpression(e));
-        }
-
-        public void replaceLocalExpressions(ReplacedIndexExpressions.CompleteReplacedIndexExpressions localResolved) {
-            if (localResolved == null || localResolved.asMap() == null || localResolved.asMap().isEmpty()) {
-                return;
-            }
-
-            for (Map.Entry<String, ReplacedIndexExpression> e : localResolved.asMap().entrySet()) {
-                final String original = e.getKey();
-                final ReplacedIndexExpression local = e.getValue();
-                if (local == null) {
-                    continue;
-                }
-
-                final ReplacedIndexExpression current = replacedExpressionMap.get(original);
-                if (current == null) {
-                    continue;
-                }
-
-                final List<String> qualified = current.replacedBy()
-                    .stream()
-                    .filter(CrossProjectReplacedIndexExpressions::isQualifiedIndexExpression)
-                    .toList();
-
-                final List<String> resolvedLocal = local.replacedBy();
-
-                final List<String> combined = new ArrayList<>(resolvedLocal.size() + qualified.size());
-                combined.addAll(resolvedLocal);
-                combined.addAll(qualified);
-
-                replacedExpressionMap.put(
-                    original,
-                    new ReplacedIndexExpression(original, combined, local.authorized(), local.existsAndVisible(), null)
-                );
-            }
-        }
+    @Override
+    public String toString() {
+        return "ReplacedIndexExpressions[" + "replacedExpressionMap=" + replacedExpressionMap + ']';
     }
 }

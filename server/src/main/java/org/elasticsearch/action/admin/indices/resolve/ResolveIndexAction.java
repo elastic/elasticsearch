@@ -12,7 +12,17 @@ package org.elasticsearch.action.admin.indices.resolve;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ReplacedIndexExpression;
+import org.elasticsearch.action.ReplacedIndexExpressions;
+import org.elasticsearch.action.ResponseWithReplacedIndexExpressions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -513,10 +523,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         // Note: this probably shouldn't return IndicesRequest.ReplaceableIndices but merely an "exists" map that tracks
         // for each expression if it resolved to _something_ since that's the only thing we need to generic fan-out error handling
         @Override
-        public ReplacedIndexExpressions getReplaceableIndices() {
-            return resolvedExpressionMap == null
-                ? null
-                : new ReplacedIndexExpressions.CompleteReplacedIndexExpressions(resolvedExpressionMap);
+        public ReplacedIndexExpressions getReplacedIndexExpressions() {
+            return resolvedExpressionMap == null ? null : new ReplacedIndexExpressions(resolvedExpressionMap);
         }
     }
 
@@ -722,7 +730,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             for (Map.Entry<String, Response> responseEntry : remoteResponses.entrySet()) {
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
-                logger.info("Cluster alias [{}] has resolved entries [{}]", clusterAlias, response.getReplaceableIndices());
+                logger.info("Cluster alias [{}] has resolved entries [{}]", clusterAlias, response.getReplacedIndexExpressions());
 
                 for (ResolvedIndex index : response.indices) {
                     indices.add(index.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getName())));

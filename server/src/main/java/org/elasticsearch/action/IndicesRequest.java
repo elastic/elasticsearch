@@ -24,7 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.action.ReplacedIndexExpressions.CrossProjectReplacedIndexExpressions.hasCanonicalExpressionForOrigin;
+import static org.elasticsearch.action.CrossProjectReplacedIndexExpressions.hasCanonicalExpressionForOrigin;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -97,7 +97,7 @@ public interface IndicesRequest {
         }
 
         default boolean crossProjectMode() {
-            return getReplacedIndexExpressions() instanceof ReplacedIndexExpressions.CrossProjectReplacedIndexExpressions;
+            return getReplacedIndexExpressions() instanceof CrossProjectReplacedIndexExpressions;
         }
 
         @Override
@@ -133,7 +133,7 @@ public interface IndicesRequest {
 
                 for (var remoteResponse : remoteResults.values()) {
                     logger.info("Remote response resolved: [{}]", remoteResponse);
-                    Map<String, ReplacedIndexExpression> resolved = remoteResponse.getReplaceableIndices().asMap();
+                    Map<String, ReplacedIndexExpression> resolved = remoteResponse.getReplacedIndexExpressions().asMap();
                     assert resolved != null;
                     var r = resolved.get(original);
                     if (r != null && r.existsAndVisible() && resolved.get(original).replacedBy().isEmpty() == false) {

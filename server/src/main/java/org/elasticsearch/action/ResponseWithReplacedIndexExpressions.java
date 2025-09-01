@@ -9,6 +9,9 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.core.Nullable;
+
 public interface ResponseWithReplacedIndexExpressions {
-    ReplacedIndexExpressions getReplaceableIndices();
+    @Nullable
+    ReplacedIndexExpressions getReplacedIndexExpressions();
 }

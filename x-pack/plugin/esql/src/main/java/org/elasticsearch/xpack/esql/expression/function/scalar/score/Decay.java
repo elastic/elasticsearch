@@ -16,6 +16,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -31,9 +33,9 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.*;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -41,8 +43,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -73,7 +78,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
  * - Spatial types (geo_point, cartesian_point)
  * - Temporal types (datetime, date_nanos)
  */
-public class Decay extends EsqlScalarFunction implements OptionalArgument {
+public class Decay extends EsqlScalarFunction implements OptionalArgument, PostAnalysisPlanVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
 
@@ -103,6 +108,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     private final Expression value;
     private final Expression scale;
     private final Expression options;
+
+    private final Map<String, Object> resolvedOptions;
 
     @FunctionInfo(
         returnType = "double",
@@ -155,6 +162,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
         this.origin = origin;
         this.scale = scale;
         this.options = options;
+        this.resolvedOptions = new HashMap<>();
     }
 
     private Decay(StreamInput in) throws IOException {
@@ -282,18 +290,17 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
 
         DataType valueDataType = value.dataType();
 
-        Map<String, Object> decayOptions = new HashMap<>();
         Options.populateMapWithExpressionsMultipleDataTypesAllowed(
             (MapExpression) options,
-            decayOptions,
+            resolvedOptions,
             source(),
             FOURTH,
             ALLOWED_OPTIONS
         );
 
-        Expression offset = (Expression) decayOptions.get(OFFSET);
-        Expression decay = (Expression) decayOptions.get(DECAY);
-        Expression type = (Expression) decayOptions.get(TYPE);
+        Expression offset = (Expression) resolvedOptions.get(OFFSET);
+        Expression decay = (Expression) resolvedOptions.get(DECAY);
+        Expression type = (Expression) resolvedOptions.get(TYPE);
 
         EvalOperator.ExpressionEvaluator.Factory scaleFactory = getScaleFactory(toEvaluator, valueDataType);
         EvalOperator.ExpressionEvaluator.Factory offsetFactory = getOffsetFactory(toEvaluator, valueDataType, offset);
@@ -371,6 +378,26 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
                 typeFactory
             );
             default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
+        };
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (LogicalPlan plan, Failures failures) -> {
+            Expression offset = (Expression) resolvedOptions.get(OFFSET);
+
+            Map<String, Expression> potentiallyTemporalExpressions = new HashMap<>();
+            potentiallyTemporalExpressions.put("scale", scale);
+            potentiallyTemporalExpressions.put("offset", offset);
+
+            // Verify that scale and offset are constant, if they're of type "time_duration"
+            potentiallyTemporalExpressions.forEach((exprName, expr) -> {
+                if (Objects.nonNull(expr) && isTimeDuration(expr.dataType()) && expr.foldable() == false) {
+                    failures.add(
+                        fail(offset, "Function [{}] has non-constant temporal [{}] [{}].", sourceText(), exprName, offset.sourceText())
+                    );
+                }
+            });
         };
     }
 
@@ -520,49 +547,27 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsMillis(ToEvaluator toEvaluator) {
-        EvalOperator.ExpressionEvaluator.Factory scaleFactory;
-        if (scale.foldable() == false) {
-            throw new IllegalArgumentException(
-                "Function [" + sourceText() + "] has non-constant temporal scale [" + scale.sourceText() + "]."
-            );
-        }
         Object foldedScale = scale.fold(toEvaluator.foldCtx());
         long scaleMillis = ((Duration) foldedScale).toMillis();
-        scaleFactory = EvalOperator.LongFactory(scaleMillis);
-        return scaleFactory;
+
+        return EvalOperator.LongFactory(scaleMillis);
     }
 
     private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsNanos(ToEvaluator toEvaluator) {
-        if (scale.foldable() == false) {
-            throw new IllegalArgumentException(
-                "Function [" + sourceText() + "] has non-constant temporal scale [" + scale.sourceText() + "]."
-            );
-        }
         Object foldedScale = scale.fold(toEvaluator.foldCtx());
+
         Duration scaleDuration = (Duration) foldedScale;
         long scaleNanos = scaleDuration.toNanos();
         return EvalOperator.LongFactory(scaleNanos);
     }
 
     private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsMillis(ToEvaluator toEvaluator, Expression offset) {
-        EvalOperator.ExpressionEvaluator.Factory offsetFactory;
-        if (offset.foldable() == false) {
-            throw new IllegalArgumentException(
-                "Function [" + sourceText() + "] has non-constant temporal offset [" + offset.sourceText() + "]."
-            );
-        }
         Object foldedOffset = offset.fold(toEvaluator.foldCtx());
         long offsetMillis = ((Duration) foldedOffset).toMillis();
-        offsetFactory = EvalOperator.LongFactory(offsetMillis);
-        return offsetFactory;
+        return EvalOperator.LongFactory(offsetMillis);
     }
 
     private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsNanos(ToEvaluator toEvaluator, Expression offset) {
-        if (offset.foldable() == false) {
-            throw new IllegalArgumentException(
-                "Function [" + sourceText() + "] has non-constant temporal offset [" + offset.sourceText() + "]."
-            );
-        }
         Object foldedOffset = offset.fold(toEvaluator.foldCtx());
         Duration offsetDuration = (Duration) foldedOffset;
 

@@ -74,7 +74,8 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             // end_time has lapsed already so condition must be met
             Index previousGeneration = dataStream.getIndices().get(0);
 
-            step.evaluateCondition(clusterState.metadata(), previousGeneration, new AsyncWaitStep.Listener() {
+            IndexMetadata indexMetadata = clusterState.metadata().index(previousGeneration);
+            step.evaluateCondition(clusterState.metadata(), indexMetadata, new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -92,7 +93,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             // end_time is in the future
             Index writeIndex = dataStream.getIndices().get(1);
 
-            step.evaluateCondition(clusterState.metadata(), writeIndex, new AsyncWaitStep.Listener() {
+            step.evaluateCondition(clusterState.metadata(), clusterState.metadata().index(writeIndex), new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -126,7 +127,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
                 .build();
 
             Metadata newMetadata = Metadata.builder(clusterState.metadata()).put(indexMeta, true).build();
-            step.evaluateCondition(newMetadata, indexMeta.getIndex(), new AsyncWaitStep.Listener() {
+            step.evaluateCondition(newMetadata, indexMeta, new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean complete, ToXContentObject informationContext) {

@@ -406,9 +406,6 @@ tests:
   - class: org.elasticsearch.test.index.IndexVersionUtilsTests
     method: testIndexCompatibleVersionMatches
     issue: https://github.com/elastic/elasticsearch/issues/120760
-  - class: org.elasticsearch.search.CCSDuelIT
-    method: testTerminateAfter
-    issue: https://github.com/elastic/elasticsearch/issues/126085
   - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
     method: test {yaml=reference/search/retriever/line_906}
     issue: https://github.com/elastic/elasticsearch/issues/131041
@@ -427,3 +424,6 @@ tests:
   - class: org.elasticsearch.packaging.test.PackageTests
     method: test42BundledJdkRemoved
     issue: https://github.com/elastic/elasticsearch/issues/131890
+  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+    method: test {yaml=reference/search/retriever/line_983}
+    issue: https://github.com/elastic/elasticsearch/issues/132854

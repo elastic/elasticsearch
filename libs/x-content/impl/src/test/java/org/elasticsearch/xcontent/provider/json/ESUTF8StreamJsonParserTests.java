@@ -76,6 +76,18 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertThat(parser.getValueAsString(), Matchers.equalTo("bår"));
         });
 
+        testParseJson("{\"foo\": \"\uD83D\uDE0A\"}", parser -> {
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+
+            var text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+            var bytes = text.bytes();
+            assertTextRef(bytes, "\uD83D\uDE0A");
+            assertThat(text.stringLength(), Matchers.equalTo(2));
+        });
+
         testParseJson("{\"foo\": \"bår\"}", parser -> {
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
             assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
@@ -143,16 +155,34 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         new TestInput("\\/", "/", true),
         new TestInput("\\\\", "\\", true) };
 
-    private int randomCodepoint(boolean includeAscii) {
+    private int randomCodepointIncludeAscii() {
         while (true) {
             char val = Character.toChars(randomInt(0xFFFF))[0];
-            if (val <= 0x7f && includeAscii == false) {
-                continue;
-            }
             if (val >= Character.MIN_SURROGATE && val <= Character.MAX_SURROGATE) {
                 continue;
             }
             return val;
+        }
+    }
+
+    private int randomCodepointIncludeOutsideBMP(int remainingLength) {
+        while (true) {
+            int codePoint = randomInt(0x10FFFF);
+            char[] val = Character.toChars(codePoint);
+            // Don't include ascii
+            if (val.length == 1 && val[0] <= 0x7F) {
+                continue;
+            }
+            boolean surrogate = val[0] >= Character.MIN_SURROGATE && val[0] <= Character.MAX_SURROGATE;
+            // Single surrogate is invalid
+            if (val.length == 1 && surrogate) {
+                continue;
+            }
+            // Not enough remaining space for a surrogate pair
+            if (remainingLength < 2 && surrogate) {
+                continue;
+            }
+            return codePoint;
         }
     }
 
@@ -171,13 +201,14 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
                         doesSupportOptimized = doesSupportOptimized && escape.supportsOptimized();
                     }
                     case 1 -> {
-                        int value = randomCodepoint(true);
+                        int value = randomCodepointIncludeAscii();
                         input.append(String.format(Locale.ENGLISH, "\\u%04x", value));
                         result.append(Character.toChars(value));
                         doesSupportOptimized = false;
                     }
                     default -> {
-                        var value = Character.toChars(randomCodepoint(false));
+                        var remainingLength = length - i;
+                        var value = Character.toChars(randomCodepointIncludeOutsideBMP(remainingLength));
                         input.append(value);
                         result.append(value);
                     }
@@ -222,7 +253,9 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
                 String currVal = inputs[i].result();
                 if (inputs[i].supportsOptimized()) {
-                    assertTextRef(parser.getValueAsText().bytes(), currVal);
+                    var text = parser.getValueAsText();
+                    assertTextRef(text.bytes(), currVal);
+                    assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
                 } else {
                     assertThat(parser.getValueAsText(), Matchers.nullValue());
                     assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));

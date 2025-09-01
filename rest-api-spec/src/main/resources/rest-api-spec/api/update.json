@@ -1,8 +1,8 @@
 {
   "update":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update.html",
-      "description":"Updates a document with a script or partial document."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/docs-update.html",
+      "description":"Update a document"
     },
     "stability":"stable",
     "visibility":"public",

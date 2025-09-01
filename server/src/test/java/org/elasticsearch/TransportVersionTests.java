@@ -12,7 +12,11 @@ package org.elasticsearch;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -268,42 +272,40 @@ public class TransportVersionTests extends ESTestCase {
         }
     }
 
-    public void testFromName() {
-        assertThat(TransportVersion.fromName("test_0"), is(new TransportVersion("test_0", 3001000, null)));
-        assertThat(TransportVersion.fromName("test_1"), is(new TransportVersion("test_1", 3002000, null)));
-        assertThat(
-            TransportVersion.fromName("test_2"),
-            is(
-                new TransportVersion(
-                    "test_2",
-                    3003000,
-                    new TransportVersion("test_2", 2001001, new TransportVersion("test_2", 1001001, null))
-                )
-            )
+    public void testLatest() {
+        TransportVersion latest = TransportVersion.parseFromBufferedReader(
+            "<test>",
+            "/transport/definitions/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv",
+            TransportVersion.class::getResourceAsStream,
+            (c, p, br) -> TransportVersion.fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
         );
-        assertThat(
-            TransportVersion.fromName("test_3"),
-            is(new TransportVersion("test_3", 3003001, new TransportVersion("test_3", 2001002, null)))
-        );
-        assertThat(
-            TransportVersion.fromName("test_4"),
-            is(
-                new TransportVersion(
-                    "test_4",
-                    3003002,
-                    new TransportVersion("test_4", 2001003, new TransportVersion("test_4", 1001002, null))
-                )
-            )
-        );
+        // TODO: once placeholder is removed, test the latest known version can be found fromName
+        // assertThat(latest, is(TransportVersion.fromName(latest.name())));
     }
 
     public void testSupports() {
-        TransportVersion test0 = TransportVersion.fromName("test_0");
+        byte[] data0 = "100001000,3001000".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test0 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports0",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data0), StandardCharsets.UTF_8)),
+            5000000
+        );
         assertThat(new TransportVersion(null, 2003000, null).supports(test0), is(false));
         assertThat(new TransportVersion(null, 3001000, null).supports(test0), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test0), is(true));
 
-        TransportVersion test1 = TransportVersion.fromName("test_1");
+        byte[] data1 = "3002000".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test1 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports1",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
+            5000000
+        );
         assertThat(new TransportVersion(null, 2003000, null).supports(test1), is(false));
         assertThat(new TransportVersion(null, 3001000, null).supports(test1), is(false));
         assertThat(new TransportVersion(null, 3001001, null).supports(test1), is(false));
@@ -311,7 +313,15 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 100001000, null).supports(test1), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test1), is(true));
 
-        TransportVersion test2 = TransportVersion.fromName("test_2");
+        byte[] data2 = "3003000,2001001,1001001".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test2 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports2",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
+            5000000
+        );
         assertThat(new TransportVersion(null, 1001000, null).supports(test2), is(false));
         assertThat(new TransportVersion(null, 1001001, null).supports(test2), is(true));
         assertThat(new TransportVersion(null, 1001002, null).supports(test2), is(true));
@@ -331,7 +341,15 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 100001000, null).supports(test2), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test2), is(true));
 
-        TransportVersion test3 = TransportVersion.fromName("test_3");
+        byte[] data3 = "100002000,3003001,2001002".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test3 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
+            5000000
+        );
         assertThat(new TransportVersion(null, 1001001, null).supports(test3), is(false));
         assertThat(new TransportVersion(null, 1001002, null).supports(test3), is(false));
         assertThat(new TransportVersion(null, 1001003, null).supports(test3), is(false));
@@ -352,7 +370,15 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 100001000, null).supports(test3), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test3), is(true));
 
-        TransportVersion test4 = TransportVersion.fromName("test_4");
+        byte[] data4 = "100002000,3003002,2001003,1001002".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test4 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data4), StandardCharsets.UTF_8)),
+            5000000
+        );
         assertThat(new TransportVersion(null, 1001001, null).supports(test4), is(false));
         assertThat(new TransportVersion(null, 1001002, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 1001003, null).supports(test4), is(true));

@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+        Path esHome = Path.of(sysprops.get("es.path.home"));
         String distroType = sysprops.get("es.distribution.type");
         String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
@@ -67,7 +68,8 @@ final class SystemJvmOptions {
                 "-Djava.locale.providers=" + getLocaleProviders(),
                 // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
                 "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
-                // Pass through distribution type and java type
+                // Pass through some properties
+                "-Des.path.home=" + esHome,
                 "-Des.distribution.type=" + distroType,
                 "-Des.java.type=" + javaType
             ),
@@ -77,7 +79,7 @@ final class SystemJvmOptions {
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
             maybeAllowSecurityManager(useEntitlements),
-            maybeAttachEntitlementAgent(useEntitlements)
+            maybeAttachEntitlementAgent(esHome, useEntitlements)
         ).flatMap(s -> s).toList();
     }
 
@@ -167,12 +169,12 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {
+    private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {
         if (useEntitlements == false) {
             return Stream.empty();
         }
 
-        Path dir = Path.of("lib", "entitlement-bridge");
+        Path dir = esHome.resolve("lib/entitlement-bridge");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
         }

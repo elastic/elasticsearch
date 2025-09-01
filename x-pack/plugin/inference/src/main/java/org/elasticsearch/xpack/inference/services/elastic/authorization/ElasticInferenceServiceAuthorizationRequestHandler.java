@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -86,25 +87,25 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
 
             ActionListener<InferenceServiceResults> newListener = ActionListener.wrap(results -> {
                 if (results instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
+                    logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
                     listener.onResponse(ElasticInferenceServiceAuthorizationModel.of(authResponseEntity));
                 } else {
-                    logger.warn(
-                        Strings.format(
-                            FAILED_TO_RETRIEVE_MESSAGE + " Received an invalid response type: %s",
-                            results.getClass().getSimpleName()
-                        )
+                    var errorMessage = Strings.format(
+                        "%s Received an invalid response type from the Elastic Inference Service: %s",
+                        FAILED_TO_RETRIEVE_MESSAGE,
+                        results.getClass().getSimpleName()
                     );
-                    listener.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
+
+                    logger.warn(errorMessage);
+                    listener.onFailure(new ElasticsearchException(errorMessage));
                 }
                 requestCompleteLatch.countDown();
             }, e -> {
-                Throwable exception = e;
-                if (e instanceof ElasticsearchWrapperException wrapperException) {
-                    exception = wrapperException.getCause();
-                }
+                // unwrap because it's likely a retry exception
+                var exception = ExceptionsHelper.unwrapCause(e);
 
-                logger.warn(Strings.format(FAILED_TO_RETRIEVE_MESSAGE + " Encountered an exception: %s", exception));
-                listener.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
+                logger.warn(Strings.format(FAILED_TO_RETRIEVE_MESSAGE + " Encountered an exception: %s", exception), exception);
+                listener.onFailure(e);
                 requestCompleteLatch.countDown();
             });
 

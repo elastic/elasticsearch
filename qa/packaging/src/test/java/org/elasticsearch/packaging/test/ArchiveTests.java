@@ -212,14 +212,14 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
         Files.move(
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.78.1.jar"),
-            tempDir.resolve("bcprov-jdk18on-1.78.1.jar")
+            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.79.jar"),
+            tempDir.resolve("bcprov-jdk18on-1.79.jar")
         );
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
         assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
         Files.move(
-            tempDir.resolve("bcprov-jdk18on-1.78.1.jar"),
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.78.1.jar")
+            tempDir.resolve("bcprov-jdk18on-1.79.jar"),
+            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.79.jar")
         );
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);

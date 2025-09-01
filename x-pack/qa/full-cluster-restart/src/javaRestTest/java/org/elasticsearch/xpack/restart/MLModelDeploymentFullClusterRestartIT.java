@@ -36,7 +36,7 @@ import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
+public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartTestCase {
 
     // See PyTorchModelIT for how this model was created
     static final String BASE_64_ENCODED_MODEL =

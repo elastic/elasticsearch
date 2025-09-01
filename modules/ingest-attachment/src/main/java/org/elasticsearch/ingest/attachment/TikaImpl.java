@@ -16,6 +16,7 @@ import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
+import org.apache.tika.parser.html.JSoupParser;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.core.PathUtils;
@@ -68,7 +69,7 @@ final class TikaImpl {
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {
         // documents
-        new org.apache.tika.parser.html.HtmlParser(),
+        new JSoupParser(),
         new org.apache.tika.parser.microsoft.rtf.RTFParser(),
         new org.apache.tika.parser.pdf.PDFParser(),
         new org.apache.tika.parser.txt.TXTParser(),

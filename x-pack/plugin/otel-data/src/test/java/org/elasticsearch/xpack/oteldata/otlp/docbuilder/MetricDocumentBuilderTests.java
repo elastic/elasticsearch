@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
-import com.google.protobuf.ByteString;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
+
+import com.google.protobuf.ByteString;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;

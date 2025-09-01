@@ -61,8 +61,8 @@ public class KnnSemanticTextIT extends ESRestTestCase {
     public void testKnnQueryWithSemanticText() throws IOException {
         String knnQuery = """
             FROM semantic-test METADATA _score
-            | WHERE knn(semantic, [0, 1, 2], 10)
-            | KEEP id, _score, semantic
+            | WHERE knn(dense_semantic, [0, 1, 2], 10)
+            | KEEP id, _score, dense_semantic
             | SORT _score DESC
             | LIMIT 10
             """;
@@ -83,7 +83,21 @@ public class KnnSemanticTextIT extends ESRestTestCase {
         String knnQuery = """
             FROM semantic-test METADATA _score
             | WHERE knn(text, [0, 1, 2], 10)
-            | KEEP id, _score, semantic
+            | KEEP id, _score, dense_semantic
+            | SORT _score DESC
+            | LIMIT 10
+            """;
+
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlQuery(knnQuery));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), is(BAD_REQUEST.getStatus()));
+        assertThat(re.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
+    }
+
+    public void testKnnQueryOnSparseSemanticTextField() throws IOException {
+        String knnQuery = """
+            FROM semantic-test METADATA _score
+            | WHERE knn(sparse_semantic, [0, 1, 2], 10)
+            | KEEP id, _score, sparse_semantic
             | SORT _score DESC
             | LIMIT 10
             """;
@@ -94,7 +108,13 @@ public class KnnSemanticTextIT extends ESRestTestCase {
     }
 
     @Before
-    public void setupIndex() throws IOException {
+    public void setUp() throws Exception {
+        super.setUp();
+        setupInferenceEndpoints();
+        setupIndex();
+    }
+
+    private void setupIndex() throws IOException {
         Request request = new Request("PUT", "/semantic-test");
         request.setJsonEntity("""
             {
@@ -103,13 +123,17 @@ public class KnnSemanticTextIT extends ESRestTestCase {
                   "id": {
                     "type": "integer"
                   },
-                  "semantic": {
+                  "dense_semantic": {
                     "type": "semantic_text",
                     "inference_id": "test_dense_inference"
                   },
+                  "sparse_semantic": {
+                    "type": "semantic_text",
+                    "inference_id": "test_sparse_inference"
+                  },
                   "text": {
                     "type": "text",
-                    "copy_to": "semantic"
+                    "copy_to": ["dense_semantic", "sparse_semantic"]
                   }
                 }
               },
@@ -124,7 +148,6 @@ public class KnnSemanticTextIT extends ESRestTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         request = new Request("POST", "/_bulk?index=semantic-test&refresh=true");
-        // 4 documents with a null in the middle, leading to 3 ESQL pages and 3 Arrow batches
         request.setJsonEntity("""
             {"index": {"_id": "1"}}
             {"id": 1, "text": "sample text"}
@@ -136,17 +159,21 @@ public class KnnSemanticTextIT extends ESRestTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
-    @Before
-    public void setupInferenceEndpoint() throws IOException {
+    private void setupInferenceEndpoints() throws IOException {
         CsvTestsDataLoader.createTextEmbeddingInferenceEndpoint(client());
+        CsvTestsDataLoader.createSparseEmbeddingInferenceEndpoint(client());
     }
 
     @After
-    public void removeIndexAndInferenceEndpoint() throws IOException {
+    public void tearDown() throws Exception {
+        super.tearDown();
         client().performRequest(new Request("DELETE", "semantic-test"));
 
         if (CsvTestsDataLoader.clusterHasTextEmbeddingInferenceEndpoint(client())) {
             CsvTestsDataLoader.deleteTextEmbeddingInferenceEndpoint(client());
+        }
+        if (CsvTestsDataLoader.clusterHasSparseEmbeddingInferenceEndpoint(client())) {
+            CsvTestsDataLoader.deleteSparseEmbeddingInferenceEndpoint(client());
         }
     }
 

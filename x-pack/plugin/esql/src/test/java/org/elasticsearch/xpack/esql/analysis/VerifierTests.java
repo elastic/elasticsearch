@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
@@ -1058,9 +1059,6 @@ public class VerifierTests extends ESTestCase {
             "1:136: cannot sort on cartesian_shape",
             error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
         );
-        assertEquals("1:143: cannot sort on geohash", error(prefix + "| EVAL grid = ST_GEOHASH(TO_GEOPOINT(wkt),1) | limit 5 | sort grid"));
-        assertEquals("1:143: cannot sort on geotile", error(prefix + "| EVAL grid = ST_GEOTILE(TO_GEOPOINT(wkt),1) | limit 5 | sort grid"));
-        assertEquals("1:142: cannot sort on geohex", error(prefix + "| EVAL grid = ST_GEOHEX(TO_GEOPOINT(wkt),1) | limit 5 | sort grid"));
         var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
         var airportsWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports_web.json", "airports_web"));
         var countriesBbox = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox.json", "countries_bbox"));
@@ -1069,15 +1067,21 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
         assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
-        assertEquals(
-            "1:67: cannot sort on geohash",
-            error("FROM airports | LIMIT 5 | EVAL g = ST_GEOHASH(location, 1) | sort g", airports)
-        );
-        assertEquals(
-            "1:67: cannot sort on geotile",
-            error("FROM airports | LIMIT 5 | EVAL g = ST_GEOTILE(location, 1) | sort g", airports)
-        );
-        assertEquals("1:66: cannot sort on geohex", error("FROM airports | LIMIT 5 | EVAL g = ST_GEOHEX(location, 1) | sort g", airports));
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            String gridFunc = "ST_" + grid.toUpperCase(Locale.ROOT);
+            String error = Build.current().isSnapshot()
+                ? "1:" + (136 + grid.length()) + ": cannot sort on " + grid
+                : "1:95: Unknown function [" + gridFunc + "]";
+            assertThat(grid, error(prefix + "| EVAL grid = " + gridFunc + "(TO_GEOPOINT(wkt),1) | limit 5 | sort grid"), startsWith(error));
+            error = Build.current().isSnapshot()
+                ? "1:" + (63 + grid.length()) + ": cannot sort on " + grid
+                : "1:39: Unknown function [" + gridFunc + "]";
+            assertThat(
+                grid,
+                error("FROM airports | LIMIT 5 | EVAL grid = " + gridFunc + "(location, 1) | sort grid", airports),
+                startsWith(error)
+            );
+        }
     }
 
     public void testSourceSorting() {

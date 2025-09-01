@@ -221,6 +221,34 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Returns the number of bytes needed to encode the given int as a VInt.
+     */
+    public static int bytesInVInt(int i) {
+        // Single byte shortcut: fits in 7 bits (i.e., values 0..127)
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            return 1;
+        }
+        int byteCount = 1;
+        i >>>= 7;
+        while ((i & ~0x7F) != 0) {
+            byteCount++;
+            i >>>= 7;
+        }
+        if (i != 0) {
+            byteCount++;
+        }
+
+        // TODO - Replace with?
+        /*
+        do {
+            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
+            i >>>= 7;
+        } while ((i & ~0x7F) != 0);
+         */
+        return byteCount;
+    }
+
+    /**
      * Writes an int in a variable-length format.  Writes between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized
@@ -235,7 +263,7 @@ public abstract class StreamOutput extends OutputStream {
          * In that case benchmarks of the method itself are faster but
          * benchmarks of methods that use this method are slower.
          * This is philosophically in line with vint in general - it biases
-         * twoards being simple and fast for smaller numbers.
+         * towards being simple and fast for smaller numbers.
          */
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             writeByte((byte) i);
@@ -428,6 +456,27 @@ public abstract class StreamOutput extends OutputStream {
 
     public void writeString(String str) throws IOException {
         writeString(str, scratch.get(), 0);
+    }
+
+    /**
+     * Returns the number of bytes needed to encode the given string in UTF-8.
+     */
+    public static int bytesInString(String str) {
+        int byteCount = 0;
+        final int charCount = str.length();
+        for (int i = 0; i < charCount; i++) {
+            final int c = str.charAt(i);
+            if (c <= 0x007F) {
+                byteCount += 1;
+            } else if (c > 0x07FF) {
+                byteCount += 3;
+            } else {
+                byteCount += 2;
+            }
+        }
+        // Add bytes for the length prefix (VInt)
+        byteCount += bytesInVInt(charCount);
+        return byteCount;
     }
 
     /**
@@ -1135,6 +1184,17 @@ public abstract class StreamOutput extends OutputStream {
         for (final T val : collection) {
             writer.write(this, val);
         }
+    }
+
+    /**
+     * Returns the number of bytes needed to encode the given string collectiom
+     */
+    public static int bytesInStringCollection(Collection<String> collection) {
+        int byteCount = bytesInVInt(collection.size());
+        for (String item : collection) {
+            byteCount += bytesInString(item);
+        }
+        return byteCount;
     }
 
     /**

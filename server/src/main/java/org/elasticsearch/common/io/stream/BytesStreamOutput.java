@@ -187,4 +187,10 @@ public class BytesStreamOutput extends BytesStream {
         }
     }
 
+    public boolean hasCapacity(int length) {
+        if (length < 0) {
+            throw new IllegalArgumentException("Negative length");
+        }
+        return count + length <= maximumSize;
+    }
 }

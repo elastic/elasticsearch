@@ -436,9 +436,7 @@ public class EnrichPolicyResolver {
                 new ChannelActionListener<>(channel),
                 threadContext
             );
-            try (
-                RefCountingListener refs = new RefCountingListener(listener.map(unused -> new LookupResponse(resolvedPolices, failures)))
-            ) {
+            try (var refs = new RefCountingListener(listener.map(unused -> new LookupResponse(resolvedPolices, failures)))) {
                 for (String policyName : request.policyNames) {
                     EnrichPolicy p = availablePolicies.get(policyName);
                     if (p == null) {
@@ -469,9 +467,7 @@ public class EnrichPolicyResolver {
     }
 
     protected Map<String, EnrichPolicy> availablePolicies() {
-        final EnrichMetadata metadata = projectResolver.getProjectMetadata(clusterService.state())
-            .custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
-        return metadata.getPolicies();
+        return projectResolver.getProjectMetadata(clusterService.state()).custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY).getPolicies();
     }
 
     protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {

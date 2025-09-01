@@ -321,10 +321,9 @@ public class Knn extends FullTextFunction
     public void postOptimizationVerification(Failures failures) {
         // Check that a k has been set
         if (k() == null) {
-            failures.add(Failure.fail(
-                this,
-                "Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find"
-            ));
+            failures.add(
+                Failure.fail(this, "Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
+            );
         }
     }
 
@@ -386,7 +385,5 @@ public class Knn extends FullTextFunction
     public int hashCode() {
         return Objects.hash(field(), query(), queryBuilder(), k(), filterExpressions());
     }
-
-
 
 }

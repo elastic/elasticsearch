@@ -549,9 +549,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/133842
-- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
-  method: testHighNodeWriteLoadPreventsNewShardAllocation
-  issue: https://github.com/elastic/elasticsearch/issues/133857
 - class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
   method: testParseOrQuery
   issue: https://github.com/elastic/elasticsearch/issues/133863

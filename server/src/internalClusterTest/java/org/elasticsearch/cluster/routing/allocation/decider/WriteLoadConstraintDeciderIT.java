@@ -68,6 +68,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
      */
     public void testHighNodeWriteLoadPreventsNewShardAllocation() {
         int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
+        int numberOfWritePoolThreads = randomIntBetween(10, 20);
+        double shardWriteLoad = randomDoubleBetween(0.0, 0.2, true);
         Settings settings = Settings.builder()
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
@@ -115,7 +117,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         );
 
         String indexName = randomIdentifier();
-        int randomNumberOfShards = randomIntBetween(15, 40); // Pick a high number of shards, so it is clear assignment is not accidental.
+        int randomNumberOfShards = randomIntBetween(10, 20); // Pick a high number of shards, so it is clear assignment is not accidental.
+
+        // Calculate the maximum utilization a node can report while still being able to accept all relocating shards
+        double additionalLoadFromAllShards = (shardWriteLoad * randomNumberOfShards) / numberOfWritePoolThreads;
+        int maxUtilizationPercent = randomUtilizationThresholdPercent - (int) (additionalLoadFromAllShards * 100) - 1;
 
         var verifyAssignmentToFirstNodeListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
             var indexRoutingTable = clusterState.routingTable().index(indexName);
@@ -154,19 +160,19 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
         final NodeUsageStatsForThreadPools firstNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
             firstDiscoveryNode,
-            2,
-            0.5f,
+            numberOfWritePoolThreads,
+            randomIntBetween(0, maxUtilizationPercent) / 100f,
             0
         );
         final NodeUsageStatsForThreadPools secondNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
             secondDiscoveryNode,
-            2,
-            0.5f,
+            numberOfWritePoolThreads,
+            randomIntBetween(0, maxUtilizationPercent) / 100f,
             0
         );
         final NodeUsageStatsForThreadPools thirdNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
             thirdDiscoveryNode,
-            2,
+            numberOfWritePoolThreads,
             randomUtilizationThresholdPercent + 1 / 100,
             0
         );
@@ -197,12 +203,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(indexName);
-        double shardWriteLoadDefault = 0.2;
         MockTransportService.getInstance(firstDataNodeName)
             .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    shardStats.add(createShardStats(indexMetadata, i, shardWriteLoadDefault, firstDataNodeId));
+                    shardStats.add(createShardStats(indexMetadata, i, shardWriteLoad, firstDataNodeId));
                 }
                 TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, firstDataNodeName);
                 channel.sendResponse(instance.new NodeResponse(firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of()));
@@ -240,6 +245,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", firstDataNodeName));
 
         safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            logger.info("Running ***");
             Index index = clusterState.routingTable().index(indexName).getIndex();
             return checkShardAssignment(
                 clusterState.getRoutingNodes(),
@@ -267,6 +273,15 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         int secondDataNodeExpectedNumShards,
         int thirdDataNodeExpectedNumShards
     ) {
+        logger.info(
+            "first {actual={}, expected={}}, second {actual={}, expected={}}, third {actual={}, expected={}}",
+            routingNodes.node(firstDataNodeId).numberOfOwningShardsForIndex(index),
+            firstDataNodeExpectedNumShards,
+            routingNodes.node(secondDataNodeId).numberOfOwningShardsForIndex(index),
+            secondDataNodeExpectedNumShards,
+            routingNodes.node(thirdDataNodeId).numberOfOwningShardsForIndex(index),
+            thirdDataNodeExpectedNumShards
+        );
 
         int firstDataNodeRealNumberOfShards = routingNodes.node(firstDataNodeId).numberOfOwningShardsForIndex(index);
         if (firstDataNodeRealNumberOfShards != firstDataNodeExpectedNumShards) {

@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DecayIntEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator value;
@@ -98,6 +101,18 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
         }
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += value.baseRamBytesUsed();
+    baseRamBytesUsed += origin.baseRamBytesUsed();
+    baseRamBytesUsed += scale.baseRamBytesUsed();
+    baseRamBytesUsed += offset.baseRamBytesUsed();
+    baseRamBytesUsed += decay.baseRamBytesUsed();
+    baseRamBytesUsed += functionType.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public DoubleBlock eval(int positionCount, IntBlock valueBlock, IntBlock originBlock,

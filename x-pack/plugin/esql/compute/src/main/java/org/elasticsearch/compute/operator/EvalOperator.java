@@ -220,13 +220,13 @@ public class EvalOperator extends AbstractPageMappingOperator {
             @Override
             public ConstantTrueEvaluator get(DriverContext context) {
                 return new ConstantTrueEvaluator(context);
-            };
+            }
 
             @Override
             public String toString() {
                 return NAME;
             }
-        };
+        }
     }
 
     public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ConstantTrueEvaluator.Factory();
@@ -252,7 +252,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
         public long baseRamBytesUsed() {
             return BASE_RAM_BYTES_USED;
         }
-      
+
         record Factory() implements ExpressionEvaluator.Factory {
             @Override
             public ConstantFalseEvaluator get(DriverContext context) {
@@ -265,131 +265,166 @@ public class EvalOperator extends AbstractPageMappingOperator {
             }
         };
     }
-    };
 
     public static final ExpressionEvaluator.Factory CONSTANT_FALSE_FACTORY = new ConstantFalseEvaluator.Factory();
 
-    public static ExpressionEvaluator.Factory DoubleFactory(double value) {
-        return new ExpressionEvaluator.Factory() {
+    private record ConstantDoubleEvaluator(DriverContext context, double value) implements ExpressionEvaluator {
+
+        private static final String NAME = "ConstantDouble";
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntegerEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            return context.blockFactory().newConstantDoubleBlockWith(value, page.getPositionCount());
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public String toString() {
+            return NAME + "[" + value + "]";
+        }
+
+        record Factory(double value) implements ExpressionEvaluator.Factory {
             @Override
-            public ExpressionEvaluator get(DriverContext driverContext) {
-                return new ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        return driverContext.blockFactory().newConstantDoubleBlockWith(value, page.getPositionCount());
-                    }
-
-                    @Override
-                    public void close() {
-
-                    }
-
-                    @Override
-                    public String toString() {
-                        return CONSTANT_DOUBLE_NAME + "[" + value + "]";
-                    }
-                };
+            public ExpressionEvaluator get(DriverContext context) {
+                return new ConstantDoubleEvaluator(context, value);
             }
 
             @Override
             public String toString() {
-                return CONSTANT_DOUBLE_NAME + "[" + value + "]";
+                return NAME + "[" + value + "]";
             }
-        };
+        }
     }
 
-    private static final String CONSTANT_DOUBLE_NAME = "ConstantDouble";
+    public static ExpressionEvaluator.Factory DoubleFactory(double value) {
+        return new ConstantDoubleEvaluator.Factory(value);
+    }
+
+    private record ConstantLongEvaluator(DriverContext context, long value) implements ExpressionEvaluator {
+
+        private static final String NAME = "ConstantLong";
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntegerEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            return context.blockFactory().newConstantLongBlockWith(value, page.getPositionCount());
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public String toString() {
+            return NAME + "[" + value + "]";
+        }
+
+        record Factory(long value) implements ExpressionEvaluator.Factory {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new ConstantLongEvaluator(context, value);
+            }
+
+            @Override
+            public String toString() {
+                return NAME + "[" + value + "]";
+            }
+        }
+    }
 
     public static ExpressionEvaluator.Factory LongFactory(long value) {
-        return new ExpressionEvaluator.Factory() {
+        return new ConstantLongEvaluator.Factory(value);
+    }
+
+    private record ConstantIntegerEvaluator(DriverContext context, int value) implements ExpressionEvaluator {
+
+        private static final String NAME = "ConstantInteger";
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntegerEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            return context.blockFactory().newConstantIntBlockWith(value, page.getPositionCount());
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public String toString() {
+            return NAME + "[" + value + "]";
+        }
+
+        record Factory(int value) implements ExpressionEvaluator.Factory {
             @Override
-            public ExpressionEvaluator get(DriverContext driverContext) {
-                return new ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        return driverContext.blockFactory().newConstantLongBlockWith(value, page.getPositionCount());
-                    }
-
-                    @Override
-                    public void close() {
-
-                    }
-
-                    @Override
-                    public String toString() {
-                        return CONSTANT_LONG_NAME + "[" + value + "]";
-                    }
-                };
+            public ExpressionEvaluator get(DriverContext context) {
+                return new ConstantIntegerEvaluator(context, value);
             }
 
             @Override
             public String toString() {
-                return CONSTANT_LONG_NAME + "[" + value + "]";
+                return NAME + "[" + value + "]";
             }
-        };
+        }
     }
-
-    private static final String CONSTANT_LONG_NAME = "ConstantLong";
 
     public static ExpressionEvaluator.Factory IntegerFactory(int value) {
-        return new ExpressionEvaluator.Factory() {
+        return new ConstantIntegerEvaluator.Factory(value);
+    }
+
+    private record ConstantBytesRefEvaluator(DriverContext context, org.apache.lucene.util.BytesRef value) implements ExpressionEvaluator {
+
+        private static final String NAME = "ConstantBytesRef";
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            return context.blockFactory().newConstantBytesRefBlockWith(value, page.getPositionCount());
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public String toString() {
+            return NAME + "[" + value.utf8ToString() + "]";
+        }
+
+        record Factory(org.apache.lucene.util.BytesRef value) implements ExpressionEvaluator.Factory {
             @Override
-            public ExpressionEvaluator get(DriverContext driverContext) {
-                return new ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        return driverContext.blockFactory().newConstantIntBlockWith(value, page.getPositionCount());
-                    }
-
-                    @Override
-                    public void close() {
-
-                    }
-
-                    @Override
-                    public String toString() {
-                        return CONSTANT_INTEGER_NAME + "[" + value + "]";
-                    }
-                };
+            public ConstantBytesRefEvaluator get(DriverContext context) {
+                return new ConstantBytesRefEvaluator(context, value);
             }
 
             @Override
             public String toString() {
-                return CONSTANT_INTEGER_NAME + "[" + value + "]";
+                return NAME + "[" + value.utf8ToString() + "]";
             }
-        };
+        }
     }
-
-    private static final String CONSTANT_INTEGER_NAME = "ConstantInteger";
 
     public static ExpressionEvaluator.Factory BytesRefFactory(org.apache.lucene.util.BytesRef value) {
-        return new ExpressionEvaluator.Factory() {
-            @Override
-            public ExpressionEvaluator get(DriverContext driverContext) {
-                return new ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        return driverContext.blockFactory().newConstantBytesRefBlockWith(value, page.getPositionCount());
-                    }
-
-                    @Override
-                    public void close() {
-
-                    }
-
-                    @Override
-                    public String toString() {
-                        return CONSTANT_BYTES_REF_NAME + "[" + value.utf8ToString() + "]";
-                    }
-                };
-            }
-
-            @Override
-            public String toString() {
-                return CONSTANT_BYTES_REF_NAME + "[" + value.utf8ToString() + "]";
-            }
-        };
+        return new ConstantBytesRefEvaluator.Factory(value);
     }
-
-    private static final String CONSTANT_BYTES_REF_NAME = "ConstantBytesRef";
 }

@@ -185,6 +185,18 @@ public interface DataPoint {
         }
 
         @Override
+        public void buildMetricValue(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            HistogramConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            HistogramConverter.centroidValues(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
+        }
+
+        @Override
         public String getDynamicTemplate() {
             return "histogram";
         }
@@ -223,6 +235,18 @@ public interface DataPoint {
         @Override
         public String getMetricName() {
             return metric.getName();
+        }
+
+        @Override
+        public void buildMetricValue(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            HistogramConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            HistogramConverter.centroidValues(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         @Override

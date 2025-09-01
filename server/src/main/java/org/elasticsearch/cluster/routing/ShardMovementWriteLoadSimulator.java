@@ -11,7 +11,10 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectDoubleHashMap;
 import com.carrotsearch.hppc.ObjectDoubleMap;
+import com.carrotsearch.hppc.procedures.ObjectDoubleProcedure;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.Maps;
@@ -21,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 
 /**
@@ -29,6 +33,7 @@ import java.util.Set;
  */
 public class ShardMovementWriteLoadSimulator {
 
+    private static final Logger logger = LogManager.getLogger(ShardMovementWriteLoadSimulator.class);
     private final Map<String, NodeUsageStatsForThreadPools> originalNodeUsageStatsForThreadPools;
     private final ObjectDoubleMap<String> simulatedNodeWriteLoadDeltas;
     private final Map<ShardId, Double> writeLoadsPerShard;
@@ -87,7 +92,44 @@ public class ShardMovementWriteLoadSimulator {
                 adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), entry.getValue());
             }
         }
+
+        // Add `NodeUsageStatsForThreadPools` for any nodes not present in the original `NodeUsageStatsForThreadPools` map.
+        addUsageStatsForAnyNodesNotPresentInOriginalNodeUsageStatsForThreadPools(adjustedNodeUsageStatsForThreadPools);
+
         return Collections.unmodifiableMap(adjustedNodeUsageStatsForThreadPools);
+    }
+
+    private void addUsageStatsForAnyNodesNotPresentInOriginalNodeUsageStatsForThreadPools(
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools
+    ) {
+        // Assume the new node has the same size thread pool as the largest existing node
+        final OptionalInt largestWriteThreadPool = originalNodeUsageStatsForThreadPools.values()
+            .stream()
+            .map(NodeUsageStatsForThreadPools::threadPoolUsageStatsMap)
+            .map(m -> m.get(ThreadPool.Names.WRITE))
+            .mapToInt(NodeUsageStatsForThreadPools.ThreadPoolUsageStats::totalThreadPoolThreads)
+            .max();
+
+        if (largestWriteThreadPool.isPresent()) {
+            simulatedNodeWriteLoadDeltas.forEach((ObjectDoubleProcedure<? super String>) (nodeId, writeLoadDelta) -> {
+                nodeUsageStatsForThreadPools.computeIfAbsent(
+                    nodeId,
+                    missingNodeId -> new NodeUsageStatsForThreadPools(
+                        missingNodeId,
+                        Map.of(
+                            ThreadPool.Names.WRITE,
+                            new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
+                                largestWriteThreadPool.getAsInt(),
+                                updateNodeUtilizationWithShardMovements(0.0f, (float) writeLoadDelta, largestWriteThreadPool.getAsInt()),
+                                0
+                            )
+                        )
+                    )
+                );
+            });
+        } else {
+            logger.debug("No nodes found to estimate write thread pool size, skipping");
+        }
     }
 
     private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(

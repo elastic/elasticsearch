@@ -39,7 +39,7 @@ public class EnhancedTimestampDetectionTests extends TextStructureTestCase {
         super.tearDown();
     }
 
-    public void testForwardSlashDateTimeFormats() throws Exception {
+    public void testTimestampYMDSlash() throws Exception {
         verifyTimestampYmdFormat("""
             2025/07/10 10:30:35 INFO An informational message
             2025/07/10 10:31:42 WARN A warning message
@@ -47,7 +47,7 @@ public class EnhancedTimestampDetectionTests extends TextStructureTestCase {
             """);
     }
 
-    public void testDotDateTimeFormats() throws Exception {
+    public void testTimestampYMDDot() throws Exception {
         verifyTimestampYmdFormat("""
             2025.07.10 10:30:35 INFO An informational message
             2025.07.10 10:31:42 WARN A warning message
@@ -55,7 +55,23 @@ public class EnhancedTimestampDetectionTests extends TextStructureTestCase {
             """);
     }
 
-    public void testDashDateTimeFormats() throws Exception {
+    public void testTimestampYMDSlashMillisWithDot() throws Exception {
+        String sample = """
+            2025/07/10 10:30:35.123 INFO An informational message
+            2025/07/10 10:31:42.123 WARN A warning message
+            2025/07/10 10:32:15.123 ERROR An error message
+            """;
+        TextStructure structure = findStructure(sample);
+        assertThat(structure.getGrokPattern(), containsString("%{TIMESTAMP_YMD:timestamp}"));
+        assertNotNull("Should detect timestamp field", structure.getTimestampField());
+        assertThat(
+            structure.getJavaTimestampFormats(),
+            containsInAnyOrder("yyyy/MM/dd HH:mm:ss.SSS", "yyyy.MM.dd HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss.SSS")
+        );
+        verifyMappings(structure);
+    }
+
+    public void testTimestampYMDDash() throws Exception {
         // ISO_8601 should have higher priority than TIMESTAMP_YMD
         verifyTimestampISO8601Format("""
             2025-07-10 10:30:35 INFO An informational message

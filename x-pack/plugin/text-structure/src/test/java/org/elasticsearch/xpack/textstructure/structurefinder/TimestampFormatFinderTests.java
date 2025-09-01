@@ -1342,8 +1342,8 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             validateTimestampMatch(
                 "2018/05/15 17:14:56",
                 "TIMESTAMP_YMD",
-                "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
-                List.of("yyyy/MM/dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy.MM.dd HH:mm:ss"),
+                "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}(?:[.,]\\d+)?\\b",
+                List.of("yyyy/MM/dd HH:mm:ss", "yyyy.MM.dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss"),
                 1526400896000L,
                 ecsCompatibility
             );

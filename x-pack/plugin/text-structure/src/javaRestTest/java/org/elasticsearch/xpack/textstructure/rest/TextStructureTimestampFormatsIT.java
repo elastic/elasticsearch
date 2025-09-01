@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 
-public class TextStructureIT extends ESRestTestCase {
+public class TextStructureTimestampFormatsIT extends ESRestTestCase {
 
     public static final String[] ISO_08601_JAVA_FORMATS = new String[] { "yyyy-MM-dd HH:mm:ss" };
     public static final String ISO_08601_TIMESTAMP_GROK_PATTERN = "%{TIMESTAMP_ISO8601:timestamp}";
@@ -39,6 +39,8 @@ public class TextStructureIT extends ESRestTestCase {
         "yyyy-MM-dd HH:mm:ss" };
     public static final String TIMESTAMP_YMD_TIMESTAMP_GROK_PATTERN = "%{TIMESTAMP_YMD:timestamp}";
 
+    public static final String[] MONTH_EXPLICIT_NAME_JAVA_FORMATS = new String[] { "MMM d, yyyy" };
+
     private final String ecsCompatibility;
 
     @ClassRule
@@ -48,7 +50,7 @@ public class TextStructureIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .build();
 
-    public TextStructureIT(@Name("ecs_compatibility") String ecsCompatibility) {
+    public TextStructureTimestampFormatsIT(@Name("ecs_compatibility") String ecsCompatibility) {
         this.ecsCompatibility = ecsCompatibility;
     }
 
@@ -69,8 +71,42 @@ public class TextStructureIT extends ESRestTestCase {
             "2025/07/10 10:31:42"
             "2025/07/10 10:32:15"
             """, ecsCompatibility);
-        verifyTimestampDetected(responseMap);
+        verifyTimestampDetected(responseMap, "date");
         verifyTimestampFormat(responseMap, TIMESTAMP_YMD_TIMESTAMP_GROK_PATTERN, TIMESTAMP_YMD_JAVA_FORMATS);
+    }
+
+    public void testTimestampYearYmdSlashFormat_WithDotAndMillis() throws IOException {
+        // use a multi-line sample to ensure we are detecting ndjson format
+        Map<String, Object> responseMap = executeAndVerifyRequest("""
+            "2025/07/10 10:30:35.123"
+            "2025/07/10 10:31:42.123"
+            "2025/07/10 10:32:15.123"
+            """, ecsCompatibility);
+        verifyTimestampDetected(responseMap, "date");
+        verifyTimestampFormat(
+            responseMap,
+            TIMESTAMP_YMD_TIMESTAMP_GROK_PATTERN,
+            "yyyy/MM/dd HH:mm:ss.SSS",
+            "yyyy.MM.dd HH:mm:ss.SSS",
+            "yyyy-MM-dd HH:mm:ss.SSS"
+        );
+    }
+
+    public void testTimestampYearYmdSlashFormat_WithSlashAndNanos() throws IOException {
+        // use a multi-line sample to ensure we are detecting ndjson format
+        Map<String, Object> responseMap = executeAndVerifyRequest("""
+            "2025/07/10 10:30:35,123456789"
+            "2025/07/10 10:31:42,123456789"
+            "2025/07/10 10:32:15,123456789"
+            """, ecsCompatibility);
+        verifyTimestampDetected(responseMap, "date_nanos");
+        verifyTimestampFormat(
+            responseMap,
+            TIMESTAMP_YMD_TIMESTAMP_GROK_PATTERN,
+            "yyyy/MM/dd HH:mm:ss,SSSSSSSSS",
+            "yyyy.MM.dd HH:mm:ss,SSSSSSSSS",
+            "yyyy-MM-dd HH:mm:ss,SSSSSSSSS"
+        );
     }
 
     public void testTimestampYearYmdDotFormat() throws IOException {
@@ -80,7 +116,7 @@ public class TextStructureIT extends ESRestTestCase {
             "2025.07.10 10:31:42"
             "2025.07.10 10:32:15"
             """, ecsCompatibility);
-        verifyTimestampDetected(responseMap);
+        verifyTimestampDetected(responseMap, "date");
         verifyTimestampFormat(responseMap, TIMESTAMP_YMD_TIMESTAMP_GROK_PATTERN, TIMESTAMP_YMD_JAVA_FORMATS);
     }
 
@@ -91,9 +127,20 @@ public class TextStructureIT extends ESRestTestCase {
             "2025-07-10 10:31:42"
             "2025-07-10 10:32:15"
             """, ecsCompatibility);
-        verifyTimestampDetected(responseMap);
+        verifyTimestampDetected(responseMap, "date");
         // ISO_8601 should have higher priority than TIMESTAMP_YMD
         verifyTimestampFormat(responseMap, ISO_08601_TIMESTAMP_GROK_PATTERN, ISO_08601_JAVA_FORMATS);
+    }
+
+    public void testMonthExplicitNameFormat() throws IOException {
+        // use a multi-line sample to ensure we are detecting ndjson format
+        Map<String, Object> responseMap = executeAndVerifyRequest("""
+            "Aug 9, 2025"
+            "Aug 10, 2025"
+            "Aug 11, 2025"
+            """, ecsCompatibility);
+        verifyTimestampDetected(responseMap, "date");
+        verifyTimestampFormat(responseMap, "CUSTOM_TIMESTAMP", MONTH_EXPLICIT_NAME_JAVA_FORMATS);
     }
 
     private static Map<String, Object> executeAndVerifyRequest(String sample, String ecsCompatibility) throws IOException {
@@ -105,7 +152,7 @@ public class TextStructureIT extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    private static void verifyTimestampDetected(Map<String, Object> responseMap) {
+    private static void verifyTimestampDetected(Map<String, Object> responseMap, String expectedType) {
         @SuppressWarnings("unchecked")
         Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
         assertThat(mappings, hasKey("properties"));
@@ -114,7 +161,7 @@ public class TextStructureIT extends ESRestTestCase {
         assertThat(properties, hasKey("@timestamp"));
         @SuppressWarnings("unchecked")
         Map<String, Object> timestamp = (Map<String, Object>) properties.get("@timestamp");
-        assertThat(timestamp.get("type"), equalTo("date"));
+        assertThat(timestamp.get("type"), equalTo(expectedType));
     }
 
     private static void verifyTimestampFormat(Map<String, Object> responseMap, String expectedGrokPattern, String... expectedJavaFormats) {

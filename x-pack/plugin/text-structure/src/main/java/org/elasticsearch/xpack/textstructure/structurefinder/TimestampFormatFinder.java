@@ -289,13 +289,17 @@ public final class TimestampFormatFinder {
             0
         ),
         new CandidateTimestampFormat(
-            example -> Arrays.asList("yyyy/MM/dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy.MM.dd HH:mm:ss"),
-            "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
+            example -> Arrays.asList(
+                CandidateTimestampFormat.adjustFractionalSecondsFromEndOfExample(example, "yyyy/MM/dd HH:mm:ss"),
+                CandidateTimestampFormat.adjustFractionalSecondsFromEndOfExample(example, "yyyy.MM.dd HH:mm:ss"),
+                CandidateTimestampFormat.adjustFractionalSecondsFromEndOfExample(example, "yyyy-MM-dd HH:mm:ss")
+            ),
+            "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}(?:[.,]\\d+)?\\b",
             "\\b%{TIMESTAMP_YMD}\\b",
             "TIMESTAMP_YMD",
             List.of("1111 11 11 11 11 11"),
             0,
-            0
+            10
         ),
         new CandidateTimestampFormat(
             example -> Collections.singletonList("MMM d, yyyy"),

@@ -114,10 +114,10 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
         List<String> sourceSetConfigurationNames = List.of(
-            sourceSet.getApiConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
-            sourceSet.getCompileOnlyConfigurationName(),
-            sourceSet.getRuntimeOnlyConfigurationName()
+//            sourceSet.getApiConfigurationName(),
+//            sourceSet.getImplementationConfigurationName(),
+//            sourceSet.getCompileOnlyConfigurationName(),
+//            sourceSet.getRuntimeOnlyConfigurationName()
         );
 
         project.getConfigurations()

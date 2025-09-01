@@ -838,10 +838,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
                 final var expectedShardGenerations = ShardGenerations.builder();
                 final var expectedBlobsToDelete = new HashSet<String>();
-
                 final var countDownLatch = new CountDownLatch(1);
 
-                // We expect every write to fail
                 int indexCount = between(0, 1000);
                 List<Integer> shardCounts = new ArrayList<>();
                 int count = 0;
@@ -850,7 +848,14 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     shardCounts.add(shardCount);
                     count += shardCount;
                 }
-                addWarnLogCountExpectation(mockLog, count);
+
+                if (noHeap) {
+                    // If there is no heap we don't even attempt to write
+                    addWarnLogCountExpectation(mockLog, 0);
+                } else {
+                    // We expect every write to fail
+                    addWarnLogCountExpectation(mockLog, count);
+                }
 
                 try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
                     for (int index = 0; index < indexCount; index++) {

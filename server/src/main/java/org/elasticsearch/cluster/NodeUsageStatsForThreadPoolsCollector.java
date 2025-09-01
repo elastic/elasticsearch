@@ -43,7 +43,7 @@ public class NodeUsageStatsForThreadPoolsCollector {
         "transport_node_usage_stats_for_thread_pools_action"
     );
 
-    private final Map<String, NodeUsageStatsForThreadPools> lastNodeUsageStatsForThreadPools = new ConcurrentHashMap<>();
+    private final Map<String, NodeUsageStatsForThreadPools> lastNodeUsageStatsPerNode = new ConcurrentHashMap<>();
 
     /**
      * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) for each node in the cluster.
@@ -57,7 +57,7 @@ public class NodeUsageStatsForThreadPoolsCollector {
     ) {
         var dataNodeIds = clusterState.nodes().getDataNodes().values().stream().map(DiscoveryNode::getId).toArray(String[]::new);
         // Discard last-seen values for any nodes no longer present in the cluster state
-        lastNodeUsageStatsForThreadPools.keySet().retainAll(Arrays.asList(dataNodeIds));
+        lastNodeUsageStatsPerNode.keySet().retainAll(Arrays.asList(dataNodeIds));
         if (clusterState.getMinTransportVersion().supports(TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION)) {
             client.execute(
                 TransportNodeUsageStatsForThreadPoolsAction.TYPE,
@@ -74,7 +74,7 @@ public class NodeUsageStatsForThreadPoolsCollector {
     ) {
         final Map<String, NodeUsageStatsForThreadPools> returnedUsageStats = response.getAllNodeUsageStatsForThreadPools();
         // Update the last-seen usage stats
-        this.lastNodeUsageStatsForThreadPools.putAll(returnedUsageStats);
+        this.lastNodeUsageStatsPerNode.putAll(returnedUsageStats);
 
         if (response.hasFailures() == false) {
             return returnedUsageStats;
@@ -83,7 +83,7 @@ public class NodeUsageStatsForThreadPoolsCollector {
         // Add in the last-seen usage stats for any nodes that failed to respond
         final Map<String, NodeUsageStatsForThreadPools> cachedValuesForFailed = new HashMap<>(returnedUsageStats);
         for (FailedNodeException failedNodeException : response.failures()) {
-            NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = lastNodeUsageStatsForThreadPools.get(failedNodeException.nodeId());
+            final var nodeUsageStatsForThreadPools = lastNodeUsageStatsPerNode.get(failedNodeException.nodeId());
             if (nodeUsageStatsForThreadPools != null) {
                 cachedValuesForFailed.put(failedNodeException.nodeId(), nodeUsageStatsForThreadPools);
             }

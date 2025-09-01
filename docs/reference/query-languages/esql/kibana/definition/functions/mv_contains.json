@@ -152,6 +152,60 @@
       "params" : [
         {
           "name" : "superset",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "subset",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "superset",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "subset",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "superset",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        },
+        {
+          "name" : "subset",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "Multivalue expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "superset",
           "type" : "integer",
           "optional" : false,
           "description" : "Multivalue expression."

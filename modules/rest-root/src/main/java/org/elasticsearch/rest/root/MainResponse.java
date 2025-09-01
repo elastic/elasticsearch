@@ -78,7 +78,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("minimum_wire_compatibility_version", build.minWireCompatVersion())
             .field("minimum_index_compatibility_version", build.minIndexCompatVersion())
             .endObject();
-        builder.field("tagline", "CI Testing");
+        builder.field("tagline", "Testing Newly Written CI");
         builder.endObject();
         return builder;
     }

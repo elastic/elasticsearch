@@ -1856,7 +1856,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId);
         try {
             consumer.accept(clusterService, threadPool);
         } finally {

@@ -183,6 +183,15 @@ public interface DataPoint {
         }
 
         @Override
+        public void buildMetricValue(XContentBuilder builder) throws IOException {
+            // TODO: Add support for quantiles
+            builder.startObject();
+            builder.field("sum", dataPoint.getSum());
+            builder.field("value_count", dataPoint.getCount());
+            builder.endObject();
+        }
+
+        @Override
         public String getDynamicTemplate() {
             return "summary";
         }

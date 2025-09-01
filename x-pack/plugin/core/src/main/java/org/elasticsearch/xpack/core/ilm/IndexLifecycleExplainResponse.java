@@ -360,7 +360,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             } else {
                 skip = false;
             }
-            // No need for serialization from this point onwards as this action only runs on the local node.
+            // No need for deserialization from this point onwards as this action only runs on the local node.
             forceMergeIndexName = null;
         } else {
             policyName = null;
@@ -417,7 +417,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 || out.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
                 out.writeBoolean(skip);
             }
-            // No need for deserialization from this point onwards as this action only runs on the local node.
+            // No need for serialization from this point onwards as this action only runs on the local node.
         }
     }
 

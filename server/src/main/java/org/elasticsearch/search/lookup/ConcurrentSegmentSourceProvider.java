@@ -38,8 +38,8 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
     ConcurrentSegmentSourceProvider(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
         this.sourceLoaderProvider = sourceFilter -> lookup.newSourceLoader(sourceFilter, metrics);
         this.sourceLoader = sourceLoaderProvider.apply(filter);
-        this.isStoredSource = lookup.isSourceSynthetic() == false;
         // we force a sequential reader here since it is used during query execution where documents are scanned sequentially
+        this.isStoredSource = lookup.isSourceSynthetic() == false;
         this.storedFieldLoader = StoredFieldLoader.create(isStoredSource, sourceLoader.requiredStoredFields(), true);
     }
 

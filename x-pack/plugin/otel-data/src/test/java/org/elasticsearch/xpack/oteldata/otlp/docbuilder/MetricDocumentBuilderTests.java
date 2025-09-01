@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createHistogramMet
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.mappingHints;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -231,6 +232,40 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "histogram"));
     }
 
+    public void testExponentialHistogramAsAggregateMetricDouble() throws Exception {
+        Resource resource = Resource.newBuilder().build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
+
+        ExponentialHistogramDataPoint dataPoint = ExponentialHistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .setSum(42)
+            .setCount(1L)
+            .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
+            .build();
+        Metric metric = createExponentialHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA);
+        List<DataPoint> dataPoints = List.of(new DataPoint.ExponentialHistogram(dataPoint, metric));
+
+        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
+            resource,
+            null,
+            scope,
+            null,
+            List.of(),
+            "",
+            dataPoints,
+            "metrics-generic.otel-default"
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
+
+        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
+        assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
+        assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
+    }
+
     public void testHistogram() throws Exception {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
@@ -262,6 +297,40 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(2.5)));
         assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(10)));
         assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
+    }
+
+    public void testHistogramAsAggregateMetricDouble() throws Exception {
+        Resource resource = Resource.newBuilder().build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
+
+        HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .setSum(42)
+            .setCount(1L)
+            .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
+            .build();
+        Metric metric = createHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA);
+        List<DataPoint> dataPoints = List.of(new DataPoint.Histogram(dataPoint, metric));
+
+        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
+            resource,
+            null,
+            scope,
+            null,
+            List.of(),
+            "",
+            dataPoints,
+            "metrics-generic.otel-default"
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
+
+        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
+        assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
+        assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
     }
 
 }

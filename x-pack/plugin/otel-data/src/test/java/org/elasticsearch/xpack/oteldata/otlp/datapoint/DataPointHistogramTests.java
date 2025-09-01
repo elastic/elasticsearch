@@ -12,6 +12,7 @@ import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.HashSet;
 
@@ -33,7 +34,7 @@ public class DataPointHistogramTests extends ESTestCase {
                 .setHistogram(Histogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
-        assertThat(doubleGauge.getDynamicTemplate(), equalTo("histogram"));
+        assertThat(doubleGauge.getDynamicTemplate(MappingHints.empty()), equalTo("histogram"));
         assertThat(doubleGauge.isValid(validationErrors), equalTo(true));
         assertThat(validationErrors, empty());
     }
@@ -45,7 +46,7 @@ public class DataPointHistogramTests extends ESTestCase {
                 .setHistogram(Histogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_CUMULATIVE).build())
                 .build()
         );
-        assertThat(doubleGauge.getDynamicTemplate(), equalTo("histogram"));
+        assertThat(doubleGauge.getDynamicTemplate(MappingHints.empty()), equalTo("histogram"));
         assertThat(doubleGauge.isValid(validationErrors), equalTo(false));
         assertThat(validationErrors, contains(containsString("cumulative histogram metrics are not supported")));
     }
@@ -57,7 +58,7 @@ public class DataPointHistogramTests extends ESTestCase {
                 .setHistogram(Histogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
-        assertThat(doubleGauge.getDynamicTemplate(), equalTo("histogram"));
+        assertThat(doubleGauge.getDynamicTemplate(MappingHints.empty()), equalTo("histogram"));
         assertThat(doubleGauge.isValid(validationErrors), equalTo(false));
         assertThat(validationErrors, contains(containsString("histogram with a single bucket and no explicit bounds is not supported")));
     }

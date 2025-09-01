@@ -75,10 +75,11 @@ public interface DataPoint {
     /**
      * Builds the metric value for the data point and writes it to the provided XContentBuilder.
      *
+     * @param mappingHints hints for building the metric value
      * @param builder the XContentBuilder to write the metric value to
      * @throws IOException if an I/O error occurs while writing to the builder
      */
-    void buildMetricValue(XContentBuilder builder) throws IOException;
+    void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException;
 
     /**
      * Returns the dynamic template name for the data point based on its type and value.
@@ -133,7 +134,7 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(XContentBuilder builder) throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
             switch (dataPoint.getValueCase()) {
                 case AS_DOUBLE -> builder.value(dataPoint.getAsDouble());
                 case AS_INT -> builder.value(dataPoint.getAsInt());
@@ -200,20 +201,33 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(XContentBuilder builder) throws IOException {
-            builder.startObject();
-            builder.startArray("counts");
-            HistogramConverter.counts(dataPoint, builder::value);
-            builder.endArray();
-            builder.startArray("values");
-            HistogramConverter.centroidValues(dataPoint, builder::value);
-            builder.endArray();
-            builder.endObject();
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+            if (mappingHints.aggregateMetricDouble()) {
+                buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+            } else {
+                builder.startObject();
+                builder.startArray("counts");
+                HistogramConverter.counts(dataPoint, builder::value);
+                builder.endArray();
+                builder.startArray("values");
+                HistogramConverter.centroidValues(dataPoint, builder::value);
+                builder.endArray();
+                builder.endObject();
+            }
         }
 
         @Override
-        public String getDynamicTemplate() {
-            return "histogram";
+        public long getDocCount() {
+            return dataPoint.getCount();
+        }
+
+        @Override
+        public String getDynamicTemplate(MappingHints mappingHints) {
+            if (mappingHints.aggregateMetricDouble()) {
+                return "summary";
+            } else {
+                return "histogram";
+            }
         }
 
         @Override
@@ -253,20 +267,33 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(XContentBuilder builder) throws IOException {
-            builder.startObject();
-            builder.startArray("counts");
-            HistogramConverter.counts(dataPoint, builder::value);
-            builder.endArray();
-            builder.startArray("values");
-            HistogramConverter.centroidValues(dataPoint, builder::value);
-            builder.endArray();
-            builder.endObject();
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+            if (mappingHints.aggregateMetricDouble()) {
+                buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+            } else {
+                builder.startObject();
+                builder.startArray("counts");
+                HistogramConverter.counts(dataPoint, builder::value);
+                builder.endArray();
+                builder.startArray("values");
+                HistogramConverter.centroidValues(dataPoint, builder::value);
+                builder.endArray();
+                builder.endObject();
+            }
         }
 
         @Override
-        public String getDynamicTemplate() {
-            return "histogram";
+        public long getDocCount() {
+            return dataPoint.getCount();
+        }
+
+        @Override
+        public String getDynamicTemplate(MappingHints mappingHints) {
+            if (mappingHints.aggregateMetricDouble()) {
+                return "summary";
+            } else {
+                return "histogram";
+            }
         }
 
         @Override
@@ -281,5 +308,12 @@ public interface DataPoint {
             }
             return true;
         }
+    }
+
+    private static void buildAggregateMetricDouble(XContentBuilder builder, double sum, long valueCount) throws IOException {
+        builder.startObject();
+        builder.field("sum", sum);
+        builder.field("value_count", valueCount);
+        builder.endObject();
     }
 }

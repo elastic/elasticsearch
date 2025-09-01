@@ -30,8 +30,8 @@ public record MappingHints(boolean aggregateMetricDouble, boolean docCount) {
     public static final String MAPPING_HINTS = "elasticsearch.mapping.hints";
 
     private static final MappingHints EMPTY = new MappingHints(false, false);
-    private static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
-    private static final String DOC_COUNT = "_doc_count";
+    public static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
+    public static final String DOC_COUNT = "_doc_count";
 
     public static MappingHints fromAttributes(List<KeyValue> attributes) {
         boolean aggregateMetricDouble = false;

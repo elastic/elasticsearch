@@ -321,19 +321,20 @@ from colors metadata _score
 | where knn(rgb_vector, [100,120,0])
 | sort _score desc, color asc
 | limit 10
-| rerank "deepest blue" ON color WITH { "inference_id" : "test_reranker" }
+| rerank rerank_score = "deepest blue" ON color WITH { "inference_id" : "test_reranker" }
+| sort rerank_score desc, color asc
 | keep color
 ;
 
 color:text
-olive
-sienna
-green
+gray
+peru
 brown
+green
+olive
+maroon
+sienna
 chocolate
 firebrick
-peru
-maroon
 golden rod
-gray
 ;

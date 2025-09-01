@@ -256,7 +256,7 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> errors) {
-            if (metric.getHistogram().getAggregationTemporality() == AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA == false) {
+            if (metric.getHistogram().getAggregationTemporality() != AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA) {
                 errors.add("cumulative histogram metrics are not supported, ignoring " + metric.getName());
                 return false;
             }

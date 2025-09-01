@@ -1,0 +1,62 @@
+name: Custom CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        java: [17, 21, 24]
+
+    steps:
+      # 1. Checkout source
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Set up JDK
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: gradle
+
+      # 3. Make gradlew executable
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # 4. Build local distribution
+      - name: Build local distribution
+        run: ./gradlew localDistro --stacktrace --no-daemon
+
+      # 5. Run unit tests
+      - name: Run unit tests
+        run: ./gradlew test --stacktrace --no-daemon
+
+      # 6. Run server tests
+      - name: Run server tests
+        run: ./gradlew :server:test --stacktrace --no-daemon
+
+      # 7. Run REST API YAML tests
+      - name: Run REST API spec tests (YAML)
+        run: ./gradlew :rest-api-spec:yamlRestTest --stacktrace --no-daemon
+
+      # 8. Run ingest-common Java REST tests
+      - name: Run Java REST tests (ingest-common)
+        run: ./gradlew :modules:ingest-common:javaRestTest --stacktrace --no-daemon
+
+      # 9. Upload all test reports
+      - name: Archive test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.java }}
+          path: |
+            **/build/test-results/**/*
+            **/build/reports/tests/**/*

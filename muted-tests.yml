@@ -462,9 +462,6 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggsWithProfile
   issue: https://github.com/elastic/elasticsearch/issues/132880
-- class: org.elasticsearch.cluster.ClusterInfoServiceIT
-  method: testMaxQueueLatenciesInClusterInfo
-  issue: https://github.com/elastic/elasticsearch/issues/132957
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceDefault
   issue: https://github.com/elastic/elasticsearch/issues/133010

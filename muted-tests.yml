@@ -446,6 +446,9 @@ tests:
 - class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
   method: testParseAndQuery
   issue: https://github.com/elastic/elasticsearch/issues/133871
+- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
+  method: testParseOrQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133863
 
 # Examples:
 #

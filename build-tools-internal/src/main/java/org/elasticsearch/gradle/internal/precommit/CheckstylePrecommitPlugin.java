@@ -95,7 +95,7 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
         checkstyle.getConfigDirectory().set(checkstyleDir);
         Configuration configuration = project.getConfigurations().getByName("checkstyle");
         configuration.getAttributes().attribute(
-            Attribute.of(DependencyContext.class),
+            DependencyContext.CONTEXT_ATTRIBUTE,
             project.getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
         );
         DependencyHandler dependencies = project.getDependencies();

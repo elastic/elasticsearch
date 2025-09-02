@@ -9,7 +9,29 @@
 
 package org.elasticsearch.gradle.internal.dependencies.rules;
 
+import org.elasticsearch.gradle.internal.precommit.DependencyContext;
+import org.gradle.api.Action;
+import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
+import org.gradle.api.artifacts.VariantMetadata;
+import org.gradle.api.model.ObjectFactory;
 
-public class CodeQualityRule extends implements ComponentMetadataRule {
+import javax.inject.Inject;
+
+public abstract class CodeQualityRule implements ComponentMetadataRule {
+
+    @Inject
+    public ObjectFactory getObjects() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void execute(ComponentMetadataContext context) {
+        context.getDetails().addVariant("codeQuality", "runtime", variant -> variant.attributes(attrs -> {
+            attrs.attribute(
+                DependencyContext.CONTEXT_ATTRIBUTE,
+                getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
+            );
+        }));
+    }
 }

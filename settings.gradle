@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainRes
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 import org.elasticsearch.gradle.internal.dependencies.rules.ExcludeTransitivesRule
 import org.elasticsearch.gradle.internal.dependencies.rules.Log4jRule
+import org.elasticsearch.gradle.internal.dependencies.rules.CodeQualityRule
 
 pluginManagement {
   repositories {
@@ -34,8 +35,9 @@ dependencyResolutionManagement {
 
 dependencyResolutionManagement {
     components {
-      all(ExcludeTransitivesRule)
       withModule("org.apache.logging.log4j:log4j-api", Log4jRule)
+      withModule("com.puppycrawl.tools:checkstyle", CodeQualityRule)
+      all(ExcludeTransitivesRule)
   }
 
 }

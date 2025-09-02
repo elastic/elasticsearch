@@ -196,6 +196,21 @@ tasks.register("updateCIBwcVersions") {
       ]
     )
 
+    writeBuildkitePipeline(
+      ".buildkite/pipelines/periodic-java-ea.yml",
+      ".buildkite/pipelines/periodic-java-ea.template.yml",
+      [
+        new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(
+          templatePath: ".buildkite/pipelines/periodic-java-ea.bwc.template.yml",
+          versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
+          variable: "BWC_STEPS"
+        ),
+      ]
+    )
+
     expandBwcSteps(
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",

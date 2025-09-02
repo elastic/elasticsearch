@@ -71,7 +71,7 @@ public final class Utils {
         return clusterService;
     }
 
-    public static ScalingExecutorBuilder[] inferenceUtilityPools() {
+    public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {
         return new ScalingExecutorBuilder[] {new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
             1,

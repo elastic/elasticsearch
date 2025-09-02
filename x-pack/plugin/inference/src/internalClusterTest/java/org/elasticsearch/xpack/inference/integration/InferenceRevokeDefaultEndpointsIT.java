@@ -40,7 +40,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPools;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -59,7 +59,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityPools());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         webServer.start();
         gatewayUrl = getUrl(webServer);
         modelRegistry = node().injector().getInstance(ModelRegistry.class);

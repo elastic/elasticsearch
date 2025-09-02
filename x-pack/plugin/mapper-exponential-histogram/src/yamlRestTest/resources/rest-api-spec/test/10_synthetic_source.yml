@@ -30,6 +30,7 @@ setup:
             scale: 12
             sum: 1234.56
             min: -345.67
+            max: 123.67
             zero:
               threshold: 0.123456
               count: 42
@@ -49,6 +50,7 @@ setup:
        scale: 12
        sum: 1234.56
        min: -345.67
+       max: 123.67
        zero:
          threshold: 0.123456
          count: 42
@@ -71,6 +73,7 @@ setup:
             scale: -10
             sum: 1234.56
             min: -345.67
+            max: 123.67
             positive:
               indices: [1,2,3,4,5]
               counts: [6,7,8,9,10]
@@ -87,6 +90,7 @@ setup:
         scale: -10
         sum: 1234.56
         min: -345.67
+        max: 123.67
         positive:
           indices: [1,2,3,4,5]
           counts: [6,7,8,9,10]
@@ -106,6 +110,7 @@ setup:
             scale: 0
             sum: 1234.56
             min: 345.67
+            max: 4123.67
             positive:
               indices: [-100, 10, 20]
               counts: [3, 2, 1]
@@ -119,6 +124,7 @@ setup:
         scale: 0
         sum: 1234.56
         min: 345.67
+        max: 4123.67
         positive:
           indices: [-100, 10, 20]
           counts: [3, 2, 1]
@@ -133,8 +139,9 @@ setup:
         body:
           my_histo:
             scale: 0
-            sum: 1234.56
+            sum: -1234.56
             min: -345.67
+            max: -123.67
             negative:
               indices: [-100, 10, 20]
               counts: [3, 2, 1]
@@ -146,8 +153,9 @@ setup:
   - match:
       _source.my_histo:
         scale: 0
-        sum: 1234.56
+        sum: -1234.56
         min: -345.67
+        max: -123.67
         negative:
           indices: [-100, 10, 20]
           counts: [3, 2, 1]
@@ -215,6 +223,7 @@ setup:
         scale: 0
         sum: 0.0
         min: 0.0
+        max: 0.0
         zero:
           count: 101
 
@@ -231,6 +240,7 @@ setup:
             scale: 38
             sum: 1E300
             min: -1E300
+            max: 1E300
             zero:
               count: 2305843009213693952 # 2^61 to not cause overflows for the total value count sum
               threshold: 1E-300
@@ -249,6 +259,7 @@ setup:
         scale: 38
         sum: 1E300
         min: -1E300
+        max: 1E300
         zero:
           count: 2305843009213693952
           threshold: 1E-300
@@ -268,13 +279,13 @@ setup:
         refresh: true
         body:
           my_histo:
-            scale: 1
+            scale: 0
             positive:
-              indices: [8]
-              counts: [1]
+              indices: [0,1]
+              counts: [1,1]
             negative:
-              indices: [0, 1]
-              counts: [1, 5]
+              indices: [0]
+              counts: [4]
 
   - do:
       get:
@@ -282,15 +293,16 @@ setup:
         id: "1"
   - match:
       _source.my_histo:
-        scale: 1
-        sum: 9.289321881345247
+        scale: 0
+        sum: -1.3333333333333335
         min: -2.0
+        max: 4.0
         positive:
-          indices: [8]
-          counts: [1]
+          indices: [0,1]
+          counts: [1,1]
         negative:
-          indices: [0, 1]
-          counts: [1, 5]
+          indices: [0]
+          counts: [4]
 
 ---
 "Positive infinity aggregates":
@@ -315,6 +327,7 @@ setup:
         scale: 0
         sum: Infinity
         min: Infinity
+        max: Infinity
         positive:
           indices: [2000]
           counts: [1]
@@ -342,6 +355,7 @@ setup:
         scale: 0
         sum: -Infinity
         min: -Infinity
+        max: -Infinity
         negative:
           indices: [2000]
           counts: [1]

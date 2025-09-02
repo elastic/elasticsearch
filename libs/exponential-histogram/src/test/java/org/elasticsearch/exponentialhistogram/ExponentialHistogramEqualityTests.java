@@ -41,6 +41,7 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
         SCALE,
         SUM,
         MIN,
+        MAX,
         ZERO_THRESHOLD,
         ZERO_COUNT,
         POSITIVE_BUCKETS,
@@ -101,6 +102,11 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
             copy.setMin(randomDouble());
         } else {
             copy.setMin(toCopy.min());
+        }
+        if (modification == Modification.MAX) {
+            copy.setMax(randomDouble());
+        } else {
+            copy.setMax(toCopy.max());
         }
         long zeroCount = toCopy.zeroBucket().count();
         double zeroThreshold = toCopy.zeroBucket().zeroThreshold();

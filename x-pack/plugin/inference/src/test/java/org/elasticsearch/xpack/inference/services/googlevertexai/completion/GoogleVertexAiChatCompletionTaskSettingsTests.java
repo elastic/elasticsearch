@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
@@ -85,18 +83,6 @@ public class GoogleVertexAiChatCompletionTaskSettingsTests extends InferenceSett
         var updatedSettings = GoogleVertexAiChatCompletionTaskSettings.of(originalSettings, emptySettings);
 
         assertThat(updatedSettings.thinkingConfig().getThinkingBudget(), is(originalThinkingBudget));
-    }
-
-    @Override
-    protected GoogleVertexAiChatCompletionTaskSettings mutateInstanceForVersion(
-        GoogleVertexAiChatCompletionTaskSettings instance,
-        TransportVersion version
-    ) {
-        if (version.before(TransportVersions.GEMINI_THINKING_BUDGET_ADDED)) {
-            return new GoogleVertexAiChatCompletionTaskSettings();
-        } else {
-            return instance;
-        }
     }
 
     @Override

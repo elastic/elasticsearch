@@ -38,11 +38,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     }
 
     public GoogleVertexAiChatCompletionTaskSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.GEMINI_THINKING_BUDGET_ADDED)) {
-            thinkingConfig = new ThinkingConfig(in);
-        } else {
-            thinkingConfig = EMPTY_THINKING_CONFIG;
-        }
+        thinkingConfig = new ThinkingConfig(in);
     }
 
     public static GoogleVertexAiChatCompletionTaskSettings fromMap(Map<String, Object> taskSettings) {
@@ -97,9 +93,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.GEMINI_THINKING_BUDGET_ADDED)) {
-            thinkingConfig.writeTo(out);
-        }
+        thinkingConfig.writeTo(out);
     }
 
     @Override

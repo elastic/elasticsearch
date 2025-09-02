@@ -1044,10 +1044,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var optimizedPlan = rule.apply(limit, logicalOptimizerCtx);
 
-        assertEquals(
-            new Limit(limit.source(), limit.limit(), join.replaceChildren(limit.replaceChild(join.left()), join.right()), true),
-            optimizedPlan
-        );
+        var expectedPlan = join instanceof InlineJoin
+            ? new Limit(limit.source(), limit.limit(), join, false)
+            : new Limit(limit.source(), limit.limit(), join.replaceChildren(limit.replaceChild(join.left()), join.right()), true);
+
+        assertEquals(expectedPlan, optimizedPlan);
 
         var optimizedTwice = rule.apply(optimizedPlan, logicalOptimizerCtx);
         // We mustn't create the limit after the JOIN multiple times when the rule is applied multiple times, that'd lead to infinite loops.
@@ -5714,17 +5715,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(aggregate.child(), EsRelation.class);
     }
 
-    /**
-     * <pre>{@code
-     * Limit[1000[INTEGER],true]
+    /*
+     * Limit[1000[INTEGER],false]
      * \_InlineJoin[LEFT,[emp_no % 2{r}#6],[emp_no % 2{r}#6],[emp_no % 2{r}#6]]
      *   |_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no % 2#6]]
-     *   | \_Limit[1000[INTEGER],false]  <-- TODO: this needs to go
-     *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *   \_Aggregate[[emp_no % 2{r}#6],[COUNT(salary{f}#12,true[BOOLEAN]) AS c#4, emp_no % 2{r}#6]]
      *     \_StubRelation[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      *          uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, emp_no % 2{r}#6]]
-     * }</pre>
      */
     public void testInlinestatsNestedExpressionsInGroups() {
         var query = """
@@ -5739,7 +5737,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var inline = as(limit.child(), InlineJoin.class);
         var eval = as(inline.left(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("emp_no % 2")));
-        limit = asLimit(eval.child(), 1000, false);
+        var relation = as(eval.child(), EsRelation.class);
         var agg = as(inline.right(), Aggregate.class);
         var groupings = agg.groupings();
         var ref = as(groupings.get(0), ReferenceAttribute.class);
@@ -5863,10 +5861,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /*
      * Project[[emp_no{f}#15 AS x#11, a{r}#7, emp_no{f}#15]]
-     * \_Limit[1[INTEGER],true]
+     * \_Limit[1[INTEGER],false]
      *   \_InlineJoin[LEFT,[emp_no{f}#15],[emp_no{f}#15],[emp_no{r}#15]]
-     *     |_Limit[1[INTEGER],false]  <-- TODO: this needs to go
-     *     | \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *     |_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      *     \_Aggregate[[emp_no{f}#15],[COUNTDISTINCT(languages{f}#18,true[BOOLEAN]) AS a#7, emp_no{f}#15]]
      *       \_StubRelation[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
      *          anguages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
@@ -5886,13 +5883,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
-        var upperLimit = asLimit(project.child(), 1, true);
+        var upperLimit = asLimit(project.child(), 1, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
         assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
         // Left
-        var limit = as(inlineJoin.left(), Limit.class); // TODO: this needs to go
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
-        var relation = as(limit.child(), EsRelation.class);
+        var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
         var agg = as(inlineJoin.right(), Aggregate.class);
         assertMap(Expressions.names(agg.output()), is(List.of("a", "emp_no")));
@@ -5917,13 +5912,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
-        var upperLimit = asLimit(project.child(), 1, true);
+        var upperLimit = asLimit(project.child(), 1, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
         assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
         // Left
-        var limit = as(inlineJoin.left(), Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
-        var relation = as(limit.child(), EsRelation.class);
+        var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
         var agg = as(inlineJoin.right(), Aggregate.class);
         assertMap(Expressions.names(agg.output()), is(List.of("a", "emp_no")));
@@ -6134,12 +6127,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *   \_InlineJoin[LEFT,[],[],[]]
      *     |_Project[[avg{r}#1053, decades{r}#1049, idecades{r}#1056]]
      *     | \_Eval[[$$SUM$avg$0{r$}#1073 / $$COUNT$avg$1{r$}#1074 AS avg#1053, decades{r}#1049 / 2[INTEGER] AS idecades#1056]]
-     *     |   \_Limit[1000[INTEGER],false]
-     *     |     \_Aggregate[[decades{r}#1049],[SUM(salary{f}#1072,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#1073,
+     *     |   \_Aggregate[[decades{r}#1049],[SUM(salary{f}#1072,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#1073,
      *                      COUNT(salary{f}#1072,true[BOOLEAN]) AS $$COUNT$avg$1#1074, decades{r}#1049]]
-     *     |       \_Eval[[DATEDIFF(years[KEYWORD],birth_date{f}#1071,1755626308505[DATETIME]) AS age#1043, age{r}#1043 / 10[INTEGER] AS
+     *     |     \_Eval[[DATEDIFF(years[KEYWORD],birth_date{f}#1071,1755626308505[DATETIME]) AS age#1043, age{r}#1043 / 10[INTEGER] AS
      *                          decades#1046, decades{r}#1046 * 10[INTEGER] AS decades#1049]]
-     *     |         \_EsRelation[employees][birth_date{f}#1071, salary{f}#1072]
+     *     |       \_EsRelation[employees][birth_date{f}#1071, salary{f}#1072]
      *     \_Project[[avgavg{r}#1063]]
      *       \_Eval[[$$SUM$avgavg$0{r$}#1077 / $$COUNT$avgavg$1{r$}#1078 AS avgavg#1063]]
      *         \_Aggregate[[],[SUM(avg{r}#1053,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avgavg$0#1077,
@@ -6165,15 +6157,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var project = as(plan, EsqlProject.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades", "avgavg")));
-        var limit = asLimit(project.child(), 1000, true);
+        var limit = asLimit(project.child(), 1000, false);
         var inlineJoin = as(limit.child(), InlineJoin.class);
 
         // Left branch: Project with avg, decades, idecades
         var leftProject = as(inlineJoin.left(), Project.class);
         assertThat(Expressions.names(leftProject.projections()), is(List.of("avg", "decades", "idecades")));
         var leftEval = as(leftProject.child(), Eval.class);
-        var leftLimit = asLimit(leftEval.child(), 1000, false);
-        var leftAggregate = as(leftLimit.child(), Aggregate.class);
+        var leftAggregate = as(leftEval.child(), Aggregate.class);
         assertThat(Expressions.names(leftAggregate.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "decades")));
         var leftEval2 = as(leftAggregate.child(), Eval.class);
         var leftRelation = as(leftEval2.child(), EsRelation.class);
@@ -6232,10 +6223,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /*
      * EsqlProject[[avg{r}#4, emp_no{f}#9, first_name{f}#10]]
-     * \_Limit[10[INTEGER],true]
+     * \_Limit[10[INTEGER],false]
      *   \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{f}#9],[emp_no{r}#9]]
-     *     |_Limit[10[INTEGER],false]  <-- TODO: this needs to go
-     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     |_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      *     \_Project[[avg{r}#4, emp_no{f}#9]]
      *       \_Eval[[$$SUM$avg$0{r$}#20 / $$COUNT$avg$1{r$}#21 AS avg#4]]
      *         \_Aggregate[[emp_no{f}#9],[SUM(salary{f}#14,true[BOOLEAN]) AS $$SUM$avg$0#20, COUNT(salary{f}#14,true[BOOLEAN]) AS $$COUNT$
@@ -6257,12 +6247,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var esqlProject = as(plan, EsqlProject.class);
         assertThat(Expressions.names(esqlProject.projections()), is(List.of("avg", "emp_no", "first_name")));
-        var upperLimit = asLimit(esqlProject.child(), 10, true);
+        var upperLimit = asLimit(esqlProject.child(), 10, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
         assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
         // Left
-        var limit = asLimit(inlineJoin.left(), 10, false); // TODO: this needs to go
-        var relation = as(limit.child(), EsRelation.class);
+        var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
         var project = as(inlineJoin.right(), Project.class);
         assertThat(Expressions.names(project.projections()), contains("avg", "emp_no"));
@@ -6303,6 +6292,81 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 new ReferenceAttribute(EMPTY, "gender", KEYWORD)
             )
         );
+    }
+
+    /*
+     * EsqlProject[[a{r}#4]]
+     * \_Limit[2[INTEGER],false]
+     *   \_InlineJoin[LEFT,[],[],[]]
+     *     |_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *     \_Project[[a{r}#4]]
+     *       \_Eval[[$$SUM$a$0{r$}#17 / $$COUNT$a$1{r$}#18 AS a#4]]
+     *         \_Aggregate[[],[SUM(salary{f}#11,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$a$0#17,
+     *                  COUNT(salary{f}#11,true[BOOLEAN]) AS $$COUNT$a$1#18]]
+     *           \_StubRelation[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
+     *                      languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     */
+    public void testInlinestatsWithLimit() {
+        var query = """
+            FROM employees
+            | INLINESTATS a = AVG(salary)
+            | LIMIT 2
+            | KEEP a
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("a")));
+        var limit = asLimit(project.child(), 2, false);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+        // Left
+        var relation = as(inlineJoin.left(), EsRelation.class);
+        // Right
+        var rightProject = as(inlineJoin.right(), Project.class);
+        assertThat(Expressions.names(rightProject.projections()), contains("a"));
+        var eval = as(rightProject.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("a")));
+        var agg = as(eval.child(), Aggregate.class);
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
+     * Limit[10000[INTEGER],false]
+     * \_Aggregate[[],[VALUES(max_lang{r}#7,true[BOOLEAN]) AS v#11]]
+     *   \_Limit[1[INTEGER],false]
+     *     \_InlineJoin[LEFT,[gender{f}#14],[gender{f}#14],[gender{r}#14]]
+     *       |_EsqlProject[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
+     *       | \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     *       \_Aggregate[[gender{f}#14],[MAX(languages{f}#15,true[BOOLEAN]) AS max_lang#7, gender{f}#14]]
+     *         \_StubRelation[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
+     */
+    public void testInlinestatsWithLimitAndAgg() {
+        var query = """
+            FROM employees
+            | KEEP emp_no, languages, gender
+            | INLINESTATS max_lang = MAX(languages) BY gender
+            | LIMIT 1
+            | STATS v = VALUES(max_lang)
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var limit = asLimit(plan, 10000, false);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), is(List.of("v")));
+        var innerLimit = asLimit(aggregate.child(), 1, false);
+        var inlineJoin = as(innerLimit.child(), InlineJoin.class);
+        // Left
+        var project = as(inlineJoin.left(), EsqlProject.class);
+        var relation = as(project.child(), EsRelation.class);
+        // Right
+        var agg = as(inlineJoin.right(), Aggregate.class);
+        var stub = as(agg.child(), StubRelation.class);
     }
 
     /**

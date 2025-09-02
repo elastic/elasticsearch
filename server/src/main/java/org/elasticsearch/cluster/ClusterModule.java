@@ -109,7 +109,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.*;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.ShardAllocationExplainer;
 
 /**
  * Configures classes and services that affect the entire cluster.

@@ -55,6 +55,9 @@ setup:
 
 ---
 "kNN retrieve with visit_percentage":
+  - requires:
+      cluster_features: "mapper.bbq_disk_support"
+      reason: 'bbq disk support required'
   - do:
       search:
         index: index1

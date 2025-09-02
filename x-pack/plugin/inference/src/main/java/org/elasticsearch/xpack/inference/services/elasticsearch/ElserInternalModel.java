@@ -12,6 +12,9 @@ import org.elasticsearch.inference.TaskType;
 
 public class ElserInternalModel extends ElasticsearchInternalModel {
 
+    // Ensure that inference endpoints based on ELSER don't go past its truncation window of 512 tokens
+    public static final int ELSER_MAX_WINDOW_SIZE = 300;
+
     public ElserInternalModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -21,6 +24,14 @@ public class ElserInternalModel extends ElasticsearchInternalModel {
         ChunkingSettings chunkingSettings
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings);
+        if (chunkingSettings != null && chunkingSettings.maxChunkSize() != null) {
+            if (chunkingSettings.maxChunkSize() > ELSER_MAX_WINDOW_SIZE) throw new IllegalArgumentException(
+                "ELSER based models do not support chunk sizes larger than "
+                    + ELSER_MAX_WINDOW_SIZE
+                    + ". Requested chunk size: "
+                    + chunkingSettings.maxChunkSize()
+            );
+        }
     }
 
     @Override

@@ -52,6 +52,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -64,6 +67,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
@@ -390,6 +394,16 @@ public class VerifierTests extends ESTestCase {
             "1:19: grouping key [e] already specified in the STATS BY clause",
             error("from test | stats e BY e = languages + emp_no")
         );
+        if (EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled()) {
+            assertEquals(
+                "1:19: grouping key [[q].[e]] already specified in the STATS BY clause",
+                error("from test | stats [q].[e] BY [q].[e]")
+            );
+            assertEquals(
+                "1:19: Cannot specify grouping expression [[q].[e]] as an aggregate",
+                error("from test | stats [q].[e] BY x = [q].[e]")
+            );
+        }
 
         var message = error("from test | stats languages + emp_no BY e = languages + emp_no");
         assertThat(
@@ -1053,6 +1067,19 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
         assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            String gridFunc = "ST_" + grid.toUpperCase(Locale.ROOT);
+            String literalQuery = prefix + "| EVAL grid = " + gridFunc + "(TO_GEOPOINT(wkt),1) | limit 5 | sort grid";
+            String indexQuery = "FROM airports | LIMIT 5 | EVAL grid = " + gridFunc + "(location, 1) | sort grid";
+            String literalError = "1:" + (136 + grid.length()) + ": cannot sort on " + grid;
+            String indexError = "1:" + (63 + grid.length()) + ": cannot sort on " + grid;
+            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+                literalError = "1:95: Unknown function [" + gridFunc + "]";
+                indexError = "1:39: Unknown function [" + gridFunc + "]";
+            }
+            assertThat(grid, error(literalQuery), startsWith(literalError));
+            assertThat(grid, error(indexQuery, airports), startsWith(indexError));
+        }
     }
 
     public void testSourceSorting() {
@@ -1760,7 +1787,8 @@ public class VerifierTests extends ESTestCase {
         // where
         assertEquals(
             "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, "
+                + "geohash, geohex, geotile, integer, ip, keyword, "
                 + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
             error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
         );
@@ -2047,7 +2075,9 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_keySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-        List<DataType> unsortableTypes = List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
+        List<DataType> unsortableTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
+            ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
+            : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
         for (DataType type : sortableTypes) {
             query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
         }
@@ -2062,18 +2092,23 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_valueNumeric() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
-        List<DataType> nonNumericTypes = List.of(
-            BOOLEAN,
-            CARTESIAN_POINT,
-            CARTESIAN_SHAPE,
-            DATE_NANOS,
-            DATETIME,
-            GEO_POINT,
-            GEO_SHAPE,
-            IP,
-            KEYWORD,
-            VERSION
-        );
+        List<DataType> nonNumericTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
+            ? List.of(
+                BOOLEAN,
+                CARTESIAN_POINT,
+                CARTESIAN_SHAPE,
+                DATE_NANOS,
+                DATETIME,
+                GEO_POINT,
+                GEO_SHAPE,
+                GEOHASH,
+                GEOTILE,
+                GEOHEX,
+                IP,
+                KEYWORD,
+                VERSION
+            )
+            : List.of(BOOLEAN, CARTESIAN_POINT, CARTESIAN_SHAPE, DATE_NANOS, DATETIME, GEO_POINT, GEO_SHAPE, IP, KEYWORD, VERSION);
         for (DataType type : numericTypes) {
             query(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type));
         }

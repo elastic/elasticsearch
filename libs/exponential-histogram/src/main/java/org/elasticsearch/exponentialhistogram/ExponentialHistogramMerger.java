@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.util.OptionalLong;
+import java.util.function.DoubleBinaryOperator;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMaximumScaleIncrease;
 
@@ -151,7 +152,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         }
         buffer.setZeroBucket(zeroBucket);
         buffer.setSum(a.sum() + b.sum());
-        buffer.setMin(nanAwareMin(a.min(), b.min()));
+        buffer.setMin(nanAwareAggregate(a.min(), b.min(), Math::min));
+        buffer.setMax(nanAwareAggregate(a.max(), b.max(), Math::max));
         // We attempt to bring everything to the scale of A.
         // This might involve increasing the scale for B, which would increase its indices.
         // We need to ensure that we do not exceed MAX_INDEX / MIN_INDEX in this case.
@@ -231,14 +233,14 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         return overflowCount;
     }
 
-    private static double nanAwareMin(double a, double b) {
+    private static double nanAwareAggregate(double a, double b, DoubleBinaryOperator aggregator) {
         if (Double.isNaN(a)) {
             return b;
         }
         if (Double.isNaN(b)) {
             return a;
         }
-        return Math.min(a, b);
+        return aggregator.applyAsDouble(a, b);
     }
 
 }

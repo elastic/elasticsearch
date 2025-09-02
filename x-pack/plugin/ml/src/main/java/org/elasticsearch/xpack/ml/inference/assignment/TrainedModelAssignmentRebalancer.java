@@ -407,6 +407,8 @@ class TrainedModelAssignmentRebalancer {
         }
 
         // Find how many allocations already exist on this node
+        // We need to search by node ID as assignmentPlan.assignments() returns a map
+        // of AssignmentPlan.Node and the argument node of the DiscoveryNode
         int existingAllocationsOnNode = assignmentPlan.assignments(deployment)
             .map(
                 assignments -> assignments.getOrDefault(

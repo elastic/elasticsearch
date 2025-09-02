@@ -5,6 +5,7 @@ set -euo pipefail
 echo "steps:"
 
 source .buildkite/scripts/branches.sh
+source .buildkite/scripts/fwc-branches.sh
 
 IS_FIRST=true
 SKIP_DELAY="${SKIP_DELAY:-false}"
@@ -46,8 +47,7 @@ EOF
       branch: "$BRANCH"
       commit: "$LAST_GOOD_COMMIT"
 EOF
-# Include forward compatibility tests only for the bugfix branch
-if [[ "${BRANCH}" == "${BRANCHES[2]}" ]]; then
+if shouldRunFwcFor "$BRANCH"; then
   cat <<EOF
   - trigger: elasticsearch-periodic-fwc
     label: Trigger periodic-fwc pipeline for $BRANCH

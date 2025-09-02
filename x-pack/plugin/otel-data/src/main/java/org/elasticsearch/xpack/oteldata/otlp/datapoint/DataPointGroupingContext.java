@@ -277,7 +277,7 @@ public class DataPointGroupingContext {
             return metricNamesHash;
         }
 
-        boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {
+        public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {
             metricNamesHash = null; // reset the hash when adding a new data point
             if (metricNames.add(dataPoint.getMetricName()) == false) {
                 ignoredDataPointMessages.add(

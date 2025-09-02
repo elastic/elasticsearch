@@ -77,8 +77,8 @@ public class DataPointGroupingContextTests extends ESTestCase {
     public void testGroupingDuplicateNameSameTimeSeries() throws Exception {
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
-                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))),
-                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createLongDataPoint(nowUnixNanos, List.of())))
+                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createLongDataPoint(nowUnixNanos)))
             )
         );
         context.groupDataPoints(metricsRequest);
@@ -94,8 +94,8 @@ public class DataPointGroupingContextTests extends ESTestCase {
     public void testGroupingDuplicateNameDifferentTimeSeries() throws Exception {
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
-                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))),
-                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createLongDataPoint(nowUnixNanos, List.of())))
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createLongDataPoint(nowUnixNanos)))
             )
         );
         context.groupDataPoints(metricsRequest);

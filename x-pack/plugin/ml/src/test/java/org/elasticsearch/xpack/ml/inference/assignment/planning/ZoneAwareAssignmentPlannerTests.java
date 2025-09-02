@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;

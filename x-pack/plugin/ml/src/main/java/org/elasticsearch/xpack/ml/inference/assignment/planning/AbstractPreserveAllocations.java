@@ -76,7 +76,10 @@ abstract class AbstractPreserveAllocations {
         for (Deployment d : assignmentPlan.deployments()) {
             Map<String, Integer> assignmentsOfDeployment = assignmentPlan.assignments(d).orElse(Map.of());
             for (Map.Entry<String, Integer> nodeAssignment : assignmentsOfDeployment.entrySet()) {
-                plannedAssignmentsByDeploymentNodeIdPair.put(Tuple.tuple(d.deploymentId(), nodeAssignment.getKey()), nodeAssignment.getValue());
+                plannedAssignmentsByDeploymentNodeIdPair.put(
+                    Tuple.tuple(d.deploymentId(), nodeAssignment.getKey()),
+                    nodeAssignment.getValue()
+                );
             }
         }
 

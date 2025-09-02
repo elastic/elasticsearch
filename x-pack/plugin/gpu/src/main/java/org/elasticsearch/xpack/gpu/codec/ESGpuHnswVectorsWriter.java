@@ -242,18 +242,14 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             HnswGraph mockGraph;
-            if (datasetOrVectors.vectors != null) {
-                float[][] vectors = datasetOrVectors.vectors;
+            if (datasetOrVectors.getVectors() != null) {
+                int size = datasetOrVectors.size();
                 if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        vectors.length,
-                        MIN_NUM_VECTORS_FOR_GPU_BUILD
-                    );
+                    logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", size, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 }
-                mockGraph = writeGraph(vectors, graphLevelNodeOffsets);
+                mockGraph = writeGraph(size, graphLevelNodeOffsets);
             } else {
-                var dataset = datasetOrVectors.dataset;
+                var dataset = datasetOrVectors.getDataset();
                 var cuVSResources = cuVSResourceManager.acquire((int) dataset.size(), (int) dataset.columns());
                 try {
                     try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
@@ -340,13 +336,12 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return createMockGraph(maxElementCount, maxGraphDegree);
     }
 
-    // create a graph where every node is connected to every other node
-    private HnswGraph writeGraph(float[][] vectors, int[][] levelNodeOffsets) throws IOException {
-        if (vectors.length == 0) {
+    // create a mock graph where every node is connected to every other node
+    private HnswGraph writeGraph(int elementCount, int[][] levelNodeOffsets) throws IOException {
+        if (elementCount == 0) {
             return null;
         }
-        int elementCount = vectors.length;
-        int nodeDegree = vectors.length - 1;
+        int nodeDegree = elementCount - 1;
         levelNodeOffsets[0] = new int[elementCount];
 
         int[] neighbors = new int[nodeDegree];
@@ -447,9 +442,11 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                     .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
                 datasetOrVectors = DatasetOrVectors.fromDataset(ds);
             } else {
-                // TODO fix for byte vectors
-                var fa = copyVectorsIntoArray(in, fieldInfo, numVectors);
-                datasetOrVectors = DatasetOrVectors.fromArray(fa);
+                assert numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD : "numVectors: " + numVectors;
+                // we don't really need real value for vectors here,
+                // we just build a mock graph where every node is connected to every other node
+                float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
+                datasetOrVectors = DatasetOrVectors.fromArray(vectors);
             }
             writeFieldInternal(fieldInfo, datasetOrVectors);
         } finally {
@@ -482,17 +479,6 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return numVectors;
     }
 
-    static float[][] copyVectorsIntoArray(IndexInput in, FieldInfo fieldInfo, int numVectors) throws IOException {
-        final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
-        float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
-        float[] vector;
-        for (int i = 0; i < numVectors; i++) {
-            vector = floatVectorValues.vectorValue(i);
-            System.arraycopy(vector, 0, vectors[i], 0, vector.length);
-        }
-        return vectors;
-    }
-
     private static int writeFloatVectorValues(FieldInfo fieldInfo, IndexOutput out, FloatVectorValues floatVectorValues)
         throws IOException {
         int numVectors = 0;
@@ -505,42 +491,6 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             out.writeBytes(buffer.array(), buffer.array().length);
         }
         return numVectors;
-    }
-
-    private static FloatVectorValues getFloatVectorValues(FieldInfo fieldInfo, IndexInput randomAccessInput, int numVectors) {
-        if (numVectors == 0) {
-            return FloatVectorValues.fromFloats(List.of(), fieldInfo.getVectorDimension());
-        }
-        final long length = (long) Float.BYTES * fieldInfo.getVectorDimension();
-        final float[] vector = new float[fieldInfo.getVectorDimension()];
-        return new FloatVectorValues() {
-            @Override
-            public float[] vectorValue(int ord) throws IOException {
-                randomAccessInput.seek(ord * length);
-                randomAccessInput.readFloats(vector, 0, vector.length);
-                return vector;
-            }
-
-            @Override
-            public FloatVectorValues copy() {
-                return this;
-            }
-
-            @Override
-            public int dimension() {
-                return fieldInfo.getVectorDimension();
-            }
-
-            @Override
-            public int size() {
-                return numVectors;
-            }
-
-            @Override
-            public int ordToDoc(int ord) {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-        };
     }
 
     private void writeMeta(

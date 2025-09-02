@@ -69,6 +69,8 @@ public interface IngestDocumentBridge extends StableBridgeAPI<IngestDocument> {
 
     class ProxyInternal extends StableBridgeAPI.ProxyInternal<IngestDocument> implements IngestDocumentBridge {
 
+        private MetadataBridge metadataBridge;
+
         public ProxyInternal(final Map<String, Object> sourceAndMetadata, final Map<String, Object> ingestMetadata) {
             this(new IngestDocument(sourceAndMetadata, ingestMetadata));
         }
@@ -79,7 +81,10 @@ public interface IngestDocumentBridge extends StableBridgeAPI<IngestDocument> {
 
         @Override
         public MetadataBridge getMetadata() {
-            return new MetadataBridge(internalDelegate.getMetadata());
+            if (metadataBridge == null) {
+                this.metadataBridge = MetadataBridge.fromInternal(internalDelegate.getMetadata());
+            }
+            return this.metadataBridge;
         }
 
         @Override

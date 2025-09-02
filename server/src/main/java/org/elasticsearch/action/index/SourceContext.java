@@ -9,22 +9,34 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
-public class SourceContext implements Writeable {
+public class SourceContext implements Writeable, Releasable {
 
     private XContentType contentType;
     private BytesReference source;
     private Releasable sourceReleasable;
+
+    public SourceContext() {}
+
+    public SourceContext(XContentType contentType, BytesReference source) {
+        this(contentType, source, () -> {});
+    }
 
     public SourceContext(XContentType contentType, BytesReference source, Releasable sourceReleasable) {
         this.contentType = contentType;
@@ -53,17 +65,165 @@ public class SourceContext implements Writeable {
         out.writeBytesReference(source);
     }
 
-    public XContentType getContentType() {
+    public XContentType contentType() {
         return contentType;
     }
 
-    public BytesReference getSource() {
+    public BytesReference bytes() {
         return source;
+    }
+
+    public boolean hasSource() {
+        return source != null;
+    }
+
+    public int byteLength() {
+        return source == null ? 0 : source.length();
+    }
+
+    @Override
+    public void close() {
+        sourceReleasable.close();
     }
 
     public Map<String, Object> sourceAsMap() {
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
+    /**
+     * Index the Map in {@link Requests#INDEX_CONTENT_TYPE} format
+     *
+     * @param source The map to index
+     */
+    public void source(Map<String, ?> source) throws ElasticsearchGenerationException {
+        source(source, Requests.INDEX_CONTENT_TYPE);
+    }
 
+    /**
+     * Index the Map as the provided content type.
+     *
+     * @param source The map to index
+     */
+    public void source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.map(source);
+            source(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
+
+    public void source(Map<String, ?> source, XContentType contentType, boolean ensureNoSelfReferences)
+        throws ElasticsearchGenerationException {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.map(source, ensureNoSelfReferences);
+            source(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
+
+    /**
+     * Sets the document source to index.
+     * <p>
+     * Note, its preferable to either set it using {@link #source(org.elasticsearch.xcontent.XContentBuilder)}
+     * or using the {@link #source(byte[], XContentType)}.
+     */
+    public void source(String source, XContentType xContentType) {
+        source(new BytesArray(source), xContentType);
+    }
+
+    /**
+     * Sets the content source to index.
+     */
+    public void source(XContentBuilder sourceBuilder) {
+        source(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType());
+    }
+
+    /**
+     * Sets the content source to index using the default content type ({@link Requests#INDEX_CONTENT_TYPE})
+     * <p>
+     * <b>Note: the number of objects passed to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
+    public void source(Object... source) {
+        source(Requests.INDEX_CONTENT_TYPE, source);
+    }
+
+    /**
+     * Sets the content source to index.
+     * <p>
+     * <b>Note: the number of objects passed to this method as varargs must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
+    public void source(XContentType xContentType, Object... source) {
+        source(getXContentBuilder(xContentType, source));
+    }
+
+    /**
+     * Returns an XContentBuilder for the given xContentType and source array
+     * <p>
+     * <b>Note: the number of objects passed to this method as varargs must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
+    public static XContentBuilder getXContentBuilder(XContentType xContentType, Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
+        }
+        if (source.length == 2 && source[0] instanceof BytesReference && source[1] instanceof Boolean) {
+            throw new IllegalArgumentException(
+                "you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
+                    + " was removed, please just use source(BytesReference)"
+            );
+        }
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+            builder.startObject();
+            // This for loop increments by 2 because the source array contains adjacent key/value pairs:
+            for (int i = 0; i < source.length; i = i + 2) {
+                String field = source[i].toString();
+                Object value = source[i + 1];
+                builder.field(field, value);
+            }
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate", e);
+        }
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public void source(BytesReference source, XContentType xContentType) {
+        this.source = Objects.requireNonNull(source);
+        this.contentType = Objects.requireNonNull(xContentType);
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public void source(byte[] source, XContentType xContentType) {
+        source(source, 0, source.length, xContentType);
+    }
+
+    /**
+     * Sets the document to index in bytes form (assumed to be safe to be used from different
+     * threads).
+     *
+     * @param source The source to index
+     * @param offset The offset in the byte array
+     * @param length The length of the data
+     */
+    public void source(byte[] source, int offset, int length, XContentType xContentType) {
+        source(new BytesArray(source, offset, length), xContentType);
+    }
 }

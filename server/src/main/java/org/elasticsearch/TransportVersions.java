@@ -369,6 +369,7 @@ public class TransportVersions {
     public static final TransportVersion SCRIPT_RESCORER = def(9_143_0_00);
     public static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = def(9_144_0_00);
     public static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = def(9_145_0_00);
+    public static final TransportVersion SOURCE_CONTEXT = def(9_146_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

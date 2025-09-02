@@ -109,9 +109,9 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         assertThat(plan.satisfiesAllModels(), is(true));
 
         assertThat(plan.assignments(deployment).isPresent(), is(true));
-        Map<Node, Integer> assignments = plan.assignments(deployment).get();
+        Map<String, Integer> assignments = plan.assignments(deployment).get();
         assertThat(assignments.keySet(), hasSize(1));
-        assertThat(assignments.get(assignments.keySet().iterator().next()), equalTo(1));
+        assertThat(assignments.values().iterator().next(), equalTo(1));
     }
 
     public void testGivenOneModel_OneNodePerZone_TwoZones_FullyFits() {
@@ -225,24 +225,27 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
 
         {
             assertThat(plan.assignments(deployment1).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment1).get();
+            Map<String, Integer> assignments = plan.assignments(deployment1).get();
             for (List<Node> zoneNodes : nodesByZone.values()) {
-                assertThat(Sets.haveNonEmptyIntersection(assignments.keySet(), zoneNodes.stream().collect(Collectors.toSet())), is(true));
+                var zoneIds = zoneNodes.stream().map(Node::id).collect(Collectors.toSet());
+                assertThat(assignments.keySet().stream().anyMatch(zoneIds::contains), is(true));
             }
         }
         {
             assertThat(plan.assignments(deployment2).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment2).get();
+            Map<String, Integer> assignments = plan.assignments(deployment2).get();
             for (List<Node> zoneNodes : nodesByZone.values()) {
-                assertThat(Sets.haveNonEmptyIntersection(assignments.keySet(), zoneNodes.stream().collect(Collectors.toSet())), is(true));
+                var zoneIds = zoneNodes.stream().map(Node::id).collect(Collectors.toSet());
+                assertThat(assignments.keySet().stream().anyMatch(zoneIds::contains), is(true));
             }
         }
         {
             assertThat(plan.assignments(deployment3).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment3).get();
+            Map<String, Integer> assignments = plan.assignments(deployment3).get();
             int zonesWithAllocations = 0;
             for (List<Node> zoneNodes : nodesByZone.values()) {
-                if (Sets.haveNonEmptyIntersection(assignments.keySet(), zoneNodes.stream().collect(Collectors.toSet()))) {
+                var zoneIds = zoneNodes.stream().map(Node::id).collect(Collectors.toSet());
+                if (assignments.keySet().stream().anyMatch(zoneIds::contains)) {
                     zonesWithAllocations++;
                 }
             }
@@ -281,10 +284,8 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
 
         List<Deployment> previousModelsPlusNew = new ArrayList<>(deployments.size() + 1);
         for (AssignmentPlan.Deployment m : deployments) {
-            Map<Node, Integer> assignments = originalPlan.assignments(m).orElse(Map.of());
-            Map<String, Integer> previousAssignments = assignments.entrySet()
-                .stream()
-                .collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
+            Map<String, Integer> assignments = originalPlan.assignments(m).orElse(Map.of());
+            Map<String, Integer> previousAssignments = assignments;
             previousModelsPlusNew.add(
                 new AssignmentPlan.Deployment(
                     m.deploymentId(),

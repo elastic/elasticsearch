@@ -209,11 +209,11 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
 
-        Map<Node, Integer> assignments = plan.assignments(deployment).get();
-        if (assignments.get(node1) != null) {
-            assertThat(assignments.get(node1), equalTo(4));
+        Map<String, Integer> assignments = plan.assignments(deployment).get();
+        if (assignments.get(node1.id()) != null) {
+            assertThat(assignments.get(node1.id()), equalTo(4));
         } else {
-            assertThat(assignments.get(node2), equalTo(4));
+            assertThat(assignments.get(node2.id()), equalTo(4));
         }
     }
 
@@ -235,11 +235,11 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
 
-        Map<Node, Integer> assignments = plan.assignments(deployment).get();
-        if (assignments.get(node1) != null) {
-            assertThat(assignments.get(node1), equalTo(4));
+        Map<String, Integer> assignments = plan.assignments(deployment).get();
+        if (assignments.get(node1.id()) != null) {
+            assertThat(assignments.get(node1.id()), equalTo(4));
         } else {
-            assertThat(assignments.get(node2), equalTo(4));
+            assertThat(assignments.get(node2.id()), equalTo(4));
         }
     }
 
@@ -261,8 +261,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node = new Node("n_1", scaleNodeSize(100), 4);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node), equalTo(4));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node.id()), equalTo(4));
         }
         // Two nodes
         {
@@ -270,9 +270,9 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node2 = new Node("n_2", scaleNodeSize(100), 2);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node1), equalTo(4));
-            assertThat(assignments.get(node2), equalTo(2));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1.id()), equalTo(4));
+            assertThat(assignments.get(node2.id()), equalTo(2));
         }
         // Three nodes
         {
@@ -281,10 +281,10 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node3 = new Node("n_3", scaleNodeSize(100), 3);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node1), equalTo(4));
-            assertThat(assignments.get(node2), equalTo(2));
-            assertThat(assignments.get(node3), equalTo(3));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1.id()), equalTo(4));
+            assertThat(assignments.get(node2.id()), equalTo(2));
+            assertThat(assignments.get(node3.id()), equalTo(3));
         }
     }
 
@@ -306,8 +306,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node = new Node("n_1", ByteSizeValue.ofMb(800).getBytes(), 4);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node), equalTo(4));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node.id()), equalTo(4));
         }
         // Two nodes
         {
@@ -315,9 +315,9 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node2 = new Node("n_2", ByteSizeValue.ofMb(600).getBytes(), 2);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node1), equalTo(4));
-            assertThat(assignments.get(node2), equalTo(2));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1.id()), equalTo(4));
+            assertThat(assignments.get(node2.id()), equalTo(2));
         }
         // Three nodes
         {
@@ -326,10 +326,10 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node3 = new Node("n_3", ByteSizeValue.ofMb(700).getBytes(), 3);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node1), equalTo(4));
-            assertThat(assignments.get(node2), equalTo(2));
-            assertThat(assignments.get(node3), equalTo(3));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1.id()), equalTo(4));
+            assertThat(assignments.get(node2.id()), equalTo(2));
+            assertThat(assignments.get(node3.id()), equalTo(3));
         }
     }
 
@@ -350,41 +350,41 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         {
             assertThat(plan.assignments(deployment1).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment1).get();
-            assertThat(assignments.get(node1), equalTo(1));
-            assertThat(assignments.get(node2), equalTo(1));
-            assertThat(assignments.get(node3), is(nullValue()));
-            assertThat(assignments.get(node4), is(nullValue()));
+            Map<String, Integer> assignments = plan.assignments(deployment1).get();
+            assertThat(assignments.get(node1.id()), equalTo(1));
+            assertThat(assignments.get(node2.id()), equalTo(1));
+            assertThat(assignments.get(node3.id()), is(nullValue()));
+            assertThat(assignments.get(node4.id()), is(nullValue()));
         }
         {
             assertThat(plan.assignments(deployment2).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment2).get();
-            assertThat(assignments.get(node1), equalTo(1));
-            assertThat(assignments.get(node2), equalTo(1));
-            assertThat(assignments.get(node3), is(nullValue()));
-            assertThat(assignments.get(node4), is(nullValue()));
+            Map<String, Integer> assignments = plan.assignments(deployment2).get();
+            assertThat(assignments.get(node1.id()), equalTo(1));
+            assertThat(assignments.get(node2.id()), equalTo(1));
+            assertThat(assignments.get(node3.id()), is(nullValue()));
+            assertThat(assignments.get(node4.id()), is(nullValue()));
         }
         {
             assertThat(plan.assignments(deployment3).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment3).get();
-            assertThat(assignments.get(node1), is(nullValue()));
-            assertThat(assignments.get(node2), is(nullValue()));
+            Map<String, Integer> assignments = plan.assignments(deployment3).get();
+            assertThat(assignments.get(node1.id()), is(nullValue()));
+            assertThat(assignments.get(node2.id()), is(nullValue()));
             // Will either be on node 3 or 4
-            Node assignedNode = assignments.get(node3) != null ? node3 : node4;
-            Node otherNode = assignedNode.equals(node3) ? node4 : node3;
-            assertThat(assignments.get(assignedNode), equalTo(1));
-            assertThat(assignments.get(otherNode), is(nullValue()));
+            String assignedNodeId = assignments.get(node3.id()) != null ? node3.id() : node4.id();
+            String otherNodeId = assignedNodeId.equals(node3.id()) ? node4.id() : node3.id();
+            assertThat(assignments.get(assignedNodeId), equalTo(1));
+            assertThat(assignments.get(otherNodeId), is(nullValue()));
         }
         {
             assertThat(plan.assignments(deployment4).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment4).get();
-            assertThat(assignments.get(node1), is(nullValue()));
-            assertThat(assignments.get(node2), is(nullValue()));
+            Map<String, Integer> assignments = plan.assignments(deployment4).get();
+            assertThat(assignments.get(node1.id()), is(nullValue()));
+            assertThat(assignments.get(node2.id()), is(nullValue()));
             // Will either be on node 3 or 4
-            Node assignedNode = assignments.get(node3) != null ? node3 : node4;
-            Node otherNode = assignedNode.equals(node3) ? node4 : node3;
-            assertThat(assignments.get(assignedNode), equalTo(2));
-            assertThat(assignments.get(otherNode), is(nullValue()));
+            String assignedNodeId = assignments.get(node3.id()) != null ? node3.id() : node4.id();
+            String otherNodeId = assignedNodeId.equals(node3.id()) ? node4.id() : node3.id();
+            assertThat(assignments.get(assignedNodeId), equalTo(2));
+            assertThat(assignments.get(otherNodeId), is(nullValue()));
         }
     }
 
@@ -449,41 +449,41 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         {
             assertThat(plan.assignments(deployment1).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment1).get();
-            assertThat(assignments.get(node1), equalTo(1));
-            assertThat(assignments.get(node2), equalTo(1));
-            assertThat(assignments.get(node3), is(nullValue()));
-            assertThat(assignments.get(node4), is(nullValue()));
+            Map<String, Integer> assignments = plan.assignments(deployment1).get();
+            assertThat(assignments.get(node1.id()), equalTo(1));
+            assertThat(assignments.get(node2.id()), equalTo(1));
+            assertThat(assignments.get(node3.id()), is(nullValue()));
+            assertThat(assignments.get(node4.id()), is(nullValue()));
         }
         {
             assertThat(plan.assignments(deployment2).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment2).get();
-            assertThat(assignments.get(node1), equalTo(1));
-            assertThat(assignments.get(node2), equalTo(1));
-            assertThat(assignments.get(node3), is(nullValue()));
-            assertThat(assignments.get(node4), is(nullValue()));
+            Map<String, Integer> assignments = plan.assignments(deployment2).get();
+            assertThat(assignments.get(node1.id()), equalTo(1));
+            assertThat(assignments.get(node2.id()), equalTo(1));
+            assertThat(assignments.get(node3.id()), is(nullValue()));
+            assertThat(assignments.get(node4.id()), is(nullValue()));
         }
         {
             assertThat(plan.assignments(deployment3).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment3).get();
-            assertThat(assignments.get(node1), is(nullValue()));
-            assertThat(assignments.get(node2), is(nullValue()));
+            Map<String, Integer> assignments = plan.assignments(deployment3).get();
+            assertThat(assignments.get(node1.id()), is(nullValue()));
+            assertThat(assignments.get(node2.id()), is(nullValue()));
             // Will either be on node 3 or 4
-            Node assignedNode = assignments.get(node3) != null ? node3 : node4;
-            Node otherNode = assignedNode.equals(node3) ? node4 : node3;
-            assertThat(assignments.get(assignedNode), equalTo(1));
-            assertThat(assignments.get(otherNode), is(nullValue()));
+            String assignedNodeId = assignments.get(node3.id()) != null ? node3.id() : node4.id();
+            String otherNodeId = assignedNodeId.equals(node3.id()) ? node4.id() : node3.id();
+            assertThat(assignments.get(assignedNodeId), equalTo(1));
+            assertThat(assignments.get(otherNodeId), is(nullValue()));
         }
         {
             assertThat(plan.assignments(deployment4).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(deployment4).get();
-            assertThat(assignments.get(node1), is(nullValue()));
-            assertThat(assignments.get(node2), is(nullValue()));
+            Map<String, Integer> assignments = plan.assignments(deployment4).get();
+            assertThat(assignments.get(node1.id()), is(nullValue()));
+            assertThat(assignments.get(node2.id()), is(nullValue()));
             // Will either be on node 3 or 4
-            Node assignedNode = assignments.get(node3) != null ? node3 : node4;
-            Node otherNode = assignedNode.equals(node3) ? node4 : node3;
-            assertThat(assignments.get(assignedNode), equalTo(2));
-            assertThat(assignments.get(otherNode), is(nullValue()));
+            String assignedNodeId = assignments.get(node3.id()) != null ? node3.id() : node4.id();
+            String otherNodeId = assignedNodeId.equals(node3.id()) ? node4.id() : node3.id();
+            assertThat(assignments.get(assignedNodeId), equalTo(2));
+            assertThat(assignments.get(otherNodeId), is(nullValue()));
         }
     }
 
@@ -505,8 +505,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node = new Node("n_1", scaleNodeSize(100), 4);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node), equalTo(1));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node.id()), equalTo(1));
         }
         // Two nodes
         {
@@ -514,9 +514,9 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node2 = new Node("n_2", scaleNodeSize(100), 8);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node1), equalTo(1));
-            assertThat(assignments.get(node2), equalTo(2));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1.id()), equalTo(1));
+            assertThat(assignments.get(node2.id()), equalTo(2));
         }
         // Three nodes
         {
@@ -525,10 +525,10 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node3 = new Node("n_3", scaleNodeSize(100), 15);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node1), equalTo(1));
-            assertThat(assignments.get(node2), equalTo(2));
-            assertThat(assignments.get(node3), equalTo(5));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1.id()), equalTo(1));
+            assertThat(assignments.get(node2.id()), equalTo(2));
+            assertThat(assignments.get(node3.id()), equalTo(5));
         }
     }
 
@@ -550,8 +550,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node = new Node("n_1", ByteSizeValue.ofMb(800).getBytes(), 4);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node), equalTo(1));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node.id()), equalTo(1));
         }
         // Two nodes
         {
@@ -559,9 +559,9 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node2 = new Node("n_2", ByteSizeValue.ofMb(800).getBytes(), 8);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node1), equalTo(1));
-            assertThat(assignments.get(node2), equalTo(2));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1.id()), equalTo(1));
+            assertThat(assignments.get(node2.id()), equalTo(2));
         }
         // Three nodes
         {
@@ -570,10 +570,10 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node3 = new Node("n_3", ByteSizeValue.ofMb(800).getBytes(), 15);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment)).computePlan();
             assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
-            assertThat(assignments.get(node1), equalTo(1));
-            assertThat(assignments.get(node2), equalTo(2));
-            assertThat(assignments.get(node3), equalTo(5));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1.id()), equalTo(1));
+            assertThat(assignments.get(node2.id()), equalTo(2));
+            assertThat(assignments.get(node3.id()), equalTo(5));
         }
     }
 
@@ -594,7 +594,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
 
         assertThat(plan.assignments(deployment).isPresent(), is(true));
-        assertThat(plan.assignments(deployment).get(), equalTo(Map.of(node, 4)));
+        assertThat(plan.assignments(deployment).get(), equalTo(Map.of("n_1", 4)));
     }
 
     public void testFullCoreUtilization_GivenDeploymentsWithSingleThreadPerAllocation() {
@@ -625,7 +625,7 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         int usedCores = 0;
         for (AssignmentPlan.Deployment m : deployments) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
+            Map<String, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
             usedCores += assignments.values().stream().mapToInt(Integer::intValue).sum();
         }
         assertThat(usedCores, equalTo(64));
@@ -728,7 +728,7 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         int usedCores = 0;
         for (AssignmentPlan.Deployment m : deployments) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
+            Map<String, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
             usedCores += assignments.values().stream().mapToInt(Integer::intValue).sum();
         }
         assertThat(usedCores, equalTo(64));
@@ -819,7 +819,7 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         List<Deployment> previousModelsPlusNew = new ArrayList<>(deployments.size() + 1);
         for (Deployment m : deployments) {
-            Map<Node, Integer> assignments = originalPlan.assignments(m).orElse(Map.of());
+            Map<String, Integer> assignments = originalPlan.assignments(m).orElse(Map.of());
             Map<String, Integer> previousAssignments = assignments.entrySet()
                 .stream()
                 .collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
@@ -869,17 +869,17 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.getRemainingNodeMemory("n_3"), greaterThanOrEqualTo(0L));
         {
             assertThat(assignmentPlan.assignments(deployment1).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment1).get();
-            assertThat(assignments.get(node1), equalTo(2));
-            assertThat(assignments.get(node2), equalTo(1));
-            assertThat(assignments.get(node3), is(nullValue()));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment1).get();
+            assertThat(assignments.get(node1.id()), equalTo(2));
+            assertThat(assignments.get(node2.id()), equalTo(1));
+            assertThat(assignments.get(node3.id()), is(nullValue()));
         }
         {
             assertThat(assignmentPlan.assignments(deployment2).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment2).get();
-            assertThat(assignments.get(node1), is(nullValue()));
-            assertThat(assignments.get(node2), is(nullValue()));
-            assertThat(assignments.get(node3), equalTo(2));
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment2).get();
+            assertThat(assignments.get(node1.id()), is(nullValue()));
+            assertThat(assignments.get(node2.id()), is(nullValue()));
+            assertThat(assignments.get(node3.id()), equalTo(2));
         }
     }
 
@@ -1171,14 +1171,8 @@ public class AssignmentPlannerTests extends ESTestCase {
     public static List<Deployment> createDeploymentsFromPlan(AssignmentPlan plan) {
         List<Deployment> deployments = new ArrayList<>();
         for (Deployment m : plan.deployments()) {
-            Optional<Map<Node, Integer>> assignments = plan.assignments(m);
-            Map<String, Integer> currentAllocations = Map.of();
-            if (assignments.isPresent()) {
-                currentAllocations = new HashMap<>();
-                for (Map.Entry<Node, Integer> nodeAssignments : assignments.get().entrySet()) {
-                    currentAllocations.put(nodeAssignments.getKey().id(), nodeAssignments.getValue());
-                }
-            }
+            Optional<Map<String, Integer>> assignments = plan.assignments(m);
+            Map<String, Integer> currentAllocations = assignments.orElse(Map.of());
             int totalAllocations = currentAllocations.values().stream().mapToInt(Integer::intValue).sum();
             deployments.add(
                 new Deployment(
@@ -1201,21 +1195,18 @@ public class AssignmentPlannerTests extends ESTestCase {
     public static Map<String, Map<String, Integer>> convertToIdIndexed(AssignmentPlan plan) {
         Map<String, Map<String, Integer>> result = new HashMap<>();
         for (AssignmentPlan.Deployment m : plan.deployments()) {
-            Optional<Map<Node, Integer>> assignments = plan.assignments(m);
-            Map<String, Integer> allocationsPerNodeId = assignments.isPresent() ? new HashMap<>() : Map.of();
-            for (Map.Entry<Node, Integer> nodeAssignments : assignments.orElse(Map.of()).entrySet()) {
-                allocationsPerNodeId.put(nodeAssignments.getKey().id(), nodeAssignments.getValue());
-            }
+            Optional<Map<String, Integer>> assignments = plan.assignments(m);
+            Map<String, Integer> allocationsPerNodeId = assignments.orElse(Map.of());
             result.put(m.deploymentId(), allocationsPerNodeId);
         }
         return result;
     }
 
     public static void assertModelFullyAssignedToNode(AssignmentPlan plan, Deployment m, Node n) {
-        Optional<Map<Node, Integer>> assignments = plan.assignments(m);
+        Optional<Map<String, Integer>> assignments = plan.assignments(m);
         assertThat(assignments.isPresent(), is(true));
         assertThat(assignments.get().size(), equalTo(1));
-        assertThat(assignments.get().get(n), equalTo(m.allocations()));
+        assertThat(assignments.get().get(n.id()), equalTo(m.allocations()));
     }
 
     public static List<Node> randomNodes(int scale) {
@@ -1281,12 +1272,12 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     public static void assertPreviousAssignmentsAreSatisfied(List<AssignmentPlan.Deployment> deployments, AssignmentPlan assignmentPlan) {
         for (Deployment m : deployments.stream().filter(m -> m.currentAllocationsByNodeId().isEmpty() == false).toList()) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m).get();
+            Map<String, Integer> assignments = assignmentPlan.assignments(m).get();
             Set<String> assignedNodeIds = new HashSet<>();
             int allocations = 0;
-            for (Map.Entry<Node, Integer> e : assignments.entrySet()) {
-                assignedNodeIds.add(e.getKey().id());
-                if (m.currentAllocationsByNodeId().containsKey(e.getKey().id())) {
+            for (Map.Entry<String, Integer> e : assignments.entrySet()) {
+                assignedNodeIds.add(e.getKey());
+                if (m.currentAllocationsByNodeId().containsKey(e.getKey())) {
                     assertThat(e.getValue(), greaterThanOrEqualTo(1));
                 }
                 allocations += e.getValue();
@@ -1294,20 +1285,6 @@ public class AssignmentPlannerTests extends ESTestCase {
             assertThat(m.currentAllocationsByNodeId().keySet(), everyItem(in(assignedNodeIds)));
             assertThat(allocations, greaterThanOrEqualTo(m.getCurrentAssignedAllocations()));
         }
-    }
-
-    private void runTooManyNodesAndDeployments(int nodesSize, int modelsSize) {
-        List<Node> nodes = new ArrayList<>();
-        for (int i = 0; i < nodesSize; i++) {
-            nodes.add(new Node("n_" + i, ByteSizeValue.ofGb(6).getBytes(), 100));
-        }
-        List<Deployment> deployments = new ArrayList<>();
-        for (int i = 0; i < modelsSize; i++) {
-            deployments.add(new Deployment("m_" + i, "m_" + i, ByteSizeValue.ofMb(200).getBytes(), 2, 1, Map.of(), 0, null, 0, 0));
-        }
-
-        // Check plan is computed without OOM exception
-        new AssignmentPlanner(nodes, deployments).computePlan();
     }
 
     private static Quality computeQuality(List<Node> nodes, List<Deployment> deployments, AssignmentPlan assignmentPlan) {
@@ -1319,7 +1296,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         int usedCores = 0;
         int assignedAllocations = 0;
         for (Deployment m : deployments) {
-            for (Map.Entry<Node, Integer> assignment : assignmentPlan.assignments(m).orElse(Map.of()).entrySet()) {
+            for (Map.Entry<String, Integer> assignment : assignmentPlan.assignments(m).orElse(Map.of()).entrySet()) {
                 assignedAllocations += assignment.getValue();
                 usedCores += assignment.getValue() * m.threadsPerAllocation();
             }

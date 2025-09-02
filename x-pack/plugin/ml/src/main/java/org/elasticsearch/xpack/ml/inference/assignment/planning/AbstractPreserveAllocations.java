@@ -74,12 +74,9 @@ abstract class AbstractPreserveAllocations {
         // with its preserved allocations.
         final Map<Tuple<String, String>, Integer> plannedAssignmentsByDeploymentNodeIdPair = new HashMap<>();
         for (Deployment d : assignmentPlan.deployments()) {
-            Map<Node, Integer> assignmentsOfDeployment = assignmentPlan.assignments(d).orElse(Map.of());
-            for (Map.Entry<Node, Integer> nodeAssignment : assignmentsOfDeployment.entrySet()) {
-                plannedAssignmentsByDeploymentNodeIdPair.put(
-                    Tuple.tuple(d.deploymentId(), nodeAssignment.getKey().id()),
-                    nodeAssignment.getValue()
-                );
+            Map<String, Integer> assignmentsOfDeployment = assignmentPlan.assignments(d).orElse(Map.of());
+            for (Map.Entry<String, Integer> nodeAssignment : assignmentsOfDeployment.entrySet()) {
+                plannedAssignmentsByDeploymentNodeIdPair.put(Tuple.tuple(d.deploymentId(), nodeAssignment.getKey()), nodeAssignment.getValue());
             }
         }
 

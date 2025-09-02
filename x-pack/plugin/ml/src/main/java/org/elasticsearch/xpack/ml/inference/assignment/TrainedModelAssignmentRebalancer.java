@@ -135,9 +135,9 @@ class TrainedModelAssignmentRebalancer {
      */
     static void copyAssignments(AssignmentPlan source, AssignmentPlan.Builder dest, Map<String, AssignmentPlan.Node> originalNodeById) {
         for (AssignmentPlan.Deployment deployment : source.deployments()) {
-            Map<AssignmentPlan.Node, Integer> sourceNodeAssignments = source.assignments(deployment).orElse(Map.of());
-            for (Map.Entry<AssignmentPlan.Node, Integer> sourceAssignment : sourceNodeAssignments.entrySet()) {
-                AssignmentPlan.Node node = originalNodeById.get(sourceAssignment.getKey().id());
+            Map<String, Integer> sourceNodeAssignments = source.assignments(deployment).orElse(Map.of());
+            for (Map.Entry<String, Integer> sourceAssignment : sourceNodeAssignments.entrySet()) {
+                AssignmentPlan.Node node = originalNodeById.get(sourceAssignment.getKey());
                 dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
             }
         }
@@ -337,10 +337,10 @@ class TrainedModelAssignmentRebalancer {
                 assignmentBuilder.setMaxAssignedAllocations(existingAssignment.getMaxAssignedAllocations());
             }
 
-            Map<AssignmentPlan.Node, Integer> assignments = assignmentPlan.assignments(deployment).orElseGet(Map::of);
-            for (Map.Entry<AssignmentPlan.Node, Integer> assignment : assignments.entrySet()) {
-                if (existingAssignment != null && existingAssignment.isRoutedToNode(assignment.getKey().id())) {
-                    RoutingInfo existingRoutingInfo = existingAssignment.getNodeRoutingTable().get(assignment.getKey().id());
+            Map<String, Integer> assignments = assignmentPlan.assignments(deployment).orElseGet(Map::of);
+            for (Map.Entry<String, Integer> assignment : assignments.entrySet()) {
+                if (existingAssignment != null && existingAssignment.isRoutedToNode(assignment.getKey())) {
+                    RoutingInfo existingRoutingInfo = existingAssignment.getNodeRoutingTable().get(assignment.getKey());
                     RoutingState state = existingRoutingInfo.getState();
                     String reason = existingRoutingInfo.getReason();
                     if (state == RoutingState.FAILED) {
@@ -348,12 +348,12 @@ class TrainedModelAssignmentRebalancer {
                         reason = "";
                     }
                     assignmentBuilder.addRoutingEntry(
-                        assignment.getKey().id(),
+                        assignment.getKey(),
                         new RoutingInfo(existingRoutingInfo.getCurrentAllocations(), assignment.getValue(), state, reason)
                     );
                 } else {
                     assignmentBuilder.addRoutingEntry(
-                        assignment.getKey().id(),
+                        assignment.getKey(),
                         new RoutingInfo(assignment.getValue(), assignment.getValue(), RoutingState.STARTING, "")
                     );
                 }

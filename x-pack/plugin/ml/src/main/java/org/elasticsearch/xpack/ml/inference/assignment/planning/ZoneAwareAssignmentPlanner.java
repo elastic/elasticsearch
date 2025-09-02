@@ -208,9 +208,9 @@ public class ZoneAwareAssignmentPlanner {
 
         for (AssignmentPlan.Deployment planDeployment : planDeployments) {
             AssignmentPlan.Deployment originalDeployment = originalDeploymentsById.get(planDeployment.deploymentId());
-            Map<Node, Integer> nodeAssignments = plan.assignments(planDeployment).orElse(Map.of());
-            for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
-                Node originalNode = originalNodeById.get(assignment.getKey().id());
+            Map<String, Integer> nodeAssignments = plan.assignments(planDeployment).orElse(Map.of());
+            for (Map.Entry<String, Integer> assignment : nodeAssignments.entrySet()) {
+                Node originalNode = originalNodeById.get(assignment.getKey());
                 finalPlanBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
             }
         }
@@ -223,11 +223,11 @@ public class ZoneAwareAssignmentPlanner {
         for (AssignmentPlan plan : plans) {
             for (AssignmentPlan.Deployment m : plan.deployments()) {
                 Map<String, Integer> nodeIdToAllocations = allocationsByNodeIdByDeploymentId.get(m.deploymentId());
-                Optional<Map<Node, Integer>> assignments = plan.assignments(m);
+                Optional<Map<String, Integer>> assignments = plan.assignments(m);
                 if (assignments.isPresent()) {
-                    for (Map.Entry<Node, Integer> nodeAssignments : assignments.get().entrySet()) {
+                    for (Map.Entry<String, Integer> nodeAssignments : assignments.get().entrySet()) {
                         nodeIdToAllocations.compute(
-                            nodeAssignments.getKey().id(),
+                            nodeAssignments.getKey(),
                             (nodeId, existingAllocations) -> existingAllocations == null
                                 ? nodeAssignments.getValue()
                                 : existingAllocations + nodeAssignments.getValue()

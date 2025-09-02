@@ -123,13 +123,13 @@ public class PreserveOneAllocationTests extends ESTestCase {
                 .assignModelToNode(deployment1, node1, 2)
                 .assignModelToNode(deployment2, node2, 1)
                 .build();
-            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 2)));
-            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node2, 1)));
+            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of("n_1", 2)));
+            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of("n_2", 1)));
 
             plan = preserveOneAllocation.mergePreservedAllocations(plan);
 
-            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 3)));
-            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node1, 1, node2, 2)));
+            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of("n_1", 3)));
+            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of("n_1", 1, "n_2", 2)));
             // Node 1 already had deployments 1 and 2 assigned to it so adding more allocation doesn't change memory usage.
             assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(0L));
             // 8 - ((1*1+1*4) + 2*1) = 1 : deployments use 7 cores on the node
@@ -213,13 +213,13 @@ public class PreserveOneAllocationTests extends ESTestCase {
                 .assignModelToNode(deployment1, node1, 2)
                 .assignModelToNode(deployment2, node2, 1)
                 .build();
-            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 2)));
-            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node2, 1)));
+            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of("n_1", 2)));
+            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of("n_2", 1)));
 
             plan = preserveOneAllocation.mergePreservedAllocations(plan);
 
-            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 3)));
-            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node1, 1, node2, 2)));
+            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of("n_1", 3)));
+            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of("n_1", 1, "n_2", 2)));
             // 1000 - [(30+300+3*10) + (50+300+10)] = 280 : deployments use 720MB on the node
             assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(ByteSizeValue.ofMb(280).getBytes()));
             // 8 - ((1*1+1*4) + 2*1) = 1 : deployments use 7 cores on the node
@@ -243,7 +243,7 @@ public class PreserveOneAllocationTests extends ESTestCase {
             assertThat(plan.assignments(deployment), isEmpty());
 
             plan = preserveOneAllocation.mergePreservedAllocations(plan);
-            assertThat(plan.assignments(deployment), isPresentWith(Map.of(node, 1)));
+            assertThat(plan.assignments(deployment), isPresentWith(Map.of("n_1", 1)));
             // 400 - (30*2 + 240) = 100 : deployments use 300MB on the node
             assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(ByteSizeValue.ofMb(100).getBytes()));
             assertThat(plan.getRemainingNodeCores("n_1"), equalTo(2));
@@ -269,7 +269,7 @@ public class PreserveOneAllocationTests extends ESTestCase {
             assertThat(plan.assignments(deployment), isEmpty());
 
             plan = preserveOneAllocation.mergePreservedAllocations(plan);
-            assertThat(plan.assignments(deployment), isPresentWith(Map.of(node, 1)));
+            assertThat(plan.assignments(deployment), isPresentWith(Map.of("n_1", 1)));
             // 400 - (30 + 300 + 10) = 60 : deployments use 340MB on the node
             assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(ByteSizeValue.ofMb(60).getBytes()));
             assertThat(plan.getRemainingNodeCores("n_1"), equalTo(2));

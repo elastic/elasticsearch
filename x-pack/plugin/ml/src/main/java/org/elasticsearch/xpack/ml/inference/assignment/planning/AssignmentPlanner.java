@@ -157,11 +157,11 @@ public class AssignmentPlanner {
 
         Map<String, String> modelIdToNodeIdWithSingleAllocation = new HashMap<>();
         for (AssignmentPlan.Deployment m : planWithSingleAllocationForPreviouslyAssignedModels.deployments()) {
-            Optional<Map<Node, Integer>> assignments = planWithSingleAllocationForPreviouslyAssignedModels.assignments(m);
-            Set<Node> nodes = assignments.orElse(Map.of()).keySet();
+            Optional<Map<String, Integer>> assignments = planWithSingleAllocationForPreviouslyAssignedModels.assignments(m);
+            Set<String> nodes = assignments.orElse(Map.of()).keySet();
             if (nodes.isEmpty() == false) {
                 assert nodes.size() == 1;
-                modelIdToNodeIdWithSingleAllocation.put(m.deploymentId(), nodes.iterator().next().id());
+                modelIdToNodeIdWithSingleAllocation.put(m.deploymentId(), nodes.iterator().next());
             }
         }
 

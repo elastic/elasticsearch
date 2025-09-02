@@ -73,7 +73,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
-            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n.id(), 1)));
         }
         { // new memory format
             AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
@@ -107,7 +107,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
-            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n.id(), 1)));
         }
     }
 
@@ -140,7 +140,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
-            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n.id(), 1)));
         }
         {   // new memory format
             AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
@@ -169,7 +169,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
-            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n.id(), 1)));
 
         }
     }
@@ -195,7 +195,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(false));
-            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n.id(), 1)));
         }
         {
             // new memory format
@@ -229,7 +229,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(false));
-            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n.id(), 1)));
         }
     }
 
@@ -365,7 +365,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
         assertThat(plan.deployments(), contains(m));
         assertThat(plan.satisfiesCurrentAssignments(), is(true));
-        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 3)));
+        assertThat(plan.assignments(m).get(), equalTo(Map.of(n.id(), 3)));
     }
 
     public void testCanAssign_GivenPreviouslyUnassignedModelDoesNotFit() {

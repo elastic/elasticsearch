@@ -213,9 +213,15 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
      * @param deployment the model for which assignments are returned
      * @return the model assignments per node. The Optional will be empty if the model has no assignments.
      */
-    public Optional<Map<Node, Integer>> assignments(Deployment deployment) {
+    public Optional<Map<String, Integer>> assignments(Deployment deployment) {
         Map<Node, Integer> modelAssignments = assignments.get(deployment);
-        return (modelAssignments == null || modelAssignments.isEmpty()) ? Optional.empty() : Optional.of(modelAssignments);
+        if (modelAssignments == null || modelAssignments.isEmpty()) {
+            return Optional.empty();
+        }
+        Map<String, Integer> byNodeId = modelAssignments.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
+        return Optional.of(byNodeId);
     }
 
     @Override

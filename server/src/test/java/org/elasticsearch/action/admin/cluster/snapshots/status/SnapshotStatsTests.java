@@ -78,7 +78,7 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
 
         // Verify round trip Transport serialization.
         for (var transportVersion : List.of(
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS,
             TransportVersion.current()
         )) {

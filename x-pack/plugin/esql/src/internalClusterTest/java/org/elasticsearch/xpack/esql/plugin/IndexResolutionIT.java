@@ -22,13 +22,16 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,7 +44,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolvesConcreteIndex() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
-        indexRandom(true, "index-1", 10);
+        indexRandom(true, "index-1", 1);
 
         try (var response = run(syncEsqlQueryRequest().query("FROM index-1"))) {
             assertOk(response);
@@ -50,7 +53,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolvesAlias() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
-        indexRandom(true, "index-1", 10);
+        indexRandom(true, "index-1", 1);
         assertAcked(client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("index-1", "alias-1"));
 
         try (var response = run(syncEsqlQueryRequest().query("FROM alias-1"))) {
@@ -84,9 +87,9 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolvesPattern() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
-        indexRandom(true, "index-1", 10);
+        indexRandom(true, "index-1", 1);
         assertAcked(client().admin().indices().prepareCreate("index-2"));
-        indexRandom(true, "index-2", 10);
+        indexRandom(true, "index-2", 1);
 
         try (var response = run(syncEsqlQueryRequest().query("FROM index-*"))) {
             assertOk(response);
@@ -111,13 +114,13 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testDoesNotResolveClosedIndex() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
-        indexRandom(true, "index-1", 10);
+        indexRandom(true, "index-1", 1);
         // Create index only waits for primary/indexing shard to be assigned.
         // This is enough to index and search documents, however all shards (including replicas) must be assigned before close.
         ensureGreen("index-1");
         assertAcked(client().admin().indices().prepareClose("index-1"));
         assertAcked(client().admin().indices().prepareCreate("index-2"));
-        indexRandom(true, "index-2", 15);
+        indexRandom(true, "index-2", 1);
 
         expectThrows(
             ClusterBlockException.class,
@@ -129,40 +132,40 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
             () -> run(syncEsqlQueryRequest().query("FROM index-1,index-2"))
         );
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-*"))) {
+        try (var response = run(syncEsqlQueryRequest().query("FROM index-* METADATA _index"))) {
             assertOk(response);
-            assertResultCount(response, 15);// only index-2 records match
+            assertResultConcreteIndices(response, "index-2"); // only open index-2 matches
         }
     }
 
     public void testHiddenIndices() {
         assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
-        indexRandom(true, "regular-index-1", 10);
+        indexRandom(true, "regular-index-1", 1);
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(".hidden-index-1")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
         );
-        indexRandom(true, ".hidden-index-1", 15);
+        indexRandom(true, ".hidden-index-1", 1);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-index-1"))) {
+        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-index-1 METADATA _index"))) {
             assertOk(response);
-            assertResultCount(response, 15);
+            assertResultConcreteIndices(response, ".hidden-index-1");
         }
-        try (var response = run(syncEsqlQueryRequest().query("FROM *-index-1"))) {
+        try (var response = run(syncEsqlQueryRequest().query("FROM *-index-1 METADATA _index"))) {
             assertOk(response);
-            assertResultCount(response, 10); // only non-hidden index matches when specifying pattern
+            assertResultConcreteIndices(response, "regular-index-1"); // only non-hidden index matches when specifying pattern
         }
-        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-*"))) {
+        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-* METADATA _index"))) {
             assertOk(response);
-            assertResultCount(response, 15); // hidden indices do match when specifying hidden/dot pattern
+            assertResultConcreteIndices(response, ".hidden-index-1"); // hidden indices do match when specifying hidden/dot pattern
         }
     }
 
     public void testUnavailableIndex() {
         assertAcked(client().admin().indices().prepareCreate("available-index-1"));
-        indexRandom(true, "available-index-1", 10);
+        indexRandom(true, "available-index-1", 1);
         assertAcked(
             client().admin()
                 .indices()
@@ -176,7 +179,6 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             containsString("index [unavailable-index-1] has no active shard copy"),
             () -> run(syncEsqlQueryRequest().query("FROM unavailable-index-1"))
         );
-
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
@@ -194,13 +196,18 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index-2"));
         indexRandom(true, "index-2", 10);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1,nonexisting"))) {
-            assertOk(response);
+        try (var response = run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))) {
+            assertOk(response); // okay when present index is empty
         }
         expectThrows(
             IndexNotFoundException.class,
-            equalTo("no such index [nonexisting]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting"))
+            equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
+            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1"))
+        );
+        expectThrows(
+            IndexNotFoundException.class,
+            equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
+            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1,nonexisting-2"))
         );
     }
 
@@ -208,11 +215,17 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         assertThat(response.isPartial(), equalTo(false));
     }
 
-    private static void assertResultCount(EsqlQueryResponse response, long rows) {
-        long count = 0;
-        for (var iterator = response.column(0); iterator.hasNext(); iterator.next()) {
-            count++;
+    private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {
+        var indexColumn = findIndexColumn(response);
+        assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));
+    }
+
+    private static int findIndexColumn(EsqlQueryResponse response) {
+        for (int c = 0; c < response.columns().size(); c++) {
+            if (Objects.equals(response.columns().get(c).name(), MetadataAttribute.INDEX)) {
+                return c;
+            }
         }
-        assertThat(count, equalTo(rows));
+        throw new AssertionError("no _index column found");
     }
 }

@@ -336,8 +336,7 @@ public class EsqlFunctionRegistry {
                 def(Top.class, tri(Top::new), "top"),
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
-                def(Present.class, uni(Present::new), "present")
-            },
+                def(Present.class, uni(Present::new), "present") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),

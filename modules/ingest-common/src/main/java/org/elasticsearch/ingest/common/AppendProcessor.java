@@ -60,6 +60,10 @@ public final class AppendProcessor extends AbstractProcessor {
         return value;
     }
 
+    public String getCopyFrom() {
+        return copyFrom;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         String path = document.renderTemplate(field);

@@ -20,8 +20,8 @@ merge_base=$(git merge-base "${GITHUB_PR_TARGET_BRANCH}" HEAD)
 # PR comment
 buildkite-agent meta-data set pr_comment:early_comment_job_id "$BUILDKITE_JOB_ID"
 buildkite-agent meta-data set pr_comment:custom-body:body \
-  "This build attempts two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR." \
-  "To estimate benchmark completion time inspect previous nightly runs [here](https://buildkite.com/elastic/elasticsearch-performance-esbench-nightly/builds?branch=master)."
+  "This build attempts two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR. \
+To estimate benchmark completion time inspect previous nightly runs [here](https://buildkite.com/elastic/elasticsearch-performance-esbench-nightly/builds?branch=master)."
 buildkite-agent meta-data set pr_comment:custom-baseline:head \
   "* Baseline: ${merge_base} (env ID ${env_id_baseline})"
 buildkite-agent meta-data set pr_comment:custom-contender:head \

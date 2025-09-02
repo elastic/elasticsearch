@@ -25,6 +25,45 @@ import org.elasticsearch.test.ESTestCase;
  * copied and modified from Lucene
  */
 public class NeighborQueueTests extends ESTestCase {
+
+    public void testBulkTransfer() {
+        NeighborQueue singles = new NeighborQueue(4, true);
+        singles.add(2, 2f);
+        singles.add(1, 1f);
+        singles.add(3, 3f);
+        assertEquals(3, singles.size());
+
+        NeighborQueue toTransfer = new NeighborQueue(4, true);
+        toTransfer.add(2, 2f);
+        toTransfer.add(1, 1f);
+        toTransfer.add(3, 3f);
+        assertEquals(3, toTransfer.size());
+
+        NeighborQueue bulk = new NeighborQueue(4, true);
+        long[] buffer = new long[8];
+        bulk.bulkTransfer(3, buffer, toTransfer);
+        assertEquals(singles.size(), bulk.size());
+        assertEquals(singles.topScore(), bulk.topScore(), 0);
+        bulk.pop();
+        singles.pop();
+        assertEquals(singles.topScore(), bulk.topScore(), 0);
+        // add 4 more to force resize and then check equality again
+        singles.add(5, 5f);
+        toTransfer.add(5, 5f);
+        singles.add(4, 4f);
+        toTransfer.add(4, 4f);
+        singles.add(7, 7f);
+        toTransfer.add(7, 7f);
+        singles.add(6, 6f);
+        toTransfer.add(6, 6f);
+        bulk.bulkTransfer(4, buffer, toTransfer);
+        assertEquals(singles.size(), bulk.size());
+        assertEquals(singles.topScore(), bulk.topScore(), 0);
+        bulk.pop();
+        singles.pop();
+        assertEquals(singles.topScore(), bulk.topScore(), 0);
+    }
+
     public void testNeighborsProduct() {
         // make sure we have the sign correct
         NeighborQueue nn = new NeighborQueue(2, false);

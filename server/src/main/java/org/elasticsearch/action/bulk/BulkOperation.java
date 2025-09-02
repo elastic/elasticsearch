@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -405,7 +404,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                 // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
                 var indexMetadata = project.index(shardId.getIndexName());
-                int reshardSplitShardCount = indexMetadata.getReshardSplitShardCount(shardId.getId());
+                int reshardSplitShardCount = indexMetadata.getReshardSplitShardCount(
+                    shardId.getId(),
+                    IndexReshardingState.Split.TargetShardState.HANDOFF
+                );
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     reshardSplitShardCount,

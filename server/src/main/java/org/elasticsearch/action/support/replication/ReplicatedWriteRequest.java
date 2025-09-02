@@ -43,6 +43,10 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
+    public ReplicatedWriteRequest(@Nullable ShardId shardId) {
+        this(shardId, 0);
+    }
+
     public ReplicatedWriteRequest(@Nullable ShardId shardId, int reshardSplitShardCount) {
         super(shardId, reshardSplitShardCount);
     }

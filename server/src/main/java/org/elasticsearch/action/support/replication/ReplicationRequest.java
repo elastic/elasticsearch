@@ -99,6 +99,13 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     /**
      * Creates a new request with resolved shard id
      */
+    public ReplicationRequest(@Nullable ShardId shardId) {
+        this(shardId, 0);
+    }
+
+    /**
+     * Creates a new request with resolved shard id and reshardSplitShardCount
+     */
     public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount) {
         this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;

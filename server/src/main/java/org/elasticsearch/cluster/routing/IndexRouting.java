@@ -171,7 +171,6 @@ public abstract class IndexRouting {
         return shardId;
     }
 
-
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
         private final IndexVersion creationVersion;

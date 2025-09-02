@@ -1150,15 +1150,21 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return numberOfShards;
     }
 
-    public int getReshardSplitShardCount(int shardId) {
+    /**
+     * The reshardSplitShardCount tells us weather requests are being routed to the source shard or
+     * to both source and target shards. Requests are routed to both source and target shards
+     * once the target shards are ready for an operation.
+     * @param shardId  Input shardId for which we want to calculate the effective shard count
+     * @return Effective shard count as seen by an operation using this IndexMetadata
+     */
+    public int getReshardSplitShardCount(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
         int shardCount = getNumberOfShards();
         if (reshardingMetadata != null) {
             if (reshardingMetadata.getSplit().isTargetShard(shardId)) {
-                // TODO: Assert that target state is atleast HANDOFF
+                // TODO: Assert that target state is atleast minShardState
                 shardCount = reshardingMetadata.getSplit().shardCountAfter();
             } else if (reshardingMetadata.getSplit().isSourceShard(shardId)) {
-                if (reshardingMetadata.getSplit()
-                    .allTargetStatesAtLeast(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF)) {
+                if (reshardingMetadata.getSplit().allTargetStatesAtLeast(shardId, minShardState)) {
                     shardCount = reshardingMetadata.getSplit().shardCountAfter();
                 } else {
                     shardCount = reshardingMetadata.getSplit().shardCountBefore();

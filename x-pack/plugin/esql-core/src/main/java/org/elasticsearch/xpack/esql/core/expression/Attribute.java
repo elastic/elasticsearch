@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.TransportVersions.ESQL_QUALIFIERS_IN_ATTRIBUTES;
 
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
@@ -37,6 +36,8 @@ public abstract class Attribute extends NamedExpression {
      * Changing this will break bwc with 8.15, see {@link FieldAttribute#fieldName()}.
      */
     protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+
+    private static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = TransportVersion.fromName("esql_qualifiers_in_attributes");
 
     // can the attr be null
     private final Nullability nullability;
@@ -204,7 +205,7 @@ public abstract class Attribute extends NamedExpression {
     public abstract boolean isDimension();
 
     protected void checkAndSerializeQualifier(PlanStreamOutput out, TransportVersion version) throws IOException {
-        if (version.onOrAfter(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+        if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
             out.writeOptionalCachedString(qualifier());
         } else if (qualifier() != null) {
             // Non-null qualifier means the query specifically defined one. Old nodes don't know what to do with it and just writing
@@ -215,7 +216,7 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected static String readQualifier(PlanStreamInput in, TransportVersion version) throws IOException {
-        if (version.onOrAfter(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+        if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
             return in.readOptionalCachedString();
         }
         return null;

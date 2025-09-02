@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -36,41 +39,46 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
             new TestCaseSupplier(
                 "int",
                 List.of(DataType.INTEGER),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(
-                            1,
-                            DataType.INTEGER,
-                            "int"
-                        )
-                    ),
-                    evaluatorName("Int", "i"),
-                    DataType.DENSE_VECTOR,
-                    equalTo(1.0f)
-                )
+                () -> {
+                    List<Integer> data = Arrays.asList(randomArray(1, 10, Integer[]::new, ESTestCase::randomInt));
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(
+                                data,
+                                DataType.INTEGER,
+                                "int"
+                            )
+                        ),
+                        evaluatorName("Int", "i"),
+                        DataType.DENSE_VECTOR,
+                        equalTo(data.stream().map(Number::floatValue).toList())
+                    );
+                }
             )
         );
 
-        // Multi-valued inputs
         suppliers.add(
             new TestCaseSupplier(
-                "mv_long",
+                "long",
                 List.of(DataType.LONG),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(
-                            List.of(1L, 2L, 3L),
-                            DataType.LONG,
-                            "mv_long"
-                        )
-                    ),
-                    evaluatorName("Long", "l"),
-                    DataType.DENSE_VECTOR,
-                    equalTo(List.of(1.0f, 2.0f, 3.0f))
-                )
+                () -> {
+                    List<Long> data = Arrays.asList(randomArray(1, 10, Long[]::new, ESTestCase::randomLong));
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(
+                                data,
+                                DataType.LONG,
+                                "long"
+                            )
+                        ),
+                        evaluatorName("Long", "l"),
+                        DataType.DENSE_VECTOR,
+                        equalTo(data.stream().map(Number::floatValue).toList())
+                    );
+                }
             )
         );
-        
+
         suppliers.add(
             new TestCaseSupplier(
                 "mv_string",

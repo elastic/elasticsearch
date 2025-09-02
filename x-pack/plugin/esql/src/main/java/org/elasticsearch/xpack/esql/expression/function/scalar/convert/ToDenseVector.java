@@ -28,9 +28,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class ToDenseVector extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -43,7 +41,6 @@ public class ToDenseVector extends AbstractConvertFunction {
         Map.entry(DENSE_VECTOR, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToDenseVectorFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToDenseVectorFromStringEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToDenseVectorFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToDenseVectorFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToDenseVectorFromIntEvaluator.Factory::new),
         Map.entry(DOUBLE, ToDenseVectorFromDoubleEvaluator.Factory::new)
@@ -57,7 +54,7 @@ public class ToDenseVector extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "keyword", "text", "double", "long", "unsigned_long", "integer", "float" },
+            type = { "keyword", "text", "double", "long", "integer" },
             description = "Input multi-valued column or an expression."
         ) Expression field
     ) {
@@ -96,11 +93,6 @@ public class ToDenseVector extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { org.elasticsearch.xpack.esql.core.InvalidArgumentException.class })
     static float fromString(BytesRef in) {
         return (float) stringToDouble(in.utf8ToString());
-    }
-
-    @ConvertEvaluator(extraName = "FromUnsignedLong")
-    static float fromUnsignedLong(long l) {
-        return (float) unsignedLongToDouble(l);
     }
 
     @ConvertEvaluator(extraName = "FromLong")

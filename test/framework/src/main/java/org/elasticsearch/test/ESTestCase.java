@@ -20,7 +20,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1240,6 +1239,18 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
+    }
+
+    /**
+     * Generates a string containing a random number of random length alphas, all delimited by space.
+     */
+    public static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
+        int numAlphas = randomIntBetween(1, maxAlphas);
+        List<String> alphas = new ArrayList<>(numAlphas);
+        for (int i = 0; i < numAlphas; i++) {
+            alphas.add(randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits));
+        }
+        return String.join(" ", alphas);
     }
 
     /**

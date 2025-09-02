@@ -160,6 +160,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /**
+     * @return The effective shard count as seen by the coordinator when creating this request.
+     * can be 0 if this has not yet been resolved.
+     */
+    public int reshardSplitShardCount() {
+        return reshardSplitShardCount;
+    }
+
+    /**
      * Sets the number of shard copies that must be active before proceeding with the replication
      * operation. Defaults to {@link ActiveShardCount#DEFAULT}, which requires one shard copy
      * (the primary) to be active. Set this value to {@link ActiveShardCount#ALL} to

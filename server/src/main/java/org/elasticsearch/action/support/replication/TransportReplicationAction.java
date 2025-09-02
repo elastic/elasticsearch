@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -459,7 +460,9 @@ public abstract class TransportReplicationAction<
             try {
                 final ClusterState clusterState = clusterService.state();
                 final Index index = primaryShardReference.routingEntry().index();
-                final ProjectId projectId = clusterState.metadata().projectFor(index).id();
+                final ProjectMetadata project = clusterState.metadata().projectFor(index);
+                final ProjectId projectId = project.id();
+                final IndexMetadata indexMetadata = project.index(index);
 
                 final ClusterBlockException blockException = blockExceptions(clusterState, projectId, index.getName());
                 if (blockException != null) {
@@ -467,6 +470,12 @@ public abstract class TransportReplicationAction<
                     throw blockException;
                 }
 
+                int reshardSplitShardCount = primaryRequest.getRequest().reshardSplitShardCount();
+                assert (reshardSplitShardCount == 0
+                    || reshardSplitShardCount == indexMetadata.getReshardSplitShardCount(
+                        primaryRequest.getRequest().shardId().getId(),
+                        IndexReshardingState.Split.TargetShardState.HANDOFF
+                    ));
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                     setPhase(replicationTask, "primary_delegation");

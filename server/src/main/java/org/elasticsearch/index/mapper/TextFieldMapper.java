@@ -311,11 +311,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
             this.withinMultiField = withinMultiField;
 
-            // don't enable norms by default if the index is LOGSDB or TSDB based
-            this.norms = Parameter.normsParam(
-                m -> ((TextFieldMapper) m).norms,
-                () -> indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES
-            );
+            this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, this::normsDefault);
 
             // If synthetic source is used we need to either store this field
             // to recreate the source or use keyword multi-fields for that.
@@ -339,6 +335,15 @@ public final class TextFieldMapper extends FieldMapper {
                 m -> (((TextFieldMapper) m).positionIncrementGap),
                 indexCreatedVersion
             );
+        }
+
+        private boolean normsDefault() {
+            if (indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
+                // don't enable norms by default if the index is LOGSDB or TSDB based
+                return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
+            }
+            // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
+            return true;
         }
 
         public static boolean multiFieldsNotStoredByDefaultIndexVersionCheck(IndexVersion indexCreatedVersion) {

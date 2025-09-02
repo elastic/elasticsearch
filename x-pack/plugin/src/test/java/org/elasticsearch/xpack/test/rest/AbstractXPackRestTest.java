@@ -125,8 +125,8 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
 
     protected Predicate<String> waitForPendingTasksFilter() {
         return task -> {
-            // Don't check rollup jobs because we clear them in the superclass.
-            return task.contains(RollupJob.NAME);
+            // Don't check rollup jobs or data stream reindex tasks because we clear them in the superclass.
+            return task.contains(RollupJob.NAME) || task.contains("reindex-data-stream");
         };
     }
 

@@ -15,10 +15,12 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -65,7 +67,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -152,7 +154,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
     }
 
@@ -212,8 +214,9 @@ public class TransformMetadata implements Metadata.ProjectCustom {
     }
 
     /**
-     * @deprecated use {@link #transformMetadata(ClusterState, ProjectId)}
+     * @deprecated use {@link #transformMetadata(ProjectMetadata)}
      */
+    @FixForMultiProject
     @Deprecated(forRemoval = true)
     public static TransformMetadata getTransformMetadata(ClusterState state) {
         TransformMetadata TransformMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
@@ -223,6 +226,11 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         return TransformMetadata;
     }
 
+    /**
+     * @deprecated use {@link #transformMetadata(ProjectMetadata)}
+     */
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
     public static TransformMetadata transformMetadata(@Nullable ClusterState state, @Nullable ProjectId projectId) {
         if (state == null || projectId == null) {
             return EMPTY_METADATA;
@@ -230,18 +238,32 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         return transformMetadata(state.projectState(projectId));
     }
 
+    /**
+     * @deprecated use {@link #transformMetadata(ProjectMetadata)}
+     */
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
     public static TransformMetadata transformMetadata(@Nullable ProjectState projectState) {
         if (projectState == null) {
             return EMPTY_METADATA;
         }
-        TransformMetadata transformMetadata = projectState.metadata().custom(TYPE);
+        return transformMetadata(projectState.metadata());
+    }
+
+    public static TransformMetadata transformMetadata(ProjectMetadata project) {
+        TransformMetadata transformMetadata = project == null ? null : project.custom(TYPE);
         if (transformMetadata == null) {
             return EMPTY_METADATA;
         }
         return transformMetadata;
     }
 
+    @Deprecated(forRemoval = true)
     public static boolean upgradeMode(ClusterState state) {
         return getTransformMetadata(state).upgradeMode();
+    }
+
+    public static boolean upgradeMode(ProjectMetadata project) {
+        return transformMetadata(project).upgradeMode();
     }
 }

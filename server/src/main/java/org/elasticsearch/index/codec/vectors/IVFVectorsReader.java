@@ -269,6 +269,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // is enough?
             expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
             actualDocs += scorer.visit(knnCollector);
+            if (knnCollector.getSearchStrategy() != null) {
+                knnCollector.getSearchStrategy().nextVectorsBlock();
+            }
         }
         if (acceptDocs != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
@@ -278,6 +281,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
                 scorer.resetPostingsScorer(offsetAndLength.offset());
                 actualDocs += scorer.visit(knnCollector);
+                if (knnCollector.getSearchStrategy() != null) {
+                    knnCollector.getSearchStrategy().nextVectorsBlock();
+                }
             }
         }
     }

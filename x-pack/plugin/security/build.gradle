@@ -81,20 +81,13 @@ dependencies {
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.22.2"
   runtimeOnly "com.nimbusds:content-type:2.3"
-  api project(path: xpackModule('security:lib:nimbus-jose-jwt-modified'), configuration: 'shadow')
-  if (isEclipse) {
-    /*
-     * Eclipse can't pick up the shadow dependency so we point it at the unmodified version of the library
-     * so it can compile things.
-     */
-    api "com.nimbusds:nimbus-jose-jwt:10.0.2"
-  }
+  api "com.nimbusds:nimbus-jose-jwt:10.0.2"
   api "com.nimbusds:lang-tag:1.7"
   api "com.sun.mail:jakarta.mail:1.6.8"
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.5.2"
   api "net.minidev:accessors-smart:2.5.2"
-  api "org.ow2.asm:asm:9.7.1"
+  api "org.ow2.asm:asm:9.8"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
@@ -174,9 +167,10 @@ tasks.named("processTestResources").configure {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
-artifacts {
+
+tasks.named('assemble').configure {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
+  dependsOn tasks.named('jar')
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -185,6 +179,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /failureaccess.*/, to: 'guava'
   mapping from: 'content-type', to: 'nimbus'
+  mapping from: /nimbus.*/, to: 'nimbus'
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -197,7 +192,6 @@ tasks.named("forbiddenPatterns").configure {
 tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files(
     'forbidden/ldap-signatures.txt',
-    'forbidden/xml-signatures.txt',
     'forbidden/oidc-signatures.txt',
     project(':modules:transport-netty4').file('forbidden/netty-signatures.txt')
   )
@@ -387,6 +381,16 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.util.Arrays',
     'org.bouncycastle.util.io.Streams',
     'org.bouncycastle.cert.X509CertificateHolder',
+    // missing classes linked by nimbus
+    'com.google.crypto.tink.subtle.Ed25519Sign',
+    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+    'com.google.crypto.tink.subtle.Ed25519Verify',
+    'com.google.crypto.tink.subtle.X25519',
+    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+    'org.bouncycastle.openssl.PEMKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
   )
 
   ignoreViolations(

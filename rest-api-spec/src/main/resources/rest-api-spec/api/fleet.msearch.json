@@ -2,7 +2,7 @@
   "fleet.msearch":{
     "documentation":{
       "url": null,
-      "description": "Multi Search API where the search will only be executed after specified checkpoints are available due to a refresh. This API is designed for internal use by the fleet server project."
+      "description": "Run multiple Fleet searches"
     },
     "stability":"experimental",
     "visibility":"public",

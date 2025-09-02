@@ -128,6 +128,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 "cpu": {
                   "type": "double",
                   "time_series_metric": "gauge"
+                },
+                "request": {
+                  "type": "double",
+                  "time_series_metric": "counter"
                 }
               }
             }
@@ -144,6 +148,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("host", randomFrom("host1", "host2", "host3"))
                     .field("cluster", randomFrom("cluster1", "cluster2", "cluster3"))
                     .field("cpu", randomDouble())
+                    .field("request", randomDoubleBetween(0, 100, true))
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -155,6 +160,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
         List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
         String sourceIndex = backingIndices.get(0);
+        String secondIndex = backingIndices.get(1);
         String interval = "5m";
         String targetIndex = "downsample-" + interval + "-" + sourceIndex;
         // Set the source index to read-only state
@@ -211,6 +217,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("host", randomFrom("host1", "host2", "host3"))
                     .field("cluster", randomFrom("cluster1", "cluster2", "cluster3"))
                     .field("cpu", randomDouble())
+                    .field("request", randomDoubleBetween(0, 100, true))
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -226,9 +233,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
         // Since the downsampled field (cpu) is downsampled in one index and not in the other, we want to confirm
         // first that the field is unsupported and has 2 original types - double and aggregate_metric_double
-        try (var resp = esqlCommand("TS " + dataStreamName + " | KEEP @timestamp, host, cluster, cpu")) {
+        try (var resp = esqlCommand("TS " + dataStreamName + " | KEEP @timestamp, host, cluster, cpu, request")) {
             var columns = resp.columns();
-            assertThat(columns, hasSize(4));
+            assertThat(columns, hasSize(5));
             assertThat(
                 resp.columns(),
                 equalTo(
@@ -236,22 +243,45 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                         new ColumnInfoImpl("@timestamp", "date", null),
                         new ColumnInfoImpl("host", "keyword", null),
                         new ColumnInfoImpl("cluster", "keyword", null),
-                        new ColumnInfoImpl("cpu", "unsupported", List.of("aggregate_metric_double", "double"))
+                        new ColumnInfoImpl("cpu", "unsupported", List.of("aggregate_metric_double", "double")),
+                        new ColumnInfoImpl("request", "counter_double", null)
                     )
                 )
             );
         }
 
         // test _over_time commands with implicit casting of aggregate_metric_double
-        for (String innerCommand : List.of("min_over_time", "max_over_time", "avg_over_time", "count_over_time")) {
-            for (String outerCommand : List.of("min", "max", "sum", "count")) {
+        for (String outerCommand : List.of("min", "max", "sum", "count")) {
+            String expectedType = outerCommand.equals("count") ? "long" : "double";
+            for (String innerCommand : List.of("min_over_time", "max_over_time", "avg_over_time", "count_over_time")) {
                 String command = outerCommand + " (" + innerCommand + "(cpu))";
-                String expectedType = innerCommand.equals("count_over_time") || outerCommand.equals("count") ? "long" : "double";
                 try (var resp = esqlCommand("TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")) {
                     var columns = resp.columns();
                     assertThat(columns, hasSize(3));
                     assertThat(
                         resp.columns(),
+                        equalTo(
+                            List.of(
+                                new ColumnInfoImpl(command, innerCommand.equals("count_over_time") ? "long" : expectedType, null),
+                                new ColumnInfoImpl("cluster", "keyword", null),
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
+                            )
+                        )
+                    );
+                    // TODO: verify the numbers are accurate
+                }
+            }
+            // tests on non-downsampled index
+            // TODO: combine with above when support for aggregate_metric_double + implicit casting is added
+            // TODO: add to counter tests below when support for counters is added
+            for (String innerCommand : List.of("first_over_time", "last_over_time")) {
+                String command = outerCommand + " (" + innerCommand + "(cpu))";
+                try (var resp = esqlCommand("TS " + secondIndex + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")) {
+                    var columns = resp.columns();
+                    assertThat(columns, hasSize(3));
+                    assertThat(
+                        "resp is " + resp,
+                        columns,
                         equalTo(
                             List.of(
                                 new ColumnInfoImpl(command, expectedType, null),
@@ -260,7 +290,30 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                             )
                         )
                     );
-                    // TODO: verify the numbers are accurate
+                }
+            }
+
+            // tests on counter types
+            for (String innerCommand : List.of("rate")) {
+                String command = outerCommand + " (" + innerCommand + "(request))";
+                String esqlQuery = "TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)";
+                try (
+                    var resp = client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(esqlQuery))
+                        .actionGet(30, TimeUnit.SECONDS)
+                ) {
+                    var columns = resp.columns();
+                    assertThat(columns, hasSize(3));
+                    assertThat(
+                        "resp is " + resp,
+                        columns,
+                        equalTo(
+                            List.of(
+                                new ColumnInfoImpl(command, expectedType, null),
+                                new ColumnInfoImpl("cluster", "keyword", null),
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
+                            )
+                        )
+                    );
                 }
             }
         }

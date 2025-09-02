@@ -142,6 +142,6 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

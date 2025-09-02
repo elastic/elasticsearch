@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -23,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -48,14 +48,10 @@ public class ElasticInferenceServiceRerankServiceSettingsTests extends AbstractB
     public void testFromMap() {
         var modelId = "my-model-id";
 
-        var serviceSettings = ElasticInferenceServiceRerankServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-            ConfigurationParseContext.REQUEST
-        );
+        var serviceSettings = ElasticInferenceServiceRerankServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)));
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceRerankServiceSettings(modelId)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
-        assertFalse(serviceSettings.rateLimitSettings().isEnabled());
     }
 
     public void testFromMap_RemovesRateLimitingField() {
@@ -69,11 +65,11 @@ public class ElasticInferenceServiceRerankServiceSettingsTests extends AbstractB
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
         );
-        var serviceSettings = ElasticInferenceServiceRerankServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+        var serviceSettings = ElasticInferenceServiceRerankServiceSettings.fromMap(map);
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceRerankServiceSettings(modelId)));
+        assertThat(map, anEmptyMap());
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
-        assertFalse(serviceSettings.rateLimitSettings().isEnabled());
     }
 
     public void testToXContent_WritesAllFields() throws IOException {

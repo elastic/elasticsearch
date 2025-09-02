@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -118,7 +119,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         assertThat(res, is(new RateLimitSettings(1, TimeUnit.MINUTES, false)));
         assertThat(res, sameInstance(RateLimitSettings.DISABLED_INSTANCE));
         assertFalse(res.isEnabled());
-        assertThat(settings, is(new HashMap<>()));
+        assertThat(settings, anEmptyMap());
     }
 
     public void testToXContent_WhenDisabled() throws IOException {

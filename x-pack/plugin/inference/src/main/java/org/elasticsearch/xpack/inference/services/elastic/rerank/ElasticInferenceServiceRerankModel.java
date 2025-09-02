@@ -45,7 +45,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceE
             inferenceEntityId,
             taskType,
             service,
-            ElasticInferenceServiceRerankServiceSettings.fromMap(serviceSettings, context),
+            ElasticInferenceServiceRerankServiceSettings.fromMap(serviceSettings),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents

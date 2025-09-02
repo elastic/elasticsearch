@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -24,6 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -65,8 +65,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens
                 )
-            ),
-            ConfigurationParseContext.REQUEST
+            )
         );
 
         assertThat(serviceSettings.modelId(), is(modelId));
@@ -95,15 +94,14 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
         );
-        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map);
 
-        assertThat(map, is(Map.of()));
+        assertThat(map, anEmptyMap());
         assertThat(serviceSettings.modelId(), is(modelId));
         assertThat(serviceSettings.similarity(), is(similarity));
         assertThat(serviceSettings.dimensions(), is(dimensions));
         assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
-        assertFalse(serviceSettings.rateLimitSettings().isEnabled());
     }
 
     public void testToXContent_WritesAllFields() throws IOException {

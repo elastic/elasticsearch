@@ -57,7 +57,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             inferenceEntityId,
             taskType,
             service,
-            ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
+            ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents

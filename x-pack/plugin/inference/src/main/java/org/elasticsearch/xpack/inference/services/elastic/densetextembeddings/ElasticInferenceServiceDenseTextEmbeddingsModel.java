@@ -47,7 +47,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
             inferenceEntityId,
             taskType,
             service,
-            ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(serviceSettings),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents,

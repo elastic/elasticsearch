@@ -18,7 +18,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -48,40 +47,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
 
-    public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromMap(
-        Map<String, Object> map,
-        ConfigurationParseContext context
-    ) {
-        return switch (context) {
-            case REQUEST -> fromRequestMap(map, context);
-            case PERSISTENT -> fromPersistentMap(map, context);
-        };
-    }
-
-    private static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromRequestMap(
-        Map<String, Object> map,
-        ConfigurationParseContext context
-    ) {
-        ValidationException validationException = new ValidationException();
-
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings.disabledRateLimiting(map);
-
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
-    }
-
-    private static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromPersistentMap(
-        Map<String, Object> map,
-        ConfigurationParseContext context
-    ) {
+    public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);

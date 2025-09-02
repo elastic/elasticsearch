@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -37,10 +36,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     public static final String NAME = "elastic_inference_service_sparse_embeddings_service_settings";
 
-    public static ElasticInferenceServiceSparseEmbeddingsServiceSettings fromMap(
-        Map<String, Object> map,
-        ConfigurationParseContext context
-    ) {
+    public static ElasticInferenceServiceSparseEmbeddingsServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);

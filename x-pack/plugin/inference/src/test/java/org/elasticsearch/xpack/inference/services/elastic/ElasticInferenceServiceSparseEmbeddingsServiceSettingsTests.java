@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
@@ -25,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -52,8 +52,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         var modelId = "my-model-id";
 
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-            ConfigurationParseContext.REQUEST
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId))
         );
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
@@ -69,12 +68,11 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
         );
-        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map);
 
-        assertThat(map, is(Map.of()));
+        assertThat(map, anEmptyMap());
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
-        assertThat(serviceSettings.rateLimitSettings().isEnabled(), is(false));
     }
 
     public void testToXContent_WritesAllFields() throws IOException {

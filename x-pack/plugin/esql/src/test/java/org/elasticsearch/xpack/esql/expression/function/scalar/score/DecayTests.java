@@ -31,7 +31,6 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-// TODO: integration test case without options
 public class DecayTests extends AbstractScalarFunctionTestCase {
 
     public DecayTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -594,8 +593,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.INTEGER, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.INTEGER, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.INTEGER, "scale"),
+                        new TestCaseSupplier.TypedData(origin, DataType.INTEGER, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.INTEGER, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
@@ -622,8 +621,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.LONG, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.LONG, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.LONG, "scale"),
+                        new TestCaseSupplier.TypedData(origin, DataType.LONG, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.LONG, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
@@ -650,8 +649,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.DOUBLE, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.DOUBLE, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.DOUBLE, "scale"),
+                        new TestCaseSupplier.TypedData(origin, DataType.DOUBLE, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.DOUBLE, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
@@ -678,8 +677,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
-                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
@@ -706,8 +705,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
-                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.KEYWORD, "scale"),
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.KEYWORD, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
@@ -734,8 +733,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(GEO.wktToWkb(valueWkt), DataType.GEO_POINT, "value"),
-                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale"),
+                        new TestCaseSupplier.TypedData(GEO.wktToWkb(originWkt), DataType.GEO_POINT, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.TEXT, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
@@ -762,8 +761,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb(valueWkt), DataType.CARTESIAN_POINT, "value"),
-                        new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb(originWkt), DataType.CARTESIAN_POINT, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.DOUBLE, "scale"),
+                        new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb(originWkt), DataType.CARTESIAN_POINT, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.DOUBLE, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
@@ -790,8 +789,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.DATETIME, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.DATETIME, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale"),
+                        new TestCaseSupplier.TypedData(origin, DataType.DATETIME, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
@@ -818,8 +817,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(value, DataType.DATE_NANOS, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.DATE_NANOS, "origin"),
-                        new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale"),
+                        new TestCaseSupplier.TypedData(origin, DataType.DATE_NANOS, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale").forceLiteral(),
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),

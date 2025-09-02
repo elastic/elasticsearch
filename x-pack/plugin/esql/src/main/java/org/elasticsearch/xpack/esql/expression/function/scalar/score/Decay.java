@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -82,6 +84,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
 
+    public static final String ORIGIN = "origin";
+    public static final String SCALE = "scale";
     public static final String OFFSET = "offset";
     public static final String DECAY = "decay";
     public static final String TYPE = "type";
@@ -105,7 +109,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
 
     private static final Double DEFAULT_DECAY = 0.5;
 
-    private static final String DEFAULT_FUNCTION = "linear";
+    private static final BytesRef DEFAULT_FUNCTION = new BytesRef("linear");
 
     private final Expression origin;
     private final Expression value;
@@ -130,12 +134,12 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
             description = "The input value to apply decay scoring to."
         ) Expression value,
         @Param(
-            name = "origin",
+            name = ORIGIN,
             type = { "double", "integer", "long", "date", "date_nanos", "geo_point", "cartesian_point" },
             description = "Central point from which the distances are calculated."
         ) Expression origin,
         @Param(
-            name = "scale",
+            name = SCALE,
             type = { "double", "integer", "long", "time_duration", "keyword", "text" },
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
@@ -284,11 +288,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        EvalOperator.ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
-        EvalOperator.ExpressionEvaluator.Factory originFactory = toEvaluator.apply(origin);
-
         DataType valueDataType = value.dataType();
-
         Options.populateMapWithExpressionsMultipleDataTypesAllowed(
             (MapExpression) options,
             resolvedOptions,
@@ -297,86 +297,86 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
             ALLOWED_OPTIONS
         );
 
-        Expression offset = (Expression) resolvedOptions.get(OFFSET);
-        Expression decay = (Expression) resolvedOptions.get(DECAY);
-        Expression type = (Expression) resolvedOptions.get(TYPE);
+        EvalOperator.ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
 
-        EvalOperator.ExpressionEvaluator.Factory scaleFactory = getScaleFactory(toEvaluator, valueDataType);
-        EvalOperator.ExpressionEvaluator.Factory offsetFactory = getOffsetFactory(toEvaluator, valueDataType, offset);
+        Expression offsetExpr = (Expression) resolvedOptions.get(OFFSET);
+        Expression decayExpr = (Expression) resolvedOptions.get(DECAY);
+        Expression typeExpr = (Expression) resolvedOptions.get(TYPE);
 
-        EvalOperator.ExpressionEvaluator.Factory decayFactory = decay != null
-            ? toEvaluator.apply(decay)
-            : EvalOperator.DoubleFactory(DEFAULT_DECAY);
+        FoldContext foldCtx = toEvaluator.foldCtx();
 
-        EvalOperator.ExpressionEvaluator.Factory typeFactory = type != null
-            ? toEvaluator.apply(type)
-            : EvalOperator.BytesRefFactory(new BytesRef(DEFAULT_FUNCTION));
+        // Constants
+        Object originFolded = origin.fold(foldCtx);
+        Object scaleFolded = getScale(foldCtx, valueDataType);
+        Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
+        Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
+        BytesRef typeFolded = typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION;
 
         return switch (valueDataType) {
             case INTEGER -> new DecayIntEvaluator.Factory(
                 source(),
                 valueFactory,
-                originFactory,
-                scaleFactory,
-                offsetFactory,
-                decayFactory,
-                typeFactory
+                (Integer) originFolded,
+                (Integer) scaleFolded,
+                (Integer) offsetFolded,
+                decayFolded,
+                typeFolded
             );
             case DOUBLE -> new DecayDoubleEvaluator.Factory(
                 source(),
                 valueFactory,
-                originFactory,
-                scaleFactory,
-                offsetFactory,
-                decayFactory,
-                typeFactory
+                (Double) originFolded,
+                (Double) scaleFolded,
+                (Double) offsetFolded,
+                decayFolded,
+                typeFolded
             );
             case LONG -> new DecayLongEvaluator.Factory(
                 source(),
                 valueFactory,
-                originFactory,
-                scaleFactory,
-                offsetFactory,
-                decayFactory,
-                typeFactory
+                (Long) originFolded,
+                (Long) scaleFolded,
+                (Long) offsetFolded,
+                decayFolded,
+                typeFolded
             );
             case GEO_POINT -> new DecayGeoPointEvaluator.Factory(
                 source(),
                 valueFactory,
-                originFactory,
-                scaleFactory,
-                offsetFactory,
-                decayFactory,
-                typeFactory
+                (BytesRef) originFolded,
+                (BytesRef) scaleFolded,
+                (BytesRef) offsetFolded,
+                decayFolded,
+                typeFolded
             );
             case CARTESIAN_POINT -> new DecayCartesianPointEvaluator.Factory(
                 source(),
                 valueFactory,
-                originFactory,
-                scaleFactory,
-                offsetFactory,
-                decayFactory,
-                typeFactory
+                (BytesRef) originFolded,
+                (Double) scaleFolded,
+                (Double) offsetFolded,
+                decayFolded,
+                typeFolded
             );
             case DATETIME -> new DecayDatetimeEvaluator.Factory(
                 source(),
                 valueFactory,
-                originFactory,
-                scaleFactory,
-                offsetFactory,
-                decayFactory,
-                typeFactory
+                (Long) originFolded,
+                (Long) scaleFolded,
+                (Long) offsetFolded,
+                decayFolded,
+                typeFolded
             );
             case DATE_NANOS -> new DecayDateNanosEvaluator.Factory(
                 source(),
                 valueFactory,
-                originFactory,
-                scaleFactory,
-                offsetFactory,
-                decayFactory,
-                typeFactory
+                (Long) originFolded,
+                (Long) scaleFolded,
+                (Long) offsetFolded,
+                decayFolded,
+                typeFolded
             );
-            default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
+            default -> throw new UnsupportedOperationException("Unsupported data typeExpr: " + valueDataType);
         };
     }
 
@@ -384,24 +384,34 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (LogicalPlan plan, Failures failures) -> {
             Expression offset = (Expression) resolvedOptions.get(OFFSET);
+            Expression decay = (Expression) resolvedOptions.get(DECAY);
+            Expression type = (Expression) resolvedOptions.get(TYPE);
 
-            Map<String, Expression> potentiallyTemporalExpressions = new HashMap<>();
-            potentiallyTemporalExpressions.put("scale", scale);
-            potentiallyTemporalExpressions.put("offset", offset);
+            Map<String, Expression> constantExpressions = new HashMap<>();
+            constantExpressions.put(ORIGIN, origin);
+            constantExpressions.put(SCALE, scale);
+            constantExpressions.put(OFFSET, offset);
+            constantExpressions.put(DECAY, decay);
+            constantExpressions.put(TYPE, type);
 
-            // Verify that scale and offset are constant, if they're of type "time_duration"
-            potentiallyTemporalExpressions.forEach((exprName, expr) -> {
-                if (Objects.nonNull(expr) && isTimeDuration(expr.dataType()) && expr.foldable() == false) {
-                    failures.add(
-                        fail(offset, "Function [{}] has non-constant temporal [{}] [{}].", sourceText(), exprName, offset.sourceText())
-                    );
+            // Verify parameter except "value" is constant
+            constantExpressions.forEach((exprName, expr) -> {
+                if (Objects.nonNull(expr) && expr.foldable() == false) {
+                    failures.add(fail(expr, "Function [{}] has non-constant value [{}] [{}].", sourceText(), exprName, expr.sourceText()));
                 }
             });
         };
     }
 
     @Evaluator(extraName = "Int")
-    static double process(int value, int origin, int scale, int offset, double decay, BytesRef functionType) {
+    static double process(
+        int value,
+        @Fixed int origin,
+        @Fixed int scale,
+        @Fixed int offset,
+        @Fixed double decay,
+        @Fixed BytesRef functionType
+    ) {
         return switch (functionType.utf8ToString()) {
             case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
             case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
@@ -410,7 +420,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
     }
 
     @Evaluator(extraName = "Double")
-    static double process(double value, double origin, double scale, double offset, double decay, BytesRef functionType) {
+    static double process(
+        double value,
+        @Fixed double origin,
+        @Fixed double scale,
+        @Fixed double offset,
+        @Fixed double decay,
+        @Fixed BytesRef functionType
+    ) {
         return switch (functionType.utf8ToString()) {
             case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
             case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
@@ -419,7 +436,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
     }
 
     @Evaluator(extraName = "Long")
-    static double process(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
+    static double process(
+        long value,
+        @Fixed long origin,
+        @Fixed long scale,
+        @Fixed long offset,
+        @Fixed double decay,
+        @Fixed BytesRef functionType
+    ) {
         return switch (functionType.utf8ToString()) {
             case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
             case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
@@ -428,7 +452,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
     }
 
     @Evaluator(extraName = "GeoPoint")
-    static double process(BytesRef value, BytesRef origin, BytesRef scale, BytesRef offset, double decay, BytesRef functionType) {
+    static double process(
+        BytesRef value,
+        @Fixed BytesRef origin,
+        @Fixed BytesRef scale,
+        @Fixed BytesRef offset,
+        @Fixed double decay,
+        @Fixed BytesRef functionType
+    ) {
         Point valuePoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(value);
         GeoPoint valueGeoPoint = new GeoPoint(valuePoint.getY(), valuePoint.getX());
 
@@ -447,7 +478,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
     }
 
     @Evaluator(extraName = "CartesianPoint")
-    static double processCartesianPoint(BytesRef value, BytesRef origin, double scale, double offset, double decay, BytesRef functionType) {
+    static double processCartesianPoint(
+        BytesRef value,
+        @Fixed BytesRef origin,
+        @Fixed double scale,
+        @Fixed double offset,
+        @Fixed double decay,
+        @Fixed BytesRef functionType
+    ) {
         Point valuePoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(value);
         Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
 
@@ -476,7 +514,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
     }
 
     @Evaluator(extraName = "Datetime", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
-    static double processDatetime(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
+    static double processDatetime(
+        long value,
+        @Fixed long origin,
+        @Fixed long scale,
+        @Fixed long offset,
+        @Fixed double decay,
+        @Fixed BytesRef functionType
+    ) {
         return switch (functionType.utf8ToString()) {
             case "exp" -> decayDateExp(origin, scale, offset, decay, value);
             case "gauss" -> decayDateGauss(origin, scale, offset, decay, value);
@@ -485,7 +530,14 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
     }
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
-    static double processDateNanos(long value, long origin, long scale, long offset, double decay, BytesRef functionType) {
+    static double processDateNanos(
+        long value,
+        @Fixed long origin,
+        @Fixed long scale,
+        @Fixed long offset,
+        @Fixed double decay,
+        @Fixed BytesRef functionType
+    ) {
         return switch (functionType.utf8ToString()) {
             case "exp" -> decayDateExp(origin, scale, offset, decay, value);
             case "gauss" -> decayDateGauss(origin, scale, offset, decay, value);
@@ -517,72 +569,65 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
         return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getOffsetFactory(ToEvaluator toEvaluator, DataType valueDataType, Expression offset) {
+    private Object getOffset(FoldContext foldCtx, DataType valueDataType, Expression offset) {
         if (offset == null) {
             return getDefaultOffset(valueDataType);
         }
 
         if (isTimeDuration(offset.dataType()) == false) {
-            return toEvaluator.apply(offset);
+            return offset.fold(foldCtx);
         }
 
         if (isDateNanos(valueDataType)) {
-            return getTemporalOffsetAsNanos(toEvaluator, offset);
+            return getTemporalOffsetAsNanos(foldCtx, offset);
         }
 
-        return getTemporalOffsetAsMillis(toEvaluator, offset);
+        return getTemporalOffsetAsMillis(foldCtx, offset);
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getScaleFactory(ToEvaluator toEvaluator, DataType valueDataType) {
+    private Object getScale(FoldContext foldCtx, DataType valueDataType) {
         if (isTimeDuration(scale.dataType()) == false) {
-            return toEvaluator.apply(scale);
+            return scale.fold(foldCtx);
         }
 
         if (isDateNanos(valueDataType)) {
-            return getTemporalScaleAsNanos(toEvaluator);
+            return getTemporalScaleAsNanos(foldCtx);
         }
 
-        return getTemporalScaleAsMillis(toEvaluator);
+        return getTemporalScaleAsMillis(foldCtx);
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsMillis(ToEvaluator toEvaluator) {
-        Object foldedScale = scale.fold(toEvaluator.foldCtx());
-        long scaleMillis = ((Duration) foldedScale).toMillis();
-
-        return EvalOperator.LongFactory(scaleMillis);
+    private Long getTemporalScaleAsMillis(FoldContext foldCtx) {
+        Object foldedScale = scale.fold(foldCtx);
+        return ((Duration) foldedScale).toMillis();
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getTemporalScaleAsNanos(ToEvaluator toEvaluator) {
-        Object foldedScale = scale.fold(toEvaluator.foldCtx());
-
+    private Long getTemporalScaleAsNanos(FoldContext foldCtx) {
+        Object foldedScale = scale.fold(foldCtx);
         Duration scaleDuration = (Duration) foldedScale;
-        long scaleNanos = scaleDuration.toNanos();
-        return EvalOperator.LongFactory(scaleNanos);
+        return scaleDuration.toNanos();
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsMillis(ToEvaluator toEvaluator, Expression offset) {
-        Object foldedOffset = offset.fold(toEvaluator.foldCtx());
-        long offsetMillis = ((Duration) foldedOffset).toMillis();
-        return EvalOperator.LongFactory(offsetMillis);
+    private Long getTemporalOffsetAsMillis(FoldContext foldCtx, Expression offset) {
+        Object foldedOffset = offset.fold(foldCtx);
+        return ((Duration) foldedOffset).toMillis();
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getTemporalOffsetAsNanos(ToEvaluator toEvaluator, Expression offset) {
-        Object foldedOffset = offset.fold(toEvaluator.foldCtx());
+    private Long getTemporalOffsetAsNanos(FoldContext foldCtx, Expression offset) {
+        Object foldedOffset = offset.fold(foldCtx);
         Duration offsetDuration = (Duration) foldedOffset;
-
-        long offsetNanos = offsetDuration.toNanos();
-        return EvalOperator.LongFactory(offsetNanos);
+        return offsetDuration.toNanos();
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory getDefaultOffset(DataType valueDataType) {
+    private Object getDefaultOffset(DataType valueDataType) {
         return switch (valueDataType) {
-            case INTEGER -> EvalOperator.IntegerFactory(DEFAULT_INTEGER_OFFSET);
-            case LONG -> EvalOperator.LongFactory(DEFAULT_LONG_OFFSET);
-            case DOUBLE -> EvalOperator.DoubleFactory(DEFAULT_DOUBLE_OFFSET);
-            case GEO_POINT -> EvalOperator.BytesRefFactory(DEFAULT_GEO_POINT_OFFSET);
-            case CARTESIAN_POINT -> EvalOperator.DoubleFactory(DEFAULT_CARTESIAN_POINT_OFFSET);
-            case DATETIME, DATE_NANOS -> EvalOperator.LongFactory(DEFAULT_TEMPORAL_OFFSET);
-            default -> throw new UnsupportedOperationException("Unsupported data type: " + value.dataType());
+            case INTEGER -> DEFAULT_INTEGER_OFFSET;
+            case LONG -> DEFAULT_LONG_OFFSET;
+            case DOUBLE -> DEFAULT_DOUBLE_OFFSET;
+            case GEO_POINT -> DEFAULT_GEO_POINT_OFFSET;
+            case CARTESIAN_POINT -> DEFAULT_CARTESIAN_POINT_OFFSET;
+            case DATETIME, DATE_NANOS -> DEFAULT_TEMPORAL_OFFSET;
+            default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
         };
     }
 }

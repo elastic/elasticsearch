@@ -51,6 +51,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -60,6 +62,7 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -739,15 +742,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
     }
 
     public void testRefreshWithNewerOperationPrimaryTermThanOfHollowCommit() throws Exception {
-        startMasterOnlyNode();
+        final var masterNode = startMasterOnlyNode();
         final var indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
             .build();
-        var indexNodeA = startIndexNode(indexNodeSettings);
-        var indexNodeB = startIndexNode(indexNodeSettings);
+        final var indexNodeA = startIndexNode(indexNodeSettings);
+        final var indexNodeB = startIndexNode(indexNodeSettings);
 
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", indexNodeB).build());
@@ -756,10 +759,56 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         hollowShards(indexName, 1, indexNodeA, indexNodeB);
         internalCluster().stopNode(indexNodeA);
         ensureGreen(indexName);
+        final var shardId = findIndexShard(indexName).shardId();
 
         final long primaryTermBefore = getPrimaryTerms(client(), indexName)[0];
         final int primaryTermIncrements = randomIntBetween(1, 5);
         for (int i = 0; i < primaryTermIncrements; i++) {
+            // Infrastructure to be able to wait until the primary term increases and the allocation ID changes
+            final int finalI = i;
+            final var allocationIdBefore = findIndexShard(indexName).routingEntry().allocationId().getId();
+            ClusterService clusterService = internalCluster().clusterService(masterNode);
+            CountDownLatch primaryShardReassigned = new CountDownLatch(1);
+            clusterService.addListener(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    try {
+                        final var clusterState = event.state();
+
+                        boolean primaryTermIncreased = false;
+                        final var indexMetadata = clusterState.metadata().getProject(ProjectId.DEFAULT).index(indexName);
+                        if (indexMetadata != null && indexMetadata.getNumberOfShards() > 0) {
+                            final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
+                            primaryTermIncreased = primaryTerm > primaryTermBefore + finalI;
+                        }
+
+                        boolean allocationIdChanged = false;
+                        final var routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+                        if (routingTable.hasIndex(indexName)) {
+                            final var shardRoutingTable = routingTable.index(indexName).shard(shardId.id());
+                            if (shardRoutingTable != null) {
+                                final var primaryShardRouting = shardRoutingTable.primaryShard();
+                                if (primaryShardRouting != null) {
+                                    final var primaryAllocationId = primaryShardRouting.allocationId();
+                                    allocationIdChanged = primaryAllocationId != null
+                                        && primaryAllocationId.getId().equals(allocationIdBefore) == false;
+                                }
+                            }
+                        }
+
+                        if (primaryTermIncreased && allocationIdChanged) {
+                            primaryShardReassigned.countDown();
+                            clusterService.removeListener(this);
+                        }
+                    } catch (Exception e) {
+                        logger.error("unexpected exception", e);
+                        assert false : "unexpected exception : " + e;
+                        clusterService.removeListener(this);
+                    }
+                }
+            });
+
+            // Increase primary term either by failing shard or restarting the index node
             if (randomBoolean()) {
                 logger.debug("--> failing shard " + (i + 1) + "/" + primaryTermIncrements);
                 findIndexShard(indexName).failShard("broken", new Exception("boom local shard"));
@@ -767,12 +816,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                 logger.debug("--> restarting " + indexNodeB + " " + (i + 1) + "/" + primaryTermIncrements);
                 internalCluster().restartNode(indexNodeB);
             }
-            final int fi = i;
-            assertBusy(() -> {
-                final var primaryTerms = getPrimaryTerms(client(), indexName);
-                assertThat(primaryTerms.length, equalTo(1));
-                assertThat(primaryTerms[0], greaterThan(primaryTermBefore + fi));
-            });
+
+            // Wait for primary term increase
+            safeAwait(primaryShardReassigned);
             ensureGreen(indexName);
         }
 

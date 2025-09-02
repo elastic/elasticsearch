@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -49,17 +48,14 @@ public class PerFieldFormatSupplier {
         // TODO: should we just allow all fields to use tsdb doc values codec?
         // Avoid using tsdb codec for fields like _seq_no, _primary_term.
         // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        Set<String> includeMetaField = new HashSet<>(5);
+        Set<String> includeMetaField = new HashSet<>(3);
         includeMetaField.add(TimeSeriesIdFieldMapper.NAME);
         includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
         if (SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled()) {
             includeMetaField.add(SeqNoFieldMapper.NAME);
         }
-
-        // Values of these doc_values fields can be filtered out in RecoverySourcePruneMergePolicy,
-        // which leads to inconsistencies between merge stats and actual values.
-        includeMetaField.add(SourceFieldMapper.RECOVERY_SOURCE_NAME);
-        includeMetaField.add(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME);
+        // Don't include _recovery_source_size and _recovery_source since their values can be filtered out in
+        // RecoverySourcePruneMergePolicy which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
     }
 

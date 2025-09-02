@@ -19,7 +19,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -38,7 +37,7 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
+public class DefaultIVFVectorsReader extends IVFVectorsReader {
 
     // The percentage of centroids that are scored to keep recall
     public static final double CENTROID_SAMPLING_PERCENTAGE = 0.2;

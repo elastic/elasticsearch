@@ -179,6 +179,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * the result of this method is meaningless, as no rebalance decision was taken.  If {@link #isDecisionTaken()}
      * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
+    // TODO NOMERGE NOTE: Can I leverage this to block rebalancing a hot-spot back to the hot node? Nope, testing only, darn thing.
+    // @VisibleForTesting
     public boolean canRebalanceCluster() {
         checkDecisionState();
         return clusterRebalanceDecision != null && clusterRebalanceDecision.type() == Type.YES;
@@ -192,6 +194,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an
      * {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     @Nullable
     public Decision getClusterRebalanceDecision() {
         checkDecisionState();

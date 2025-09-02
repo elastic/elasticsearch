@@ -73,7 +73,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 shardRouting.shardId()
             );
             logger.debug(explain);
-            return Decision.single(Decision.Type.NO, NAME, explain);
+            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
         if (calculateShardMovementChange(nodeWriteThreadPoolStats, shardWriteLoad) >= nodeWriteThreadPoolLoadThreshold) {
@@ -92,7 +92,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 nodeWriteThreadPoolStats.totalThreadPoolThreads()
             );
             logger.debug(explain);
-            return Decision.single(Decision.Type.NO, NAME, explain);
+            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
         return Decision.YES;

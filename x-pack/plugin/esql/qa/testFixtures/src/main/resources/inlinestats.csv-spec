@@ -3084,7 +3084,7 @@ count:long  |  message:keyword
 
 multiIndexInlinestats OfMultiTypedField
 required_capability: inlinestats_v11
-
+// https://github.com/elastic/elasticsearch/issues/133973
 FROM apps, apps_short
 | INLINESTATS s = sum(id::integer)
 | SORT name, version

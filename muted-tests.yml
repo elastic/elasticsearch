@@ -678,6 +678,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/133520
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:inlinestats.MultiIndexInlinestats OfMultiTypedField}
+  issue: https://github.com/elastic/elasticsearch/issues/133973
 
 # Examples:
 #

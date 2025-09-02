@@ -185,22 +185,19 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return total;
     }
 
-    private static final class DatasetOrVectors {
+    private static final class DatasetOrVectors implements AutoCloseable {
         private final CuVSMatrix dataset;
-        private final float[][] vectors;
+        private final List<float[]> vectors;
 
-        static DatasetOrVectors fromArray(float[][] vectors) {
-            return new DatasetOrVectors(
-                vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : CuVSMatrix.ofArray(vectors),
-                vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? vectors : null
-            );
+        static DatasetOrVectors fromArray(List<float[]> vectors) {
+            return new DatasetOrVectors(null, vectors);
         }
 
         static DatasetOrVectors fromDataset(CuVSMatrix dataset) {
             return new DatasetOrVectors(dataset, null);
         }
 
-        private DatasetOrVectors(CuVSMatrix dataset, float[][] vectors) {
+        private DatasetOrVectors(CuVSMatrix dataset, List<float[]> vectors) {
             this.dataset = dataset;
             this.vectors = vectors;
             validateState();
@@ -213,28 +210,47 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         }
 
         int size() {
-            return dataset != null ? (int) dataset.size() : vectors.length;
+            return dataset != null ? (int) dataset.size() : vectors.size();
         }
 
-        CuVSMatrix getDataset() {
-            return dataset;
-        }
-
-        float[][] getVectors() {
-            return vectors;
+        @Override
+        public void close() {
+            if (dataset != null) {
+                dataset.close();
+            }
         }
     }
 
     private void writeField(FieldWriter fieldWriter) throws IOException {
-        float[][] vectors = fieldWriter.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
-        writeFieldInternal(fieldWriter.fieldInfo, DatasetOrVectors.fromArray(vectors));
+        var vectors = fieldWriter.flatFieldVectorsWriter.getVectors();
+        final DatasetOrVectors datasetOrVectors;
+        if (vectors.size() < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+            // Use vectors/CPU
+            datasetOrVectors = DatasetOrVectors.fromArray(vectors);
+        } else {
+            // Avoid another heap copy (the float[][])
+
+            // TODO: support other data types
+            // TODO: another alternative is to use CuVSMatrix.deviceBuilder(), but this requires more effort
+            // 1. support no-copy CuVSDeviceMatrix as input in CagraIndex
+            // 2. ensure we are already holding a CuVSResource here
+            var builder = CuVSMatrix.hostBuilder(vectors.size(), vectors.getFirst().length, CuVSMatrix.DataType.FLOAT);
+            for (var vector : vectors) {
+                builder.addVector(vector);
+            }
+            datasetOrVectors = DatasetOrVectors.fromDataset(builder.build());
+        }
+        try {
+            writeFieldInternal(fieldWriter.fieldInfo, datasetOrVectors);
+        } finally {
+            datasetOrVectors.close();
+        }
     }
 
     private void writeSortingField(FieldWriter fieldData, Sorter.DocMap sortMap) throws IOException {
         // The flatFieldVectorsWriter's flush method, called before this, has already sorted the vectors according to the sortMap.
         // We can now treat them as a simple, sorted list of vectors.
-        float[][] vectors = fieldData.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
-        writeFieldInternal(fieldData.fieldInfo, DatasetOrVectors.fromArray(vectors));
+        writeField(fieldData);
     }
 
     private void writeFieldInternal(FieldInfo fieldInfo, DatasetOrVectors datasetOrVectors) throws IOException {
@@ -243,11 +259,11 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             int[][] graphLevelNodeOffsets = new int[1][];
             HnswGraph mockGraph;
             if (datasetOrVectors.vectors != null) {
-                float[][] vectors = datasetOrVectors.vectors;
+                var vectors = datasetOrVectors.vectors;
                 if (logger.isDebugEnabled()) {
                     logger.debug(
                         "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        vectors.length,
+                        vectors.size(),
                         MIN_NUM_VECTORS_FOR_GPU_BUILD
                     );
                 }
@@ -341,12 +357,12 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     }
 
     // create a graph where every node is connected to every other node
-    private HnswGraph writeGraph(float[][] vectors, int[][] levelNodeOffsets) throws IOException {
-        if (vectors.length == 0) {
+    private HnswGraph writeGraph(List<float[]> vectors, int[][] levelNodeOffsets) throws IOException {
+        if (vectors.isEmpty()) {
             return null;
         }
-        int elementCount = vectors.length;
-        int nodeDegree = vectors.length - 1;
+        int elementCount = vectors.size();
+        int nodeDegree = vectors.size() - 1;
         levelNodeOffsets[0] = new int[elementCount];
 
         int[] neighbors = new int[nodeDegree];
@@ -440,8 +456,10 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             }
         }
         try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
-            DatasetOrVectors datasetOrVectors;
+
             var input = FilterIndexInput.unwrapOnlyTest(in);
+
+            final DatasetOrVectors datasetOrVectors;
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput && numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 var ds = DatasetUtils.getInstance()
                     .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
@@ -449,9 +467,13 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             } else {
                 // TODO fix for byte vectors
                 var fa = copyVectorsIntoArray(in, fieldInfo, numVectors);
-                datasetOrVectors = DatasetOrVectors.fromArray(fa);
+                datasetOrVectors = DatasetOrVectors.fromDataset(fa);
             }
-            writeFieldInternal(fieldInfo, datasetOrVectors);
+            try {
+                writeFieldInternal(fieldInfo, datasetOrVectors);
+            } finally {
+                datasetOrVectors.close();
+            }
         } finally {
             org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
         }
@@ -482,15 +504,13 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return numVectors;
     }
 
-    static float[][] copyVectorsIntoArray(IndexInput in, FieldInfo fieldInfo, int numVectors) throws IOException {
+    static CuVSMatrix copyVectorsIntoArray(IndexInput in, FieldInfo fieldInfo, int numVectors) throws IOException {
         final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
-        float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
-        float[] vector;
+        var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
         for (int i = 0; i < numVectors; i++) {
-            vector = floatVectorValues.vectorValue(i);
-            System.arraycopy(vector, 0, vectors[i], 0, vector.length);
+            builder.addVector(floatVectorValues.vectorValue(i));
         }
-        return vectors;
+        return builder.build();
     }
 
     private static int writeFloatVectorValues(FieldInfo fieldInfo, IndexOutput out, FloatVectorValues floatVectorValues)

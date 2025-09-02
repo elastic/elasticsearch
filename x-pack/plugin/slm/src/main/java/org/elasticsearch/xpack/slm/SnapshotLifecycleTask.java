@@ -526,14 +526,18 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             final List<PolicySnapshot> newRegistered = new ArrayList<>();
 
             // go through the registered set to find stale snapshots and calculate stats
-            for (PolicySnapshot snapshot : registeredSnapshots.getSnapshots()) {
-                SnapshotId snapshotId = snapshot.getSnapshotId();
-                if (snapshot.getPolicy().equals(policyName) == false || runningSnapshots.contains(snapshotId)) {
+            for (PolicySnapshot registeredSnapshot : registeredSnapshots.getSnapshots()) {
+                SnapshotId registeredSnapshotId = registeredSnapshot.getSnapshotId();
+                if (registeredSnapshotId.equals(snapshotId)) {
+                    // skip the snapshot just completed, it will be handled below
+                    continue;
+                }
+                if (registeredSnapshot.getPolicy().equals(policyName) == false || runningSnapshots.contains(registeredSnapshotId)) {
                     // the snapshot is for another policy, or is still running, so keep it in the registered set
-                    newRegistered.add(snapshot);
+                    newRegistered.add(registeredSnapshot);
                 } else {
                     // the snapshot was completed and should be removed from registered snapshots, update state accordingly
-                    SnapshotInfo snapshotInfo = snapshotInfoById.get(snapshotId);
+                    SnapshotInfo snapshotInfo = snapshotInfoById.get(registeredSnapshotId);
                     if (snapshotInfo != null) {
                         if (isSnapshotSuccessful(snapshotInfo)) {
                             newStats = newStats.withTakenIncremented(policyName);
@@ -565,7 +569,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     } else {
                         // either the snapshot no longer exist in the repo or its info failed to be retrieved, assume failure to clean it up
                         // so it is not stuck in the registered set forever
-                        newPolicyMetadata.incrementInvocationsSinceLastSuccess().setLastFailure(buildFailedSnapshotRecord(snapshotId));
+                        newPolicyMetadata.incrementInvocationsSinceLastSuccess()
+                            .setLastFailure(buildFailedSnapshotRecord(registeredSnapshotId));
                         newStats = newStats.withFailedIncremented(policyName);
                     }
                 }

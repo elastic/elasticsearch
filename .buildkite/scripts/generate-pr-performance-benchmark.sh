@@ -28,9 +28,9 @@ buildkite-agent meta-data set pr_comment:custom-contender:head \
 
 # Buildkite annotation
 cat << _EOF1_ | buildkite-agent annotate --context "pr-benchmark-notification"
-This build attempts two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR.
-* Baseline: [${merge_base:0:7}](https://github.com/elastic/elasticsearch/commit/${merge_base}) (env ID ${env_id_baseline})
-* Contender: [${GITHUB_PR_TRIGGERED_SHA:0:7}](https://github.com/elastic/elasticsearch/commit/${GITHUB_PR_TRIGGERED_SHA}) (env ID ${env_id_contender})
+  This build attempts two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of PR [${GITHUB_PR_NUMBER}](https://github.com/elastic/elasticsearch/pull/${GITHUB_PR_NUMBER}).
+  * Baseline: [${merge_base:0:7}](https://github.com/elastic/elasticsearch/commit/${merge_base}) (env ID ${env_id_baseline})
+  * Contender: [${GITHUB_PR_TRIGGERED_SHA:0:7}](https://github.com/elastic/elasticsearch/commit/${GITHUB_PR_TRIGGERED_SHA}) (env ID ${env_id_contender})
 _EOF1_
 
 cat << _EOF2_
@@ -38,7 +38,7 @@ steps:
   - label: Trigger baseline benchmark with ${merge_base:0:7}
     trigger: elasticsearch-performance-esbench-pr
     build:
-      message: Baseline benchmark for PR${GITHUB_PR_NUMBER} with ${merge_base:0:7}
+      message: Baseline benchmark for PR ${GITHUB_PR_NUMBER} with ${merge_base:0:7}
       branch: master
       env:
         CONFIGURATION_NAME: ${GITHUB_PR_COMMENT_VAR_BENCHMARK}
@@ -47,7 +47,7 @@ steps:
   - label: Trigger contender benchmark with ${GITHUB_PR_TRIGGERED_SHA:0:7}
     trigger: elasticsearch-performance-esbench-pr
     build:
-      message: Contender benchmark for PR${GITHUB_PR_NUMBER} with ${GITHUB_PR_TRIGGERED_SHA:0:7}
+      message: Contender benchmark for PR ${GITHUB_PR_NUMBER} with ${GITHUB_PR_TRIGGERED_SHA:0:7}
       branch: master
       env:
         CONFIGURATION_NAME: ${GITHUB_PR_COMMENT_VAR_BENCHMARK}
@@ -60,9 +60,9 @@ steps:
       buildkite-agent meta-data set pr_comment:custom-body:body "This build ran two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR."
       buildkite-agent meta-data set pr_comment:custom-comparison:head "* [Benchmark results](<https://esbench-metrics.kb.us-east-2.aws.elastic-cloud.com:9243/app/dashboards#/view/d9079962-5866-49ef-b9f5-145f2141cd31?_a=(query:(language:kuery,query:'user-tags.env-id:${env_id_baseline} or user-tags.env-id:${env_id_contender}'))>)"
       cat << _EOF3_ | buildkite-agent annotate --context "pr-benchmark-notification"
-This build ran two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR.
-* Baseline: [${merge_base:0:7}](https://github.com/elastic/elasticsearch/commit/${merge_base}) (env ID ${env_id_baseline})
-* Contender: [${GITHUB_PR_TRIGGERED_SHA:0:7}](https://github.com/elastic/elasticsearch/commit/${GITHUB_PR_TRIGGERED_SHA}) (env ID ${env_id_contender})
-* [Benchmark results](<https://esbench-metrics.kb.us-east-2.aws.elastic-cloud.com:9243/app/dashboards#/view/d9079962-5866-49ef-b9f5-145f2141cd31?_a=(query:(language:kuery,query:'user-tags.env-id:${env_id_baseline} or user-tags.env-id:${env_id_contender}'))>)
-_EOF3_
+        This build ran two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of PR [${GITHUB_PR_NUMBER}](https://github.com/elastic/elasticsearch/pull/${GITHUB_PR_NUMBER}).
+        * Baseline: [${merge_base:0:7}](https://github.com/elastic/elasticsearch/commit/${merge_base}) (env ID ${env_id_baseline})
+        * Contender: [${GITHUB_PR_TRIGGERED_SHA:0:7}](https://github.com/elastic/elasticsearch/commit/${GITHUB_PR_TRIGGERED_SHA}) (env ID ${env_id_contender})
+        * [Benchmark results](<https://esbench-metrics.kb.us-east-2.aws.elastic-cloud.com:9243/app/dashboards#/view/d9079962-5866-49ef-b9f5-145f2141cd31?_a=(query:(language:kuery,query:'user-tags.env-id:${env_id_baseline} or user-tags.env-id:${env_id_contender}'))>)
+      _EOF3_
 _EOF2_

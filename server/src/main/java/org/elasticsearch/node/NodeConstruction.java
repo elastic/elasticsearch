@@ -58,6 +58,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolverFactory;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationDeciderMetrics;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
@@ -1234,6 +1235,8 @@ class NodeConstruction {
 
         final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
 
+        final AllocationDeciderMetrics allocationDeciderMetrics = new AllocationDeciderMetrics(telemetryProvider.getMeterRegistry());
+
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
 
         modules.add(
@@ -1324,6 +1327,7 @@ class NodeConstruction {
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
+            b.bind(AllocationDeciderMetrics.class).toInstance(allocationDeciderMetrics);
         });
 
         if (ReadinessService.enabled(environment)) {

@@ -12,52 +12,117 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * Bulk vector loader that performs optimized I/O operations to load multiple vectors
- * simultaneously using direct I/O and sector alignment when possible.
+ * simultaneously using parallel random access when possible.
  */
 public class DirectIOVectorBatchLoader {
 
-    private static final int SECTOR_SIZE = 4096; // Default sector size for alignment
+    private static final int BATCH_PER_THREAD = 8;
+    // TODO: hook into a dedicated thread pool or at least name the virtual threads
+    private Executor vtExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
-    /**
-     * Loads vectors for multiple document IDs in a single bulk operation.
-     */
     public Map<Integer, float[]> loadSegmentVectors(int[] docIds, LeafReaderContext context, String field) throws IOException {
-        Map<Integer, float[]> vectorCache = new HashMap<>();
+        return loadSegmentVectorsParallel(docIds, context, field);
+    }
 
-        // Get vector values for the field
+    private Map<Integer, float[]> loadSegmentVectorsParallel(int[] docIds, LeafReaderContext context, String field) throws IOException {
         FloatVectorValues vectorValues = context.reader().getFloatVectorValues(field);
         if (vectorValues == null) {
             throw new IllegalArgumentException("No float vector values found for field: " + field);
         }
 
-        // TODO: For now, use sequential access - future optimization can implement true bulk I/O
-        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
+        Map<Integer, Integer> docToOrdinal = buildDocToOrdinalMapping(vectorValues, docIds);
+        List<List<Integer>> batches = createBatches(new ArrayList<>(docToOrdinal.keySet()), BATCH_PER_THREAD);
 
-        // Build a lookup of available documents
-        Map<Integer, Integer> docToIndex = new HashMap<>();
-        for (int docId = iterator.nextDoc(); docId != KnnVectorValues.DocIndexIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
-            docToIndex.put(docId, iterator.index());
+        List<CompletableFuture<Map<Integer, float[]>>> futures = new ArrayList<>();
+        for (List<Integer> batch : batches) {
+            futures.add(CompletableFuture.supplyAsync(() -> {
+                try {
+                    return loadVectorBatch(vectorValues, batch, docToOrdinal);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to load vector batch", e);
+                }
+            }, vtExecutor));
         }
 
-        // Load vectors for requested documents
-        for (int docId : docIds) {
-            Integer vectorIndex = docToIndex.get(docId);
-            if (vectorIndex != null) {
-                float[] vector = vectorValues.vectorValue(vectorIndex);
-                if (vector != null) {
-                    vectorCache.put(docId, vector);
+        Map<Integer, float[]> combinedResult = new HashMap<>();
+        try {
+            for (CompletableFuture<Map<Integer, float[]>> future : futures) {
+                var results = future.get();
+                combinedResult.putAll(results);
+            }
+        } catch (Exception e) {
+            ExceptionsHelper.convertToElastic(e);
+        }
+
+        return combinedResult;
+    }
+
+    private Map<Integer, float[]> loadVectorBatch(
+            FloatVectorValues vectorValues,
+            List<Integer> docIdBatch,
+            Map<Integer, Integer> docToOrdinal) throws IOException {
+
+        Map<Integer, float[]> batchResult = new HashMap<>();
+
+        for (Integer docId : docIdBatch) {
+            Integer ordinal = docToOrdinal.get(docId);
+            if (ordinal != null) {
+                // clone the vector since the reader reuses the array
+                float[] vector = vectorValues.vectorValue(ordinal).clone();
+                batchResult.put(docId, vector);
+            }
+        }
+
+        return batchResult;
+    }
+
+    private Map<Integer, Integer> buildDocToOrdinalMapping(
+        FloatVectorValues vectorValues,
+            int[] targetDocIds) throws IOException {
+
+        Map<Integer, Integer> docToOrdinal = new HashMap<>();
+
+        Set<Integer> targetDocSet = Sets.newHashSetWithExpectedSize(targetDocIds.length);
+        for (int docId : targetDocIds) {
+            targetDocSet.add(docId);
+        }
+
+        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
+        for (int docId = iterator.nextDoc(); docId != KnnVectorValues.DocIndexIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+            if (targetDocSet.contains(docId)) {  // Only map docs we actually need
+                docToOrdinal.put(docId, iterator.index());
+
+                // Early termination when all target docs found
+                if (docToOrdinal.size() == targetDocSet.size()) {
+                    break;
                 }
             }
         }
 
-        return vectorCache;
+        return docToOrdinal;
+    }
+
+    private <T> List<List<T>> createBatches(List<T> items, int batchSize) {
+        List<List<T>> batches = new ArrayList<>();
+        for (int i = 0; i < items.size(); i += batchSize) {
+            batches.add(items.subList(i, Math.min(i + batchSize, items.size())));
+        }
+        return batches;
     }
 
     /**
@@ -73,7 +138,7 @@ public class DirectIOVectorBatchLoader {
         for (int currentDoc = iterator.nextDoc(); currentDoc != KnnVectorValues.DocIndexIterator.NO_MORE_DOCS; currentDoc = iterator
             .nextDoc()) {
             if (currentDoc == docId) {
-                float[] vector = vectorValues.vectorValue(iterator.index());
+                float[] vector = vectorValues.vectorValue(iterator.index()).clone();
                 return vector != null ? vector : null;
             }
         }

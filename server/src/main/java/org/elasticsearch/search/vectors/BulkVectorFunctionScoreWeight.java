@@ -60,9 +60,8 @@ public class BulkVectorFunctionScoreWeight extends Weight {
         return new ScorerSupplier() {
             @Override
             public Scorer get(long leadCost) throws IOException {
-                throw new UnsupportedOperationException(
-                    "Individual Scorer not supported when bulk vector processing is enabled. Use bulkScorer() instead."
-                );
+                // if asked for basic Scorer, delegate to the underlying subquery scorer
+                return subQueryScorerSupplier.get(leadCost);
             }
 
             @Override

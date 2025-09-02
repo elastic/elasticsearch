@@ -25,6 +25,9 @@ import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -33,6 +36,7 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
 
     private static final String VECTOR_FIELD = "vector";
     private static final int VECTOR_DIMS = 128;
+    public static final String BULK_VECTOR_SCORING = "es.bulk_vector_scoring";
 
     public void testBulkProcessingWithScoreDocArray() throws IOException {
         // Create test index with vector documents
@@ -89,10 +93,6 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
         // Test that InlineRescoreQuery uses bulk processing when feature flag is enabled
         float[] queryVector = randomVector(VECTOR_DIMS);
 
-        // Temporarily enable feature flag for testing
-        boolean originalFlag = BulkVectorProcessingSettings.BULK_VECTOR_SCORING;
-        System.setProperty("es.bulk_vector_scoring", "true");
-
         try (Directory dir = new MMapDirectory(createTempDir())) {
             createTestIndex(dir, 20);
 
@@ -115,22 +115,12 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
                 assertThat("Should return results from inline rescoring", results.totalHits.value(), greaterThan(0L));
                 assertThat("Should return requested count", results.scoreDocs.length, equalTo(5));
             }
-        } finally {
-            // Restore original flag state
-            if (originalFlag) {
-                System.setProperty("es.bulk_vector_scoring", "true");
-            } else {
-                System.clearProperty("es.bulk_vector_scoring");
-            }
         }
     }
 
     public void testLateRescoreBulkOptimization() throws IOException {
         // Test that LateRescoreQuery uses bulk processing when feature flag is enabled
         float[] queryVector = randomVector(VECTOR_DIMS);
-
-        // Temporarily enable feature flag for testing
-        System.setProperty("es.bulk_vector_scoring", "true");
 
         try (Directory dir = new MMapDirectory(createTempDir())) {
             createTestIndex(dir, 50);
@@ -153,8 +143,6 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
                 assertThat("Should return results from late rescoring", results.totalHits.value(), greaterThan(0L));
                 assertThat("Should return requested count", results.scoreDocs.length, equalTo(8));
             }
-        } finally {
-            System.clearProperty("es.bulk_vector_scoring");
         }
     }
 
@@ -204,6 +192,55 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
                 writer.addDocument(doc);
             }
             writer.commit();
+        }
+    }
+
+    public void testParallelVectorLoading() throws IOException {
+        // Test parallel vector loading functionality
+        float[] queryVector = randomVector(VECTOR_DIMS);
+
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            createTestIndex(dir, 50);
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                // Get initial documents
+                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 20);
+                int[] docIds = Arrays.stream(topDocs.scoreDocs)
+                    .mapToInt(scoreDoc -> scoreDoc.doc)
+                    .toArray();
+
+                // Test parallel loading
+                DirectIOVectorBatchLoader batchLoader = new DirectIOVectorBatchLoader();
+
+                Map<Integer, float[]> parallelResult = batchLoader.loadSegmentVectors(
+                    docIds,
+                    reader.leaves().get(0),
+                    VECTOR_FIELD
+                );
+
+                // use regular vector loader
+                Map<Integer, float[]> sequentialResult = new HashMap<>();
+                for (int docId : docIds) {
+                    sequentialResult.put(docId, batchLoader.loadSingleVector(docId, reader.leaves().get(0), VECTOR_FIELD));
+                }
+
+                // Verify results are identical
+                assertThat(
+                    "Parallel and sequential results should have same size",
+                    parallelResult.size(), equalTo(sequentialResult.size()));
+
+                for (int docId : docIds) {
+                    float[] parallelVector = parallelResult.get(docId);
+                    float[] sequentialVector = sequentialResult.get(docId);
+
+                    assertNotNull("Parallel result should contain vector for doc " + docId, parallelVector);
+                    assertNotNull("Sequential result should contain vector for doc " + docId, sequentialVector);
+                    assertArrayEquals("Vectors should be identical for doc " + docId,
+                        sequentialVector, parallelVector, 0.0001f);
+                }
+            }
         }
     }
 

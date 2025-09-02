@@ -296,6 +296,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

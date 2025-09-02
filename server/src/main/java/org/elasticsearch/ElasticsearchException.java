@@ -85,7 +85,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
  */
 public class ElasticsearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
-    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersions.ZERO;
+    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersion.zero();
 
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}

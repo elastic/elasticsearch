@@ -180,6 +180,23 @@ public class AppendProcessorTests extends ESTestCase {
         assertThat(fieldValue, containsInAnyOrder(expectedValues.toArray()));
     }
 
+    public void testCopyFromOtherFieldSimple() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        ingestDocument.setFieldValue("foo", 1);
+        ingestDocument.setFieldValue("bar", 2);
+        ingestDocument.setFieldValue("baz", new ArrayList<>(List.of(3)));
+
+        createAppendProcessor("bar", null, "foo", false).execute(ingestDocument);
+        createAppendProcessor("baz", null, "bar", false).execute(ingestDocument);
+        createAppendProcessor("quux", null, "baz", false).execute(ingestDocument);
+
+        Map<String, Object> result = ingestDocument.getCtxMap().getSource();
+        assertThat(result.get("foo"), equalTo(1));
+        assertThat(result.get("bar"), equalTo(List.of(2, 1)));
+        assertThat(result.get("baz"), equalTo(List.of(3, 2, 1)));
+        assertThat(result.get("quux"), equalTo(List.of(3, 2, 1)));
+    }
+
     public void testCopyFromOtherField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
 

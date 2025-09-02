@@ -209,8 +209,9 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesIdFieldMapper.NAME)), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesRoutingHashFieldMapper.NAME)), is(true));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_NAME)), is(true));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)), is(true));
+        // See: PerFieldFormatSupplier why these fields shouldn't use tsdb codec
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_NAME)), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)), is(false));
     }
 
     public void testSeqnoField() throws IOException {

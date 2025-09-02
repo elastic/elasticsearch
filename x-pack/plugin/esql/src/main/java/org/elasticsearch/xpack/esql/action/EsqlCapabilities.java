@@ -1393,7 +1393,12 @@ public class EsqlCapabilities {
         /**
          * Support for tbucket function
          */
-        TBUCKET;
+        TBUCKET,
+
+        /**
+         * Support for the Present function
+         */
+        FN_PRESENT;
 
         private final boolean enabled;
 

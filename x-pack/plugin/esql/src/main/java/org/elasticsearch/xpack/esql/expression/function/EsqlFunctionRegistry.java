@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
@@ -334,7 +335,9 @@ public class EsqlFunctionRegistry {
                 def(Sum.class, uni(Sum::new), "sum"),
                 def(Top.class, tri(Top::new), "top"),
                 def(Values.class, uni(Values::new), "values"),
-                def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg") },
+                def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
+                def(Present.class, uni(Present::new), "present")
+            },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),

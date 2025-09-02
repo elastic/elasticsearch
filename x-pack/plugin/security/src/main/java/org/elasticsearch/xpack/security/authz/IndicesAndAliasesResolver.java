@@ -379,15 +379,15 @@ public class IndicesAndAliasesResolver {
                     );
                     if (crossProjectReplacedIndexExpressions != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
-                        ReplacedIndexExpressions replacedExpressions = indexAbstractionResolver.resolveIndexAbstractions(
-                            crossProjectReplacedIndexExpressions.getLocalExpressions(),
-                            lenientIndicesOptions(indicesOptions),
-                            projectMetadata,
-                            authorizedIndices::all,
-                            authorizedIndices::check,
-                            indicesRequest.includeDataStreams(),
-                            true
-                        );
+                        ReplacedIndexExpressions replacedExpressions = indexAbstractionResolver
+                            .resolveIndexAbstractionsForCrossProjectSearch(
+                                crossProjectReplacedIndexExpressions.getLocalExpressions(),
+                                indicesOptions,
+                                projectMetadata,
+                                authorizedIndices::all,
+                                authorizedIndices::check,
+                                indicesRequest.includeDataStreams()
+                            );
                         crossProjectReplacedIndexExpressions.replaceLocalExpressions(replacedExpressions);
                         crossProjectSearchCapableRequest.setReplacedIndexExpressions(crossProjectReplacedIndexExpressions);
                         crossProjectSearchCapableRequest.indices(crossProjectReplacedIndexExpressions.indices());
@@ -423,8 +423,7 @@ public class IndicesAndAliasesResolver {
                     projectMetadata,
                     authorizedIndices::all,
                     authorizedIndices::check,
-                    indicesRequest.includeDataStreams(),
-                    true
+                    indicesRequest.includeDataStreams()
                 );
                 replaceable.setReplacedIndexExpressions(resolved);
                 resolvedIndicesBuilder.addLocal(resolved.indicesAsList());
@@ -498,14 +497,6 @@ public class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
-    }
-
-    // TODO defs does not belong here
-    private static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
-        return IndicesOptions.builder(indicesOptions)
-            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
-            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
-            .build();
     }
 
     /**

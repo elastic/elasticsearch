@@ -24,7 +24,6 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -38,14 +37,32 @@ public class IndexAbstractionResolver {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
+    public ReplacedIndexExpressions resolveIndexAbstractionsForCrossProjectSearch(
+        Iterable<String> indices,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
+        boolean includeDataStreams
+    ) {
+        return resolveIndexAbstractions(
+            indices,
+            // lenient mode required to avoid failing if an index exists in another project
+            lenientIndicesOptions(indicesOptions),
+            projectMetadata,
+            allAuthorizedAndAvailableBySelector,
+            isAuthorized,
+            includeDataStreams
+        );
+    }
+
     public ReplacedIndexExpressions resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
         Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
         BiPredicate<String, IndexComponentSelector> isAuthorized,
-        boolean includeDataStreams,
-        boolean ignoreUnavailableBwcBehavior
+        boolean includeDataStreams
     ) {
         final Map<String, ReplacedIndexExpression> replaced = new LinkedHashMap<>();
 
@@ -152,25 +169,6 @@ public class IndexAbstractionResolver {
         }
 
         return new ReplacedIndexExpressions(replaced);
-    }
-
-    public List<String> resolveIndexAbstractions(
-        Iterable<String> indices,
-        IndicesOptions indicesOptions,
-        ProjectMetadata projectMetadata,
-        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
-        BiPredicate<String, IndexComponentSelector> isAuthorized,
-        boolean includeDataStreams
-    ) {
-        return resolveIndexAbstractions(
-            indices,
-            indicesOptions,
-            projectMetadata,
-            allAuthorizedAndAvailableBySelector,
-            isAuthorized,
-            includeDataStreams,
-            true
-        ).indicesAsList();
     }
 
     private static void resolveSelectorsAndCollect(
@@ -341,5 +339,12 @@ public class IndexAbstractionResolver {
 
     private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
         return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
+    }
+
+    private static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
+        return IndicesOptions.builder(indicesOptions)
+            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
+            .build();
     }
 }

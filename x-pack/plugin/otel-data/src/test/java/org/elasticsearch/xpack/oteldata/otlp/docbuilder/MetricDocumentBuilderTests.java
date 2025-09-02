@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -73,7 +74,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             scopeSchemaUrl,
             dataPointAttributes,
             "{test}",
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
         dataPointGroup.addDataPoint(
             Set.of(),
@@ -102,6 +103,9 @@ public class MetricDocumentBuilderTests extends ESTestCase {
 
         assertThat(doc.evaluate("@timestamp"), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
         assertThat(doc.evaluate("start_timestamp"), equalTo(TimeUnit.NANOSECONDS.toMillis(startTimestamp)));
+        assertThat(doc.evaluate("data_stream.type"), equalTo("metrics"));
+        assertThat(doc.evaluate("data_stream.dataset"), equalTo("generic.otel"));
+        assertThat(doc.evaluate("data_stream.namespace"), equalTo("default"));
         assertThat(doc.evaluate("resource.schema_url"), equalTo("https://opentelemetry.io/schemas/1.0.0"));
         assertThat(doc.evaluate("resource.dropped_attributes_count"), equalTo(1));
         assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("test-service"));
@@ -139,7 +143,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
         dataPointGroup.addDataPoint(
             Set.of(),
@@ -171,7 +175,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
 
         dataPointGroup.addDataPoint(

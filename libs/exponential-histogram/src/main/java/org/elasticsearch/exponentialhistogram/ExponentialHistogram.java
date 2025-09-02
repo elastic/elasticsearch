@@ -206,6 +206,10 @@ public interface ExponentialHistogram extends Accountable {
         return EmptyExponentialHistogram.INSTANCE;
     }
 
+    static ExponentialHistogramBuilder builder(ExponentialHistogramCircuitBreaker breaker) {
+        return new ExponentialHistogramBuilder(breaker);
+    }
+
     /**
      * Creates a histogram representing the distribution of the given values with at most the given number of buckets.
      * If the given {@code maxBucketCount} is greater than or equal to the number of values, the resulting histogram will have a

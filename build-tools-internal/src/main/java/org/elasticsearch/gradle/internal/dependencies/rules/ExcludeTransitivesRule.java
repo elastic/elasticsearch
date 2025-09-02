@@ -9,41 +9,59 @@
 
 package org.elasticsearch.gradle.internal.dependencies.rules;
 
-import org.elasticsearch.gradle.internal.precommit.DependencyContext;
-import org.gradle.api.artifacts.CacheableRule;
+import org.elasticsearch.gradle.internal.DependencyContext;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
 import org.gradle.api.artifacts.VariantMetadata;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.internal.artifacts.repositories.resolver.VariantMetadataAdapter;
 
-@CacheableRule
-public class ExcludeTransitivesRule implements ComponentMetadataRule {
+//@CacheableRule
+public abstract class ExcludeTransitivesRule implements ComponentMetadataRule {
+
 
     @Override
     public void execute(ComponentMetadataContext context) {
 
         if (context.getDetails().getId().getGroup().startsWith("org.elasticsearch") == false) {
 
-            // for code quality dependencies we rely on transitive dependencies
+
             context.getDetails().allVariants(variant -> {
-                if(isCodeQuality(variant)) {
+//                .attribute(
+//                    DependencyContext.CONTEXT_ATTRIBUTE,
+//                    getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
+//                );
+                DependencyContext customValue = variant.getAttributes().getAttribute(DependencyContext.CONTEXT_ATTRIBUTE);
+                if(customValue != null) {
                     return;
                 }
-                variant.withDependencies(dependencies -> { dependencies.removeIf(directDependencyMetadata -> true); });
+                //                if ("some-value".equals(customValue)) {
+//                    System.out.println("customValue = " + customValue);
+//                    return;
+//                }
+
+                variant.withDependencies(dependencies -> {
+                    // dependencies.clear();
+                    dependencies.removeIf(directDependencyMetadata -> { return true; });
+                });
             });
+
         }
     }
 
     private boolean isCodeQuality(VariantMetadata variant) {
-        System.out.println("variant.getAttributes() = " + variant.getAttributes());
+        // System.out.println("CodeQualityRule#context#variantName = " + ((VariantMetadataAdapter)variant).variantName);
+        System.out.println("ExcludeTransitivesRule#context#isCodeQuality = " + ((VariantMetadataAdapter) variant).toString());
+        try {
+            java.lang.reflect.Field field = VariantMetadataAdapter.class.getDeclaredField("variantName");
+            field.setAccessible(true);
+            Object variantName = field.get(variant);
+            System.out.println("ExcludeTransitivesRule#context#variantName = " + variantName);
+        } catch (Exception e) {
+            System.out.println("Failed to access variantName: " + e.getMessage());
+        }
         DependencyContext attribute = variant.getAttributes().getAttribute(DependencyContext.CONTEXT_ATTRIBUTE);
-        System.out.println("attribute = " + attribute);
         return attribute != null && DependencyContext.CODE_QUALITY.equals(attribute.getName());
     }
 
-    private boolean codeQuality(ComponentMetadataContext context) {
-
-        DependencyContext attribute = context.getDetails().getAttributes().getAttribute(DependencyContext.CONTEXT_ATTRIBUTE);
-        System.out.println("attribute = " + attribute);
-        return attribute != null && DependencyContext.CODE_QUALITY.equals(attribute.getName());
-    }
 }

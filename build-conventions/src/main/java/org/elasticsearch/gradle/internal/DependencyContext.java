@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.precommit;
+package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Named;
 import org.gradle.api.attributes.Attribute;

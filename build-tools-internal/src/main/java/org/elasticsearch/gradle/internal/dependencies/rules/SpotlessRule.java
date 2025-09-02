@@ -16,7 +16,14 @@ import org.gradle.api.model.ObjectFactory;
 
 import javax.inject.Inject;
 
-public abstract class CodeQualityRule implements ComponentMetadataRule {
+public abstract class SpotlessRule implements ComponentMetadataRule {
+
+    final String baseVariant;
+
+    @Inject
+    public SpotlessRule(String baseVariant) {
+        this.baseVariant = baseVariant;
+    }
 
     @Inject
     public ObjectFactory getObjects() {
@@ -25,16 +32,21 @@ public abstract class CodeQualityRule implements ComponentMetadataRule {
 
     @Override
     public void execute(ComponentMetadataContext context) {
-        System.out.println("CodeQualityRule#context = " + context.getDetails().getId());
-        context.getDetails().addVariant("codeQuality", "runtime", variant -> {
-            System.out.println("CodeQualityRule#context#variant = " + variant);
-            // variant.attributes(attrs -> {
-            // ystem.out.println("Adding codeQuality variant to " + context.getDetails().getId());
+        System.out.println("SpotlessRule#context = " + context.getDetails().getId());
+        // context.getDetails().allVariants(variant -> {
+        // variant.getAttributes().attribute(
+        // Attribute.of("custom.attribute", String.class),
+        // "some-value"
+        // );
+        // });
+
+        context.getDetails().addVariant("codeQuality", baseVariant, variant -> {
             variant.getAttributes()
                 .attribute(
                     DependencyContext.CONTEXT_ATTRIBUTE,
                     getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
                 );
         });
+
     }
 }

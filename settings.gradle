@@ -1,9 +1,10 @@
-import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
-import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
-import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 import org.elasticsearch.gradle.internal.dependencies.rules.ExcludeTransitivesRule
-import org.elasticsearch.gradle.internal.dependencies.rules.Log4jRule
-import org.elasticsearch.gradle.internal.dependencies.rules.CodeQualityRule
+import org.elasticsearch.gradle.internal.dependencies.rules.SpotlessRule
+import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+
+//import org.elasticsearch.gradle.internal.dependencies.rules.CodeQualityRule
 
 pluginManagement {
   repositories {
@@ -34,12 +35,23 @@ dependencyResolutionManagement {
 }
 
 dependencyResolutionManagement {
-    components {
-      withModule("org.apache.logging.log4j:log4j-api", Log4jRule)
-      withModule("com.puppycrawl.tools:checkstyle", CodeQualityRule)
-      all(ExcludeTransitivesRule)
-  }
+  components {
+    withModule("com.google.googlejavaformat:google-java-format", SpotlessRule, new Action<ActionConfiguration>() {
+      @Override
+      void execute(ActionConfiguration config) {
+        config.params("runtime")
+      }
+    })
 
+    withModule("com.google.guava:guava", SpotlessRule, new Action<ActionConfiguration>() {
+      @Override
+      void execute(ActionConfiguration config) {
+        config.params("jreRuntimeElements")
+      }
+    })
+
+    all(ExcludeTransitivesRule)
+  }
 }
 
 toolchainManagement {

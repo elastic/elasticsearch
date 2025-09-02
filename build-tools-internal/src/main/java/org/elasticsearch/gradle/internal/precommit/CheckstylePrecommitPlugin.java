@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.internal.DependencyContext;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -16,7 +17,6 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.VersionCatalogsExtension;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
-import org.gradle.api.attributes.Attribute;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.plugins.quality.CheckstyleExtension;

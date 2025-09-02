@@ -198,6 +198,27 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testParseRequestConfig_ThrowsWhenRateLimitFieldExistsInServiceSettingsMap() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            Map<String, Object> serviceSettings = new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    ElserModels.ELSER_V2_MODEL,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+                )
+            );
+
+            var config = getRequestConfigMap(serviceSettings, Map.of(), Map.of());
+
+            var failureListener = getModelListenerForException(
+                ElasticsearchStatusException.class,
+                "Configuration contains settings [{rate_limit={requests_per_minute=100}}] unknown to the [elastic] service"
+            );
+            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
+        }
+    }
+
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         try (var service = createServiceWithMockSender()) {
             var taskSettings = Map.of("extra_key", (Object) "value");

@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -143,6 +144,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testRow() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         try (EsqlQueryResponse response = run("row " + value)) {
+            assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    public void testRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest().query("row " + value).filter(new BoolQueryBuilder().boost(1.0f)))) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
     }

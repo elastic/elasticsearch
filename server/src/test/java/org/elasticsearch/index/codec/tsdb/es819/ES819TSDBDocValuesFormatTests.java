@@ -939,13 +939,12 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             int numDocsPerQValue = 120;
             int numDocs = numDocsPerQValue * (1 + random().nextInt(40));
             Long[] temperatureValues = new Long[numDocs];
-
             long q = 1;
             for (int i = 1; i <= numDocs; i++) {
                 var d = new Document();
-                long timestamp = currentTimestamp;
                 // Index sorting doesn't work with NumericDocValuesField:
-                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+                currentTimestamp += 1000L;
                 d.add(new SortedNumericDocValuesField(counterField, currentCounter));
                 d.add(new SortedDocValuesField(counterAsStringField, new BytesRef(Long.toString(currentCounter))));
                 d.add(new SortedNumericDocValuesField(queryField, q));
@@ -962,7 +961,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     iw.commit();
                 }
                 if (i < numDocs - 1) {
-                    currentTimestamp += 1000L;
                     currentCounter++;
                 }
             }

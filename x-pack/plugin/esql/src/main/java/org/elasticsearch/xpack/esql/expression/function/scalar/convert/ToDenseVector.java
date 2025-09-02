@@ -50,7 +50,7 @@ public class ToDenseVector extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = {"double", "long", "integer"},
+            type = { "double", "long", "integer" },
             description = "multi-valued input of numbers to convert."
         ) Expression field
     ) {

@@ -2442,33 +2442,23 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorEvalCastingSimilarityFunctions() {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction(
-                "v_cosine(float_vector, query)"
-            );
+            checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction(
-                "v_dot_product(float_vector, query)"
-            );
+            checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction(
-                "v_l1_norm(float_vector, query)"
-            );
+            checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction(
-                "v_l2_norm(float_vector, query)"
-            );
+            checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction(
-                "v_hamming(byte_vector, query)"
-            );
+            checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
         }
     }

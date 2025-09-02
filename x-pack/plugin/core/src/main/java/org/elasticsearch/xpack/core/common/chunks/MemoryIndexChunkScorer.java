@@ -81,7 +81,12 @@ public class MemoryIndexChunkScorer {
                     scoredChunks.add(new ScoredChunk(content, scoreDoc.score));
                 }
 
-                return scoredChunks;
+                // It's possible that no chunks were scorable (for example, a semantic match that does not have a lexical match).
+                // In this case, we'll return the first N chunks with a score of 0.
+                // TODO: consider parameterizing this
+                return scoredChunks.isEmpty() == false
+                    ? scoredChunks
+                    : chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList();
             }
         }
     }

@@ -23,6 +23,10 @@ options {
 import Expression,
        Join;
 
+statements
+    : {this.isDevVersion()}? setCommand* singleStatement EOF
+    ;
+
 singleStatement
     : query EOF
     ;
@@ -333,3 +337,16 @@ insistCommand
 fuseCommand
     : DEV_FUSE
     ;
+
+setCommand
+    : SET setFields SEMICOLON
+    ;
+
+setFields
+    : setField (COMMA setField)*
+    ;
+
+setField
+    : identifier ASSIGN constant
+    ;
+

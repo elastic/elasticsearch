@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -168,13 +169,14 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        LogicalPlan parsed = parse(request.query(), request.params());
-        if (parsed instanceof Explain explain) {
+        EsqlQuery query = parse(request.query(), request.params());
+        LogicalPlan plan = query.plan();
+        if (plan instanceof Explain explain) {
             explainMode = true;
-            parsed = explain.query();
-            parsedPlanString = parsed.toString();
+            plan = explain.query();
+            parsedPlanString = plan.toString();
         }
-        analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+        analyzedPlan(plan, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
                 assert ThreadPool.assertCurrentThreadPool(
@@ -307,8 +309,8 @@ public class EsqlSession {
         return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
     }
 
-    private LogicalPlan parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createStatement(query, params, planTelemetry, configuration);
+    private EsqlQuery parse(String query, QueryParams params) {
+        var parsed = new EsqlParser().createQuery(query, params, planTelemetry, configuration);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }

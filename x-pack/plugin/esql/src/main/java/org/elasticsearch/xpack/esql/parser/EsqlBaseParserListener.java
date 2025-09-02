@@ -16,6 +16,16 @@ import org.antlr.v4.runtime.tree.ParseTreeListener;
  */
 public interface EsqlBaseParserListener extends ParseTreeListener {
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#statements}.
+   * @param ctx the parse tree
+   */
+  void enterStatements(EsqlBaseParser.StatementsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#statements}.
+   * @param ctx the parse tree
+   */
+  void exitStatements(EsqlBaseParser.StatementsContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#singleStatement}.
    * @param ctx the parse tree
    */
@@ -735,6 +745,36 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#setCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSetCommand(EsqlBaseParser.SetCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#setCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSetCommand(EsqlBaseParser.SetCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#setFields}.
+   * @param ctx the parse tree
+   */
+  void enterSetFields(EsqlBaseParser.SetFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#setFields}.
+   * @param ctx the parse tree
+   */
+  void exitSetFields(EsqlBaseParser.SetFieldsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#setField}.
+   * @param ctx the parse tree
+   */
+  void enterSetField(EsqlBaseParser.SetFieldContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#setField}.
+   * @param ctx the parse tree
+   */
+  void exitSetField(EsqlBaseParser.SetFieldContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

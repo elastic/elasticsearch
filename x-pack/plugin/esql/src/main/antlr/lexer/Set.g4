@@ -1,0 +1,45 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+lexer grammar Rename;
+
+//
+// SET key="value", ke2="value2"...
+//
+SET : 'set'             -> pushMode(SET_MODE);
+
+
+mode SET_MODE;
+SET_SEMICOLON : SEMICOLON -> type(SEMICOLON), popMode;
+SET_ASSIGN : ASSIGN -> type(ASSIGN);
+SET_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
+SET_UNQUOTED_IDENTIFIER : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
+SET_QUOTED_IDENTIFIER : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);
+SET_DECIMAL_LITERAL : DECIMAL_LITERAL -> type(DECIMAL_LITERAL);
+SET_INTEGER_LITERAL : INTEGER_LITERAL -> type(INTEGER_LITERAL);
+
+SET_COMMA : COMMA -> type(COMMA);
+SET_DOT : DOT -> type(DOT);
+SET_PARAM : PARAM -> type(PARAM);
+SET_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+SET_DOUBLE_PARAMS : DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
+SET_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
+
+SET_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
+    ;
+
+SET_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SET_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SET_WS
+    : WS -> channel(HIDDEN)
+    ;

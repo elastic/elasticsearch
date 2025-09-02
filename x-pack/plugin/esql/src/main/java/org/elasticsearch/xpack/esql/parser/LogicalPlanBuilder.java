@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
@@ -118,6 +120,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
+    protected EsqlQuery query(ParseTree ctx) {
+        EsqlQuery p = typedParsing(this, ctx, EsqlQuery.class);
+        return p;
+    }
+
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
         if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
@@ -135,6 +142,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
+    @Override
+    public EsqlQuery visitStatements(EsqlBaseParser.StatementsContext ctx) {
+        List<QuerySettings> settings = new ArrayList<>();
+        for (EsqlBaseParser.SetCommandContext setCommandContext : ctx.setCommand()) {
+            settings.add(visitSetCommand(setCommandContext));
+        }
+
+        LogicalPlan query = visitSingleStatement(ctx.singleStatement());
+        return new EsqlQuery(query, settings);
+    }
+
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
         return ParserUtils.visitList(this, ctxs, LogicalPlan.class);
     }
@@ -144,6 +162,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var plan = plan(ctx.query());
         telemetryAccounting(plan);
         return plan;
+    }
+
+    @Override
+    public QuerySettings visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
+        List<Alias> fields = new ArrayList<>();
+        for (EsqlBaseParser.SetFieldContext setFieldContext : ctx.setFields().setField()) {
+            fields.add(visitSetField(setFieldContext));
+        }
+        return new QuerySettings(source(ctx), fields);
+    }
+
+    @Override
+    public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
+        String name = visitIdentifier(ctx.identifier());
+        Expression value = expression(ctx.constant());
+        return new Alias(source(ctx), name, value);
     }
 
     @Override

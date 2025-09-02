@@ -81,8 +81,8 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
-        ActionListener<IndexResolution> listener,
-        boolean includeAllDimensions
+        boolean includeAllDimensions,
+        ActionListener<IndexResolution> listener
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,

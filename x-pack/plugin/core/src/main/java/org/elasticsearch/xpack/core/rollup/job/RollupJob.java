@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -120,6 +119,6 @@ public class RollupJob implements SimpleDiffable<RollupJob>, PersistentTaskParam
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 }

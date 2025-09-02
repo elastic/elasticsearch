@@ -60,7 +60,7 @@ public enum MurmurHash3 {
 
         @Override
         public int hashCode() {
-            return (int) (h1 ^ h2);
+            return Long.hashCode(h1 ^ h2);
         }
 
         @Override

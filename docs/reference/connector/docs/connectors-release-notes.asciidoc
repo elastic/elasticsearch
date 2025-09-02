@@ -43,6 +43,12 @@ PR https://github.com/elastic/connectors/pull/3577[*#3577*] resolves this issue 
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
 [discrete]
+[[es-connectors-release-notes-8-18-6]]
+=== 8.18.6
+
+No notable changes in this release.
+
+[discrete]
 [[es-connectors-release-notes-8-18-5]]
 === 8.18.5
 

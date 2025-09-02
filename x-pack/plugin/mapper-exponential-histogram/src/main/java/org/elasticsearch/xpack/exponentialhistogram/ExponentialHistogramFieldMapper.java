@@ -443,15 +443,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 IndexWithCount.asBuckets(scale, negativeBuckets).iterator(),
                 IndexWithCount.asBuckets(scale, positiveBuckets).iterator()
             );
-        } else {
-            if (totalValueCount == 0 && sum != 0.0) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], sum field must be zero if the histogram is empty, but got " + sum
-                );
-            }
-            return sum;
         }
+        if (totalValueCount == 0 && sum != 0.0) {
+            throw new DocumentParsingException(
+                subParser.getTokenLocation(),
+                "error parsing field [" + fullPath() + "], sum field must be zero if the histogram is empty, but got " + sum
+            );
+        }
+        return sum;
     }
 
     private Double validateOrEstimateMin(
@@ -470,15 +469,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 IndexWithCount.asBuckets(scale, positiveBuckets)
             );
             return estimatedMin.isPresent() ? estimatedMin.getAsDouble() : null;
-        } else {
-            if (totalValueCount == 0) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], min field must be null if the histogram is empty, but got " + parsedMin
-                );
-            }
-            return parsedMin;
         }
+        if (totalValueCount == 0) {
+            throw new DocumentParsingException(
+                subParser.getTokenLocation(),
+                "error parsing field [" + fullPath() + "], min field must be null if the histogram is empty, but got " + parsedMin
+            );
+        }
+        return parsedMin;
     }
 
     private Double validateOrEstimateMax(
@@ -497,15 +495,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 IndexWithCount.asBuckets(scale, positiveBuckets)
             );
             return estimatedMax.isPresent() ? estimatedMax.getAsDouble() : null;
-        } else {
-            if (totalValueCount == 0) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], max field must be null if the histogram is empty, but got " + parsedMax
-                );
-            }
-            return parsedMax;
         }
+        if (totalValueCount == 0) {
+            throw new DocumentParsingException(
+                subParser.getTokenLocation(),
+                "error parsing field [" + fullPath() + "], max field must be null if the histogram is empty, but got " + parsedMax
+            );
+        }
+        return parsedMax;
     }
 
     private double parseDoubleAllowingInfinity(XContentParser parser) throws IOException {

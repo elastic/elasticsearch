@@ -146,7 +146,7 @@ The following configuration fields are required to set up the connector:
 
     * `collection1`
     * `collection1, collection2`
-
+If you need to parse the root from Share point, just use the url of your sharepoint server in `site`collections`
 
 `ssl_enabled`
 :   Whether SSL verification will be enabled. Default value is `False`.

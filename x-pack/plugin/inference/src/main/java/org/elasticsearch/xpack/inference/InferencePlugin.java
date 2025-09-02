@@ -375,10 +375,9 @@ public class InferencePlugin extends Plugin
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
-        components.add(new TransportGetInferenceDiagnosticsAction.ClientManagers(
-            httpClientManager,
-            elasticInferenceServiceHttpClientManager
-        ));
+        components.add(
+            new TransportGetInferenceDiagnosticsAction.ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager)
+        );
         components.add(inferenceStatsBinding);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,

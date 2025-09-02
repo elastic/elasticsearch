@@ -112,14 +112,21 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
     }
 
     @Override
-    protected GetInferenceDiagnosticsAction.NodeResponse mutateInstanceForVersion(GetInferenceDiagnosticsAction.NodeResponse instance, TransportVersion version) {
+    protected GetInferenceDiagnosticsAction.NodeResponse mutateInstanceForVersion(
+        GetInferenceDiagnosticsAction.NodeResponse instance,
+        TransportVersion version
+    ) {
         if (version.before(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)) {
-            return new GetInferenceDiagnosticsAction.NodeResponse(instance.getNode(), new PoolStats(
-                instance.getExternalConnectionPoolStats().getLeasedConnections(),
-                instance.getExternalConnectionPoolStats().getPendingConnections(),
-                instance.getExternalConnectionPoolStats().getAvailableConnections(),
-                instance.getExternalConnectionPoolStats().getMaxConnections()
-            ), new PoolStats(0, 0, 0, 0));
+            return new GetInferenceDiagnosticsAction.NodeResponse(
+                instance.getNode(),
+                new PoolStats(
+                    instance.getExternalConnectionPoolStats().getLeasedConnections(),
+                    instance.getExternalConnectionPoolStats().getPendingConnections(),
+                    instance.getExternalConnectionPoolStats().getAvailableConnections(),
+                    instance.getExternalConnectionPoolStats().getMaxConnections()
+                ),
+                new PoolStats(0, 0, 0, 0)
+            );
         } else {
             return instance;
         }

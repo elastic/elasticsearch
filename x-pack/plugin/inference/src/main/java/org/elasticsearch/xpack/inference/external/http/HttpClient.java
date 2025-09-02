@@ -73,7 +73,6 @@ public class HttpClient implements Closeable {
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
 
-
         /*
           TODO When we implement multi-project we should ensure this is ok. A cluster will be authenticated to EIS because it is one mTLS
           cert per cluster. So I think we're ok to not need to track the connection state per request. We will need to pass a header

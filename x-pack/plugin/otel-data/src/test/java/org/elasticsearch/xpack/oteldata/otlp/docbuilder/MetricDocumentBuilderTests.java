@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
-import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
 
@@ -201,16 +200,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        SummaryDataPoint dataPoint = SummaryDataPoint.newBuilder()
-            .setTimeUnixNano(timestamp)
-            .setStartTimeUnixNano(startTimestamp)
-            .setCount(1)
-            .setSum(42.0)
-            .addAllAttributes(mappingHints(MappingHints.DOC_COUNT))
-            .build();
-        Metric metric = createSummaryMetric("summary", "", List.of());
-        List<DataPoint> dataPoints = List.of(new DataPoint.Summary(dataPoint, metric));
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -218,8 +207,20 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
             "metrics-generic.otel-default"
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.Summary(
+                SummaryDataPoint.newBuilder()
+                    .setTimeUnixNano(timestamp)
+                    .setStartTimeUnixNano(startTimestamp)
+                    .setCount(1)
+                    .setSum(42.0)
+                    .addAllAttributes(mappingHints(MappingHints.DOC_COUNT))
+                    .build(),
+                createSummaryMetric("summary", "", List.of())
+            )
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

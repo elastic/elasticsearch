@@ -13,7 +13,6 @@ import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
-import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
@@ -33,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
@@ -73,11 +73,24 @@ public class MetricDocumentBuilderTests extends ESTestCase {
 
         List<KeyValue> dataPointAttributes = List.of(keyValue("operation", "test"), (keyValue("environment", "production")));
 
-        List<DataPoint> dataPoints = List.of(
+        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
+            resource,
+            resourceSchemaUrl,
+            scope,
+            scopeSchemaUrl,
+            dataPointAttributes,
+            "{test}",
+            "metrics-generic.otel-default"
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
             new DataPoint.Number(
                 createDoubleDataPoint(timestamp, startTimestamp, dataPointAttributes),
                 createGaugeMetric("system.cpu.usage", "", List.of())
-            ),
+            )
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
             new DataPoint.Number(
                 createLongDataPoint(timestamp, startTimestamp, dataPointAttributes),
                 createSumMetric(
@@ -88,16 +101,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
                     AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE
                 )
             )
-        );
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            resourceSchemaUrl,
-            scope,
-            scopeSchemaUrl,
-            dataPointAttributes,
-            "{test}",
-            dataPoints,
-            "metrics-generic.otel-default"
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -136,10 +139,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().addAllAttributes(resourceAttributes).build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        List<DataPoint> dataPoints = List.of(
-            new DataPoint.Number(createDoubleDataPoint(timestamp), createGaugeMetric("test.metric", "", List.of()))
-        );
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -147,8 +146,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
             "metrics-generic.otel-default"
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.Number(createDoubleDataPoint(timestamp), createGaugeMetric("test.metric", "", List.of()))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -169,10 +171,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        NumberDataPoint dataPoint = createDoubleDataPoint(timestamp);
-        var metric = createGaugeMetric("test.metric", "", List.of(dataPoint));
-        List<DataPoint> dataPoints = List.of(new DataPoint.Number(dataPoint, metric));
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -180,8 +178,12 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
             "metrics-generic.otel-default"
+        );
+
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.Number(createDoubleDataPoint(timestamp), createGaugeMetric("test.metric", "", List.of()))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

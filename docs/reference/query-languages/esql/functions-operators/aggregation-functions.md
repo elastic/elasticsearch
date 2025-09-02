@@ -36,6 +36,9 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supp
 :::{include} ../_snippets/functions/layout/percentile.md
 :::
 
+:::{include} ../_snippets/functions/layout/sample.md
+:::
+
 :::{include} ../_snippets/functions/layout/st_centroid_agg.md
 :::
 

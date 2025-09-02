@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -40,6 +41,10 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
 
     public static final String NAME = "indices:admin/data_stream/settings/update";
     public static final UpdateDataStreamSettingsAction INSTANCE = new UpdateDataStreamSettingsAction();
+
+    private static final TransportVersion DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS = TransportVersion.fromName(
+        "data_stream_write_index_only_settings"
+    );
 
     public UpdateDataStreamSettingsAction() {
         super(NAME);
@@ -242,9 +247,7 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             public IndicesSettingsResult(StreamInput in) throws IOException {
                 this(
                     in.readStringCollectionAsList(),
-                    in.getTransportVersion().onOrAfter(TransportVersions.DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS)
-                        ? in.readStringCollectionAsList()
-                        : List.of(),
+                    in.getTransportVersion().supports(DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS) ? in.readStringCollectionAsList() : List.of(),
                     in.readStringCollectionAsList(),
                     in.readCollectionAsList(IndexSettingError::new)
                 );
@@ -264,7 +267,7 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeStringCollection(appliedToDataStreamOnly);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS)) {
+                if (out.getTransportVersion().supports(DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS)) {
                     out.writeStringCollection(appliedToDataStreamAndWriteIndex);
                 }
                 out.writeStringCollection(appliedToDataStreamAndBackingIndices);

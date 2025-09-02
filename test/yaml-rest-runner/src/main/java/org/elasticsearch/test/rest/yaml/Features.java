@@ -40,7 +40,8 @@ public final class Features {
         "allowed_warnings_regex",
         "close_to",
         "is_after",
-        "capabilities"
+        "capabilities",
+        "eventually"
     );
 
     private Features() {

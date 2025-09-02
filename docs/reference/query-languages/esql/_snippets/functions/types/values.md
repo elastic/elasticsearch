@@ -12,6 +12,9 @@
 | double | double |
 | geo_point | geo_point |
 | geo_shape | geo_shape |
+| geohash | geohash |
+| geohex | geohex |
+| geotile | geotile |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |

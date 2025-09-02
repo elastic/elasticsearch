@@ -402,6 +402,9 @@ public class EsqlCCSUtils {
      * This is needed in order to require lookup index is present on every remote in order to correctly execute a query with join.
      */
     public static String qualifyWithRunningRemotes(String index, Set<String> remotes, EsqlExecutionInfo executionInfo) {
+        if (remotes.isEmpty()) {
+            return index;
+        }
         return remotes.stream().filter(remote -> {
             var cluster = executionInfo.getCluster(remote);
             return cluster == null || cluster.getStatus() == Cluster.Status.RUNNING;

@@ -614,7 +614,7 @@ public class ShardStateActionTests extends ESTestCase {
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
         final TransportVersion version = randomFrom(
             getFirstVersion(),
-            getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
+            getPreviousVersion(TransportVersion.minimumCompatible()),
             getPreviousVersion(TransportVersions.V_8_15_0)
         );
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();

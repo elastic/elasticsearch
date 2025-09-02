@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -322,7 +321,7 @@ final class OutboundHandler {
     }
 
     private boolean assertValidTransportVersion(TransportVersion transportVersion) {
-        assert this.version.before(TransportVersions.MINIMUM_COMPATIBLE) // running an incompatible-version test
+        assert this.version.before(TransportVersion.minimumCompatible()) // running an incompatible-version test
             || this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
         return true;
     }

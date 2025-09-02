@@ -206,8 +206,14 @@ public interface ExponentialHistogram extends Accountable {
         return EmptyExponentialHistogram.INSTANCE;
     }
 
-    static ExponentialHistogramBuilder builder(ExponentialHistogramCircuitBreaker breaker) {
-        return new ExponentialHistogramBuilder(breaker);
+    /**
+     * Create a builder for an exponential histogram with the given scale.
+     * @param scale the scale of the histogram to build
+     * @param breaker the circuit breaker to use
+     * @return a new builder
+     */
+    static ExponentialHistogramBuilder builder(int scale, ExponentialHistogramCircuitBreaker breaker) {
+        return new ExponentialHistogramBuilder(scale, breaker);
     }
 
     /**

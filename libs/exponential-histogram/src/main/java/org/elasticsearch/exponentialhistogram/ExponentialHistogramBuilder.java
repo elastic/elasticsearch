@@ -33,7 +33,7 @@ public class ExponentialHistogramBuilder {
 
     private final ExponentialHistogramCircuitBreaker breaker;
 
-    private int scale;
+    private final int scale;
     private ZeroBucket zeroBucket = ZeroBucket.minimalEmpty();
     private Double sum;
     private Double min;
@@ -42,18 +42,9 @@ public class ExponentialHistogramBuilder {
     private final TreeMap<Long, Long> negativeBuckets = new TreeMap<>();
     private final TreeMap<Long, Long> positiveBuckets = new TreeMap<>();
 
-    public ExponentialHistogramBuilder(ExponentialHistogramCircuitBreaker breaker) {
+    ExponentialHistogramBuilder(int scale, ExponentialHistogramCircuitBreaker breaker) {
         this.breaker = breaker;
-    }
-
-    /**
-     * Sets the scale of the histogram.
-     * @param scale the scale to set
-     * @return the builder
-     */
-    public ExponentialHistogramBuilder scale(int scale) {
         this.scale = scale;
-        return this;
     }
 
     public ExponentialHistogramBuilder zeroBucket(ZeroBucket zeroBucket) {

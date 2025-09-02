@@ -29,8 +29,7 @@ public class ExponentialHistogramBuilderTests extends ExponentialHistogramTestCa
 
     public void testBuildWithAllFieldsSet() {
         ZeroBucket zeroBucket = ZeroBucket.create(1, 2);
-        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(breaker())
-            .scale(3)
+        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(3, breaker())
             .zeroBucket(zeroBucket)
             .sum(100.0)
             .min(1.0)
@@ -53,8 +52,7 @@ public class ExponentialHistogramBuilderTests extends ExponentialHistogramTestCa
     }
 
     public void testBuildWithEstimation() {
-        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(breaker())
-            .scale(0)
+        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(0, breaker())
             .addPositiveBucket(0, 1)
             .addPositiveBucket(1, 1)
             .addNegativeBucket(0, 4);
@@ -71,13 +69,13 @@ public class ExponentialHistogramBuilderTests extends ExponentialHistogramTestCa
     }
 
     public void testAddDuplicatePositiveBucketThrows() {
-        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(breaker());
+        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(0, breaker());
         builder.addPositiveBucket(1, 10);
         expectThrows(IllegalArgumentException.class, () -> builder.addPositiveBucket(1, 5));
     }
 
     public void testAddDuplicateNegativeBucketThrows() {
-        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(breaker());
+        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(0, breaker());
         builder.addNegativeBucket(-1, 10);
         expectThrows(IllegalArgumentException.class, () -> builder.addNegativeBucket(-1, 5));
     }

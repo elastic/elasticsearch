@@ -459,6 +459,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
+    private final ClusterService clusterService;
 
     public ActionModule(
         Settings settings,
@@ -534,6 +535,7 @@ public class ActionModule extends AbstractModule {
             reservedProjectStateHandlers
         );
         this.restExtension = restExtension;
+        this.clusterService = clusterService;
     }
 
     private static <T> T getRestServerComponent(
@@ -927,9 +929,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResolveClusterAction());
         registerHandler.accept(new RestResolveIndexAction());
 
-        registerHandler.accept(new RestIndexAction());
-        registerHandler.accept(new CreateHandler());
-        registerHandler.accept(new AutoIdHandler());
+        registerHandler.accept(new RestIndexAction(clusterService, projectIdResolver));
+        registerHandler.accept(new CreateHandler(clusterService, projectIdResolver));
+        registerHandler.accept(new AutoIdHandler(clusterService, projectIdResolver));
         registerHandler.accept(new RestGetAction());
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));

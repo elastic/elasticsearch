@@ -6,6 +6,7 @@
 * [`MEDIAN_ABSOLUTE_DEVIATION`](../../functions-operators/aggregation-functions.md#esql-median_absolute_deviation)
 * [`MIN`](../../functions-operators/aggregation-functions.md#esql-min)
 * [`PERCENTILE`](../../functions-operators/aggregation-functions.md#esql-percentile)
+* [`SAMPLE`](../../functions-operators/aggregation-functions.md#esql-sample)
 * [preview] [`ST_CENTROID_AGG`](../../functions-operators/aggregation-functions.md#esql-st_centroid_agg)
 * [preview] [`ST_EXTENT_AGG`](../../functions-operators/aggregation-functions.md#esql-st_extent_agg)
 * [`STD_DEV`](../../functions-operators/aggregation-functions.md#esql-std_dev)

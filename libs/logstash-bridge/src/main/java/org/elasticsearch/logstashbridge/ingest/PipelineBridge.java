@@ -19,12 +19,17 @@ import java.util.function.BiConsumer;
 /**
  * An external bridge for {@link Pipeline}
  */
-public class PipelineBridge extends StableBridgeAPI.ProxyInternal<Pipeline> {
-    public static PipelineBridge fromInternal(final Pipeline pipeline) {
-        return new PipelineBridge(pipeline);
+public interface PipelineBridge extends StableBridgeAPI<Pipeline> {
+
+    String getId();
+
+    void execute(IngestDocumentBridge bridgedIngestDocument, BiConsumer<IngestDocumentBridge, Exception> bridgedHandler);
+
+    static PipelineBridge fromInternal(final Pipeline pipeline) {
+        return new ProxyInternal(pipeline);
     }
 
-    public static PipelineBridge create(
+    static PipelineBridge create(
         String id,
         Map<String, Object> config,
         Map<String, ProcessorBridge.Factory> processorFactories,
@@ -41,18 +46,23 @@ public class PipelineBridge extends StableBridgeAPI.ProxyInternal<Pipeline> {
         );
     }
 
-    public PipelineBridge(final Pipeline delegate) {
-        super(delegate);
-    }
+    class ProxyInternal extends StableBridgeAPI.ProxyInternal<Pipeline> implements PipelineBridge {
 
-    public String getId() {
-        return internalDelegate.getId();
-    }
+        public ProxyInternal(final Pipeline delegate) {
+            super(delegate);
+        }
 
-    public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
-        this.internalDelegate.execute(
-            StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
-            (ingestDocument, e) -> handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e)
-        );
+        @Override
+        public String getId() {
+            return internalDelegate.getId();
+        }
+
+        @Override
+        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
+            this.internalDelegate.execute(
+                StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
+                (ingestDocument, e) -> handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e)
+            );
+        }
     }
 }

@@ -42,6 +42,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toSet;
+
 public class EsqlCCSUtils {
 
     private EsqlCCSUtils() {}
@@ -206,7 +208,7 @@ public class EsqlCCSUtils {
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getClusterStates(Cluster.Status.RUNNING)
             .map(Cluster::getClusterAlias)
-            .collect(Collectors.toSet());
+            .collect(toSet());
         for (String indexName : indexResolution.resolvedIndices()) {
             clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
@@ -414,4 +416,10 @@ public class EsqlCCSUtils {
             return "in remote cluster [" + clusterAlias + "]";
         }
     }
+
+    public static Set<String> getRemotesOf(Set<String> concreteIndices) {
+        return concreteIndices.stream().map(RemoteClusterAware::parseClusterAlias).collect(toSet());
+    }
+
+
 }

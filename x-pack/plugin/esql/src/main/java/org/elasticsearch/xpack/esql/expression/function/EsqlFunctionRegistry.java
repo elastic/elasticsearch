@@ -72,6 +72,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
@@ -83,6 +86,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
@@ -148,14 +152,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToLong;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToLong;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToLong;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -217,6 +215,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -246,6 +247,9 @@ public class EsqlFunctionRegistry {
             GEO_SHAPE,
             CARTESIAN_POINT,
             CARTESIAN_SHAPE,
+            GEOHASH,
+            GEOHEX,
+            GEOTILE,
             BOOLEAN,
             UNSIGNED_LONG,
             UNSUPPORTED
@@ -502,22 +506,20 @@ public class EsqlFunctionRegistry {
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
                 def(Knn.class, quad(Knn::new), "knn"),
+                def(ToGeohash.class, ToGeohash::new, "to_geohash"),
+                def(ToGeotile.class, ToGeotile::new, "to_geotile"),
+                def(ToGeohex.class, ToGeohex::new, "to_geohex"),
                 def(StGeohash.class, StGeohash::new, "st_geohash"),
-                def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
-                def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),
                 def(StGeotile.class, StGeotile::new, "st_geotile"),
-                def(StGeotileToLong.class, StGeotileToLong::new, "st_geotile_to_long"),
-                def(StGeotileToString.class, StGeotileToString::new, "st_geotile_to_string"),
                 def(StGeohex.class, StGeohex::new, "st_geohex"),
-                def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
-                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
-                def(UrlEncode.class, UrlEncode::new, "url_encode") } };
+                def(UrlEncode.class, UrlEncode::new, "url_encode"),
+                def(UrlDecode.class, UrlDecode::new, "url_decode") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -35,6 +35,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -56,6 +58,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
+
+    public static final Setting<TimeValue> ALLOCATION_EXPLAIN_LOGGING_INTERVAL = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.allocation_explain_log_interval",
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private final ShardsAllocator delegateAllocator;
     private final ThreadPool threadPool;
@@ -109,6 +118,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterState apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
     }
 
+    @FunctionalInterface
+    public interface ShardAllocationExplainer {
+        ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
+    }
+
     public DesiredBalanceShardsAllocator(
         ClusterSettings clusterSettings,
         ShardsAllocator delegateAllocator,
@@ -116,13 +130,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        ShardAllocationExplainer shardAllocationExplainer
     ) {
         this(
             delegateAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
+            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator, shardAllocationExplainer),
             reconciler,
             telemetryProvider,
             nodeAllocationStatsAndWeightsCalculator

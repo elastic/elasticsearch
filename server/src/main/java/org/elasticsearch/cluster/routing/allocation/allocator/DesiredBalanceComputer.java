@@ -17,13 +17,17 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.ShardAllocationExplainer;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +43,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -48,9 +53,13 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 public class DesiredBalanceComputer {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
+    private static final Logger allocationExplainLogger = LogManager.getLogger(
+        DesiredBalanceComputer.class.getCanonicalName() + ".allocation_explain"
+    );
 
     private final ShardsAllocator delegateAllocator;
     private final TimeProvider timeProvider;
+    private final ShardAllocationExplainer shardAllocationExplainer;
 
     // stats
     protected final MeanMetric iterations = new MeanMetric();
@@ -77,15 +86,27 @@ public class DesiredBalanceComputer {
     private long lastConvergedTimeMillis;
     private long lastNotConvergedLogMessageTimeMillis;
     private Level convergenceLogMsgLevel;
+    private final FrequencyCappedAction logAllocationExplainForUnassigned;
 
-    public DesiredBalanceComputer(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardsAllocator delegateAllocator) {
+    public DesiredBalanceComputer(
+        ClusterSettings clusterSettings,
+        TimeProvider timeProvider,
+        ShardsAllocator delegateAllocator,
+        ShardAllocationExplainer shardAllocationExplainer
+    ) {
         this.delegateAllocator = delegateAllocator;
         this.timeProvider = timeProvider;
+        this.shardAllocationExplainer = shardAllocationExplainer;
         this.numComputeCallsSinceLastConverged = 0;
         this.numIterationsSinceLastConverged = 0;
+        this.logAllocationExplainForUnassigned = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
         this.lastConvergedTimeMillis = timeProvider.relativeTimeInMillis();
         this.lastNotConvergedLogMessageTimeMillis = lastConvergedTimeMillis;
         this.convergenceLogMsgLevel = Level.DEBUG;
+        clusterSettings.initializeAndWatch(
+            DesiredBalanceShardsAllocator.ALLOCATION_EXPLAIN_LOGGING_INTERVAL,
+            logAllocationExplainForUnassigned::setMinInterval
+        );
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
@@ -462,8 +483,43 @@ public class DesiredBalanceComputer {
             );
         }
 
+        maybeLogAllocationExplainForUnassigned(finishReason, routingNodes, routingAllocation);
+
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
+    }
+
+    private void maybeLogAllocationExplainForUnassigned(
+        DesiredBalance.ComputationFinishReason finishReason,
+        RoutingNodes routingNodes,
+        RoutingAllocation routingAllocation
+    ) {
+        if (allocationExplainLogger.isDebugEnabled()
+            && finishReason == DesiredBalance.ComputationFinishReason.CONVERGED
+            && routingNodes.hasUnassignedShards()) {
+            logAllocationExplainForUnassigned.maybeExecute(() -> {
+                final var unassigned = routingNodes.unassigned();
+                final var shardRouting = Stream.concat(unassigned.stream(), unassigned.ignored().stream())
+                    .filter(ShardRouting::primary)
+                    .findFirst()
+                    .orElse(Stream.concat(unassigned.stream(), unassigned.ignored().stream()).iterator().next());
+                final var originalDebugMode = routingAllocation.getDebugMode();
+                routingAllocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+                final ShardAllocationDecision shardAllocationDecision;
+                try {
+                    shardAllocationDecision = shardAllocationExplainer.explain(shardRouting, routingAllocation);
+                } finally {
+                    routingAllocation.setDebugMode(originalDebugMode);
+                }
+                allocationExplainLogger.debug(
+                    "unassigned shard [{}] with allocation decision {}",
+                    shardRouting,
+                    org.elasticsearch.common.Strings.toString(
+                        p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))
+                    )
+                );
+            });
+        }
     }
 
     // visible for testing

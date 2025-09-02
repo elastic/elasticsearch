@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -45,8 +46,12 @@ public class Present extends AggregateFunction implements ToAggregator, Surrogat
             + "Otherwise it returns 0.",
         type = FunctionType.AGGREGATE,
         examples = {
-        // TODO: Add examples
-        }
+            @Example(file = "present", tag = "present"),
+            @Example(
+                description = "To check for the presence inside a group use `PRESENT()` and `BY` clauses",
+                file = "present",
+                tag = "present-by"
+            ) }
     )
     public Present(
         Source source,

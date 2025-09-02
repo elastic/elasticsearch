@@ -165,6 +165,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset COLORS = new TestDataset("colors");
+    private static final TestDataset INTEGERS = new TestDataset("integers");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -231,7 +232,8 @@ public class CsvTestsDataLoader {
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
         Map.entry(COLORS.indexName, COLORS),
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
-        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP)
+        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
+        Map.entry(INTEGERS.indexName, INTEGERS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

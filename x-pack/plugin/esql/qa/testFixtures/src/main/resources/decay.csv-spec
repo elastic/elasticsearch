@@ -90,6 +90,19 @@ decay_result:double
 1.0
 ;
 
+intMultipleRows
+FROM integers
+| EVAL decay_result = decay(value, 0, 10, {"offset": 5, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
+0.75
+0.0
+0.0
+0.0
+;
+
 doubleLinear
 required_capability: decay_function
 

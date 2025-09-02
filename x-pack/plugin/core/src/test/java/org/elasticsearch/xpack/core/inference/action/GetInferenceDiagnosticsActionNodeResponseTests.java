@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
@@ -15,15 +17,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.SerializableStats;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 
-public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractWireSerializingTestCase<
+public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCWireSerializationTestCase<
     GetInferenceDiagnosticsAction.NodeResponse> {
     public static GetInferenceDiagnosticsAction.NodeResponse createRandom() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
@@ -128,6 +130,27 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractWire
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().field("count", count).endObject();
+        }
+    }
+
+    @Override
+    protected GetInferenceDiagnosticsAction.NodeResponse mutateInstanceForVersion(
+        GetInferenceDiagnosticsAction.NodeResponse instance,
+        TransportVersion version
+    ) {
+        if (version.before(TransportVersions.ML_INFERENCE_ENDPOINT_CACHE)) {
+            return new GetInferenceDiagnosticsAction.NodeResponse(
+                instance.getNode(),
+                new PoolStats(
+                    instance.getConnectionPoolStats().getLeasedConnections(),
+                    instance.getConnectionPoolStats().getPendingConnections(),
+                    instance.getConnectionPoolStats().getAvailableConnections(),
+                    instance.getConnectionPoolStats().getMaxConnections()
+                ),
+                null
+            );
+        } else {
+            return instance;
         }
     }
 }

@@ -214,7 +214,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
         dataPointGroup.addDataPoint(
             Set.of(),
@@ -250,7 +250,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
         dataPointGroup.addDataPoint(
             Set.of(),
@@ -286,7 +286,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
         dataPointGroup.addDataPoint(
             Set.of(),
@@ -321,7 +321,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
         );
         dataPointGroup.addDataPoint(
             Set.of(),

@@ -1,3 +1,3 @@
-* [`FROM`](../../commands/source-commands.md#esql-from)
-* [`ROW`](../../commands/source-commands.md#esql-row)
-* [`SHOW`](../../commands/source-commands.md#esql-show)
+- [`FROM`](/reference/query-languages/esql/commands/from.md)
+- [`ROW`](/reference/query-languages/esql/commands/row.md)
+- [`SHOW`](/reference/query-languages/esql/commands/show.md)

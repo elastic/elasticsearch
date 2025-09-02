@@ -81,10 +81,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     /**
      * Configuration for a field to load.
      *
-     * {@code blockLoader} maps shard index to the {@link BlockLoader}s
-     * which load the actual blocks.
+     * @param nullsFiltered if {@code true}, then target docs passed from the source operator are guaranteed to have a value
+     *                      for the field; otherwise, the guarantee is unknown. This enables optimizations for block loaders,
+     *                      treating the field as dense (every document has value) even if it is sparse in the index.
+     *                      For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out documents
+     *                      without value for field x, all target documents returned from the source operator
+     *                      will have a value for field x whether x is dense or sparse in the index.
+     * @param blockLoader   maps shard index to the {@link BlockLoader}s which load the actual blocks.
      */
-    public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
+    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<BlockLoader> blockLoader) {}
 
     public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
 

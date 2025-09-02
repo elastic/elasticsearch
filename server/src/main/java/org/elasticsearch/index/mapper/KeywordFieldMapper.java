@@ -183,7 +183,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexSortConfig indexSortConfig;
         private final IndexMode indexMode;
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
-        private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
+        private final Parameter<Boolean> hasNorms = Parameter.normsParam(m -> toType(m).fieldType.omitNorms() == false, false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
             m -> toType(m).fieldType().getTextSearchInfo().similarity()
         );

@@ -16,6 +16,9 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -187,9 +190,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * implementations in the process.
      */
     public void testTransform() throws Exception {
-        if (FieldAttribute.class.equals(subclass)) {
-            assumeTrue("FieldAttribute private constructor", false);
-        }
         Constructor<T> ctor = longestCtor(subclass);
         Object[] nodeCtorArgs = ctorArgs(ctor);
         T node = ctor.newInstance(nodeCtorArgs);
@@ -518,6 +518,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             );
         }
 
+        if (argClass == EsQueryExec.QueryBuilderAndTags.class) {
+            return randomQueryBuildAndTags();
+        }
+
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -730,6 +734,14 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             randomIndexNameWithModes(),
             randomFieldAttributes(0, 10, false)
         );
+    }
+
+    static QueryBuilder randomQuery() {
+        return randomBoolean() ? new MatchAllQueryBuilder() : new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(4));
+    }
+
+    static EsQueryExec.QueryBuilderAndTags randomQueryBuildAndTags() {
+        return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomBoolean() ? randomLong() : randomDouble()));
     }
 
     static FieldAttribute field(String name, DataType type) {

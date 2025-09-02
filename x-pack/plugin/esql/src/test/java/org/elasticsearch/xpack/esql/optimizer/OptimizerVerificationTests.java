@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadEnrichPolicyResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.INLINESTATS_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -94,6 +95,38 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         String err;
 
+        // Remote enrich is ok after limit
+        plan("""
+            FROM test
+            | LIMIT 10
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            | STATS count(*) BY language_name
+            """, analyzer);
+
+        // Remote enrich is ok after topn
+        plan("""
+            FROM test
+            | EVAL language_code = languages
+            | SORT languages
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        plan("""
+            FROM test
+            | EVAL language_code = languages
+            | SORT languages
+            | LIMIT 2
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+
+        // Remote enrich is ok before pipeline breakers
+        plan("""
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            | LIMIT 10
+            """, analyzer);
+
         plan("""
             FROM test
             | EVAL language_code = languages
@@ -103,18 +136,17 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         plan("""
             FROM test
-            | LIMIT 10
             | EVAL language_code = languages
             | ENRICH _remote:languages ON language_code
             | STATS count(*) BY language_name
+            | LIMIT 10
             """, analyzer);
 
         plan("""
             FROM test
             | EVAL language_code = languages
             | ENRICH _remote:languages ON language_code
-            | STATS count(*) BY language_name
-            | LIMIT 10
+            | SORT language_name
             """, analyzer);
 
         err = error("""
@@ -125,16 +157,18 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """, analyzer);
         assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [STATS count(*) BY language_code]@3:3"));
 
-        err = error("""
-            FROM test
-            | EVAL language_code = languages
-            | INLINESTATS count(*) BY language_code
-            | ENRICH _remote:languages ON language_code
-            """, analyzer);
-        assertThat(
-            err,
-            containsString("4:3: ENRICH with remote policy can't be executed after [INLINESTATS count(*) BY language_code]@3:3")
-        );
+        if (INLINESTATS_FEATURE_FLAG) {
+            err = error("""
+                FROM test
+                | EVAL language_code = languages
+                | INLINESTATS count(*) BY language_code
+                | ENRICH _remote:languages ON language_code
+                """, analyzer);
+            assertThat(
+                err,
+                containsString("4:3: ENRICH with remote policy can't be executed after [INLINESTATS count(*) BY language_code]@3:3")
+            );
+        }
 
         err = error("""
             FROM test
@@ -227,6 +261,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [CHANGE_POINT salary ON languages]@2:3"));
     }
 
+    /**
+     * The validation should not trigger for remote enrich after a lookup join. Lookup joins can be executed anywhere.
+     */
     public void testRemoteEnrichAfterLookupJoin() {
         EnrichResolution enrichResolution = new EnrichResolution();
         loadEnrichPolicyResolution(
@@ -254,24 +291,22 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | %s
             """, lookupCommand), analyzer);
 
-        String err = error(Strings.format("""
+        plan(Strings.format("""
             FROM test
             | EVAL language_code = languages
             | %s
             | ENRICH _remote:languages ON language_code
             """, lookupCommand), analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
 
-        err = error(Strings.format("""
+        plan(Strings.format("""
             FROM test
             | EVAL language_code = languages
             | %s
             | ENRICH _remote:languages ON language_code
             | %s
             """, lookupCommand, lookupCommand), analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
 
-        err = error(Strings.format("""
+        plan(Strings.format("""
             FROM test
             | EVAL language_code = languages
             | %s
@@ -279,7 +314,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | MV_EXPAND language_code
             | ENRICH _remote:languages ON language_code
             """, lookupCommand), analyzer);
-        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
     }
 
     public void testRemoteLookupJoinWithPipelineBreaker() {

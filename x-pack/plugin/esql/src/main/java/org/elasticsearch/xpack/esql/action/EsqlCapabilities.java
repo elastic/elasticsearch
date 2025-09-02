@@ -191,6 +191,11 @@ public class EsqlCapabilities {
         FN_REVERSE_GRAPHEME_CLUSTERS,
 
         /**
+         * Support for function {@code CONTAINS}. Done in <a href="https://github.com/elastic/elasticsearch/pull/133016">#133016.</a>
+         */
+        FN_CONTAINS,
+
+        /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,
@@ -244,6 +249,12 @@ public class EsqlCapabilities {
          * Support for function MONTH_NAME
          */
         FN_MONTH_NAME,
+
+        /**
+         * support for MV_CONTAINS function
+         * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
+         */
+        FN_MV_CONTAINS,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -404,6 +415,11 @@ public class EsqlCapabilities {
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
         SPATIAL_GRID(Build.current().isSnapshot()),
+
+        /**
+         * Support geohash, geotile and geohex data types. Done in #129581
+         */
+        SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -967,7 +983,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V9(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1174,6 +1190,11 @@ public class EsqlCapabilities {
         K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
 
         /**
+         * Geospatial field types in the k8s.csv and k8s-downsampled.csv datasets
+         */
+        K8S_DATASETS_GEOSPATIAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
@@ -1355,6 +1376,7 @@ public class EsqlCapabilities {
          * FIRST and LAST aggregate functions.
          */
         AGG_FIRST_LAST(Build.current().isSnapshot()),
+        AGG_FIRST_LAST_STRING(Build.current().isSnapshot()),
 
         /**
          * Support correct counting of skipped shards.
@@ -1374,7 +1396,32 @@ public class EsqlCapabilities {
         /**
          * Support null elements on vector similarity functions
          */
-        VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL;
+        VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,
+
+        /**
+         * Support for vector Hamming distance.
+         */
+        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for tbucket function
+         */
+        TBUCKET,
+
+        /**
+         * Allow qualifiers in attribute names.
+         */
+        NAME_QUALIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * URL encoding function.
+         */
+        URL_ENCODE(Build.current().isSnapshot()),
+
+        /**
+         * URL decoding function.
+         */
+        URL_DECODE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

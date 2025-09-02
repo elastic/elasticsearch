@@ -9,22 +9,26 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.Directory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinitionsDirectory;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getResourcesDirectory;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin.TRANSPORT_REFERENCES_TOPIC;
 
 public class TransportVersionReferencesPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
+
+        project.getPlugins()
+            .apply(ProjectSubscribeServicePlugin.class)
+            .getService()
+            .get()
+            .registerProjectForTopic(TRANSPORT_REFERENCES_TOPIC, project);
 
         var collectTask = project.getTasks()
             .register("collectTransportVersionReferences", CollectTransportVersionReferencesTask.class, t -> {
@@ -35,9 +39,7 @@ public class TransportVersionReferencesPlugin implements Plugin<Project> {
                 t.getOutputFile().set(project.getLayout().getBuildDirectory().file("transport-version/references.txt"));
             });
 
-        Configuration tvReferencesConfig = project.getConfigurations().create("transportVersionReferences", c -> {
-            c.setCanBeConsumed(true);
-            c.setCanBeResolved(false);
+        var tvReferencesConfig = project.getConfigurations().consumable("transportVersionReferences", c -> {
             c.attributes(TransportVersionReference::addArtifactAttribute);
         });
         project.getArtifacts().add(tvReferencesConfig.getName(), collectTask);
@@ -46,10 +48,6 @@ public class TransportVersionReferencesPlugin implements Plugin<Project> {
             .register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all TransportVersion references used in the project have an associated definition file");
-                Directory definitionsDir = getDefinitionsDirectory(getResourcesDirectory(project));
-                if (definitionsDir.getAsFile().exists()) {
-                    t.getDefinitionsDirectory().set(definitionsDir);
-                }
                 t.getReferencesFile().set(collectTask.get().getOutputFile());
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));

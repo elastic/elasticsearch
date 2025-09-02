@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -23,11 +24,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Superclass for testing any {@link Operator}, including {@link SourceOperator}s.
@@ -106,39 +110,58 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     }
 
     /**
-     * Ensures that the Operator.Status of this operator has the standard fields.
+     * Ensures that the Operator.Status of this operator has the standard fields, set to 0.
      */
-    public final void testOperatorStatus() throws IOException {
+    public void testEmptyOperatorStatus() {
         DriverContext driverContext = driverContext();
         try (var operator = simple().get(driverContext)) {
-            Operator.Status status = operator.status();
-            if (status == null) {
-                assertEmptyStatus(null);
-                return;
-            }
+            assertOperatorStatus(operator, List.of(), List.of());
+        }
+    }
 
-            try (var xContentBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                status.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+    /**
+     * Extracts and asserts the operator status.
+     */
+    protected final void assertOperatorStatus(Operator operator, List<Page> input, List<Page> output) {
+        Operator.Status status = operator.status();
 
-                var bytesReference = BytesReference.bytes(xContentBuilder);
-                var map = XContentHelper.convertToMap(bytesReference, false, xContentBuilder.contentType()).v2();
+        if (status == null) {
+            assertStatus(null, input, output);
+            return;
+        }
 
-                assertEmptyStatus(map);
-            }
+        var xContent = XContentType.JSON.xContent();
+        try (var xContentBuilder = XContentBuilder.builder(xContent)) {
+            status.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+
+            var bytesReference = BytesReference.bytes(xContentBuilder);
+            var map = XContentHelper.convertToMap(bytesReference, false, xContentBuilder.contentType()).v2();
+
+            assertStatus(map, input, output);
+        } catch (IOException e) {
+            fail(e, "Failed to convert operator status to XContent");
         }
     }
 
     /**
      * Assert that the status is sane.
+     * <p>
+     *     This method should be overridden with custom logics and for better assertions and for operators without status.
+     * </p>
      */
-    protected void assertEmptyStatus(@Nullable Map<String, Object> map) {
+    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
+        assertThat(map, notNullValue());
+
+        var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
+
         MapMatcher matcher = matchesMap().extraOk();
         if (map.containsKey("pages_processed")) {
-            matcher = matcher.entry("pages_processed", 0);
+            matcher = matcher.entry("pages_processed", greaterThanOrEqualTo(0));
         } else {
-            matcher = matcher.entry("pages_received", 0).entry("pages_emitted", 0);
+            matcher = matcher.entry("pages_received", input.size()).entry("pages_emitted", output.size());
         }
-        matcher = matcher.entry("rows_received", 0).entry("rows_emitted", 0);
+        matcher = matcher.entry("rows_received", totalInputRows).entry("rows_emitted", totalOutputRows);
         assertMap(map, matcher);
     }
 

@@ -1,8 +1,8 @@
 {
   "ml.get_data_frame_analytics":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics.html",
-      "description":"Retrieves configuration information for data frame analytics jobs."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-data-frame-analytics",
+      "description":"Get data frame analytics job configuration info"
     },
     "stability":"stable",
     "visibility":"public",

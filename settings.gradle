@@ -1,7 +1,8 @@
 import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
-import org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver
+import org.elasticsearch.gradle.internal.dependencies.rules.ExcludeTransitivesRule
+import org.elasticsearch.gradle.internal.dependencies.rules.Log4jRule
 
 pluginManagement {
   repositories {
@@ -29,6 +30,14 @@ dependencyResolutionManagement {
       from(files("gradle/build.versions.toml"))
     }
   }
+}
+
+dependencyResolutionManagement {
+    components {
+      all(ExcludeTransitivesRule)
+      withModule("org.apache.logging.log4j:log4j-api", Log4jRule)
+  }
+
 }
 
 toolchainManagement {

@@ -195,16 +195,6 @@ public abstract class GradleUtils {
         return projectPath.contains("modules:") || projectPath.startsWith(":x-pack:plugin");
     }
 
-    public static void disableTransitiveDependencies(Configuration config) {
-        config.getDependencies().all(dep -> {
-            if (dep instanceof ModuleDependency
-                && dep instanceof ProjectDependency == false
-                && dep.getGroup().startsWith("org.elasticsearch") == false) {
-                ((ModuleDependency) dep).setTransitive(false);
-            }
-        });
-    }
-
     public static String projectPath(String taskPath) {
         return taskPath.lastIndexOf(':') == 0 ? ":" : taskPath.substring(0, taskPath.lastIndexOf(':'));
     }

@@ -110,7 +110,7 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new DefaultIVFVectorsReader(state, rawVectorFormat.fieldsReader(state), centroidsPerParentCluster);
+        return new DefaultIVFVectorsReader(state, rawVectorFormat.fieldsReader(state));
     }
 
     @Override

@@ -41,12 +41,9 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
 
     // How many extra centroids we need to collect for each visited centroid for hierarchical centroids.
-    public final float centroidOversampling;
 
-    public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader, int centroidsPerParentCluster)
-        throws IOException {
+    public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);
-        centroidOversampling = (float) centroidsPerParentCluster / 2;
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
@@ -115,8 +112,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
         centroids.seek(0L);
         int numParents = centroids.readVInt();
+
         CentroidIterator centroidIterator;
         if (numParents > 0) {
+            // equivalent to (float) centroidsPerParentCluster / 2
+            float centroidOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
             centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,

@@ -100,7 +100,7 @@ public class MonitoringBulkRequest extends LegacyActionRequest {
                 if (MonitoringIndex.from(indexRequest.index()) != MonitoringIndex.TIMESTAMPED) {
                     return;
                 }
-                final BytesReference source = indexRequest.source();
+                final BytesReference source = indexRequest.sourceContext().bytes();
                 if (source.length() == 0) {
                     throw new IllegalArgumentException(
                         "source is missing for monitoring document [" + indexRequest.index() + "][" + type + "][" + indexRequest.id() + "]"

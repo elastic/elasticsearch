@@ -226,7 +226,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     case CREATED -> {
                         IndexRequest upsertRequest = result.action();
                         // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-                        final BytesReference upsertSourceBytes = upsertRequest.source();
+                        final BytesReference upsertSourceBytes = upsertRequest.sourceContext().bytes();
                         client.bulk(
                             toSingleItemBulkRequest(upsertRequest),
                             unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
@@ -269,7 +269,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     case UPDATED -> {
                         IndexRequest indexRequest = result.action();
                         // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-                        final BytesReference indexSourceBytes = indexRequest.source();
+                        final BytesReference indexSourceBytes = indexRequest.sourceContext().bytes();
                         client.bulk(
                             toSingleItemBulkRequest(indexRequest),
                             unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {

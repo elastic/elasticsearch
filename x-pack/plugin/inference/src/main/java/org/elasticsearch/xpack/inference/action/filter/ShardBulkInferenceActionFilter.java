@@ -629,7 +629,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().length());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().sourceContext().bytes().length());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
@@ -724,7 +724,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            BytesReference originalSource = indexRequest.source();
+            BytesReference originalSource = indexRequest.sourceContext().bytes();
             if (useLegacyFormat) {
                 var newDocMap = indexRequest.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
@@ -733,11 +733,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 indexRequest.source(newDocMap, indexRequest.getContentType());
             } else {
                 try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                    appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
+                    appendSourceAndInferenceMetadata(
+                        builder,
+                        indexRequest.sourceContext().bytes(),
+                        indexRequest.getContentType(),
+                        inferenceFieldsMap
+                    );
                     indexRequest.source(builder);
                 }
             }
-            long modifiedSourceSize = indexRequest.source().length();
+            long modifiedSourceSize = indexRequest.sourceContext().bytes().length();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those

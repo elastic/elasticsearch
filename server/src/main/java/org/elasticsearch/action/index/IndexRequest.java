@@ -414,6 +414,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this.isPipelineResolved;
     }
 
+    public SourceContext sourceContext() {
+        return sourceContext;
+    }
+
     /**
      * The source of the document to index, recopied to a new array if it is unsafe.
      */

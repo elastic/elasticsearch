@@ -759,7 +759,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
-                    doc.source(),
+                    doc.sourceContext().bytes(),
                     xContentType
                 )
             ) {
@@ -782,7 +782,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
-                    upsertRequest.source(),
+                    upsertRequest.sourceContext().bytes(),
                     xContentType
                 )
             ) {

@@ -692,7 +692,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
                 for (ResolvedIndex index : response.indices) {
-                    // We want to filter here because the remote cluster might be too old to be able to filter
+                    // We want to filter here because the linked cluster might be too old to be able to filter
                     if (indexModes.isEmpty() == false && indexModes.contains(index.getMode()) == false) {
                         continue;
                     }

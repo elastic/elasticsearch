@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.oteldata.otlp.tsid;
 
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.util.List;

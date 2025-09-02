@@ -37,7 +37,6 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings.disabledRateLimiting(map);
 
         return new ElasticInferenceServiceRerankServiceSettings(modelId);
     }

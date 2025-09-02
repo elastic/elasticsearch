@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -74,7 +73,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
     }
 
-    public void testFromMap_Request_WithAllSettings_RemovesRateLimitField() {
+    public void testFromMap_Request_WithAllSettings_DoesNotRemoveRateLimitField() {
         var modelId = "my-dense-model-id";
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = 384;
@@ -96,7 +95,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         );
         var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map);
 
-        assertThat(map, anEmptyMap());
+        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
         assertThat(serviceSettings.modelId(), is(modelId));
         assertThat(serviceSettings.similarity(), is(similarity));
         assertThat(serviceSettings.dimensions(), is(dimensions));

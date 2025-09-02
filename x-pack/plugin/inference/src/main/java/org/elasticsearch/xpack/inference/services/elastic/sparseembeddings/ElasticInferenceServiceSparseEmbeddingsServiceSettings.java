@@ -47,8 +47,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             validationException
         );
 
-        RateLimitSettings.disabledRateLimiting(map);
-
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }

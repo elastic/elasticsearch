@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -59,7 +58,7 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
 
-    public void testFromMap_RemovesRateLimitingField() {
+    public void testFromMap_DoesNotRemoveRateLimitField() {
         var modelId = "my-model-id";
 
         var map = new HashMap<String, Object>(
@@ -72,7 +71,7 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
         );
         var serviceSettings = ElasticInferenceServiceRerankServiceSettings.fromMap(map);
 
-        assertThat(map, anEmptyMap());
+        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
         assertThat(serviceSettings, is(new ElasticInferenceServiceRerankServiceSettings(modelId)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }

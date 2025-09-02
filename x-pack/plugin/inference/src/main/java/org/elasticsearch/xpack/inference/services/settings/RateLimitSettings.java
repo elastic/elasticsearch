@@ -27,7 +27,6 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
@@ -51,12 +50,6 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         }
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
-    }
-
-    public static RateLimitSettings disabledRateLimiting(Map<String, Object> map) {
-        removeFromMap(map, FIELD_NAME);
-
-        return DISABLED_INSTANCE;
     }
 
     public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(

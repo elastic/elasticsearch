@@ -25,9 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase<RateLimitSettings> {
 
@@ -108,18 +106,6 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
 
         assertThat(xContentResult, is("""
             {"rate_limit":{"requests_per_minute":100}}"""));
-    }
-
-    public void testDisableRateLimiting() {
-        Map<String, Object> settings = new HashMap<>(
-            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
-        );
-        var res = RateLimitSettings.disabledRateLimiting(settings);
-
-        assertThat(res, is(new RateLimitSettings(1, TimeUnit.MINUTES, false)));
-        assertThat(res, sameInstance(RateLimitSettings.DISABLED_INSTANCE));
-        assertFalse(res.isEnabled());
-        assertThat(settings, anEmptyMap());
     }
 
     public void testToXContent_WhenDisabled() throws IOException {

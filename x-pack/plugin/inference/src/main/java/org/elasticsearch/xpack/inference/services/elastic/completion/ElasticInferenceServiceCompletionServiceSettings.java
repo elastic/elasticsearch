@@ -37,7 +37,6 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings.disabledRateLimiting(map);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

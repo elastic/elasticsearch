@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -58,7 +57,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
     }
 
-    public void testFromMap_RemovesRateLimitSettings() {
+    public void testFromMap_DoesNotRemoveRateLimitField() {
         var modelId = "my-model-id";
         var map = new HashMap<String, Object>(
             Map.of(
@@ -70,7 +69,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         );
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map);
 
-        assertThat(map, anEmptyMap());
+        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }

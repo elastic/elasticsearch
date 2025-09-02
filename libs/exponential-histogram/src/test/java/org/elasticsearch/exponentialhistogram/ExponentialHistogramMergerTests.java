@@ -112,6 +112,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         double[] secondValues = randomDoubles(50).map(val -> val * 2 - 1).toArray();
         double correctSum = Arrays.stream(firstValues).sum() + Arrays.stream(secondValues).sum();
         double correctMin = DoubleStream.concat(Arrays.stream(firstValues), Arrays.stream(secondValues)).min().getAsDouble();
+        double correctMax = DoubleStream.concat(Arrays.stream(firstValues), Arrays.stream(secondValues)).max().getAsDouble();
         try (
             // Merge some empty histograms too to test that code path
             ReleasableExponentialHistogram merged = ExponentialHistogram.merge(
@@ -125,6 +126,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         ) {
             assertThat(merged.sum(), closeTo(correctSum, 0.000001));
             assertThat(merged.min(), equalTo(correctMin));
+            assertThat(merged.max(), equalTo(correctMax));
         }
     }
 

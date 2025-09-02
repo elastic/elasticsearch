@@ -15,9 +15,11 @@ import io.opentelemetry.proto.resource.v1.Resource;
 import com.google.protobuf.ByteString;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -32,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 public class MetricDocumentBuilder {
 
     private final BufferedByteStringAccessor byteStringAccessor;
+    private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
 
     public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
         this.byteStringAccessor = byteStringAccessor;
@@ -47,21 +50,30 @@ public class MetricDocumentBuilder {
             builder.field("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
         buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
+        buildDataStream(builder, dataPointGroup.targetIndex());
         buildScope(builder, dataPointGroup.scopeSchemaUrl(), dataPointGroup.scope());
         buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
-        builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash());
+        builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash(hasher));
 
+        long docCount = 0;
         builder.startObject("metrics");
         for (int i = 0, dataPointsSize = dataPoints.size(); i < dataPointsSize; i++) {
             DataPoint dataPoint = dataPoints.get(i);
             builder.field(dataPoint.getMetricName());
-            dataPoint.buildMetricValue(builder);
-            String dynamicTemplate = dataPoint.getDynamicTemplate();
+            MappingHints mappingHints = MappingHints.fromAttributes(dataPoint.getAttributes());
+            dataPoint.buildMetricValue(mappingHints, builder);
+            String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
                 dynamicTemplates.put("metrics." + dataPoint.getMetricName(), dynamicTemplate);
             }
+            if (mappingHints.docCount()) {
+                docCount = dataPoint.getDocCount();
+            }
         }
         builder.endObject();
+        if (docCount > 0) {
+            builder.field("_doc_count", docCount);
+        }
         builder.endObject();
         return dynamicTemplates;
     }
@@ -108,12 +120,38 @@ public class MetricDocumentBuilder {
         }
     }
 
+    private void buildDataStream(XContentBuilder builder, TargetIndex targetIndex) throws IOException {
+        if (targetIndex.isDataStream() == false) {
+            return;
+        }
+        builder.startObject("data_stream");
+        builder.field("type", targetIndex.type());
+        builder.field("dataset", targetIndex.dataset());
+        builder.field("namespace", targetIndex.namespace());
+        builder.endObject();
+    }
+
     private void buildAttributes(XContentBuilder builder, List<KeyValue> attributes) throws IOException {
         for (int i = 0, size = attributes.size(); i < size; i++) {
             KeyValue attribute = attributes.get(i);
-            builder.field(attribute.getKey());
-            attributeValue(builder, attribute.getValue());
+            String key = attribute.getKey();
+            if (isIgnoredAttribute(key) == false) {
+                builder.field(key);
+                attributeValue(builder, attribute.getValue());
+            }
         }
+    }
+
+    /**
+     * Checks if the given attribute key is an ignored attribute.
+     * Ignored attributes are well-known Elastic-specific attributes
+     * that influence how the documents are indexed but are not stored themselves.
+     *
+     * @param attributeKey the attribute key to check
+     * @return true if the attribute is ignored, false otherwise
+     */
+    public static boolean isIgnoredAttribute(String attributeKey) {
+        return TargetIndex.isTargetIndexAttribute(attributeKey) || MappingHints.isMappingHintsAttribute(attributeKey);
     }
 
     private void attributeValue(XContentBuilder builder, AnyValue value) throws IOException {

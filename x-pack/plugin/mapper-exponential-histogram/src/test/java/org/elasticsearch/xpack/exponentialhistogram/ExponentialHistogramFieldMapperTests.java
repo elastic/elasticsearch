@@ -138,6 +138,9 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
             if (randomBoolean()) {
                 result.put("min", randomDoubleBetween(-1000, 1000, true));
             }
+            if (randomBoolean()) {
+                result.put("max", randomDoubleBetween(-1000, 1000, true));
+            }
         }
         return result;
     }
@@ -406,6 +409,11 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
             // Min provided for empty histogram
             exampleMalformedValue(b -> b.startObject().field("scale", 0).field("min", 42.0).endObject()).errorMatches(
                 "min field must be null if the histogram is empty, but got 42.0"
+            ),
+
+            // Max provided for empty histogram
+            exampleMalformedValue(b -> b.startObject().field("scale", 0).field("max", 42.0).endObject()).errorMatches(
+                "max field must be null if the histogram is empty, but got 42.0"
             )
         );
     }
@@ -478,6 +486,21 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 }
                 if (min != null) {
                     result.put("min", min);
+                }
+
+                Object max = histogram.get("max");
+                if (max == null) {
+                    OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
+                        mapToZeroBucket(zeroBucket),
+                        IndexWithCount.asBuckets(scale, negative),
+                        IndexWithCount.asBuckets(scale, positive)
+                    );
+                    if (estimatedMax.isPresent()) {
+                        max = estimatedMax.getAsDouble();
+                    }
+                }
+                if (max != null) {
+                    result.put("max", max);
                 }
 
                 if (zeroBucket != null) {

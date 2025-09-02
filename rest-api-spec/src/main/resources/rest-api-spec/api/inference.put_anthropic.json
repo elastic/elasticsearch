@@ -1,8 +1,8 @@
 {
   "inference.put_anthropic": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-anthropic.html",
-      "description": "Configure an Anthropic inference endpoint"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-anthropic",
+      "description": "Create an Anthropic inference endpoint"
     },
     "stability": "stable",
     "visibility": "public",

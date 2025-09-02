@@ -260,7 +260,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_implicit_casting_in_aggs]
+          capabilities: [metrics_capability, aggregate_metric_double_implicit_casting_in_aggs]
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:

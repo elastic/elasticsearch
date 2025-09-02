@@ -1,8 +1,8 @@
 {
   "ml.put_filter":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-filter.html",
-      "description":"Instantiates a filter."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-filter",
+      "description":"Create a filter"
     },
     "stability":"stable",
     "visibility":"public",

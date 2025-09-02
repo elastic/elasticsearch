@@ -28,7 +28,7 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
 
         RecursiveChunkingSettings settings = RecursiveChunkingSettings.fromMap(validSettings);
 
-        assertEquals(maxChunkSize, settings.getMaxChunkSize());
+        assertEquals(maxChunkSize, (int) settings.maxChunkSize());
         assertEquals(separators, settings.getSeparators());
     }
 
@@ -39,18 +39,12 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
 
         RecursiveChunkingSettings settings = RecursiveChunkingSettings.fromMap(validSettings);
 
-        assertEquals(maxChunkSize, settings.getMaxChunkSize());
+        assertEquals(maxChunkSize, (int) settings.maxChunkSize());
         assertEquals(separatorGroup.getSeparators(), settings.getSeparators());
     }
 
     public void testFromMapMaxChunkSizeTooSmall() {
         Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(0, 9), Optional.empty(), Optional.empty());
-
-        assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
-    }
-
-    public void testFromMapMaxChunkSizeTooLarge() {
-        Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(301, 500), Optional.empty(), Optional.empty());
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }
@@ -116,7 +110,7 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
 
     @Override
     protected RecursiveChunkingSettings mutateInstance(RecursiveChunkingSettings instance) throws IOException {
-        int maxChunkSize = randomValueOtherThan(instance.getMaxChunkSize(), () -> randomIntBetween(10, 300));
+        int maxChunkSize = randomValueOtherThan(instance.maxChunkSize(), () -> randomIntBetween(10, 300));
         List<String> separators = instance.getSeparators();
         separators.add(randomAlphaOfLength(1));
         return new RecursiveChunkingSettings(maxChunkSize, separators);

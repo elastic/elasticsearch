@@ -1,7 +1,7 @@
 {
   "inference.get": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-inference-api.html",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-get",
       "description": "Get an inference endpoint"
     },
     "stability": "stable",

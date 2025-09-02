@@ -11,7 +11,7 @@ setup:
             properties:
               foo:
                 type: patterned_text
-
+                # defaults to index_options: docs
   - do:
       index:
         index: test
@@ -181,7 +181,7 @@ Fuzzy query:
 
 ---
 Span query:
-
+# With index_options=docs span queries are not supported
   - do:
       catch: bad_request
       search:

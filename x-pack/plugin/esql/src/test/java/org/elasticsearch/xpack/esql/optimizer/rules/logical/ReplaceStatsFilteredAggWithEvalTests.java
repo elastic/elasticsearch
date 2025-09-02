@@ -32,6 +32,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlinestats;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -391,11 +392,14 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalSingleAgg() {
-        var plan = plan("""
-            from test
-            | inlinestats sum(salary) where false
-            """);
-
+        var query = """
+            FROM test
+            | INLINESTATS sum(salary) where false
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertMap(
             Expressions.names(project.projections()).stream().map(Object::toString).toList(),
@@ -431,11 +435,14 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalSingleAggWithExpression() {
-        var plan = plan("""
-            from test
-            | inlinestats sum(salary) + 1 where false
-            """);
-
+        var query = """
+            FROM test
+            | INLINESTATS sum(salary) + 1 where false
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertMap(
             Expressions.names(project.projections()).stream().map(Object::toString).toList(),
@@ -463,32 +470,33 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         as(limit.child(), EsRelation.class);
     }
 
-    /**
-     * Limit[1000[INTEGER],true]
+    /*
+     * Limit[1000[INTEGER],false]
      * \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{f}#9],[emp_no{r}#9]]
      *   |_EsqlProject[[salary{f}#14, emp_no{f}#9]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *   | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      *   \_Project[[sum(salary)   1 where false{r}#5, sum(salary)   2{r}#7, emp_no{f}#9]]
      *     \_Eval[[null[LONG] AS sum(salary)   1 where false#5, $$SUM$sum(salary)_ _2$1{r$}#21   2[INTEGER] AS sum(salary)   2#7]]
      *       \_Aggregate[[emp_no{f}#9],[SUM(salary{f}#14,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$sum(salary)_ _2$1#21, emp_no{f}#9]]
      *         \_StubRelation[[salary{f}#14, emp_no{f}#9]]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalMixedFilterAndNoFilter() {
-        var plan = plan("""
-            from test
-            | keep salary, emp_no
-            | inlinestats sum(salary) + 1 where false,
+        var query = """
+            FROM test
+            | KEEP salary, emp_no
+            | INLINESTATS sum(salary) + 1 where false,
                     sum(salary) + 2
-              by emp_no
-            """);
-
+              BY emp_no
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
         var left = as(ij.left(), EsqlProject.class);
         assertThat(Expressions.names(left.projections()), contains("salary", "emp_no"));
-        limit = as(left.child(), Limit.class);
-        as(limit.child(), EsRelation.class);
+        var relation = as(left.child(), EsRelation.class);
         var right = as(ij.right(), Project.class);
         assertMap(
             Expressions.names(right.projections()).stream().map(Object::toString).toList(),
@@ -528,14 +536,18 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *         \_StubRelation[[salary{f}#16]]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalFilterFalseAndNull() {
-        var plan = plan("""
-            from test
-            | keep salary
-            | inlinestats sum(salary) + 1 where false,
+        var query = """
+            FROM test
+            | KEEP salary
+            | INLINESTATS sum(salary) + 1 where false,
                     sum(salary) + 3,
                     sum(salary) + 2 where null,
                     sum(salary) + 4 where not true
-            """);
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
 
@@ -578,12 +590,15 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalNotTrue() {
-        var plan = plan("""
-            from test
-            | keep emp_no, salary
-            | inlinestats count(salary) where not true
-            """);
-
+        var query = """
+            FROM test
+            | KEEP emp_no, salary
+            | INLINESTATS count(salary) where not true
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var project = as(plan, EsqlProject.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary", "count(salary) where not true"));
 
@@ -598,28 +613,30 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         as(limit.child(), EsRelation.class);
     }
 
-    /**
+    /*
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[],[],[]]
      *   |_EsqlProject[[emp_no{f}#8, salary{f}#13, gender{f}#10]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      *   \_Aggregate[[],[COUNT(salary{f}#13,true[BOOLEAN]) AS m1#7]]
      *     \_StubRelation[[emp_no{f}#8, salary{f}#13, gender{f}#10]]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalNotFalse() {
-        var plan = plan("""
-            from test
-            | keep emp_no, salary, gender
-            | inlinestats m1 = count(salary) where not false
-            """);
+        var query = """
+            FROM test
+            | KEEP emp_no, salary, gender
+            | INLINESTATS m1 = count(salary) WHERE not false
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
 
         var left = as(ij.left(), EsqlProject.class);
         assertThat(Expressions.names(left.projections()), contains("emp_no", "salary", "gender"));
-        var leftLimit = as(left.child(), Limit.class);
-        as(leftLimit.child(), EsRelation.class);
+        var relation = as(left.child(), EsRelation.class);
 
         var right = as(ij.right(), Aggregate.class);
         assertThat(Expressions.names(right.aggregates()), contains("m1"));
@@ -638,11 +655,15 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalCount() {
-        var plan = plan("""
-            from test
-            | keep salary
-            | inlinestats count(salary) where false
-            """);
+        var query = """
+            FROM test
+            | KEEP salary
+            | INLINESTATS count(salary) where false
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var project = as(plan, EsqlProject.class);
         assertThat(Expressions.names(project.projections()), contains("salary", "count(salary) where false"));
 
@@ -664,11 +685,15 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalCountDistinctInExpression() {
-        var plan = plan("""
-            from test
-            | keep salary
-            | inlinestats count_distinct(salary + 2) + 3 where false
-            """);
+        var query = """
+            FROM test
+            | KEEP salary
+            | INLINESTATS count_distinct(salary + 2) + 3 where false
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var project = as(plan, EsqlProject.class);
         assertThat(Expressions.names(project.projections()), contains("salary", "count_distinct(salary + 2) + 3 where false"));
 
@@ -687,29 +712,31 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[emp_no{f}#17],[emp_no{f}#17],[emp_no{r}#17]]
      *   |_EsqlProject[[emp_no{f}#17, salary{f}#22]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *   | \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      *   \_Project[[max{r}#6, max_a{r}#9, min{r}#12, min_a{r}#15, emp_no{f}#17]]
      *     \_Eval[[null[INTEGER] AS max_a#9, null[INTEGER] AS min_a#15]]
      *       \_Aggregate[[emp_no{f}#17],[MAX(salary{f}#22,true[BOOLEAN]) AS max#6, MIN(salary{f}#22,true[BOOLEAN]) AS min#12, emp_no{f}#17]]
      *         \_StubRelation[[emp_no{f}#17, salary{f}#22]]
      */
     public void testReplaceInlinestatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
-        var plan = plan("""
-            from test
-            | keep emp_no, salary
-            | inlinestats max = max(salary), max_a = max(salary) where null,
+        var query = """
+            FROM test
+            | KEEP emp_no, salary
+            | INLINESTATS max = max(salary), max_a = max(salary) WHERE null,
                     min = min(salary),
-                    min_a = min(salary) where to_string(null) == "abc"
-              by emp_no
-            """);
+                    min_a = min(salary) WHERE to_string(null) == "abc"
+              BY emp_no
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
 
         var left = as(ij.left(), EsqlProject.class);
         assertThat(Expressions.names(left.projections()), contains("emp_no", "salary"));
-        var leftLimit = as(left.child(), Limit.class);
-        as(leftLimit.child(), EsRelation.class);
+        var relation = as(left.child(), EsRelation.class);
 
         var right = as(ij.right(), Project.class);
         assertThat(Expressions.names(right.projections()), contains("max", "max_a", "min", "min_a", "emp_no"));
@@ -743,15 +770,18 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      */
     public void testReplaceTwoConsecutiveInlinestats_WithFalseFilters() {
-        var plan = plan("""
-            from test
-                | keep emp_no
-                | sort emp_no
-                | limit 3
-                | inlinestats count = count(*) where false
-                | inlinestats cc = count_distinct(emp_no) where false
-            """);
-
+        var query = """
+            FROM test
+                | KEEP emp_no
+                | SORT emp_no
+                | LIMIT 3
+                | INLINESTATS count = count(*) WHERE false
+                | INLINESTATS cc = count_distinct(emp_no) WHERE false
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = plan(query);
         var project = as(plan, EsqlProject.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "count", "cc"));
 

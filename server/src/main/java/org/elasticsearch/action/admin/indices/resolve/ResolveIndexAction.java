@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -72,6 +72,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     public static final ResolveIndexAction INSTANCE = new ResolveIndexAction();
     public static final String NAME = "indices:admin/resolve/index";
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
+
+    private static final TransportVersion RESOLVE_INDEX_MODE_ADDED = TransportVersion.fromName("resolve_index_mode_added");
 
     private ResolveIndexAction() {
         super(NAME);
@@ -190,7 +192,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.aliases = in.readStringArray();
             this.attributes = in.readStringArray();
             this.dataStream = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_INDEX_MODE_ADDED)) {
+            if (in.getTransportVersion().supports(RESOLVE_INDEX_MODE_ADDED)) {
                 this.mode = IndexMode.readFrom(in);
             } else {
                 this.mode = null;
@@ -231,7 +233,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             out.writeStringArray(aliases);
             out.writeStringArray(attributes);
             out.writeOptionalString(dataStream);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_INDEX_MODE_ADDED)) {
+            if (out.getTransportVersion().supports(RESOLVE_INDEX_MODE_ADDED)) {
                 IndexMode.writeTo(mode, out);
             }
         }

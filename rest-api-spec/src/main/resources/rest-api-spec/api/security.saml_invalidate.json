@@ -1,8 +1,8 @@
 {
   "security.saml_invalidate":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-saml-invalidate.html",
-      "description":"Consumes a SAML LogoutRequest"
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-saml-invalidate",
+      "description":"Invalidate SAML"
     },
     "stability":"stable",
     "visibility":"public",

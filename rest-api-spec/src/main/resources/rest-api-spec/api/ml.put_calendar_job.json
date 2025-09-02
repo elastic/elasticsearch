@@ -1,8 +1,8 @@
 {
   "ml.put_calendar_job":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html",
-      "description":"Adds an anomaly detection job to a calendar."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar-job",
+      "description":"Add anomaly detection job to calendar"
     },
     "stability":"stable",
     "visibility":"public",

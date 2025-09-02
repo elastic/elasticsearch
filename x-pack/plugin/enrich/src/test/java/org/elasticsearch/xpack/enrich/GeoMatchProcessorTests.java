@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.enrich.MatchProcessorTests.str;
 import static org.hamcrest.Matchers.emptyArray;
@@ -162,10 +162,10 @@ public class GeoMatchProcessorTests extends ESTestCase {
         public void accept(
             Object value,
             int maxMatches,
-            Supplier<SearchRequest> searchRequestSupplier,
+            Function<String, SearchRequest> searchRequestBuilder,
             BiConsumer<List<Map<?, ?>>, Exception> handler
         ) {
-            capturedRequest.set(searchRequestSupplier.get());
+            capturedRequest.set(searchRequestBuilder.apply(".enrich-_name"));
             if (exception != null) {
                 handler.accept(null, exception);
             } else {

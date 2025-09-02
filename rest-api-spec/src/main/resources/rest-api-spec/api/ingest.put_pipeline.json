@@ -1,8 +1,8 @@
 {
   "ingest.put_pipeline":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/put-pipeline-api.html",
-      "description":"Creates or updates a pipeline."
+      "url":"https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines",
+      "description":"Create or update a pipeline"
     },
     "stability":"stable",
     "visibility":"public",

@@ -80,10 +80,6 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.zip'
 }
 
-tasks.named('forbiddenApisMain').configure {
-  signaturesFiles += files('forbidden/xml-signatures.txt')
-}
-
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(

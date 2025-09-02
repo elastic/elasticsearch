@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -277,6 +278,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
                 assert false : "cannot write " + ignoredFieldValues.size() + " values with format NO_IGNORED_SOURCE";
             }
+
+            @Override
+            public Set<String> requiredStoredFields(String fieldName) {
+                return Set.of();
+            }
         },
         SINGLE_IGNORED_SOURCE {
             @Override
@@ -326,6 +332,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 for (NameValue nameValue : ignoredFieldValues) {
                     nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
                 }
+            }
+
+            @Override
+            public Set<String> requiredStoredFields(String fieldName) {
+                return Set.of(IgnoredSourceFieldMapper.NAME);
             }
         },
         PER_FIELD_IGNORED_SOURCE {
@@ -403,6 +414,14 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                     }
                 }
             }
+
+            @Override
+            public Set<String> requiredStoredFields(String fieldName) {
+                return FallbackSyntheticSourceBlockLoader.splitIntoFieldPaths(fieldName)
+                    .stream()
+                    .map(IgnoredSourceFieldMapper::ignoredFieldName)
+                    .collect(Collectors.toSet());
+            }
         };
 
         public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
@@ -416,6 +435,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         );
 
         public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues);
+
+        /**
+         * Get the set of stored fields needed to retrieve the value for fieldName
+         */
+        public abstract Set<String> requiredStoredFields(String fieldName);
     }
 
     public IgnoredSourceFormat ignoredSourceFormat() {

@@ -33,7 +33,7 @@ This api runs in the background because reindexing all indices in a large data s
 
 ## {{api-prereq-title}} [data-stream-reindex-api-prereqs]
 
-* If the {{es}} {{security-features}} are enabled, you must have the `manage` [index privilege](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/elasticsearch-privileges.md#privileges-list-indices) for the data stream.
+* If the {{es}} {{security-features}} are enabled, you must have the `manage` [index privilege](/reference/elasticsearch/security-privileges.md#privileges-list-indices) for the data stream.
 
 
 ## {{api-request-body-title}} [data-stream-reindex-body]

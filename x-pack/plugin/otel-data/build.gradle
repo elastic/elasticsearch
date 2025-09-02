@@ -9,6 +9,7 @@ import com.google.protobuf.gradle.GenerateProtoTask
 plugins {
   id 'elasticsearch.internal-es-plugin'
   id 'elasticsearch.internal-yaml-rest-test'
+  id 'elasticsearch.internal-java-rest-test'
   id 'elasticsearch.internal-cluster-test'
   id('com.google.protobuf') version '0.9.5'
 }
@@ -47,10 +48,9 @@ dependencies {
   });
   opentelemetryProtobuf "open-telemetry:opentelemetry-proto:1.7.0@zip"
 
+  api project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: ':x-pack:plugin:stack')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(':modules:data-streams')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:ingest-geoip')
@@ -65,6 +65,20 @@ dependencies {
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(xpackModule('mapper-version'))
+
+  def otelVersion = "1.53.0"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-api:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-context:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-metrics:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-sender-jdk:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion"
 
   implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
   // The protobuf plugin only adds a dependency for the variant relevant for the current platform.
@@ -149,4 +163,8 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("licenseHeaders").configure {
   excludes << 'io/opentelemetry/proto/**/*'
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("Requires a bunch of xpack plugins")
 }

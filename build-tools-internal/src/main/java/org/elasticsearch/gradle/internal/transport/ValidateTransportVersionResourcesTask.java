@@ -22,6 +22,8 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.VerificationException;
+import org.gradle.api.tasks.VerificationTask;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,7 +40,7 @@ import java.util.regex.Pattern;
  * Validates that each defined transport version constant is referenced by at least one project.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionResourcesTask extends DefaultTask {
+public abstract class ValidateTransportVersionResourcesTask extends DefaultTask implements VerificationTask {
 
     @InputDirectory
     @Optional
@@ -83,6 +85,8 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         for (var upperBound : upperBounds.values()) {
             validateUpperBound(upperBound, allDefinitions, idsByBase);
         }
+
+        validateLargestIdIsUsed(upperBounds, allDefinitions);
     }
 
     private Map<String, TransportVersionDefinition> collectAllDefinitions(
@@ -253,13 +257,34 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
     }
 
+    private void validateLargestIdIsUsed(
+        Map<String, TransportVersionUpperBound> upperBounds,
+        Map<String, TransportVersionDefinition> allDefinitions
+    ) {
+        // first id is always the highest within a definition, and validated earlier
+        // note we use min instead of max because the id comparator is in descending order
+        var highestDefinition = allDefinitions.values().stream().min(Comparator.comparing(d -> d.ids().get(0))).get();
+        var highestId = highestDefinition.ids().get(0);
+
+        for (var upperBound : upperBounds.values()) {
+            if (upperBound.id().equals(highestId)) {
+                return;
+            }
+        }
+
+        throwDefinitionFailure(
+            highestDefinition,
+            "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
+        );
+    }
+
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {
         Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(definition);
-        throw new IllegalStateException("Transport version definition file [" + relativePath + "] " + message);
+        throw new VerificationException("Transport version definition file [" + relativePath + "] " + message);
     }
 
     private void throwUpperBoundFailure(TransportVersionUpperBound upperBound, String message) {
         Path relativePath = getResources().get().getUpperBoundRepositoryPath(upperBound);
-        throw new IllegalStateException("Transport version upper bound file [" + relativePath + "] " + message);
+        throw new VerificationException("Transport version upper bound file [" + relativePath + "] " + message);
     }
 }

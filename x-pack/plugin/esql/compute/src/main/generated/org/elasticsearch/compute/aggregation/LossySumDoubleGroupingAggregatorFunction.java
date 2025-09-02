@@ -86,7 +86,7 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
         }
       };
     }
-    return new GroupingAggregatorFunction.AddInput() {
+    var addInput = new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
@@ -106,6 +106,7 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       public void close() {
       }
     };
+    return LossySumDoubleAggregator.wrapAddInput(addInput, state, vVector);
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleBlock vBlock) {

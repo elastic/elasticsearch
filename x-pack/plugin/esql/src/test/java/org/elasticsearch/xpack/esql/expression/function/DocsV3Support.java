@@ -380,6 +380,7 @@ public abstract class DocsV3Support {
     protected final Supplier<Set<TypeSignature>> signatures;
     protected final Callbacks callbacks;
     private final LicenseRequirementChecker licenseChecker;
+    private final KibanaSignaturePatcher kibanaSignaturePatcher;
 
     protected DocsV3Support(
         String category,
@@ -405,6 +406,7 @@ public abstract class DocsV3Support {
         this.signatures = signatures;
         this.callbacks = callbacks;
         this.licenseChecker = new LicenseRequirementChecker(testClass);
+        this.kibanaSignaturePatcher = new KibanaSignaturePatcher(testClass);
     }
 
     String replaceLinks(String text) {
@@ -1321,7 +1323,7 @@ public abstract class DocsV3Support {
                     builder.startObject();
                     builder.startArray("params");
                     for (int i = 0; i < sig.argTypes().size(); i++) {
-                        EsqlFunctionRegistry.ArgSignature arg = args.get(i);
+                        EsqlFunctionRegistry.ArgSignature arg = kibanaSignaturePatcher.invoke(args.get(i));
                         builder.startObject();
                         builder.field("name", arg.name());
                         if (arg.mapArg()) {
@@ -1535,5 +1537,26 @@ public abstract class DocsV3Support {
             case "assert" -> new AssertCallbacks();
             default -> throw new IllegalArgumentException("unsupported value for generateDocs [" + prop + "]");
         };
+    }
+
+    public static class KibanaSignaturePatcher {
+        private final Method staticMethod;
+
+        public KibanaSignaturePatcher(Class<?> testClass) {
+            Method staticMethod;
+            try {
+                staticMethod = testClass.getMethod("patchKibanaSignature", EsqlFunctionRegistry.ArgSignature.class);
+            } catch (NoSuchMethodException e) {
+                staticMethod = null;
+            }
+            this.staticMethod = staticMethod;
+        }
+
+        public EsqlFunctionRegistry.ArgSignature invoke(EsqlFunctionRegistry.ArgSignature fieldTypes) throws Exception {
+            if (staticMethod == null) {
+                return fieldTypes;
+            }
+            return (EsqlFunctionRegistry.ArgSignature) staticMethod.invoke(null, fieldTypes);
+        }
     }
 }

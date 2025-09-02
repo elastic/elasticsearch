@@ -1,8 +1,8 @@
 {
   "delete":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-delete.html",
-      "description":"Removes a document from the index."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete",
+      "description":"Delete a document"
     },
     "stability":"stable",
     "visibility":"public",

@@ -33,6 +33,7 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -553,7 +554,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesSourceOperator.Status)) {
                         assertThat(p.operators(), hasSize(2));
                         TimeSeriesSourceOperator.Status status = (TimeSeriesSourceOperator.Status) p.operators().get(0).status();
-                        assertThat(status.processedShards(), hasSize(1));
+                        // If the target shard is empty or does not match the query, processedShards will be empty.
+                        // TODO: Update ComputeService to avoid creating pipelines for non-matching or empty shards.
+                        assertThat(status.processedShards(), either(hasSize(1)).or(empty()));
                         assertThat(p.operators().get(1).operator(), equalTo("ExchangeSinkOperator"));
                     } else if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesAggregationOperator.Status)) {
                         assertThat(p.operators(), hasSize(3));
@@ -587,7 +590,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(ops.get(0).operator(), containsString("LuceneSourceOperator"));
                 assertThat(ops.get(0).status(), Matchers.instanceOf(LuceneSourceOperator.Status.class));
                 LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) ops.get(0).status();
-                assertThat(status.processedShards(), hasSize(3));
+                assertThat(status.processedShards().size(), Matchers.lessThanOrEqualTo(3));
                 assertThat(ops.get(1).operator(), containsString("EvalOperator"));
                 assertThat(ops.get(2).operator(), containsString("ValuesSourceReaderOperator"));
                 assertThat(ops.get(3).operator(), containsString("TimeSeriesAggregationOperator"));

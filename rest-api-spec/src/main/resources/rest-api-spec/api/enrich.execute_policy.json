@@ -1,8 +1,8 @@
 {
   "enrich.execute_policy": {
     "documentation": {
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/execute-enrich-policy-api.html",
-      "description": "Creates the enrich index for an existing enrich policy."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-execute-policy",
+      "description": "Run an enrich policy"
     },
     "stability" : "stable",
     "visibility":"public",

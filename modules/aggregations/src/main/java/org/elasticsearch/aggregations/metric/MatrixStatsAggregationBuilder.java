@@ -101,6 +101,6 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

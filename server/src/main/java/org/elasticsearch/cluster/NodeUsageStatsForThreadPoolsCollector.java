@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
@@ -33,6 +33,10 @@ public class NodeUsageStatsForThreadPoolsCollector {
         }
     };
 
+    private static final TransportVersion TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION = TransportVersion.fromName(
+        "transport_node_usage_stats_for_thread_pools_action"
+    );
+
     /**
      * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) for each node in the cluster.
      *
@@ -44,7 +48,7 @@ public class NodeUsageStatsForThreadPoolsCollector {
         ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
     ) {
         var dataNodeIds = clusterState.nodes().getDataNodes().values().stream().map(node -> node.getId()).toArray(String[]::new);
-        if (clusterState.getMinTransportVersion().onOrAfter(TransportVersions.TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION)) {
+        if (clusterState.getMinTransportVersion().supports(TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION)) {
             client.execute(
                 TransportNodeUsageStatsForThreadPoolsAction.TYPE,
                 new NodeUsageStatsForThreadPoolsAction.Request(dataNodeIds),

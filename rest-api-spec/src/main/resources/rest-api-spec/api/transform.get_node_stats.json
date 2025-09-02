@@ -2,7 +2,7 @@
   "transform.get_node_stats":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform-node-stats.html",
-      "description":"Retrieves transform usage information for transform nodes."
+      "description":"Retrieves transform usage information for transform nodes"
     },
     "stability":"stable",
     "visibility":"public",

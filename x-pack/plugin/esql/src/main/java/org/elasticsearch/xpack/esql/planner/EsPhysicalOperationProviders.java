@@ -400,6 +400,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             querySupplier(queryBuilder),
             context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
+            List.of(),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }

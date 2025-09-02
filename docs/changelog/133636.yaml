@@ -1,0 +1,5 @@
+pr: 133636
+summary: Esql `mv_contains` function
+area: ES|QL
+type: enhancement
+issues: []

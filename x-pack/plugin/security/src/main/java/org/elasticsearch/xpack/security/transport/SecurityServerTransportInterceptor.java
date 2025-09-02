@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -482,7 +483,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
@@ -490,9 +491,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
 
-        for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
-            final SslConfiguration profileConfiguration = entry.getValue();
+        for (Map.Entry<String, SslProfile> entry : profileConfigurations.entrySet()) {
             final String profileName = entry.getKey();
+            final SslProfile sslProfile = entry.getValue();
+            final SslConfiguration profileConfiguration = sslProfile.configuration();
+            assert profileConfiguration != null : "Ssl Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
             final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
             if (useRemoteClusterProfile) {
                 profileFilters.put(

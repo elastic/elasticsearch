@@ -136,6 +136,10 @@ public interface EntitlementChecker {
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 
+    void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls, ClassLoader parent);
+
+    void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls);
+
     void check$java_security_SecureClassLoader$(Class<?> callerClass);
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent);
@@ -770,6 +774,8 @@ public interface EntitlementChecker {
     void check$java_io_File$canWrite(Class<?> callerClass, File file);
 
     void check$java_io_File$createNewFile(Class<?> callerClass, File file);
+
+    void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix);
 
     void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory);
 

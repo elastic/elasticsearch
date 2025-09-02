@@ -1,8 +1,8 @@
 {
   "ml.get_datafeed_stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html",
-      "description":"Retrieves usage information for datafeeds."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-datafeed-stats",
+      "description":"Get datafeed stats"
     },
     "stability":"stable",
     "visibility":"public",

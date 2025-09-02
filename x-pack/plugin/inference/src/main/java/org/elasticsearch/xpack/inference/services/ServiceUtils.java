@@ -749,6 +749,25 @@ public final class ServiceUtils {
         return field;
     }
 
+    public static Integer extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
+        Map<String, Object> map,
+        String settingName,
+        int minValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+
+        if (field != null && field < minValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, field, minValue)
+            );
+            return null;
+        }
+
+        return field;
+    }
+
     public static Integer extractRequiredPositiveIntegerBetween(
         Map<String, Object> map,
         String settingName,

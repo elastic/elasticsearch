@@ -131,7 +131,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             valuesList.forEach(values -> {
                 float[] left = readVector((List<Float>) values.get(0));
                 Double similarity = (Double) values.get(1);
-                if (left == null) {
+                if (left == null || randomVector == null) {
                     assertNull(similarity);
                 } else {
                     assertNotNull(similarity);

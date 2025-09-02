@@ -1,0 +1,5 @@
+pr: 133752
+summary: Avoid stale enrich results after policy execution
+area: Ingest Node
+type: bug
+issues: []

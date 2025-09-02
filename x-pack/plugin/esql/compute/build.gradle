@@ -477,7 +477,7 @@ tasks.named('stringTemplates').configure {
    */
   File twoStateInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st")
   [longProperties].forEach { v1 ->
-    [intProperties, longProperties, floatProperties, doubleProperties].forEach { v2 ->
+    [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { v2 ->
       {
         var properties = [:]
         v1.forEach { k, v -> properties["v1_" + k] = v}
@@ -944,6 +944,11 @@ tasks.named('stringTemplates').configure {
         it.properties = addOccurrence(doubleProperties, Occurrence)
         it.inputFile = valueByTimestampAggregatorInputFile
         it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}DoubleByTimestampAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(bytesRefProperties, Occurrence)
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}BytesRefByTimestampAggregator.java"
       }
     }
   }

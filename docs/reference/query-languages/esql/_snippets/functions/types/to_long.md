@@ -10,6 +10,9 @@
 | date | long |
 | date_nanos | long |
 | double | long |
+| geohash | long |
+| geohex | long |
+| geotile | long |
 | integer | long |
 | keyword | long |
 | long | long |

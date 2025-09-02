@@ -1,8 +1,8 @@
 {
   "ml.close_job":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-close-job.html",
-      "description":"Closes one or more anomaly detection jobs. A job can be opened and closed multiple times throughout its lifecycle."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-close-job",
+      "description":"Close anomaly detection jobs"
     },
     "stability":"stable",
     "visibility":"public",

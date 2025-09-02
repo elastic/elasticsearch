@@ -89,3 +89,54 @@ ROW v = ["null", "1", "2"]
 LAST(v, @timestamp):integer
             2
 ;
+
+
+last_keywords
+required_capability: agg_first_last_string
+FROM employees
+| STATS
+    last_employee = LAST(first_name, hire_date)
+; 
+
+last_employee:keyword   
+Lillian 
+;
+
+last_keywords_by_year
+required_capability: agg_first_last_string
+FROM employees
+| EVAL year = date_trunc(1 year, hire_date)
+| STATS
+    last_employee = LAST(first_name, hire_date) BY year
+| SORT year ASC
+; 
+
+last_employee:keyword   | year:datetime
+Bezalel                 | 1985-01-01T00:00:00.000Z
+Chirstian               | 1986-01-01T00:00:00.000Z
+Breannda                | 1987-01-01T00:00:00.000Z
+Valter                  | 1988-01-01T00:00:00.000Z
+Bojan                   | 1989-01-01T00:00:00.000Z
+Yinghua                 | 1990-01-01T00:00:00.000Z
+Shir                    | 1991-01-01T00:00:00.000Z
+Patricio                | 1992-01-01T00:00:00.000Z
+Cristinel               | 1993-01-01T00:00:00.000Z
+Saniya                  | 1994-01-01T00:00:00.000Z
+Tuval                   | 1995-01-01T00:00:00.000Z
+Sailaja                 | 1996-01-01T00:00:00.000Z
+Suzette                 | 1997-01-01T00:00:00.000Z
+Lillian                 | 1999-01-01T00:00:00.000Z
+;
+
+last_text_by_system
+required_capability: agg_first_last_string
+FROM logs
+| STATS message = LAST(message, @timestamp) BY system
+| SORT system ASC
+; 
+
+message:keyword         | system:keyword
+Running cats (cycle 3)  | cron
+More java stuff         | java
+No response             | ping
+;

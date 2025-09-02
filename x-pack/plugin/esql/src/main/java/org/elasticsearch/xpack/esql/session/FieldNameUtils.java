@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -64,7 +63,7 @@ public class FieldNameUtils {
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution) {
 
         // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-        var enrichPolicyMatchFields = enrichResolution.resolvedEnrichPolicies()
+        Set<String> enrichPolicyMatchFields = enrichResolution.resolvedEnrichPolicies()
             .stream()
             .map(ResolvedEnrichPolicy::matchField)
             .collect(Collectors.toSet());
@@ -72,7 +71,7 @@ public class FieldNameUtils {
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
         Set<Aggregate> inlinestatsAggs = new HashSet<>();
-        for (var i : inlinestats) {
+        for (LogicalPlan i : inlinestats) {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
@@ -167,7 +166,7 @@ public class FieldNameUtils {
                 }
             } else {
                 referencesBuilder.get().addAll(p.references());
-                if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
+                if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
                     referencesBuilder.get().add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }

@@ -1,8 +1,8 @@
 {
   "text_structure.find_structure":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html",
-      "description":"Finds the structure of a text file. The text file must contain data that is suitable to be ingested into Elasticsearch."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-text-structure-find-structure",
+      "description":"Find the structure of a text file"
     },
     "stability":"stable",
     "visibility":"public",

@@ -1,8 +1,8 @@
 {
   "indices.get_alias":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
-      "description":"Returns an alias."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-alias",
+      "description":"Get aliases"
     },
     "stability":"stable",
     "visibility":"public",

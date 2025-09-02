@@ -1,8 +1,8 @@
 {
   "migration.post_feature_upgrade":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-feature-upgrade.html",
-      "description":"Begin upgrades for system features"
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-get-feature-upgrade-status",
+      "description":"Start the feature migration"
     },
     "stability":"stable",
     "visibility":"public",

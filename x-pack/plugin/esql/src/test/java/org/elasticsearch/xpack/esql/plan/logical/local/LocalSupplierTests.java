@@ -38,7 +38,7 @@ public abstract class LocalSupplierTests extends AbstractWireTestCase<LocalSuppl
     );
 
     private static NavigableSet<TransportVersion> getAllBWCVersions() {
-        return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersions.MINIMUM_COMPATIBLE, true);
+        return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersion.minimumCompatible(), true);
     }
 
     public final void testBwcSerialization() throws IOException {

@@ -8,6 +8,10 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.common.util.LongArray;
@@ -42,7 +46,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
     }
 
     public static Long$Type$State initSingle(DriverContext driverContext) {
+        $if(BytesRef)$
+        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker(), describe());
+        $else$
         return new Long$Type$State(0, 0);
+        $endif$
     }
 
     public static void first(Long$Type$State current, $type$ value, long timestamp) {
@@ -73,7 +81,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
+        $if(BytesRef)$
+        return new GroupingState(driverContext.bigArrays(), driverContext.breaker());
+        $else$
         return new GroupingState(driverContext.bigArrays());
+        $endif$
     }
 
     public static void combine(GroupingState current, int groupId, $type$ value, long timestamp) {
@@ -92,8 +104,15 @@ public class $Occurrence$$Type$ByTimestampAggregator {
         if (valueCount > 0) {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
             int firstIndex = values.getFirstValueIndex(otherPosition);
+            $if(BytesRef)$
+            BytesRef bytesScratch = new BytesRef();
+            $endif$
             for (int i = 0; i < valueCount; i++) {
+                $if(BytesRef)$
+                current.collectValue(groupId, timestamp, values.getBytesRef(firstIndex + i, bytesScratch));
+                $else$
                 current.collectValue(groupId, timestamp, values.get$Type$(firstIndex + i));
+                $endif$
             }
         }
     }
@@ -105,18 +124,32 @@ public class $Occurrence$$Type$ByTimestampAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
         private LongArray timestamps;
+        $if(BytesRef)$
+        private ObjectArray<BreakingBytesRefBuilder> values;
+        $else$
         private $Type$Array values;
+        $endif$
+        $if(BytesRef)$
+        private final CircuitBreaker breaker;
+        $endif$
         private int maxGroupId = -1;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays$if(BytesRef)$, CircuitBreaker breaker$endif$) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;
+            $if(BytesRef)$
+            this.breaker = breaker;
+            $endif$
             LongArray timestamps = null;
             try {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
+                $if(BytesRef)$
+                this.values = bigArrays.newObjectArray(1);
+                $else$
                 this.values = bigArrays.new$Type$Array(1, false);
+                $endif$
                 /*
                  * Enable group id tracking because we use has hasValue in the
                  * collection itself to detect the when a value first arrives.
@@ -145,7 +178,16 @@ public class $Occurrence$$Type$ByTimestampAggregator {
             }
             if (updated) {
                 values = bigArrays.grow(values, groupId + 1);
+                $if(BytesRef)$
+                BreakingBytesRefBuilder builder = values.get(groupId);
+                if (builder == null) {
+                    builder = new BreakingBytesRefBuilder(breaker, "$Occurrence$", value.length);
+                }
+                builder.copyBytes(value);
+                values.set(groupId, builder);
+                $else$
                 values.set(groupId, value);
+                $endif$
             }
             maxGroupId = Math.max(maxGroupId, groupId);
             trackGroupId(groupId);
@@ -153,6 +195,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
 
         @Override
         public void close() {
+            $if(BytesRef)$
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            $endif$
             Releasables.close(timestamps, values, super::close);
         }
 
@@ -166,7 +213,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
                         timestampsBuilder.appendLong(timestamps.get(group));
+                        $if(BytesRef)$
+                        valuesBuilder.append$Type$(values.get(group).bytesRefView());
+                        $else$
                         valuesBuilder.append$Type$(values.get(group));
+                        $endif$
                     } else {
                         timestampsBuilder.appendNull();
                         valuesBuilder.appendNull();
@@ -182,7 +233,11 @@ public class $Occurrence$$Type$ByTimestampAggregator {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
+                        $if(BytesRef)$
+                        builder.append$Type$(values.get(group).bytesRefView());
+                        $else$
                         builder.append$Type$(values.get(group));
+                        $endif$
                     } else {
                         builder.appendNull();
                     }

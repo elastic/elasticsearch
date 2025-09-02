@@ -1,0 +1,5 @@
+pr: 133848
+summary: Delay S3 repo warning if default region absent
+area: Snapshot/Restore
+type: bug
+issues: []

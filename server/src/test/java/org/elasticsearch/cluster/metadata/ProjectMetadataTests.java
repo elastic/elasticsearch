@@ -2745,8 +2745,7 @@ public class ProjectMetadataTests extends ESTestCase {
                           }
                         },
                         "data_stream_aliases": {}
-                      },
-                      "reserved_state": {}
+                      }
                     }
                     """,
                 IndexVersion.current(),
@@ -2847,11 +2846,6 @@ public class ProjectMetadataTests extends ESTestCase {
                 // could be anything, we have to just try it
                 chunkCount += count(custom.toXContentChunked(params));
             }
-        }
-
-        if (params.paramAsBoolean("multi-project", false)) {
-            // 2 chunks for wrapping reserved state + 1 chunk for each item
-            chunkCount += 2 + project.reservedStateMetadata().size();
         }
 
         return Math.toIntExact(chunkCount);

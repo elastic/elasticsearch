@@ -93,7 +93,7 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override

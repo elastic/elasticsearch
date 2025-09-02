@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isDateField;
@@ -207,38 +208,76 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitFieldQuery(KqlBaseParser.FieldQueryContext ctx) {
+        return parseFieldQuery(ctx.fieldName(), ctx.fieldQueryValue());
+    }
 
-        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
-        String queryText = extractText(ctx.fieldQueryValue());
-        boolean hasWildcard = hasWildcard(ctx.fieldQueryValue());
+    public QueryBuilder parseBooleanFieldQuery(
+        KqlBaseParser.FieldNameContext fieldNameCtx,
+        KqlBaseParser.BooleanFieldQueryValueContext booleanFieldQueryValueCtx
+    ) {
+        if (booleanFieldQueryValueCtx.operator != null) {
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
 
-        withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
-            QueryBuilder fieldQuery = null;
+            Token operator = booleanFieldQueryValueCtx.operator;
+            Consumer<QueryBuilder> boolClauseConsumer = operator.getType() == KqlBaseParser.AND
+                ? boolQueryBuilder::must
+                : boolQueryBuilder::should;
+            boolClauseConsumer.accept(parseBooleanFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.booleanFieldQueryValue()));
+            boolClauseConsumer.accept(parseFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.fieldQueryValue()));
 
-            if (hasWildcard && isKeywordField(mappedFieldType)) {
-                fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
-            } else if (hasWildcard) {
-                fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true)).field(fieldName);
-            } else if (isDateField(mappedFieldType)) {
-                RangeQueryBuilder rangeFieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);
-                if (kqlParsingContext.timeZone() != null) {
-                    rangeFieldQuery.timeZone(kqlParsingContext.timeZone().getId());
+            return operator.getType() == KqlBaseParser.AND
+                ? rewriteConjunctionQuery(boolQueryBuilder)
+                : rewriteDisjunctionQuery(boolQueryBuilder);
+        } else if (booleanFieldQueryValueCtx.booleanFieldQueryValue() != null) {
+            return parseBooleanFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.booleanFieldQueryValue());
+        } else {
+            assert booleanFieldQueryValueCtx.fieldQueryValue() != null;
+            return parseFieldQuery(fieldNameCtx, booleanFieldQueryValueCtx.fieldQueryValue());
+        }
+    }
+
+    public QueryBuilder parseFieldQuery(
+        KqlBaseParser.FieldNameContext fieldNameCtx,
+        KqlBaseParser.FieldQueryValueContext fieldQueryValueCtx
+    ) {
+        if (fieldQueryValueCtx.operator != null) {
+            assert fieldQueryValueCtx.fieldQueryValue() != null;
+            return QueryBuilders.boolQuery().mustNot(parseFieldQuery(fieldNameCtx, fieldQueryValueCtx.fieldQueryValue()));
+        } else if (fieldQueryValueCtx.booleanFieldQueryValue() != null) {
+            return parseBooleanFieldQuery(fieldNameCtx, fieldQueryValueCtx.booleanFieldQueryValue());
+        } else {
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+            String queryText = extractText(fieldQueryValueCtx);
+            boolean hasWildcard = hasWildcard(fieldQueryValueCtx);
+
+            withFields(fieldNameCtx, (fieldName, mappedFieldType) -> {
+                QueryBuilder fieldQuery;
+
+                if (hasWildcard && isKeywordField(mappedFieldType)) {
+                    fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
+                } else if (hasWildcard) {
+                    fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true)).field(fieldName);
+                } else if (isDateField(mappedFieldType)) {
+                    RangeQueryBuilder rangeFieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);
+                    if (kqlParsingContext.timeZone() != null) {
+                        rangeFieldQuery.timeZone(kqlParsingContext.timeZone().getId());
+                    }
+                    fieldQuery = rangeFieldQuery;
+                } else if (isKeywordField(mappedFieldType)) {
+                    fieldQuery = QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
+                } else if (fieldQueryValueCtx.QUOTED_STRING() != null) {
+                    fieldQuery = QueryBuilders.matchPhraseQuery(fieldName, queryText);
+                } else {
+                    fieldQuery = QueryBuilders.matchQuery(fieldName, queryText);
                 }
-                fieldQuery = rangeFieldQuery;
-            } else if (isKeywordField(mappedFieldType)) {
-                fieldQuery = QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
-            } else if (ctx.fieldQueryValue().QUOTED_STRING() != null) {
-                fieldQuery = QueryBuilders.matchPhraseQuery(fieldName, queryText);
-            } else {
-                fieldQuery = QueryBuilders.matchQuery(fieldName, queryText);
-            }
 
-            if (fieldQuery != null) {
-                boolQueryBuilder.should(wrapWithNestedQuery(fieldName, fieldQuery));
-            }
-        });
+                if (fieldQuery != null) {
+                    boolQueryBuilder.should(wrapWithNestedQuery(fieldName, fieldQuery));
+                }
+            });
 
-        return rewriteDisjunctionQuery(boolQueryBuilder);
+            return rewriteDisjunctionQuery(boolQueryBuilder);
+        }
     }
 
     private static boolean isAndQuery(ParserRuleContext ctx) {
@@ -269,9 +308,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             return;
         }
 
-        if (ctx.value.getType() == KqlBaseParser.QUOTED_STRING) {
-            assert fieldNames.size() < 2 : "expecting only one matching field";
-        }
+        assert ctx.value.getType() != KqlBaseParser.QUOTED_STRING || fieldNames.size() < 2 : "expecting only one matching field";
 
         fieldNames.forEach(fieldName -> {
             MappedFieldType fieldType = kqlParsingContext.fieldType(fieldName);

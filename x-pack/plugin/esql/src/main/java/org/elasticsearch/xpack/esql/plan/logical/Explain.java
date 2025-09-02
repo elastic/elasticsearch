@@ -28,9 +28,9 @@ public class Explain extends LeafPlan implements TelemetryAware {
     private final LogicalPlan query;
 
     private final List<Attribute> output = List.of(
-        new ReferenceAttribute(Source.EMPTY, "role", DataType.KEYWORD),
-        new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD),
-        new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD)
+        new ReferenceAttribute(Source.EMPTY, null, "role", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "type", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD)
     );
 
     public Explain(Source source, LogicalPlan query) {

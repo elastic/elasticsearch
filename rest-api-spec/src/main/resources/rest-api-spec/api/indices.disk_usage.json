@@ -1,8 +1,8 @@
 {
   "indices.disk_usage": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-disk-usage.html",
-      "description": "Analyzes the disk usage of each field of an index or data stream"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-disk-usage",
+      "description": "Analyze the index disk usage"
     },
     "stability": "experimental",
     "visibility": "public",

@@ -31,7 +31,6 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     public static final String NAME = "RecursiveChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.RECURSIVE;
     private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
-    private static final int MAX_CHUNK_SIZE_UPPER_LIMIT = 300;
 
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
@@ -63,11 +62,10 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             );
         }
 
-        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerBetween(
+        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
             MAX_CHUNK_SIZE_LOWER_LIMIT,
-            MAX_CHUNK_SIZE_UPPER_LIMIT,
             ModelConfigurations.CHUNKING_SETTINGS,
             validationException
         );
@@ -105,7 +103,8 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
         return new RecursiveChunkingSettings(maxChunkSize, separators);
     }
 
-    public int getMaxChunkSize() {
+    @Override
+    public Integer maxChunkSize() {
         return maxChunkSize;
     }
 

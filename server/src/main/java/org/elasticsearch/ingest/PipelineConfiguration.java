@@ -76,6 +76,8 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         }
     }
 
+    private static final TransportVersion PIPELINE_TRACKING_INFO = TransportVersion.fromName("pipeline_tracking_info");
+
     private final String id;
     private final Map<String, Object> config;
 
@@ -253,7 +255,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
 
     /** Remove system properties from config if they aren't supported by the transport version */
     private Map<String, Object> configForTransport(final TransportVersion transportVersion) {
-        final boolean transportSupportsNewProperties = transportVersion.onOrAfter(TransportVersions.PIPELINE_TRACKING_INFO);
+        final boolean transportSupportsNewProperties = transportVersion.supports(PIPELINE_TRACKING_INFO);
         final boolean noNewProperties = config.containsKey(Pipeline.CREATED_DATE_MILLIS) == false
             && config.containsKey(Pipeline.MODIFIED_DATE_MILLIS) == false;
 

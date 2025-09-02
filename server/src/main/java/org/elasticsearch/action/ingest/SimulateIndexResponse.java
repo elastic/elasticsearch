@@ -10,6 +10,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexResponse;
@@ -35,6 +36,11 @@ import java.util.Map;
  * BulkItemResponse in IngestService.
  */
 public class SimulateIndexResponse extends IndexResponse {
+
+    private static final TransportVersion SIMULATE_INGEST_EFFECTIVE_MAPPING = TransportVersion.fromName(
+        "simulate_ingest_effective_mapping"
+    );
+
     private final BytesReference source;
     private final XContentType sourceXContentType;
     private final Collection<String> ignoredFields;
@@ -57,7 +63,7 @@ public class SimulateIndexResponse extends IndexResponse {
         } else {
             this.ignoredFields = List.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
+        if (in.getTransportVersion().supports(SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
             if (in.readBoolean()) {
                 this.effectiveMapping = CompressedXContent.readCompressedString(in);
             } else {
@@ -149,7 +155,7 @@ public class SimulateIndexResponse extends IndexResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
             out.writeStringCollection(ignoredFields);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
+        if (out.getTransportVersion().supports(SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
             out.writeBoolean(effectiveMapping != null);
             if (effectiveMapping != null) {
                 effectiveMapping.writeTo(out);

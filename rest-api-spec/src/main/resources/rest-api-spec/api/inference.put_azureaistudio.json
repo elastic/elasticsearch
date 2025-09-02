@@ -1,8 +1,8 @@
 {
   "inference.put_azureaistudio": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-azure-ai-studio.html",
-      "description": "Configure an Azure AI Studio inference endpoint"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-azureaistudio",
+      "description": "Create an Azure AI studio inference endpoint"
     },
     "stability": "stable",
     "visibility": "public",

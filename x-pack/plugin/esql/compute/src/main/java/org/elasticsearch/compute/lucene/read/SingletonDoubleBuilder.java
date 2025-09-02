@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.read;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 /**
@@ -65,19 +66,18 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
 
     @Override
     public Block build() {
+        if (values.length != count) {
+            throw new IllegalStateException("expected " + values.length + " values but got " + count);
+        }
         return blockFactory.newDoubleArrayVector(values, count).asBlock();
     }
 
     @Override
-    public BlockLoader.SingletonDoubleBuilder appendDouble(double value) {
-        values[count++] = value;
-        return this;
-    }
-
-    @Override
-    public BlockLoader.SingletonDoubleBuilder appendDoubles(double[] values, int from, int length) {
-        System.arraycopy(values, from, this.values, count, length);
-        count += length;
+    public BlockLoader.SingletonDoubleBuilder appendLongs(BlockDocValuesReader.ToDouble toDouble, long[] longValues, int from, int length) {
+        for (int i = 0; i < length; i++) {
+            values[count + i] = toDouble.convert(longValues[from + i]);
+        }
+        this.count += length;
         return this;
     }
 

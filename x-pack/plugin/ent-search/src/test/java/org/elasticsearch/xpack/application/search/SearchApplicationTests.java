@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.search;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -140,7 +140,7 @@ public class SearchApplicationTests extends ESTestCase {
             SearchApplicationIndexService.writeSearchApplicationBinaryWithVersion(
                 testInstance,
                 output,
-                TransportVersions.MINIMUM_COMPATIBLE
+                TransportVersion.minimumCompatible()
             );
             try (
                 StreamInput in = new NamedWriteableAwareStreamInput(

@@ -118,10 +118,6 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         return randomDoubleBetween(-MAX_SAFE_LONG_FOR_DOUBLE, MAX_SAFE_LONG_FOR_DOUBLE, true);
     }
 
-    public void testFetchCoerced() throws IOException {
-        assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
-    }
-
     protected IngestScriptSupport ingestScriptSupport() {
         return new IngestScriptSupport() {
             @Override

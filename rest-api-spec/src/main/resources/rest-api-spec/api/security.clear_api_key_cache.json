@@ -1,8 +1,8 @@
 {
   "security.clear_api_key_cache":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-api-key-cache.html",
-      "description":"Clear a subset or all entries from the API key cache."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-clear-api-key-cache",
+      "description":"Clear the API key cache"
     },
     "stability":"stable",
     "visibility":"public",

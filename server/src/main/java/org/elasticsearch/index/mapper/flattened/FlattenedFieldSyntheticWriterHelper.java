@@ -116,7 +116,9 @@ public class FlattenedFieldSyntheticWriterHelper {
 
         KeyValue(final BytesRef keyValue) {
             this(
-                FlattenedFieldParser.extractKey(keyValue).utf8ToString().split(PATH_SEPARATOR_PATTERN),
+                // Splitting with a negative limit includes trailing empty strings.
+                // This is needed in case the provide path has trailing path separators.
+                FlattenedFieldParser.extractKey(keyValue).utf8ToString().split(PATH_SEPARATOR_PATTERN, -1),
                 FlattenedFieldParser.extractValue(keyValue).utf8ToString()
             );
         }

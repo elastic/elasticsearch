@@ -168,7 +168,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
                 dotProductBody128Bulk(q, count, scores);
             }
         } else {
-            int7DotProductBulk(q, count, scores);
+            super.int7DotProductBulk(q, count, scores);
         }
     }
 

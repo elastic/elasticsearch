@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -48,6 +49,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
@@ -308,6 +310,12 @@ class IndexLifecycleRunner {
     void maybeRunAsyncAction(ProjectState state, IndexMetadata indexMetadata, String policy, StepKey expectedStepKey) {
         final var projectId = state.projectId();
         String index = indexMetadata.getIndex().getName();
+        OperationMode currentMode = currentILMMode(state.metadata());
+        if (OperationMode.RUNNING.equals(currentMode) == false) {
+            logger.info("[{}] not running async action in policy [{}] because ILM is [{}]", index, policy, currentMode);
+            return;
+        }
+
         if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
             logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
             return;

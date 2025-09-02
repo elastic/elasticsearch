@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -29,6 +28,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
@@ -40,8 +40,8 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
  * in the remote cluster and connects to all eligible nodes, for details see {@link RemoteClusterSettings#REMOTE_NODE_ATTRIBUTE}.
  *
  * In the case of a disconnection, this class will issue a re-connect task to establish at most
- * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
- * connections per cluster has been reached.
+ * {@link SniffConnectionStrategySettings#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum
+ * number of connections per cluster has been reached.
  */
 public final class RemoteClusterConnection implements Closeable {
 
@@ -55,24 +55,21 @@ public final class RemoteClusterConnection implements Closeable {
 
     /**
      * Creates a new {@link RemoteClusterConnection}
-     * @param settings the nodes settings object
-     * @param clusterAlias the configured alias of the cluster to connect to
+     * @param config the connection configuration for the linked project
      * @param transportService the local nodes transport service
      * @param credentialsManager object to lookup remote cluster credentials by cluster alias. If a cluster is protected by a credential,
      *                           i.e. it has a credential configured via secure setting.
      *                           This means the remote cluster uses the advances RCS model (as opposed to the basic model).
      */
     RemoteClusterConnection(
-        Settings settings,
-        String clusterAlias,
+        LinkedProjectConfig config,
         TransportService transportService,
         RemoteClusterCredentialsManager credentialsManager
     ) {
         this.transportService = transportService;
-        this.clusterAlias = clusterAlias;
+        this.clusterAlias = config.linkedProjectAlias();
         ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
-            clusterAlias,
-            settings,
+            config,
             credentialsManager.hasCredentials(clusterAlias)
         );
         this.remoteConnectionManager = new RemoteConnectionManager(
@@ -80,13 +77,12 @@ public final class RemoteClusterConnection implements Closeable {
             credentialsManager,
             createConnectionManager(profile, transportService)
         );
-        this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
+        this.connectionStrategy = config.buildRemoteConnectionStrategy(transportService, remoteConnectionManager);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         this.remoteConnectionManager.addListener(transportService);
-        this.skipUnavailable = RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
-            .get(settings);
+        this.skipUnavailable = config.skipUnavailable();
         this.threadPool = transportService.threadPool;
-        initialConnectionTimeout = RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
+        this.initialConnectionTimeout = config.initialConnectionTimeout();
     }
 
     /**
@@ -237,7 +233,7 @@ public final class RemoteClusterConnection implements Closeable {
         return remoteConnectionManager;
     }
 
-    boolean shouldRebuildConnection(Settings newSettings) {
-        return connectionStrategy.shouldRebuildConnection(newSettings);
+    boolean shouldRebuildConnection(LinkedProjectConfig config) {
+        return connectionStrategy.shouldRebuildConnection(config);
     }
 }

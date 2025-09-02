@@ -1,8 +1,8 @@
 {
   "license.post_start_basic":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-basic.html",
-      "description":"Starts an indefinite basic license."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-post-start-basic",
+      "description":"Start a basic license"
     },
     "stability":"stable",
     "visibility":"public",

@@ -482,6 +482,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
             );
+            offsetsFieldName = null;
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,

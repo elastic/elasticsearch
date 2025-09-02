@@ -1,8 +1,8 @@
 {
   "monitoring.bulk":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/monitor-elasticsearch-cluster.html",
-      "description":"Used by the monitoring features to send monitoring data."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch",
+      "description":"Send monitoring data"
     },
     "stability":"stable",
     "visibility":"private",

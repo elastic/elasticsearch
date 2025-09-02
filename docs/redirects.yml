@@ -1,7 +1,7 @@
 redirects:
   # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
-  
+
   # https://github.com/elastic/elasticsearch/pull/131385
   'reference/elasticsearch/rest-apis/retrievers.md':
     to: 'reference/elasticsearch/rest-apis/retrievers.md'
@@ -23,7 +23,7 @@ redirects:
         anchors: {'rule-retriever'}
       - to: 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
         anchors: {'pinned-retriever'}
-  
+
   # ESQL command redirects - split from aggregate pages to individual pages
   'reference/query-languages/esql/commands/source-commands.md':
     to: 'reference/query-languages/esql/commands/source-commands.md'
@@ -35,7 +35,7 @@ redirects:
         anchors: {'esql-row'}
       - to: 'reference/query-languages/esql/commands/show.md'
         anchors: {'esql-show'}
-  
+
   # Handle old anchor references to esql-commands.md
   'reference/query-languages/esql/esql-commands.md':
     to: 'reference/query-languages/esql/esql-commands.md'
@@ -45,7 +45,7 @@ redirects:
         anchors: {'esql-source-commands'}
       - to: 'reference/query-languages/esql/commands/processing-commands.md'
         anchors: {'esql-processing-commands'}
-  
+
   'reference/query-languages/esql/commands/processing-commands.md':
     to: 'reference/query-languages/esql/commands/processing-commands.md'
     anchors: {} # pass-through unlisted anchors in the `many` ruleset
@@ -86,3 +86,65 @@ redirects:
         anchors: {'esql-stats-by'}
       - to: 'reference/query-languages/esql/commands/where.md'
         anchors: {'esql-where'}
+
+  # https://github.com/elastic/elasticsearch/pull/133359
+  'reference/elasticsearch/rest-apis/filter-search-results.md':
+    to: 'reference/elasticsearch/rest-apis/filter-search-results.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors: {'rescore'}
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors: {'query-rescorer'}
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors: {'multiple-rescores'}
+
+  # Dummy redirects for deleted snippets to get round a bug in redirects validation
+  'docs/reference/query-languages/esql/_snippets/functions/description/st_geohash_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/description/st_geotile_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/description/st_geohex_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/description/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/description/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/description/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/examples/st_geohash_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/examples/st_geotile_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/examples/st_geohex_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/examples/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/examples/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/examples/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/layout/st_geohash_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/layout/st_geotile_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/layout/st_geohex_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/layout/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/layout/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/layout/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/parameters/st_geohash_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/parameters/st_geotile_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/parameters/st_geohex_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/parameters/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/parameters/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/parameters/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/types/st_geohash_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/types/st_geotile_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/types/st_geohex_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/types/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/types/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/_snippets/functions/types/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/images/functions/st_geohash_to_string.svg': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/images/functions/st_geotile_to_string.svg': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/images/functions/st_geohex_to_string.svg': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/images/functions/st_geohash_to_long.svg': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/images/functions/st_geotile_to_long.svg': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/images/functions/st_geohex_to_long.svg': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/definition/functions/st_geohash_to_string.json': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/definition/functions/st_geotile_to_string.json': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/definition/functions/st_geohex_to_string.json': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/definition/functions/st_geohash_to_long.json': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/definition/functions/st_geotile_to_long.json': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/definition/functions/st_geohex_to_long.json': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/docs/functions/st_geohash_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/docs/functions/st_geotile_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/docs/functions/st_geohex_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/docs/functions/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/docs/functions/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'docs/reference/query-languages/esql/kibana/docs/functions/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'

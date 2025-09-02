@@ -610,6 +610,7 @@ public class Constants {
         "indices:data/write/delete",
         "indices:data/write/delete/byquery",
         "indices:data/write/index",
+        "indices:data/write/otlp/metrics",
         "indices:data/write/reindex",
         "indices:data/write/update",
         "indices:data/write/update/byquery",

@@ -48,9 +48,9 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
+import org.elasticsearch.xpack.core.ilm.ResizeIndexStep;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -84,7 +84,7 @@ public class IndexLifecycleService
         IndexEventListener,
         ShutdownAwarePlugin {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, DownsampleStep.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ResizeIndexStep.SHRINK, DownsampleStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 
@@ -184,87 +184,77 @@ public class IndexLifecycleService
         maybeScheduleJob();
 
         for (var projectId : clusterState.metadata().projects().keySet()) {
-            onMaster(clusterState.projectState(projectId));
+            maybeRunAsyncActions(clusterState.projectState(projectId));
         }
     }
 
-    void onMaster(ProjectState state) {
+    /**
+     * Kicks off any async actions that may not have been run due to either master failover or ILM being manually stopped.
+     */
+    private void maybeRunAsyncActions(ProjectState state) {
         final ProjectMetadata projectMetadata = state.metadata();
         final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null) {
-            OperationMode currentMode = currentILMMode(projectMetadata);
-            if (OperationMode.STOPPED.equals(currentMode)) {
-                return;
+        if (currentMetadata == null) {
+            return;
+        }
+        OperationMode currentMode = currentILMMode(projectMetadata);
+        if (OperationMode.STOPPED.equals(currentMode)) {
+            return;
+        }
+
+        boolean safeToStop = true; // true until proven false by a run policy
+        for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
+            if (projectMetadata.isIndexManagedByILM(idxMeta) == false) {
+                continue;
             }
+            String policyName = idxMeta.getLifecyclePolicyName();
+            final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+            StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
-            boolean safeToStop = true; // true until proven false by a run policy
-
-            // If we just became master, we need to kick off any async actions that
-            // may have not been run due to master rollover
-            for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
-                if (projectMetadata.isIndexManagedByILM(idxMeta)) {
-                    String policyName = idxMeta.getLifecyclePolicyName();
-                    final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
-                    StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
-
-                    try {
-                        if (OperationMode.STOPPING == currentMode) {
-                            if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
-                                logger.info(
-                                    "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
-                                    idxMeta.getIndex().getName(),
-                                    policyName,
-                                    stepKey.name()
-                                );
-                                lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
-                                // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
-                                safeToStop = false;
-                            } else {
-                                logger.info(
-                                    "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
-                                    stepKey == null ? "n/a" : stepKey.name(),
-                                    idxMeta.getIndex().getName(),
-                                    policyName
-                                );
-                            }
-                        } else {
-                            lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
-                        }
-                    } catch (Exception e) {
-                        if (logger.isTraceEnabled()) {
-                            logger.warn(
-                                () -> format(
-                                    "async action execution failed during master election trigger"
-                                        + " for index [%s] with policy [%s] in step [%s], lifecycle state: [%s]",
-                                    idxMeta.getIndex().getName(),
-                                    policyName,
-                                    stepKey,
-                                    lifecycleState.asMap()
-                                ),
-                                e
-                            );
-                        } else {
-                            logger.warn(
-                                () -> format(
-                                    "async action execution failed during master election trigger"
-                                        + " for index [%s] with policy [%s] in step [%s]",
-                                    idxMeta.getIndex().getName(),
-                                    policyName,
-                                    stepKey
-                                ),
-                                e
-                            );
-
-                        }
-                        // Don't rethrow the exception, we don't want a failure for one index to be
-                        // called to cause actions not to be triggered for further indices
-                    }
+            try {
+                if (currentMode == OperationMode.RUNNING) {
+                    lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
+                    continue;
                 }
-            }
+                // We only get here if ILM is in STOPPING mode. In that case, we need to check if there is any index that is in a step
+                // that we can't stop ILM in. If there is, we don't stop ILM yet.
+                if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
+                    logger.info(
+                        "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
+                        idxMeta.getIndex().getName(),
+                        policyName,
+                        stepKey.name()
+                    );
+                    lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
+                    // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
+                    safeToStop = false;
+                } else {
+                    logger.info(
+                        "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
+                        stepKey == null ? "n/a" : stepKey.name(),
+                        idxMeta.getIndex().getName(),
+                        policyName
+                    );
+                }
+            } catch (Exception e) {
+                String logMessage = format(
+                    "async action execution failed during master election trigger for index [%s] with policy [%s] in step [%s]",
+                    idxMeta.getIndex().getName(),
+                    policyName,
+                    stepKey
+                );
+                if (logger.isTraceEnabled()) {
+                    logMessage += format(", lifecycle state: [%s]", lifecycleState.asMap());
+                }
+                logger.warn(logMessage, e);
 
-            if (safeToStop && OperationMode.STOPPING == currentMode) {
-                stopILM(state.projectId());
+                // Don't rethrow the exception, we don't want a failure for one index to be
+                // called to cause actions not to be triggered for further indices
             }
+        }
+
+        if (safeToStop && OperationMode.STOPPING == currentMode) {
+            stopILM(state.projectId());
         }
     }
 
@@ -332,6 +322,20 @@ public class IndexLifecycleService
                 // we were the master, and now we aren't
                 cancelJob();
                 policyRegistry.clear();
+            }
+        } else if (this.isMaster) {
+            // If we are the master and we were before, check if any projects changed their ILM mode from non-RUNNING to RUNNING.
+            // If so, kick off any async actions that may not have run while not in RUNNING mode.
+            for (ProjectMetadata project : event.state().metadata().projects().values()) {
+                final var previousProject = event.previousState().metadata().projects().get(project.id());
+                if (previousProject == null || project == previousProject) {
+                    continue;
+                }
+                final OperationMode currentMode = currentILMMode(project);
+                final OperationMode previousMode = currentILMMode(previousProject);
+                if (currentMode == OperationMode.RUNNING && previousMode != OperationMode.RUNNING) {
+                    maybeRunAsyncActions(event.state().projectState(project.id()));
+                }
             }
         }
 
@@ -618,7 +622,7 @@ public class IndexLifecycleService
                     String step = indexToMetadata.getValue().getLifecycleExecutionState().step();
                     return SetSingleNodeAllocateStep.NAME.equals(step)
                         || CheckShrinkReadyStep.NAME.equals(step)
-                        || ShrinkStep.NAME.equals(step)
+                        || ResizeIndexStep.SHRINK.equals(step)
                         || ShrunkShardsAllocatedStep.NAME.equals(step);
                 })
                 // Only look at indices where the node picked for the shrink is the node marked as shutting down

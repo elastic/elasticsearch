@@ -46,6 +46,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -72,6 +75,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         GEO_SHAPE,
         CARTESIAN_POINT,
         CARTESIAN_SHAPE,
+        GEOHASH,
+        GEOTILE,
+        GEOHEX,
         UNSUPPORTED,
         NULL,
         COUNTER_LONG,
@@ -225,7 +231,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
             if (a.resolved() && a instanceof ReferenceAttribute == false) {
-                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
+                out.add(new ReferenceAttribute(a.source(), a.qualifier(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
             } else {
                 out.add(a);
             }

@@ -51,6 +51,35 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword
          10014 |                 5 | 5                | null
 ;
 
+// check that the `LIMIT 1` isn't pushed into the INLINESTATS's source
+maxOfIntByKeywordLimit1Aggd
+required_capability: inlinestats_v11
+
+FROM employees
+| KEEP emp_no, languages, gender
+// | SORT emp_no
+| INLINESTATS max_lang = MAX(languages) BY gender
+| LIMIT 1
+| STATS v = VALUES(max_lang)
+;
+
+v:integer
+5
+;
+
+simpleAvg
+required_capability: inlinestats_v11
+
+FROM employees
+| INLINESTATS a = AVG(salary)
+| LIMIT 2
+| KEEP a;
+
+a:double
+48248.55
+48248.55
+;
+
 maxOfLongByKeyword
 required_capability: inlinestats_v11
 
@@ -222,7 +251,6 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 
 three
 required_capability: inlinestats_v11
-// used to fail with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
 
 FROM employees
 | KEEP emp_no, languages, avg_worked_seconds, gender
@@ -248,7 +276,8 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 ;
 
 // TODO: INLINESTATS unit test needed for this one
-pushDownSort_To_LeftSideOnly
+// https://github.com/elastic/elasticsearch/issues/113727
+pushDownSort_To_LeftSideOnly-Ignore
 required_capability: inlinestats_v11
 
 from employees
@@ -1377,6 +1406,45 @@ total_duration:long |       day:date         |                     days:date
 17016205            |2023-10-23T13:00:00.000Z|[2023-10-23T12:00:00.000Z, 2023-10-23T13:00:00.000Z]
 ;
 
+evalBeforeDoubleInlinestats1
+required_capability: inlinestats_v11
+
+FROM employees
+| EVAL salaryK = salary/1000
+| INLINESTATS count = COUNT(*) BY salaryK
+| INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+| SORT emp_no
+| KEEP emp_no, still_hired, count
+| LIMIT 5
+;
+
+emp_no:integer |still_hired:boolean|count:long
+10001          |true               |1
+10002          |true               |3
+10003          |false              |2
+10004          |true               |2
+10005          |true               |1
+;
+
+evalBeforeDoubleInlinestats2
+required_capability: inlinestats_v11
+
+FROM employees
+| EVAL jobs = MV_COUNT(job_positions)
+| INLINESTATS count = COUNT(*) BY jobs
+| INLINESTATS min = MIN(MV_COUNT(languages)) BY jobs
+| SORT emp_no
+| KEEP emp_no, jobs, count, min
+| LIMIT 5
+;
+
+emp_no:integer |jobs:integer|count:long|min:integer
+10001          |2           |18        |1
+10002          |1           |27        |1
+10003          |null        |11        |1
+10004          |4           |26        |1
+10005          |null        |11        |1
+;
 
 evalBeforeInlinestatsAndKeepAfter1
 required_capability: inlinestats_v11

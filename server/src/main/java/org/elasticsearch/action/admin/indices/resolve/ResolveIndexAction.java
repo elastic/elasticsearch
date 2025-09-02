@@ -683,6 +683,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             dataStreams.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
         }
 
+        /**
+         * Merge the results from remote clusters into the local results lists.
+         * This will also do index mode filtering (if requested), as the remote cluster might be too old to do it itself.
+         */
         private static void mergeResults(
             Map<String, Response> remoteResponses,
             List<ResolvedIndex> indices,
@@ -694,7 +698,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
                 for (ResolvedIndex index : response.indices) {
-                    // We want to filter here because the linked cluster might be too old to be able to filter
+                    // We want to filter by mode here because the linked cluster might be too old to be able to filter
                     if (indexModes.isEmpty() == false && indexModes.contains(index.getMode()) == false) {
                         continue;
                     }
@@ -703,11 +707,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 Set<String> indexNames = indices.stream().map(ResolvedIndexAbstraction::getName).collect(Collectors.toSet());
                 for (ResolvedAlias alias : response.aliases) {
                     if (indexModes.isEmpty() == false) {
-                        // We need to filter out aliases that point to no indices after index mode filtering
+                        // We filter out indices that are not included in the main index list after index mode filtering
                         String[] filteredIndices = Arrays.stream(alias.getIndices())
                             .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
                             .toArray(String[]::new);
                         if (filteredIndices.length == 0) {
+                            // If this alias points to no indices after filtering, we skip it
                             continue;
                         }
                         alias = new ResolvedAlias(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName()), filteredIndices);
@@ -718,10 +723,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 }
                 for (ResolvedDataStream dataStream : response.dataStreams) {
                     if (indexModes.isEmpty() == false) {
+                        // We filter out indices that are not included in the main index list after index mode filtering
                         String[] filteredBackingIndices = Arrays.stream(dataStream.getBackingIndices())
                             .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
                             .toArray(String[]::new);
                         if (filteredBackingIndices.length == 0) {
+                            // If this data stream points to no backing indices after filtering, we skip it
                             continue;
                         }
                         dataStream = new ResolvedDataStream(

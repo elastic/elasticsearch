@@ -2434,10 +2434,10 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        var queryVector = as(similarity.right(), ToDenseVector.class);
-        assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
-        var refAttr = as(queryVector.children().get(0), ReferenceAttribute.class);
-        assertThat(refAttr.name(), is("query"));
+        assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
+        var right = as(similarity.right(), Literal.class);
+        assertThat(right.dataType(), is(DENSE_VECTOR));
+        assertThat(right.value(), equalTo(expectedElems));
     }
 
     public void testDenseVectorEvalCastingSimilarityFunctions() {

@@ -169,7 +169,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
@@ -1670,8 +1669,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> args = vectorFunction.arguments();
             List<Expression> newArgs = new ArrayList<>();
             for (Expression arg : args) {
-                if (arg.resolved()) {
-                    if (arg.foldable() && arg.dataType().isNumeric()) {
+                if (arg.resolved() && arg.dataType().isNumeric()) {
+                    if (arg.foldable()) {
                         Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
                         if (folded instanceof List) {
                             // Convert to floats so blocks are created accordingly
@@ -1685,7 +1684,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             newArgs.add(denseVector);
                             continue;
                         }
-                    } else if (arg.dataType().isNumeric() || isString(arg.dataType())) {
+                    } else {
                         // add casting function
                         newArgs.add(new ToDenseVector(arg.source(), arg));
                         continue;

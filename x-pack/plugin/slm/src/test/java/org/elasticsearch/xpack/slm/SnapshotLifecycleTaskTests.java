@@ -346,10 +346,22 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId snapForDeletedPolicy = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(),
-            randomLong(), Collections.emptyList())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(), Collections.emptyList(),
-            new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                randomLong(),
+                Collections.emptyList()
+            )
+            : SnapshotLifecycleTask.WriteJobStatus.failure(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                Collections.emptyList(),
+                new RuntimeException()
+            );
 
         // deletedPolicy is no longer defined
         var definedSlmPolicies = List.of(policyId);
@@ -375,10 +387,22 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId otherSnapNotRunning = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(),
-            randomLong(), Collections.emptyList())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(),
-            Collections.emptyList(), new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                randomLong(),
+                Collections.emptyList()
+            )
+            : SnapshotLifecycleTask.WriteJobStatus.failure(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                Collections.emptyList(),
+                new RuntimeException()
+            );
 
         var definedSlmPolicies = List.of(policyId, otherPolicy);
         var registeredSnapshots = Map.of(policyId, List.of(initiatingSnap), otherPolicy, List.of(otherSnapRunning, otherSnapNotRunning));
@@ -399,10 +423,22 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId initiatingSnap = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(), randomLong()
-            , Collections.emptyList())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(), Collections.emptyList(),
-            new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                randomLong(),
+                Collections.emptyList()
+            )
+            : SnapshotLifecycleTask.WriteJobStatus.failure(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                Collections.emptyList(),
+                new RuntimeException()
+            );
 
         final SnapshotId stillRunning = randSnapshotId();
 

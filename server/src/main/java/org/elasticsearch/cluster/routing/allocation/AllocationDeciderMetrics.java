@@ -20,7 +20,7 @@ import java.util.function.Supplier;
  */
 public class AllocationDeciderMetrics {
 
-    public static final String WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE = "es.allocation.decider.write_load.max_latency_value.current";
+    public static final String WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE = "es.allocator.deciders.write_load.max_latency_value.current";
 
     private final MeterRegistry meterRegistry;
 

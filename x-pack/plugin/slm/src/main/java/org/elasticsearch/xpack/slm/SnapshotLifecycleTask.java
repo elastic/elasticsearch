@@ -553,9 +553,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                                     snapshotInfo.snapshotId().getName(),
                                     snapshotInfo.startTime(),
                                     snapshotInfo.endTime(),
-                                    String.format(Locale.ROOT,
+                                    String.format(
+                                        Locale.ROOT,
                                         "found non-successful registered snapshot [%s] which is no longer running",
-                                        snapshotInfo.snapshotId().getName())
+                                        snapshotInfo.snapshotId().getName()
+                                    )
                                 )
                             );
                             newPolicyMetadata.incrementInvocationsSinceLastSuccess();

@@ -423,29 +423,29 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertEquals(0, policy.getPolicyStats().getSnapshotFailedCount());
             assertEquals(2, policy.getPolicyStats().getSnapshotTakenCount());
         });
-//
-//        final String snapshotName = executePolicy(policyName);
-//        assertBusy(() -> {
-//            final SnapshotInfo snapshotInfo;
-//            try {
-//                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
-//                    .setSnapshots(snapshotName)
-//                    .get();
-//                snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
-//            } catch (SnapshotMissingException sme) {
-//                throw new AssertionError(sme);
-//            }
-//            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-//        }, 30L, TimeUnit.SECONDS);
-//
-//        assertBusy(() -> {
-//            SnapshotLifecyclePolicyItem policy = client().execute(
-//                GetSnapshotLifecycleAction.INSTANCE,
-//                new GetSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyName)
-//            ).get().getPolicies().getFirst();
-//            assertNotNull(policy.getLastSuccess());
-//            assertNull(policy.getLastFailure());
-//        }, 30L, TimeUnit.SECONDS);
+        //
+        // final String snapshotName = executePolicy(policyName);
+        // assertBusy(() -> {
+        // final SnapshotInfo snapshotInfo;
+        // try {
+        // GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
+        // .setSnapshots(snapshotName)
+        // .get();
+        // snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        // } catch (SnapshotMissingException sme) {
+        // throw new AssertionError(sme);
+        // }
+        // assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        // }, 30L, TimeUnit.SECONDS);
+        //
+        // assertBusy(() -> {
+        // SnapshotLifecyclePolicyItem policy = client().execute(
+        // GetSnapshotLifecycleAction.INSTANCE,
+        // new GetSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyName)
+        // ).get().getPolicies().getFirst();
+        // assertNotNull(policy.getLastSuccess());
+        // assertNull(policy.getLastFailure());
+        // }, 30L, TimeUnit.SECONDS);
 
     }
 

@@ -46,6 +46,10 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
     default IngestDocumentBridge execute(IngestDocumentBridge ingestDocumentBridge) throws Exception {
         IngestDocument internalSourceIngestDocument = ingestDocumentBridge.toInternal();
         IngestDocument internalResultIngestDocument = toInternal().execute(internalSourceIngestDocument);
+
+        if (internalResultIngestDocument == internalSourceIngestDocument) {
+            return ingestDocumentBridge;
+        }
         return IngestDocumentBridge.fromInternalNullable(internalResultIngestDocument);
     }
 

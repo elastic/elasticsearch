@@ -534,6 +534,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
   method: testRouteOnSortFields
   issue: https://github.com/elastic/elasticsearch/issues/133993
+- class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
+  method: testShrink
+  issue: https://github.com/elastic/elasticsearch/issues/133875
 
 # Examples:
 #

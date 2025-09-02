@@ -119,12 +119,6 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
                     "copy_to": ["dense_semantic", "sparse_semantic"]
                   }
                 }
-              },
-              "settings": {
-                "index": {
-                  "number_of_shards": 1,
-                  "number_of_replicas": 0
-                }
               }
             }
             """);

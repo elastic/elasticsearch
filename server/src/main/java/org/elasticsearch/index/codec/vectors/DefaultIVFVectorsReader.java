@@ -41,7 +41,7 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
 
     // How many extra centroids we need to collect for each visited centroid for hierarchical centroids.
-    public static final float CENTROID_OVERSAMPLING = 5.0f;
+    public static final float CENTROID_OVERSAMPLING = 8.0f;
 
     public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);

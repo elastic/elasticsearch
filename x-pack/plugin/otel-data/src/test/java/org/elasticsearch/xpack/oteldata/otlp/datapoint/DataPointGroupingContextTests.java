@@ -65,7 +65,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
                 createGaugeMetric(
                     "system.cpu.usage",
                     "",
-                    List.of(createDoubleDataPoint(nowUnixNanos, nowUnixNanos, List.of(keyValue(TargetIndex.DATA_STREAM_DATASET, "custom"))))
+                    List.of(createDoubleDataPoint(nowUnixNanos, nowUnixNanos, List.of(keyValue("data_stream.dataset", "custom"))))
                 ),
                 createGaugeMetric("system.memory.usage", "", List.of(createDoubleDataPoint(nowUnixNanos)))
             )

@@ -21,10 +21,10 @@ import java.util.List;
 public final class TargetIndex {
 
     public static final String TYPE_METRICS = "metrics";
-    public static final String ELASTICSEARCH_INDEX = "elasticsearch.index";
-    public static final String DATA_STREAM_DATASET = "data_stream.dataset";
-    public static final String DATA_STREAM_NAMESPACE = "data_stream.namespace";
 
+    private static final String ELASTICSEARCH_INDEX = "elasticsearch.index";
+    private static final String DATA_STREAM_DATASET = "data_stream.dataset";
+    private static final String DATA_STREAM_NAMESPACE = "data_stream.namespace";
     private static final String DEFAULT_DATASET = "generic";
     private static final String OTEL_DATASET_SUFFIX = ".otel";
     private static final String DEFAULT_NAMESPACE = "default";
@@ -37,6 +37,12 @@ public final class TargetIndex {
 
     public static TargetIndex defaultMetrics() {
         return DEFAULT_METRICS_TARGET;
+    }
+
+    public static boolean isTargetIndexAttribute(String attributeKey) {
+        return attributeKey.equals(ELASTICSEARCH_INDEX)
+            || attributeKey.equals(DATA_STREAM_DATASET)
+            || attributeKey.equals(DATA_STREAM_NAMESPACE);
     }
 
     /**

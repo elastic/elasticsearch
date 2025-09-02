@@ -50,9 +50,7 @@ public class MetricDocumentBuilder {
             builder.field("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
         buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
-        if (dataPointGroup.targetIndex().isDataStream()) {
-            buildDataStream(builder, dataPointGroup.targetIndex());
-        }
+        buildDataStream(builder, dataPointGroup.targetIndex());
         buildScope(builder, dataPointGroup.scopeSchemaUrl(), dataPointGroup.scope());
         buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
         builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash(hasher));
@@ -145,10 +143,7 @@ public class MetricDocumentBuilder {
      * @return true if the attribute is ignored, false otherwise
      */
     public static boolean isIgnoredAttribute(String attributeKey) {
-        return attributeKey.equals(TargetIndex.ELASTICSEARCH_INDEX)
-            || attributeKey.equals(TargetIndex.DATA_STREAM_DATASET)
-            || attributeKey.equals(TargetIndex.DATA_STREAM_NAMESPACE)
-            || attributeKey.equals(MappingHints.MAPPING_HINTS);
+        return TargetIndex.isTargetIndexAttribute(attributeKey) || MappingHints.isMappingHintsAttribute(attributeKey);
     }
 
     private void attributeValue(XContentBuilder builder, AnyValue value) throws IOException {

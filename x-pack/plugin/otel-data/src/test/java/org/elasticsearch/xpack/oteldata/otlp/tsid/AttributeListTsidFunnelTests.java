@@ -61,9 +61,9 @@ public class AttributeListTsidFunnelTests extends ESTestCase {
     public void testIgnoredAttributes() {
         funnel.add(
             List.of(
-                keyValue(TargetIndex.ELASTICSEARCH_INDEX, "index"),
-                keyValue(TargetIndex.DATA_STREAM_DATASET, "dataset"),
-                keyValue(TargetIndex.DATA_STREAM_NAMESPACE, "namespace")
+                keyValue("elasticsearch.index", "index"),
+                keyValue("data_stream.dataset", "dataset"),
+                keyValue("data_stream.namespace", "namespace")
             ),
             funnelBuilder
         );

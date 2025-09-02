@@ -30,6 +30,8 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createMetricsReque
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSummaryDataPoint;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSummaryMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -65,11 +67,12 @@ public class DataPointGroupingContextTests extends ESTestCase {
                     "",
                     List.of(HistogramDataPoint.newBuilder().setTimeUnixNano(nowUnixNanos).setStartTimeUnixNano(nowUnixNanos).build()),
                     AGGREGATION_TEMPORALITY_DELTA
-                )
+                ),
+                createSummaryMetric("summary", "", List.of(createSummaryDataPoint(nowUnixNanos, List.of())))
             )
         );
         context.groupDataPoints(metricsRequest);
-        assertEquals(5, context.totalDataPoints());
+        assertEquals(6, context.totalDataPoints());
         assertEquals(0, context.getIgnoredDataPoints());
         assertEquals("", context.getIgnoredDataPointsMessage());
 

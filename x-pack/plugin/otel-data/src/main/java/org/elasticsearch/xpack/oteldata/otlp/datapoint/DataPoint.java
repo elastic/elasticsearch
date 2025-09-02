@@ -13,6 +13,7 @@ import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
+import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
@@ -306,6 +307,55 @@ public interface DataPoint {
                 errors.add("histogram with a single bucket and no explicit bounds is not supported, ignoring " + metric.getName());
                 return false;
             }
+            return true;
+        }
+    }
+
+    record Summary(SummaryDataPoint dataPoint, Metric metric) implements DataPoint {
+
+        @Override
+        public long getTimestampUnixNano() {
+            return dataPoint.getTimeUnixNano();
+        }
+
+        @Override
+        public List<KeyValue> getAttributes() {
+            return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public long getStartTimestampUnixNano() {
+            return dataPoint.getStartTimeUnixNano();
+        }
+
+        @Override
+        public String getUnit() {
+            return metric.getUnit();
+        }
+
+        @Override
+        public String getMetricName() {
+            return metric.getName();
+        }
+
+        @Override
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+            // TODO: Add support for quantiles
+            buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+        }
+
+        @Override
+        public long getDocCount() {
+            return dataPoint.getCount();
+        }
+
+        @Override
+        public String getDynamicTemplate(MappingHints mappingHints) {
+            return "summary";
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors) {
             return true;
         }
     }

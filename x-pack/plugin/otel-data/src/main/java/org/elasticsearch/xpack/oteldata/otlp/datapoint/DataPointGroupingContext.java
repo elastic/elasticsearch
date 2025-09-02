@@ -79,8 +79,7 @@ public class DataPointGroupingContext {
                             scopeGroup.addDataPoints(metric, metric.getHistogram().getDataPointsList(), DataPoint.Histogram::new);
                             break;
                         case SUMMARY:
-                            ignoredDataPoints += metric.getSummary().getDataPointsList().size();
-                            ignoredDataPointMessages.add("Summary is not supported yet. Dropping " + metric.getName());
+                            scopeGroup.addDataPoints(metric, metric.getSummary().getDataPointsList(), DataPoint.Summary::new);
                             break;
                         default:
                             ignoredDataPoints++;

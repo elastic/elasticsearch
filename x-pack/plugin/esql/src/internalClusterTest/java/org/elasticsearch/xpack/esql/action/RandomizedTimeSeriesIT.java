@@ -56,10 +56,22 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 2000L;
-    private static final Long TIME_RANGE_SECONDS = 3600L;
+    private static final Long NUM_DOCS = 500L;
+    private static final Long TIME_RANGE_SECONDS = 900L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
+    private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
+        Tuple.tuple("10 seconds", 10),
+        Tuple.tuple("30 seconds", 30),
+        Tuple.tuple("1 minute", 60),
+        Tuple.tuple("2 minutes", 120),
+        Tuple.tuple("3 minutes", 180),
+        Tuple.tuple("5 minutes", 300),
+        Tuple.tuple("10 minutes", 600),
+        Tuple.tuple("30 minutes", 1800),
+        Tuple.tuple("1 hour", 3600)
+    );
+
     private List<XContentBuilder> documents;
     private TSDataGenerationHelper dataGenerationHelper;
 
@@ -271,7 +283,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             );
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
-            return new RateStats(0L, null, null, null, new RateRange(0.0, 0.0));
+            return new RateStats(0L, null, null, null, null);
         }
         return new RateStats(
             (long) allRates.size(),
@@ -353,31 +365,38 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
-        var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
-        var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+        var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
+        var windowSize = window.v2();
+        var windowStr = window.v1();
+        var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
+        var dimensionsStr = dimensions.isEmpty()
+            ? ""
+            : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
         try (var resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS count(rate(metrics.counterl_hdd.bytes.read)),
                     max(rate(metrics.counterl_hdd.bytes.read)),
                     avg(rate(metrics.counterl_hdd.bytes.read)),
-                    min(rate(metrics.counterl_hdd.bytes.read))
-                BY tbucket=bucket(@timestamp, 1 minute), %s
+                    min(rate(metrics.counterl_hdd.bytes.read)),
+                    sum(rate(metrics.counterl_hdd.bytes.read))
+                BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
             | LIMIT 1000
-            """, DATASTREAM_NAME, dimensionsStr))) {
+            """, DATASTREAM_NAME, windowStr, dimensionsStr))) {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
-            var groups = groupedRows(documents, dimensions, SECONDS_IN_WINDOW);
+            var groups = groupedRows(documents, dimensions, windowSize);
             for (List<Object> row : rows) {
-                var rowKey = getRowKey(row, dimensions, 4);
+                var rowKey = getRowKey(row, dimensions, 5);
                 var windowDataPoints = groups.get(rowKey);
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
-                var rateAgg = calculateRateAggregation(docsPerTimeseries.values(), SECONDS_IN_WINDOW);
+                var rateAgg = calculateRateAggregation(docsPerTimeseries.values(), windowSize);
                 try {
                     assertThat(row.getFirst(), equalTo(rateAgg.count));
                     checkWithin((Double) row.get(1), rateAgg.max);
                     checkWithin((Double) row.get(2), rateAgg.avg);
                     checkWithin((Double) row.get(3), rateAgg.min);
+                    checkWithin((Double) row.get(4), rateAgg.sum);
                 } catch (AssertionError e) {
                     failedWindows.add("Failed for row:\n" + row + "\nWanted: " + rateAgg + "\nException: " + e.getMessage());
                 }
@@ -425,7 +444,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testGaugeGroupByRandomAndRandomAgg() {
-        // TODO: randomize window size as well!
+        var randomWindow = ESTestCase.randomFrom(WINDOW_OPTIONS);
+        var windowSize = randomWindow.v2();
+        var windowStr = randomWindow.v1();
         var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.isEmpty()
             ? ""
@@ -445,11 +466,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             | WHERE %s IS NOT NULL
             | STATS
                 %s
-                BY tbucket=bucket(@timestamp, 1 minute) %s
+                BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
-            | LIMIT 1000""", DATASTREAM_NAME, metricName, aggExpression, dimensionsStr);
+            | LIMIT 1000""", DATASTREAM_NAME, metricName, aggExpression, windowStr, dimensionsStr);
         try (EsqlQueryResponse resp = run(query)) {
-            var groups = groupedRows(documents, dimensions, 60);
+            var groups = groupedRows(documents, dimensions, windowSize);
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, 1);

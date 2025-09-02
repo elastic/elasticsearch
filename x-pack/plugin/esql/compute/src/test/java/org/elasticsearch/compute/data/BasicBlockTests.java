@@ -99,6 +99,7 @@ public class BasicBlockTests extends ESTestCase {
         assertZeroPositionsAndRelease(bf.newBooleanBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newBooleanArrayVector(new boolean[] {}, 0));
         assertZeroPositionsAndRelease(bf.newBooleanVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(bf.newAggregateMetricDoubleBlockBuilder(0).build());
     }
 
     public void testSmallSingleValueDenseGrowthInt() {
@@ -158,6 +159,17 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testSmallSingleValueDenseGrowthBoolean() {
+        for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
+            try (var blockBuilder = blockFactory.newBooleanBlockBuilder(initialSize)) {
+                IntStream.range(0, 10).forEach(i -> blockBuilder.appendBoolean(i % 3 == 0));
+                BooleanBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
+            }
+        }
+    }
+
+    public void testSmallSingleValueDenseGrowthAggregateMetricDouble() {
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
             try (var blockBuilder = blockFactory.newBooleanBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(i -> blockBuilder.appendBoolean(i % 3 == 0));

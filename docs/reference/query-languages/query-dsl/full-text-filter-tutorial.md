@@ -33,7 +33,7 @@ You can [convert into other programming languages](docs-content://explore-analyz
 
 You can follow these steps in any type of {{es}} deployment.
 To see all deployment options, refer to [Choosing your deployment type](docs-content://deploy-manage/deploy.md#choosing-your-deployment-type).
-To get started quickly, set up a [single-node local cluster in Docker](docs-content://solutions/search/run-elasticsearch-locally.md).
+To get started quickly, set up a [single-node local cluster in Docker](docs-content://deploy-manage/deploy/self-managed/local-development-installation-quickstart.md).
 
 ## Create an index [full-text-filter-tutorial-create-index]
 

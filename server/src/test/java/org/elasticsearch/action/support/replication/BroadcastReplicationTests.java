@@ -248,8 +248,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         logger.debug("--> using initial state:\n{}", clusterService.state());
         List<ShardId> shards = broadcastReplicationAction.shards(
             new DummyBroadcastRequest().indices(shardId.getIndexName()),
-            clusterState.metadata().getProject(projectId),
-            clusterState.routingTable(projectId)
+            clusterState.projectState(projectId)
         );
         assertThat(shards.size(), equalTo(1));
         assertThat(shards.get(0), equalTo(shardId));

@@ -265,9 +265,9 @@ public class DataPointGroupingContext {
             return dataPoints.getFirst().getStartTimestampUnixNano();
         }
 
-        public String getMetricNamesHash() {
+        public String getMetricNamesHash(BufferedMurmur3Hasher hasher) {
             if (metricNamesHash == null) {
-                BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
+                hasher.reset();
                 for (int i = 0; i < dataPoints.size(); i++) {
                     hasher.addString(dataPoints.get(i).getMetricName());
                 }

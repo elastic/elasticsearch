@@ -24,12 +24,22 @@ import java.util.stream.Collectors;
 
 public class Utils {
 
+    // TODO Currently ServerProcessBuilder is using --add-modules=ALL-MODULE-PATH, should this rather
+    // reflect below excludes (except for java.desktop which requires a special handling)?
+    // internal and incubator modules are also excluded
     private static final Set<String> EXCLUDED_MODULES = Set.of(
         "java.desktop",
         "jdk.jartool",
         "jdk.jdi",
         "java.security.jgss",
-        "jdk.jshell"
+        "jdk.jshell",
+        "jdk.jcmd",
+        "jdk.hotspot.agent",
+        "jdk.jfr",
+        "jdk.javadoc",
+        // "jdk.jpackage", // Do we want to include this?
+        // "jdk.jlink", // Do we want to include this?
+        "jdk.localedata" // noise, change here are not interesting
     );
 
     private static Map<String, Set<String>> findModuleExports(FileSystem fs) throws IOException {
@@ -70,7 +80,9 @@ public class Utils {
 
             for (var kv : modules.entrySet()) {
                 var moduleName = kv.getKey();
-                if (Utils.EXCLUDED_MODULES.contains(moduleName) == false) {
+                if (Utils.EXCLUDED_MODULES.contains(moduleName) == false
+                    && moduleName.contains(".internal.") == false
+                    && moduleName.contains(".incubator.") == false) {
                     var thisModuleExports = moduleExports.get(moduleName);
                     c.accept(moduleName, kv.getValue(), thisModuleExports);
                 }

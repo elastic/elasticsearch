@@ -15,6 +15,7 @@ import io.opentelemetry.proto.resource.v1.Resource;
 import com.google.protobuf.ByteString;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
@@ -32,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 public class MetricDocumentBuilder {
 
     private final BufferedByteStringAccessor byteStringAccessor;
+    private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
 
     public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
         this.byteStringAccessor = byteStringAccessor;
@@ -49,7 +51,7 @@ public class MetricDocumentBuilder {
         buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
         buildScope(builder, dataPointGroup.scopeSchemaUrl(), dataPointGroup.scope());
         buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
-        builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash());
+        builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash(hasher));
 
         builder.startObject("metrics");
         for (int i = 0, dataPointsSize = dataPoints.size(); i < dataPointsSize; i++) {

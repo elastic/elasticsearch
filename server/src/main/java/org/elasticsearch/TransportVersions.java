@@ -334,7 +334,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
     public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_9_1 = def(9_112_0_02);
-    public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS_9_1 = def(9_112_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_2 = def(9_112_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_3 = def(9_112_0_06);
@@ -352,7 +351,6 @@ public class TransportVersions {
     public static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = def(9_124_0_00);
     public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
     public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
-    public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_147_0_00);
     public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_0_00);
 

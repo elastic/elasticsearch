@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -62,6 +63,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(intTestCase(100, 17, 156, 23, 0.123, "gauss", 0.7334501109633149));
         testCaseSuppliers.addAll(intTestCase(2500, 0, 10, 0, 0.5, "gauss", 0.0));
 
+        // Int defaults
+        testCaseSuppliers.addAll(intTestCase(10, 0, 10, null, null, null, 0.5));
+
         // Long Linear
         testCaseSuppliers.addAll(longTestCase(0L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
         testCaseSuppliers.addAll(longTestCase(10L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
@@ -83,6 +87,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(longTestCase(300000L, 10L, 10000000L, 200L, 0.33, "gauss", 0.9990040963055015));
         testCaseSuppliers.addAll(longTestCase(123456789112123L, 10L, 10000000L, 200L, 0.33, "gauss", 0.0));
 
+        // Long defaults
+        testCaseSuppliers.addAll(longTestCase(10L, 0L, 10L, null, null, null, 0.5));
+
         // Double Linear
         testCaseSuppliers.addAll(doubleTestCase(0.0, 10.0, 10000000.0, 200.0, 0.25, "linear", 1.0));
         testCaseSuppliers.addAll(doubleTestCase(10.0, 10.0, 10000000.0, 200.0, 0.25, "linear", 1.0));
@@ -103,6 +110,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(doubleTestCase(50000.0, 10.0, 10000000.0, 200.0, 0.25, "gauss", 0.9999656337419655));
         testCaseSuppliers.addAll(doubleTestCase(300000.0, 10.0, 10000000.0, 200.0, 0.25, "gauss", 0.9987548570291238));
         testCaseSuppliers.addAll(doubleTestCase(123456789112.123, 10.0, 10000000.0, 200.0, 0.25, "gauss", 0.0));
+
+        // Double defaults
+        testCaseSuppliers.addAll(doubleTestCase(10.0, 0.0, 10.0, null, null, null, 0.5));
 
         // GeoPoint Linear
         testCaseSuppliers.addAll(geoPointTestCase("POINT (1.0 1.0)", "POINT (1 1)", "10000km", "10km", 0.33, "linear", 1.0));
@@ -143,6 +153,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(geoPointTestCaseKeywordScale("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
         testCaseSuppliers.addAll(geoPointOffsetKeywordTestCase("POINT (1 1)", "POINT (1 1)", "200km", "0km", 0.5, "linear", 1.0));
 
+        // GeoPoint defaults
+        testCaseSuppliers.addAll(geoPointTestCase("POINT (12.3 45.6)", "POINT (1 1)", "10000km", null, null, null, 0.7459413262379005));
+
         // CartesianPoint Linear
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (0 0)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 1.0));
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (1 1)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 1.0));
@@ -178,6 +191,11 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             cartesianPointTestCase("POINT (10000 20000)", "POINT (1 1)", 10000.0, 10.0, 0.33, "gauss", 0.003935602627423666)
+        );
+
+        // CartesianPoint defaults
+        testCaseSuppliers.addAll(
+            cartesianPointTestCase("POINT (1000.0 2000.0)", "POINT (0 0)", 10000.0, null, null, null, 0.8881966011250104)
         );
 
         // Datetime Linear
@@ -348,6 +366,19 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 0.33,
                 "gauss",
                 5.025924031342025E-7
+            )
+        );
+
+        // Datetime Defaults
+        testCaseSuppliers.addAll(
+            datetimeTestCase(
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                null,
+                null,
+                null,
+                0.62315
             )
         );
 
@@ -522,6 +553,19 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Datenanos default
+        testCaseSuppliers.addAll(
+            dateNanosTestCase(
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                Duration.ofDays(10000),
+                null,
+                null,
+                null,
+                0.53185
+            )
+        );
+
         return parameterSuppliersFromTypedData(testCaseSuppliers);
     }
 
@@ -540,7 +584,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         int origin,
         int scale,
         Integer offset,
-        double decay,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -568,7 +612,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         long origin,
         long scale,
         Long offset,
-        double decay,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -596,7 +640,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         double origin,
         double scale,
         Double offset,
-        double decay,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -624,7 +668,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         String originWkt,
         String scale,
         String offset,
-        double decay,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -652,7 +696,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         String originWkt,
         String scale,
         String offset,
-        double decay,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -680,7 +724,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         String originWkt,
         String scale,
         String offset,
-        double decay,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -707,8 +751,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         String valueWkt,
         String originWkt,
         double scale,
-        double offset,
-        double decay,
+        Double offset,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -736,7 +780,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         long origin,
         Duration scale,
         Duration offset,
-        double decay,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -764,7 +808,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         long origin,
         Duration scale,
         Duration offset,
-        double decay,
+        Double decay,
         String functionType,
         double expected
     ) {
@@ -787,30 +831,34 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static MapExpression createOptionsMap(Object offset, double decay, String functionType) {
+    private static MapExpression createOptionsMap(Object offset, Double decay, String functionType) {
         List<Expression> keyValuePairs = new ArrayList<>();
 
         // Offset
-        keyValuePairs.add(Literal.keyword(Source.EMPTY, "offset"));
-        if (offset instanceof Integer) {
-            keyValuePairs.add(Literal.integer(Source.EMPTY, (Integer) offset));
-        } else if (offset instanceof Long) {
-            keyValuePairs.add(Literal.fromLong(Source.EMPTY, (Long) offset));
-        } else if (offset instanceof Double) {
-            keyValuePairs.add(Literal.fromDouble(Source.EMPTY, (Double) offset));
-        } else if (offset instanceof String) {
-            keyValuePairs.add(Literal.text(Source.EMPTY, (String) offset));
-        } else if (offset instanceof Duration) {
-            keyValuePairs.add(Literal.timeDuration(Source.EMPTY, (Duration) offset));
+        if (Objects.nonNull(offset)) {
+            keyValuePairs.add(Literal.keyword(Source.EMPTY, "offset"));
+            switch (offset) {
+                case Integer value -> keyValuePairs.add(Literal.integer(Source.EMPTY, value));
+                case Long value -> keyValuePairs.add(Literal.fromLong(Source.EMPTY, value));
+                case Double value -> keyValuePairs.add(Literal.fromDouble(Source.EMPTY, value));
+                case String value -> keyValuePairs.add(Literal.text(Source.EMPTY, value));
+                case Duration value -> keyValuePairs.add(Literal.timeDuration(Source.EMPTY, value));
+                default -> {
+                }
+            }
         }
 
         // Decay
-        keyValuePairs.add(Literal.keyword(Source.EMPTY, "decay"));
-        keyValuePairs.add(Literal.fromDouble(Source.EMPTY, decay));
+        if (Objects.nonNull(decay)) {
+            keyValuePairs.add(Literal.keyword(Source.EMPTY, "decay"));
+            keyValuePairs.add(Literal.fromDouble(Source.EMPTY, decay));
+        }
 
         // Type
-        keyValuePairs.add(Literal.keyword(Source.EMPTY, "type"));
-        keyValuePairs.add(Literal.keyword(Source.EMPTY, functionType));
+        if (Objects.nonNull(functionType)) {
+            keyValuePairs.add(Literal.keyword(Source.EMPTY, "type"));
+            keyValuePairs.add(Literal.keyword(Source.EMPTY, functionType));
+        }
 
         return new MapExpression(Source.EMPTY, keyValuePairs);
     }

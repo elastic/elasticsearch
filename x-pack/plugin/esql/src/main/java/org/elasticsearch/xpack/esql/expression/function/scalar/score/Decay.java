@@ -95,13 +95,16 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
         Set.of(KEYWORD)
     );
 
+    // Default offsets
     private static final Integer DEFAULT_INTEGER_OFFSET = 0;
     private static final Long DEFAULT_LONG_OFFSET = 0L;
     private static final Double DEFAULT_DOUBLE_OFFSET = 0.0;
     private static final BytesRef DEFAULT_GEO_POINT_OFFSET = new BytesRef("0m");
     private static final Double DEFAULT_CARTESIAN_POINT_OFFSET = 0.0;
     private static final Long DEFAULT_TEMPORAL_OFFSET = 0L;
+
     private static final Double DEFAULT_DECAY = 0.5;
+
     private static final String DEFAULT_FUNCTION = "linear";
 
     private final Expression origin;

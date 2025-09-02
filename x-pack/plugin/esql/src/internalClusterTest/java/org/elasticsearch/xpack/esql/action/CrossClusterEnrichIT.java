@@ -367,7 +367,8 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             FROM *:events,events
             | LIMIT 25
             | eval ip= TO_STR(host)
-            | %s | KEEP host, timestamp, user, os
+            | %s
+            | KEEP host, timestamp, user, os
             """, enrichHosts(Enrich.Mode.REMOTE));
         try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
             var values = getValuesList(resp);

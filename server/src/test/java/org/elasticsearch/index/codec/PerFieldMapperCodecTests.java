@@ -22,6 +22,7 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -208,6 +209,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesIdFieldMapper.NAME)), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesRoutingHashFieldMapper.NAME)), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_NAME)), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)), is(true));
     }
 
     public void testSeqnoField() throws IOException {

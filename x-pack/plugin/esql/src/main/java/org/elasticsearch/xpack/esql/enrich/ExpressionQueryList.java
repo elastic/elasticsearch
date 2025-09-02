@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,7 +39,6 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * If the pre-join filter cannot be pushed down to Lucene, it will be ignored.
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
-    private static final Logger logger = LogManager.getLogger(ExpressionQueryList.class);
     private final List<QueryList> queryLists;
     private final List<Query> preJoinFilters = new ArrayList<>();
     private final SearchExecutionContext context;
@@ -58,14 +57,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
     }
 
-    private void addToPreJoinFilters(org.elasticsearch.index.query.QueryBuilder query) {
+    private void addToPreJoinFilters(QueryBuilder query) {
         try {
             if (query != null) {
                 preJoinFilters.add(query.toQuery(context));
             }
         } catch (IOException e) {
-            // as we treat the filter as optional an error in its application will be ignored
-            logger.error(() -> "Failed to translate optional pre-join filter: [" + query + "]", e);
+            throw new UncheckedIOException("Error while building query for PreJoinFilters filter", e);
         }
     }
 
@@ -87,10 +85,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 // We can revisit this in the future if needed, once we have more optimized workflow in place.
                 // The filter is optional, so it is OK to ignore it if it cannot be translated.
             }
-        } else if (rightPreJoinPlan instanceof EsSourceExec == false) {
+        } else if (rightPreJoinPlan != null && rightPreJoinPlan instanceof EsSourceExec == false) {
             throw new IllegalStateException(
                 "The right side of a LookupJoinExec can only be a FilterExec on top of an EsSourceExec or an EsSourceExec, but got: "
-                    + rightPreJoinPlan.toString()
+                    + rightPreJoinPlan
             );
         }
     }

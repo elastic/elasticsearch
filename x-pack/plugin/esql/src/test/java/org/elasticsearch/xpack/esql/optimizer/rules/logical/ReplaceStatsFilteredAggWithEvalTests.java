@@ -470,12 +470,11 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         as(limit.child(), EsRelation.class);
     }
 
-    /**
-     * Limit[1000[INTEGER],true]
+    /*
+     * Limit[1000[INTEGER],false]
      * \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{f}#9],[emp_no{r}#9]]
      *   |_EsqlProject[[salary{f}#14, emp_no{f}#9]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *   | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      *   \_Project[[sum(salary)   1 where false{r}#5, sum(salary)   2{r}#7, emp_no{f}#9]]
      *     \_Eval[[null[LONG] AS sum(salary)   1 where false#5, $$SUM$sum(salary)_ _2$1{r$}#21   2[INTEGER] AS sum(salary)   2#7]]
      *       \_Aggregate[[emp_no{f}#9],[SUM(salary{f}#14,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$sum(salary)_ _2$1#21, emp_no{f}#9]]
@@ -497,8 +496,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var ij = as(limit.child(), InlineJoin.class);
         var left = as(ij.left(), EsqlProject.class);
         assertThat(Expressions.names(left.projections()), contains("salary", "emp_no"));
-        limit = as(left.child(), Limit.class);
-        as(limit.child(), EsRelation.class);
+        var relation = as(left.child(), EsRelation.class);
         var right = as(ij.right(), Project.class);
         assertMap(
             Expressions.names(right.projections()).stream().map(Object::toString).toList(),
@@ -615,12 +613,11 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         as(limit.child(), EsRelation.class);
     }
 
-    /**
+    /*
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[],[],[]]
      *   |_EsqlProject[[emp_no{f}#8, salary{f}#13, gender{f}#10]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      *   \_Aggregate[[],[COUNT(salary{f}#13,true[BOOLEAN]) AS m1#7]]
      *     \_StubRelation[[emp_no{f}#8, salary{f}#13, gender{f}#10]]
      */
@@ -639,8 +636,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
 
         var left = as(ij.left(), EsqlProject.class);
         assertThat(Expressions.names(left.projections()), contains("emp_no", "salary", "gender"));
-        var leftLimit = as(left.child(), Limit.class);
-        as(leftLimit.child(), EsRelation.class);
+        var relation = as(left.child(), EsRelation.class);
 
         var right = as(ij.right(), Aggregate.class);
         assertThat(Expressions.names(right.aggregates()), contains("m1"));
@@ -716,8 +712,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      * Limit[1000[INTEGER],true]
      * \_InlineJoin[LEFT,[emp_no{f}#17],[emp_no{f}#17],[emp_no{r}#17]]
      *   |_EsqlProject[[emp_no{f}#17, salary{f}#22]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *   | \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      *   \_Project[[max{r}#6, max_a{r}#9, min{r}#12, min_a{r}#15, emp_no{f}#17]]
      *     \_Eval[[null[INTEGER] AS max_a#9, null[INTEGER] AS min_a#15]]
      *       \_Aggregate[[emp_no{f}#17],[MAX(salary{f}#22,true[BOOLEAN]) AS max#6, MIN(salary{f}#22,true[BOOLEAN]) AS min#12, emp_no{f}#17]]
@@ -741,8 +736,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
 
         var left = as(ij.left(), EsqlProject.class);
         assertThat(Expressions.names(left.projections()), contains("emp_no", "salary"));
-        var leftLimit = as(left.child(), Limit.class);
-        as(leftLimit.child(), EsRelation.class);
+        var relation = as(left.child(), EsRelation.class);
 
         var right = as(ij.right(), Project.class);
         assertThat(Expressions.names(right.projections()), contains("max", "max_a", "min", "min_a", "emp_no"));

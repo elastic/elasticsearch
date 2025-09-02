@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -127,6 +128,11 @@ public class PerFieldFormatSupplier {
 
     private boolean excludeFields(String fieldName) {
         // TODO: should we just allow all fields to use tsdb doc values codec?
+        // Values of these doc_values fields can be filtered out in RecoverySourcePruneMergePolicy,
+        // which leads to inconsistencies between merge stats and actual values.
+        if (SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME.equals(fieldName) || SourceFieldMapper.RECOVERY_SOURCE_NAME.equals(fieldName)) {
+            return true;
+        }
         // Avoid using tsdb codec for fields like _seq_no, _primary_term.
         // But _tsid and _ts_routing_hash should always use the tsdb codec.
         return fieldName.startsWith("_")

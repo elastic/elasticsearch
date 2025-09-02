@@ -281,9 +281,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testOneRemoteClusterPartial
-  issue: https://github.com/elastic/elasticsearch/issues/124055
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/128113
@@ -387,9 +384,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
   issue: https://github.com/elastic/elasticsearch/issues/131248
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/131481
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376

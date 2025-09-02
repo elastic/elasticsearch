@@ -56,7 +56,6 @@ public class Present extends AggregateFunction implements ToAggregator, Surrogat
     public Present(
         Source source,
         @Param(
-            optional = true,
             name = "field",
             type = {
                 "aggregate_metric_double",

@@ -124,7 +124,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     private final Supplier<float[]> querySupplier;
     final int k;
     final int numCands;
-    final float visitPercentage;
+    final Float visitPercentage;
     final Float similarity;
     final List<QueryBuilder> filterQueries;
     String queryName;
@@ -255,7 +255,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVectorBuilder = null;
         this.k = k;
         this.numCands = numCands;
-        this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
+        this.visitPercentage = visitPercentage;
         this.filterQueries = filterQueries;
         this.querySupplier = querySupplier;
         this.similarity = similarity;
@@ -313,8 +313,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCandidates;
-        this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
-        ;
+        this.visitPercentage = visitPercentage;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
         this.innerHitBuilder = innerHitBuilder;
         this.similarity = similarity;
@@ -329,9 +328,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.k = in.readVInt();
         this.numCands = in.readVInt();
         if (in.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
-            this.visitPercentage = in.readFloat();
+            this.visitPercentage = in.readOptionalFloat();
         } else {
-            this.visitPercentage = 0.0f;
+            this.visitPercentage = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
@@ -374,7 +373,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return numCands;
     }
 
-    public float getVisitPercentage() {
+    public Float getVisitPercentage() {
         return visitPercentage;
     }
 
@@ -553,7 +552,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
-        if (visitPercentage != 0.0f) {
+        if (visitPercentage != null && visitPercentage != 0.0f) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
         }
 

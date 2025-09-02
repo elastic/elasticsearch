@@ -554,6 +554,10 @@ public class RootObjectMapper extends ObjectMapper {
         return super.getTotalFieldsCount() - 1 + runtimeFields.size();
     }
 
+    /**
+     * Overrides in order to run the namespace validator first and then delegates to the
+     * standard validateSubField on the parent class
+     */
     @Override
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         namespaceValidator.validateNamespace(subobjects(), mapper.leafName());

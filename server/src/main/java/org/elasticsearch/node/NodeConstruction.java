@@ -697,7 +697,6 @@ class NodeConstruction {
 
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
-        // serverless deployments plug-in the namespace validator that prohibits mappings with "_project"
         RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
             RootObjectMapperNamespaceValidator.class,
             () -> new DefaultRootObjectMapperNamespaceValidator()

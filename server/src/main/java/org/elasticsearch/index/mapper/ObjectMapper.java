@@ -554,6 +554,11 @@ public class ObjectMapper extends Mapper {
         }
     }
 
+    /**
+     * This method is separated out to allow subclasses (such as RootObjectMapper) to
+     * override it and add in additional validations beyond what the mapper.validate()
+     * method will check on each mapping.
+     */
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         mapper.validate(mappers);
     }

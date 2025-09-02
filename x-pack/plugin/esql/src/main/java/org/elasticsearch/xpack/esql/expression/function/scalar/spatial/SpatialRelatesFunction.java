@@ -162,7 +162,11 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         protected boolean compareGeometryAndGrid(Geometry geometry, long gridId, DataType gridType) {
             if (geometry instanceof Point point) {
                 long geoGridId = getGridId(point, gridId, gridType);
-                return gridId == geoGridId;
+                return switch (queryRelation) {
+                    case INTERSECTS -> gridId == geoGridId;
+                    case DISJOINT -> gridId != geoGridId;
+                    default -> throw new IllegalArgumentException("Unsupported grid relation: " + queryRelation);
+                };
             } else {
                 throw new IllegalArgumentException(
                     "Unsupported grid intersection geometry type: " + geometry.getClass().getSimpleName() + "; expected Point"

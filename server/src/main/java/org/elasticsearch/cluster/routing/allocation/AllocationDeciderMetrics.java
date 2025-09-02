@@ -32,7 +32,7 @@ public class AllocationDeciderMetrics {
         meterRegistry.registerLongsGauge(
             WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
             "max latency for write load decider",
-            "unit",
+            "ms",
             maxLatencySupplier
         );
     }

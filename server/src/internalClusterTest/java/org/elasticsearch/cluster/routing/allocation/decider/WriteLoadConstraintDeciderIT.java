@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationDeciderMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -45,18 +48,28 @@ import org.elasticsearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
     @Override
+    @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+        return CollectionUtils.appendToCopyNoNullElements(
+            super.nodePlugins(),
+            MockTransportService.TestPlugin.class,
+            TestTelemetryPlugin.class
+        );
     }
 
     /**
@@ -227,11 +240,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          */
 
         logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
-        final InternalClusterInfoService clusterInfoService = asInstanceOf(
-            InternalClusterInfoService.class,
-            internalCluster().getInstance(ClusterInfoService.class, masterName)
-        );
-        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        refreshClusterInfo(masterName);
 
         logger.info(
             "---> Update the filter to exclude " + firstDataNodeName + " so that shards will be reassigned away to the other nodes"
@@ -252,6 +261,76 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 0
             );
         }));
+    }
+
+    public void testMaxQueueLatencyMetricIsPublished() {
+        final Settings settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .build();
+        final String masterName = internalCluster().startMasterOnlyNode(settings);
+        final var dataNodes = internalCluster().startDataOnlyNodes(2, settings);
+        ensureStableCluster(3);
+
+        // Refresh cluster info (should trigger polling)
+        refreshClusterInfo(masterName);
+
+        Map<String, Long> mostRecentQueueLatencyMetrics = getMostRecentQueueLatencyMetrics(dataNodes);
+        assertThat(mostRecentQueueLatencyMetrics.keySet(), hasSize(dataNodes.size()));
+        assertThat(mostRecentQueueLatencyMetrics.values(), everyItem(greaterThanOrEqualTo(0L)));
+
+        final String dataNodeToDelay = randomFrom(dataNodes);
+        final ThreadPool threadPoolToDelay = internalCluster().getInstance(ThreadPool.class, dataNodeToDelay);
+
+        // Fill the write thread pool
+        final int writeThreadPoolSize = threadPoolToDelay.info(ThreadPool.Names.WRITE).getMax();
+        final CyclicBarrier delayLatch = new CyclicBarrier(writeThreadPoolSize + 1);
+        for (int i = 0; i < writeThreadPoolSize; i++) {
+            threadPoolToDelay.executor(ThreadPool.Names.WRITE).execute(() -> {
+                safeAwait(delayLatch);
+                safeAwait(delayLatch);
+            });
+        }
+        safeAwait(delayLatch);
+        // Submit a task that will be delayed
+        threadPoolToDelay.executor(ThreadPool.Names.WRITE).execute(() -> {
+            // Doesn't need to do anything
+        });
+        final long delayMillis = randomIntBetween(100, 200);
+        safeSleep(delayMillis);
+        // Unblock the pool
+        safeAwait(delayLatch);
+
+        refreshClusterInfo(masterName);
+        mostRecentQueueLatencyMetrics = getMostRecentQueueLatencyMetrics(dataNodes);
+        assertThat(mostRecentQueueLatencyMetrics.keySet(), hasSize(dataNodes.size()));
+        assertThat(mostRecentQueueLatencyMetrics.get(dataNodeToDelay), greaterThanOrEqualTo(delayMillis));
+    }
+
+    private static void refreshClusterInfo(String masterName) {
+        final InternalClusterInfoService clusterInfoService = asInstanceOf(
+            InternalClusterInfoService.class,
+            internalCluster().getInstance(ClusterInfoService.class, masterName)
+        );
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+    }
+
+    private static Map<String, Long> getMostRecentQueueLatencyMetrics(List<String> dataNodes) {
+        final Map<String, Long> measurements = new HashMap<>();
+        for (String nodeName : dataNodes) {
+            PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, nodeName);
+            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+            telemetryPlugin.collect();
+            final var maxLatencyValues = telemetryPlugin.getLongGaugeMeasurement(
+                AllocationDeciderMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE
+            );
+            if (maxLatencyValues.isEmpty() == false) {
+                measurements.put(nodeName, maxLatencyValues.getLast().getLong());
+            }
+        }
+        return measurements;
     }
 
     /**

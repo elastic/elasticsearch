@@ -542,6 +542,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                         return new ByteDenseVectorValuesBlockReader(byteVectorValues, dimensions);
                     }
                 }
+                case BIT -> {
+                    ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
+                    if (byteVectorValues != null) {
+                        return new BitDenseVectorValuesBlockReader(byteVectorValues, dimensions);
+                    }
+                }
             }
 
             return new ConstantNullsReader();
@@ -577,8 +583,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
-            assert vectorValues.dimension() == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension();
+            assertDimensions();
 
             if (iterator.docID() > doc) {
                 builder.appendNull();
@@ -596,6 +601,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public int docId() {
             return iterator.docID();
+        }
+
+        protected void assertDimensions() {
+            assert vectorValues.dimension() == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension();
         }
     }
 
@@ -665,6 +675,24 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.ByteDenseVectorValuesBlockReader";
+        }
+    }
+
+    private static class BitDenseVectorValuesBlockReader extends ByteDenseVectorValuesBlockReader {
+
+        BitDenseVectorValuesBlockReader(ByteVectorValues floatVectorValues, int dimensions) {
+            super(floatVectorValues, dimensions);
+        }
+
+        @Override
+        protected void assertDimensions() {
+            assert vectorValues.dimension() * Byte.SIZE == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension() * Byte.SIZE;
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BitDenseVectorValuesBlockReader";
         }
     }
 
@@ -1011,14 +1039,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues == null) {
                 return new ConstantNullsReader();
             }
-            switch (elementType) {
-                case FLOAT:
-                    return new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
-                case BYTE:
-                    return new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
-                default:
-                    throw new IllegalArgumentException("Unknown element type [" + elementType + "]");
-            }
+            return switch (elementType) {
+                case FLOAT -> new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
+                case BYTE -> new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
+                case BIT -> new BitDenseVectorFromBinary(docValues, dims, indexVersion);
+            };
         }
     }
 
@@ -1107,6 +1132,27 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "ByteDenseVectorFromBinary.Bytes";
+        }
+
+        protected void writeScratchToBuilder(byte[] scratch, BlockLoader.FloatBuilder builder) {
+            for (byte value : scratch) {
+                builder.appendFloat(value);
+            }
+        }
+
+        protected void decodeDenseVector(BytesRef bytesRef, byte[] scratch) {
+            VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
+        }
+    }
+
+    private static class BitDenseVectorFromBinary extends AbstractDenseVectorFromBinary<byte[]> {
+        BitDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion, new byte[dims / Byte.SIZE]);
+        }
+
+        @Override
+        public String toString() {
+            return "BitDenseVectorFromBinary.Bytes";
         }
 
         protected void writeScratchToBuilder(byte[] scratch, BlockLoader.FloatBuilder builder) {

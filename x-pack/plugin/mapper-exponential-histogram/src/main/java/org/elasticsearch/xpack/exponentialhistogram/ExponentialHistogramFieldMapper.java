@@ -366,9 +366,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 );
             }
 
-            sum = checkAndPossiblyEstimateSum(sum, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
-            min = checkAndPossiblyEstimateMin(min, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
-            max = checkAndPossiblyEstimateMax(max, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
+            sum = validateOrEstimateSum(sum, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
+            min = validateOrEstimateMin(min, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
+            max = validateOrEstimateMax(max, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
 
             BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
             CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
@@ -430,7 +430,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         context.path().remove();
     }
 
-    private Double checkAndPossiblyEstimateSum(
+    private Double validateOrEstimateSum(
         Double sum,
         Integer scale,
         List<IndexWithCount> negativeBuckets,
@@ -454,7 +454,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
     }
 
-    private Double checkAndPossiblyEstimateMin(
+    private Double validateOrEstimateMin(
         Double parsedMin,
         ParsedZeroBucket zeroBucket,
         Integer scale,
@@ -481,7 +481,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
     }
 
-    private Double checkAndPossiblyEstimateMax(
+    private Double validateOrEstimateMax(
         Double parsedMax,
         ParsedZeroBucket zeroBucket,
         Integer scale,
@@ -747,8 +747,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             NumericDocValues zeroThresholds = leafReader.getNumericDocValues(zeroThresholdSubFieldName(fullPath()));
             NumericDocValues valueCounts = leafReader.getNumericDocValues(valuesCountSubFieldName(fullPath()));
             NumericDocValues valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
-            NumericDocValues valueMins = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
-            NumericDocValues valueMaxs = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
+            NumericDocValues valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
+            NumericDocValues valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
             assert zeroThresholds != null;
             assert valueCounts != null;
             assert valueSums != null;
@@ -765,13 +765,13 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                     valueCount = valueCounts.longValue();
                     valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
 
-                    if (valueMins != null && valueMins.advanceExact(docId)) {
-                        valueMin = NumericUtils.sortableLongToDouble(valueMins.longValue());
+                    if (valueMinima != null && valueMinima.advanceExact(docId)) {
+                        valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
                     } else {
                         valueMin = Double.NaN;
                     }
-                    if (valueMaxs != null && valueMaxs.advanceExact(docId)) {
-                        valueMax = NumericUtils.sortableLongToDouble(valueMaxs.longValue());
+                    if (valueMaxima != null && valueMaxima.advanceExact(docId)) {
+                        valueMax = NumericUtils.sortableLongToDouble(valueMaxima.longValue());
                     } else {
                         valueMax = Double.NaN;
                     }

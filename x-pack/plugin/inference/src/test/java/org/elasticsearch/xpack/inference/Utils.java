@@ -71,15 +71,15 @@ public final class Utils {
         return clusterService;
     }
 
-    public static ScalingExecutorBuilder inferenceUtilityPool() {
-        return new ScalingExecutorBuilder(
+    public static ScalingExecutorBuilder[] inferenceUtilityPools() {
+        return new ScalingExecutorBuilder[] {new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
             1,
             4,
             TimeValue.timeValueMinutes(10),
             false,
             "xpack.inference.utility_thread_pool"
-        );
+        )};
     }
 
     public static void storeSparseModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {

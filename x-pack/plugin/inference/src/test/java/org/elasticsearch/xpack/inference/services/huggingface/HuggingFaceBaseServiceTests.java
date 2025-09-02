@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPools;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.is;
@@ -45,7 +45,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityPools());
     }
 
     @After

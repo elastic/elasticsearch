@@ -132,6 +132,11 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(left());
+        out.writeNamedWriteable(getRightToSerialize(out));
+        config.writeTo(out);
+    }
+
+    protected LogicalPlan getRightToSerialize(StreamOutput out) {
         LogicalPlan rightToSerialize = right();
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER) == false) {
             // Prior to TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER
@@ -141,8 +146,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                 rightToSerialize = filter.child();
             }
         }
-        out.writeNamedWriteable(rightToSerialize);
-        config.writeTo(out);
+        return rightToSerialize;
     }
 
     @Override

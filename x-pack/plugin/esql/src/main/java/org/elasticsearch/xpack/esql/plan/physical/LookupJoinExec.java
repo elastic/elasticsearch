@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,6 +67,20 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);
+    }
+
+    @Override
+    protected PhysicalPlan getRightToSerialize(StreamOutput out) {
+        PhysicalPlan rightToSerialize = right();
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER) == false) {
+            // Prior to TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER
+            // we do not support a filter on top of the right side of the join
+            // As we consider the filters optional, we remove them here
+            while (rightToSerialize instanceof FilterExec filterExec) {
+                rightToSerialize = filterExec.child();
+            }
+        }
+        return rightToSerialize;
     }
 
     @Override

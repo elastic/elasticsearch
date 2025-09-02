@@ -13,6 +13,12 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 
+/**
+ * Class holding all the flags that can be used to change behavior for certain features in ESQL.
+ * The flags are backed by {@link Setting}s so they can be dynamically changed.
+ * When adding a new flag, make sure to add it to {@link #ALL_ESQL_FLAGS_SETTINGS}
+ * so it gets registered and unit tests can pass.
+ */
 public class EsqlFlags {
     public static final Setting<Boolean> ESQL_STRING_LIKE_ON_INDEX = Setting.boolSetting(
         "esql.query.string_like_on_index",
@@ -41,7 +47,10 @@ public class EsqlFlags {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    // this is only used for testing purposes right now
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(ESQL_STRING_LIKE_ON_INDEX, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
+
     private final boolean stringLikeOnIndex;
 
     private final int roundToPushdownThreshold;

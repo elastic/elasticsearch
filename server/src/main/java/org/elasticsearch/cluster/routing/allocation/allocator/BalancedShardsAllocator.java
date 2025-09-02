@@ -196,7 +196,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         if (shard.unassigned()) {
             allocateUnassignedDecision = balancer.decideAllocateUnassigned(index, shard);
         } else {
-            moveDecision = balancer.decideMove(index, shard);
+            moveDecision = balancer.decideMove(index, shard);  ////  this is the allocation explain path? Make sure that NOT_PREFERRED is surfaced in explain response
             if (moveDecision.isDecisionTaken() && moveDecision.canRemain()) {
                 moveDecision = balancer.decideRebalance(index, shard, moveDecision.getCanRemainDecision());
             }
@@ -776,7 +776,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert sourceNode != null && sourceNode.containsShard(index, shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-            if (canRemain.type() != Decision.Type.NO) {
+            if (canRemain.type() != Decision.Type.NO && canRemain.type() != Decision.Type.NOT_PREFERRED) {
                 return MoveDecision.remain(canRemain);
             }
 
@@ -787,6 +787,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
+            // TODO NOMERGE: how do we ensure that rebalancing doesn't return the hot shard back to the overloaded node?
+            // This might be the other ticket's problem
+            // NOMERGE NOTE: the MoveDecision may have a targetNode set.
             MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocate);
             if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
@@ -816,7 +819,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
-                    // TODO maybe we can respect throttling here too?
+                    if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
+                        // Relocating a shard from one NOT_PREFERRED node to another would not improve the situation, so skip it.
+                        continue;
+                    }
                     if (allocationDecision.type().higherThan(bestDecision)) {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
@@ -826,6 +832,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 // no need to continue iterating
                                 break;
                             }
+                        } else if (bestDecision == Type.NOT_PREFERRED) {
+                            assert remainDecision.type() != Type.NOT_PREFERRED;
+                            // If we don't ever get a YES decision, we'll go with NOT_PREFERRED.
+                            targetNode = target;
                         }
                     }
                 }

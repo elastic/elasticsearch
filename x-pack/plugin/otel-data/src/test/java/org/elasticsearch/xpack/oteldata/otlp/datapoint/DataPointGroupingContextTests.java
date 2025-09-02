@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
@@ -75,8 +74,7 @@ public class DataPointGroupingContextTests extends ESTestCase {
         assertEquals(2, groupCount.get());
     }
 
-    public void testGroupingDuplicateName() throws Exception {
-        // Group data points
+    public void testGroupingDuplicateNameSameTimeSeries() throws Exception {
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
                 createGaugeMetric("system.cpu.usage", "{percent}", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))),
@@ -91,6 +89,22 @@ public class DataPointGroupingContextTests extends ESTestCase {
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
         assertEquals(1, groupCount.get());
+    }
+
+    public void testGroupingDuplicateNameDifferentTimeSeries() throws Exception {
+        ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
+            List.of(
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos, List.of()))),
+                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createLongDataPoint(nowUnixNanos, List.of())))
+            )
+        );
+        context.groupDataPoints(metricsRequest);
+        assertEquals(2, context.totalDataPoints());
+        assertEquals(0, context.getIgnoredDataPoints());
+
+        AtomicInteger groupCount = new AtomicInteger(0);
+        context.consume(dataPointGroup -> groupCount.incrementAndGet());
+        assertEquals(2, groupCount.get());
     }
 
     public void testGroupingDifferentResource() throws Exception {

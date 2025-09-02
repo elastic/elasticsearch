@@ -12,7 +12,6 @@ import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
-import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
@@ -204,16 +203,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        ExponentialHistogramDataPoint dataPoint = ExponentialHistogramDataPoint.newBuilder()
-            .setTimeUnixNano(timestamp)
-            .setStartTimeUnixNano(startTimestamp)
-            .setZeroCount(1)
-            .setPositive(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
-            .setNegative(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
-            .build();
-        Metric metric = createExponentialHistogramMetric("exponential_histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA);
-        List<DataPoint> dataPoints = List.of(new DataPoint.ExponentialHistogram(dataPoint, metric));
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -221,8 +210,20 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
             "metrics-generic.otel-default"
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.ExponentialHistogram(
+                ExponentialHistogramDataPoint.newBuilder()
+                    .setTimeUnixNano(timestamp)
+                    .setStartTimeUnixNano(startTimestamp)
+                    .setZeroCount(1)
+                    .setPositive(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
+                    .setNegative(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
+                    .build(),
+                createExponentialHistogramMetric("exponential_histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA)
+            )
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -238,16 +239,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        ExponentialHistogramDataPoint dataPoint = ExponentialHistogramDataPoint.newBuilder()
-            .setTimeUnixNano(timestamp)
-            .setStartTimeUnixNano(startTimestamp)
-            .setSum(42)
-            .setCount(1L)
-            .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
-            .build();
-        Metric metric = createExponentialHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA);
-        List<DataPoint> dataPoints = List.of(new DataPoint.ExponentialHistogram(dataPoint, metric));
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -255,8 +246,20 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
             "metrics-generic.otel-default"
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.ExponentialHistogram(
+                ExponentialHistogramDataPoint.newBuilder()
+                    .setTimeUnixNano(timestamp)
+                    .setStartTimeUnixNano(startTimestamp)
+                    .setSum(42)
+                    .setCount(1L)
+                    .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
+                    .build(),
+                createExponentialHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA)
+            )
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -272,15 +275,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
-            .setTimeUnixNano(timestamp)
-            .setStartTimeUnixNano(startTimestamp)
-            .addBucketCounts(10L)
-            .addExplicitBounds(5.0)
-            .build();
-        Metric metric = createHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA);
-        List<DataPoint> dataPoints = List.of(new DataPoint.Histogram(dataPoint, metric));
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -288,8 +282,19 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
             "metrics-generic.otel-default"
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.Histogram(
+                HistogramDataPoint.newBuilder()
+                    .setTimeUnixNano(timestamp)
+                    .setStartTimeUnixNano(startTimestamp)
+                    .addBucketCounts(10L)
+                    .addExplicitBounds(5.0)
+                    .build(),
+                createHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA)
+            )
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -305,16 +310,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
-            .setTimeUnixNano(timestamp)
-            .setStartTimeUnixNano(startTimestamp)
-            .setSum(42)
-            .setCount(1L)
-            .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
-            .build();
-        Metric metric = createHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA);
-        List<DataPoint> dataPoints = List.of(new DataPoint.Histogram(dataPoint, metric));
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -322,8 +317,20 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
             "metrics-generic.otel-default"
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.Histogram(
+                HistogramDataPoint.newBuilder()
+                    .setTimeUnixNano(timestamp)
+                    .setStartTimeUnixNano(startTimestamp)
+                    .setSum(42)
+                    .setCount(1L)
+                    .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
+                    .build(),
+                createHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA)
+            )
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

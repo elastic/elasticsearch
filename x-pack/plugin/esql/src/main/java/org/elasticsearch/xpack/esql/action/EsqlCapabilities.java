@@ -1416,7 +1416,12 @@ public class EsqlCapabilities {
         /**
          * URL encoding function.
          */
-        URL_ENCODE(Build.current().isSnapshot());
+        URL_ENCODE(Build.current().isSnapshot()),
+
+        /**
+         * TO_DENSE_VECTOR function.
+         */
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

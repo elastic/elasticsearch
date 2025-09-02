@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Foldables
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -168,6 +169,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
@@ -1668,18 +1670,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> args = vectorFunction.arguments();
             List<Expression> newArgs = new ArrayList<>();
             for (Expression arg : args) {
-                if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
-                    Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
-                    if (folded instanceof List) {
-                        // Convert to floats so blocks are created accordingly
-                        List<Float> floatVector;
-                        if (arg.dataType() == FLOAT) {
-                            floatVector = (List<Float>) folded;
-                        } else {
-                            floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
+                if (arg.resolved()) {
+                    if (arg.foldable() && arg.dataType().isNumeric()) {
+                        Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
+                        if (folded instanceof List) {
+                            // Convert to floats so blocks are created accordingly
+                            List<Float> floatVector;
+                            if (arg.dataType() == FLOAT) {
+                                floatVector = (List<Float>) folded;
+                            } else {
+                                floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
+                            }
+                            Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
+                            newArgs.add(denseVector);
+                            continue;
                         }
-                        Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
-                        newArgs.add(denseVector);
+                    } else if (arg.dataType().isNumeric() || isString(arg.dataType())) {
+                        // add casting function
+                        newArgs.add(new ToDenseVector(arg.source(), arg));
                         continue;
                     }
                 }

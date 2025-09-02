@@ -7,8 +7,8 @@ set -euo pipefail
 #  local command=$1
 #  echo "$@"
 #  if [ "$command" == "annotate" ]; then
-#    while read -r _; do
-#      true;
+#    while read -r line; do
+#      echo "  read: $line";
 #    done
 #  fi
 #}
@@ -20,7 +20,8 @@ merge_base=$(git merge-base "${GITHUB_PR_TARGET_BRANCH}" HEAD)
 # PR comment
 buildkite-agent meta-data set pr_comment:early_comment_job_id "$BUILDKITE_JOB_ID"
 buildkite-agent meta-data set pr_comment:custom-body:body \
-  "This build attempts two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR."
+  "This build attempts two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of this PR." \
+  "To estimate benchmark completion time inspect previous nightly runs [here](https://buildkite.com/elastic/elasticsearch-performance-esbench-nightly/builds?branch=master)."
 buildkite-agent meta-data set pr_comment:custom-baseline:head \
   "* Baseline: ${merge_base} (env ID ${env_id_baseline})"
 buildkite-agent meta-data set pr_comment:custom-contender:head \
@@ -29,6 +30,7 @@ buildkite-agent meta-data set pr_comment:custom-contender:head \
 # Buildkite annotation
 cat << _EOF1_ | buildkite-agent annotate --context "pr-benchmark-notification"
   This build attempts two ${GITHUB_PR_COMMENT_VAR_BENCHMARK} benchmarks to evaluate performance impact of PR [${GITHUB_PR_NUMBER}](https://github.com/elastic/elasticsearch/pull/${GITHUB_PR_NUMBER}).
+  To estimate benchmark completion time inspect previous nightly runs [here](https://buildkite.com/elastic/elasticsearch-performance-esbench-nightly/builds?branch=master).
   * Baseline: [${merge_base:0:7}](https://github.com/elastic/elasticsearch/commit/${merge_base}) (env ID ${env_id_baseline})
   * Contender: [${GITHUB_PR_TRIGGERED_SHA:0:7}](https://github.com/elastic/elasticsearch/commit/${GITHUB_PR_TRIGGERED_SHA}) (env ID ${env_id_contender})
 _EOF1_

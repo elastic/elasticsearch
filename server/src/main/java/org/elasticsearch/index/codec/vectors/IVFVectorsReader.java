@@ -90,7 +90,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         int numCentroids,
         IndexInput centroids,
         float[] target,
-        IndexInput postingListSlice
+        IndexInput postingListSlice,
+        float visitRatio
     ) throws IOException;
 
     private static IndexInput openDataInput(
@@ -252,7 +253,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             entry.numCentroids,
             entry.centroidSlice(ivfCentroids),
             target,
-            postListSlice
+            postListSlice,
+            visitRatio
         );
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocs);
         long expectedDocs = 0;

@@ -1561,7 +1561,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     processorFactories,
                     scriptService,
                     projectId,
-                    (nodeFeature) -> featureService.clusterHasFeature(clusterService.state(), nodeFeature)
+                    (nodeFeature) -> featureService.clusterHasFeature(state, nodeFeature)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 

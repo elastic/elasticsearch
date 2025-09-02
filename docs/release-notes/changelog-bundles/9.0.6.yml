@@ -1,6 +1,6 @@
 version: 9.0.6
-released: false
-generated: 2025-08-25T12:38:06.936945696Z
+released: true
+generated: 2025-08-28T15:40:20.074323422Z
 changelogs:
   - pr: 132387
     summary: "[ExtraHop & QualysGAV] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
@@ -70,3 +70,9 @@ changelogs:
     area: Ingest Node
     type: upgrade
     issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        The 9.0.6 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 133410

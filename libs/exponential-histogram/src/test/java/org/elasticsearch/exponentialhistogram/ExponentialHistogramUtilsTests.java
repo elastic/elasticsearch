@@ -21,6 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import java.util.OptionalDouble;
+
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -57,7 +59,7 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
         }
     }
 
-    public void testInfinityHandling() {
+    public void testSumInfinityHandling() {
         FixedCapacityExponentialHistogram morePositiveValues = createAutoReleasedHistogram(100);
         morePositiveValues.resetBuckets(0);
         morePositiveValues.tryAddBucket(1999, 1, false);
@@ -82,5 +84,115 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
             moreNegativeValues.positiveBuckets().iterator()
         );
         assertThat(sum, equalTo(Double.NEGATIVE_INFINITY));
+    }
+
+    public void testMinMaxEstimation() {
+        for (int i = 0; i < 100; i++) {
+            int positiveValueCount = randomBoolean() ? 0 : randomIntBetween(10, 10_000);
+            int negativeValueCount = randomBoolean() ? 0 : randomIntBetween(10, 10_000);
+            int zeroValueCount = randomBoolean() ? 0 : randomIntBetween(10, 100);
+            int bucketCount = randomIntBetween(4, 500);
+
+            double correctMin = Double.MAX_VALUE;
+            double correctMax = -Double.MAX_VALUE;
+            double zeroThreshold = Double.MAX_VALUE;
+            double[] values = new double[positiveValueCount + negativeValueCount];
+            for (int j = 0; j < values.length; j++) {
+                double absValue = Math.pow(10, randomIntBetween(1, 9)) * randomDouble();
+                if (j < positiveValueCount) {
+                    values[j] = absValue;
+                } else {
+                    values[j] = -absValue;
+                }
+                zeroThreshold = Math.min(zeroThreshold, absValue / 2);
+                correctMin = Math.min(correctMin, values[j]);
+                correctMax = Math.max(correctMax, values[j]);
+            }
+            if (zeroValueCount > 0) {
+                correctMin = Math.min(correctMin, -zeroThreshold);
+                correctMax = Math.max(correctMax, zeroThreshold);
+            }
+
+            ExponentialHistogram histo = createAutoReleasedHistogram(bucketCount, values);
+
+            ZeroBucket zeroBucket = ZeroBucket.create(zeroThreshold, zeroValueCount);
+            OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
+                zeroBucket,
+                histo.negativeBuckets(),
+                histo.positiveBuckets()
+            );
+            OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
+                zeroBucket,
+                histo.negativeBuckets(),
+                histo.positiveBuckets()
+            );
+            if (correctMin == Double.MAX_VALUE) {
+                assertThat(estimatedMin.isPresent(), equalTo(false));
+                assertThat(estimatedMax.isPresent(), equalTo(false));
+            } else {
+                assertThat(estimatedMin.isPresent(), equalTo(true));
+                assertThat(estimatedMax.isPresent(), equalTo(true));
+                // If the histogram does not contain mixed sign values, we have a guaranteed relative error bound of 2^(2^-scale) - 1
+                double histogramBase = Math.pow(2, Math.pow(2, -histo.scale()));
+                double allowedErrorMin = Math.abs(correctMin * (histogramBase - 1));
+                assertThat(estimatedMin.getAsDouble(), closeTo(correctMin, allowedErrorMin));
+                double allowedErrorMax = Math.abs(correctMax * (histogramBase - 1));
+                assertThat(estimatedMax.getAsDouble(), closeTo(correctMax, allowedErrorMax));
+            }
+        }
+    }
+
+    public void testMinMaxEstimationPositiveInfinityHandling() {
+        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(100);
+        histo.resetBuckets(0);
+        histo.tryAddBucket(2000, 1, true);
+
+        OptionalDouble minEstimate = ExponentialHistogramUtils.estimateMin(
+            ZeroBucket.minimalEmpty(),
+            histo.negativeBuckets(),
+            histo.positiveBuckets()
+        );
+        assertThat(minEstimate.isPresent(), equalTo(true));
+        assertThat(minEstimate.getAsDouble(), equalTo(Double.POSITIVE_INFINITY));
+
+        OptionalDouble maxEstimate = ExponentialHistogramUtils.estimateMax(
+            ZeroBucket.minimalEmpty(),
+            histo.negativeBuckets(),
+            histo.positiveBuckets()
+        );
+        assertThat(maxEstimate.isPresent(), equalTo(true));
+        assertThat(maxEstimate.getAsDouble(), equalTo(Double.POSITIVE_INFINITY));
+    }
+
+    public void testMinMaxEstimationNegativeInfinityHandling() {
+        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(100);
+        histo.resetBuckets(0);
+        histo.tryAddBucket(2000, 1, false);
+
+        OptionalDouble minEstimate = ExponentialHistogramUtils.estimateMin(
+            ZeroBucket.minimalEmpty(),
+            histo.negativeBuckets(),
+            histo.positiveBuckets()
+        );
+        assertThat(minEstimate.isPresent(), equalTo(true));
+        assertThat(minEstimate.getAsDouble(), equalTo(Double.NEGATIVE_INFINITY));
+
+        OptionalDouble maxEstimate = ExponentialHistogramUtils.estimateMax(
+            ZeroBucket.minimalEmpty(),
+            histo.negativeBuckets(),
+            histo.positiveBuckets()
+        );
+        assertThat(maxEstimate.isPresent(), equalTo(true));
+        assertThat(maxEstimate.getAsDouble(), equalTo(Double.NEGATIVE_INFINITY));
+    }
+
+    public void testMinimumEstimationSanitizedNegativeZero() {
+        OptionalDouble estimate = ExponentialHistogramUtils.estimateMin(
+            ZeroBucket.minimalWithCount(42),
+            ExponentialHistogram.empty().negativeBuckets(),
+            ExponentialHistogram.empty().positiveBuckets()
+        );
+        assertThat(estimate.isPresent(), equalTo(true));
+        assertThat(estimate.getAsDouble(), equalTo(0.0));
     }
 }

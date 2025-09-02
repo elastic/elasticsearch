@@ -41,10 +41,12 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
 
     // How many extra centroids we need to collect for each visited centroid for hierarchical centroids.
-    public static final float CENTROID_OVERSAMPLING = 8.0f;
+    public final float centroidOversampling;
 
-    public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
+    public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader, int centroidsPerParentCluster)
+        throws IOException {
         super(state, rawVectorsReader);
+        centroidOversampling = (float) centroidsPerParentCluster / 2;
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
@@ -124,7 +126,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 quantized,
                 queryParams,
                 globalCentroidDp,
-                visitRatio
+                visitRatio * centroidOversampling
             );
         } else {
             centroidIterator = getCentroidIteratorNoParent(
@@ -188,13 +190,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryParams,
         float globalCentroidDp,
-        float visitRatio
+        float centroidRatio
     ) throws IOException {
         // build the three queues we are going to use
         final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
         final int maxChildrenSize = centroids.readVInt();
         final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
-        final int bufferSize = (int) Math.min(Math.max(visitRatio * numCentroids * CENTROID_OVERSAMPLING, 1), numCentroids);
+        final int bufferSize = (int) Math.min(Math.max(centroidRatio * numCentroids, 1), numCentroids);
         final NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
         // score the parents
         final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];

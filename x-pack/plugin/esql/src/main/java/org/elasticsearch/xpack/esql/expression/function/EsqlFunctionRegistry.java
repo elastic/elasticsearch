@@ -162,6 +162,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -519,7 +520,8 @@ public class EsqlFunctionRegistry {
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode") } };
+                def(UrlDecode.class, UrlDecode::new, "url_decode"),
+                def(Chunk.class, tri(Chunk::new), "chunk") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

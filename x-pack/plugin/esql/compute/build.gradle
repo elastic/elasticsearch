@@ -16,6 +16,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation project(xpackModule('inference'))
 
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))
@@ -30,6 +31,7 @@ dependencies {
   }
   testImplementation(project(xpackModule('core')))
   testImplementation(project(xpackModule('ml')))
+  testImplementation(project(xpackModule('inference')))
 }
 
 def projectDirectory = project.layout.projectDirectory

@@ -1421,7 +1421,12 @@ public class EsqlCapabilities {
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot());
+        URL_DECODE(Build.current().isSnapshot()),
+
+        /**
+         * Chunk function.
+         */
+        CHUNK_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

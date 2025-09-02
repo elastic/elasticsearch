@@ -1,0 +1,43 @@
+###############################################
+# Tests for Chunk function
+#
+
+chunkExample
+required_capability: chunk_function
+
+// tag::chunk-with-field[]
+FROM books
+| EVAL chunks = CHUNK(description, 1, 20)
+// end::chunk-with-field[]
+| KEEP book_no, title, chunks
+| SORT book_no
+| LIMIT 5
+;
+
+// tag::chunk-with-field-result[]
+book_no:keyword | title:text                                            | chunks:keyword
+1211            | The brothers Karamazov                                | null
+1463            | Realms of Tolkien: Images of Middle-earth             | null
+1502            | Selected Passages from Correspondence with Friends    | null
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | null
+1985            | Brothers Karamazov                                    | null
+// end::chunk-with-field-result[]
+;
+
+
+chunkTextWithMatch
+required_capability: chunk_function
+
+FROM books 
+| WHERE MATCH(title, "Return")
+| EVAL chunks = CHUNK(description, 1, 20)
+| KEEP book_no, title, chunks;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                        | chunks:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings  | null
+7350            | Return of the Shadow                                              | null
+;
+
+
+

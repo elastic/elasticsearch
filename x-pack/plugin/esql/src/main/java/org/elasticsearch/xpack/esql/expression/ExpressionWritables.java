@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
@@ -227,6 +228,7 @@ public class ExpressionWritables {
         entries.add(Delay.ENTRY);
         entries.add(UrlEncode.ENTRY);
         entries.add(UrlDecode.ENTRY);
+        entries.add(Chunk.ENTRY);
         // mv functions
         entries.addAll(MvFunctionWritables.getNamedWriteables());
         return entries;

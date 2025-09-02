@@ -94,7 +94,7 @@ If all queried fields are of type [semantic_text](/reference/elasticsearch/mappi
 stack: ga 9.2
 ```
 `visit_percentage`
-:   (Optional, float) The percentage of vectors to explore per shard while doing knn search with `bbq_disk`. Must be between 1 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  If `visit_percentage` is set for `bbq_disk`, `num_candidates` is ignored. Defaults to a reasonable percent per shard of ~1% for every 1 million vectors.
+:   (Optional, float) The percentage of vectors to explore per shard while doing knn search with `bbq_disk`. Must be between 1 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  If `visit_percentage` is set for `bbq_disk`, `num_candidates` is ignored. Defaults to 1% per shard for every 1 million vectors.
 
 
 `filter`

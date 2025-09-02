@@ -185,7 +185,7 @@ public class AppendProcessorTests extends ESTestCase {
 
         // generate values, add some to a target field, the rest to a source field
         int size = randomIntBetween(0, 10);
-        List<String> allValues = Stream.generate(() -> randomAlphaOfLengthBetween(1, 10)).limit(size).collect(Collectors.toList());
+        Set<String> allValues = Stream.generate(() -> randomAlphaOfLengthBetween(1, 10)).limit(size).collect(Collectors.toSet());
         List<String> originalValues = randomSubsetOf(allValues);
         List<String> additionalValues = new ArrayList<>(Sets.difference(new HashSet<>(allValues), new HashSet<>(originalValues)));
         List<String> targetFieldValue = new ArrayList<>(originalValues);

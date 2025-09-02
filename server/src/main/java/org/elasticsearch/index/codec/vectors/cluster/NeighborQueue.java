@@ -137,6 +137,18 @@ public class NeighborQueue {
         return decodeNodeId(heap.pop());
     }
 
+    /** Removes the top element and returns it */
+    public long popRaw() {
+        return heap.pop();
+    }
+
+    /** Removes the top element, returns it and adds the new encoded element */
+    public int popAndAddRaw(long raw) {
+        long top = heap.top();
+        heap.updateTop(raw);
+        return decodeNodeId(top);
+    }
+
     public void clear() {
         heap.clear();
     }

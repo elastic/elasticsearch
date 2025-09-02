@@ -36,6 +36,7 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
     private long valueCount;
     private double sum;
     private double min;
+    private double max;
     private ZeroBucket lazyZeroBucket;
 
     private final EncodedHistogramData encodedData = new EncodedHistogramData();
@@ -72,6 +73,11 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
     }
 
     @Override
+    public double max() {
+        return max;
+    }
+
+    @Override
     public ExponentialHistogram.Buckets positiveBuckets() {
         return positiveBuckets;
     }
@@ -88,16 +94,20 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
      * @param valueCount the total number of values the histogram contains, needs to be stored externally
      * @param sum the total sum of the values the histogram contains, needs to be stored externally
      * @param min the minimum of the values the histogram contains, needs to be stored externally.
-     *            Must be {@link Double#NaN} if the histogram is empty.
+     *            Must be {@link Double#NaN} if the histogram is empty, non-Nan otherwise.
+     * @param max the maximum of the values the histogram contains, needs to be stored externally.
+     *            Must be {@link Double#NaN} if the histogram is empty, non-Nan otherwise.
      * @param encodedHistogramData the encoded histogram bytes which previously where generated via
      * {@link #writeHistogramBytes(StreamOutput, int, List, List)}.
      */
-    public void reset(double zeroThreshold, long valueCount, double sum, double min, BytesRef encodedHistogramData) throws IOException {
+    public void reset(double zeroThreshold, long valueCount, double sum, double min, double max, BytesRef encodedHistogramData)
+        throws IOException {
         lazyZeroBucket = null;
         this.zeroThreshold = zeroThreshold;
         this.valueCount = valueCount;
         this.sum = sum;
         this.min = min;
+        this.max = max;
         encodedData.decode(encodedHistogramData);
         negativeBuckets.resetCachedData();
         positiveBuckets.resetCachedData();
@@ -105,7 +115,7 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
 
     /**
      * Serializes the given histogram, so that exactly the same data can be reconstructed via
-     * {@link #reset(double, long, double, double, BytesRef)}.
+     * {@link #reset(double, long, double, double, double, BytesRef)}.
      *
      * @param output the output to write the serialized bytes to
      * @param scale the scale of the histogram

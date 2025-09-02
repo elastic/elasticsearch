@@ -417,6 +417,11 @@ public class EsqlCapabilities {
         SPATIAL_GRID(Build.current().isSnapshot()),
 
         /**
+         * Support geohash, geotile and geohex data types. Done in #129581
+         */
+        SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -1412,6 +1417,11 @@ public class EsqlCapabilities {
          * URL encoding function.
          */
         URL_ENCODE(Build.current().isSnapshot()),
+
+        /**
+         * URL decoding function.
+         */
+        URL_DECODE(Build.current().isSnapshot()),
 
         /**
          * FORK with remote indices

@@ -141,8 +141,9 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
         return customs;
     }
 
-    public void multiproject(boolean multiproject) {
+    public ClusterStateRequest multiproject(boolean multiproject) {
         this.multiproject = multiproject;
+        return this;
     }
 
     public boolean multiproject() {

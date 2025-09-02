@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -1397,12 +1398,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var masterName = internalCluster().getMasterName();
         for (Client client : cluster().getClients()) {
             localStates.add(
-                SubscribableListener.newForked(l -> client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l))
+                SubscribableListener.newForked(l -> prepareClusterStateRequest(client)
+                    .execute(l))
             );
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
             SubscribableListener.<ClusterStateResponse>newForked(
-                l -> client(masterName).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
+                l -> prepareClusterStateRequest(client(masterName)).execute(l)
             ).andThenAccept(masterStateResponse -> {
                 byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
                 // remove local node reference
@@ -1462,7 +1464,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final Client masterClient = client();
-            Metadata metadata = masterClient.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState().metadata();
+            Metadata metadata = prepareClusterStateRequest(masterClient).get().getState().metadata();
             final Map<String, String> serializationParams = Maps.newMapWithExpectedSize(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
@@ -1563,6 +1565,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
             }
         }
+    }
+
+    private ClusterStateRequestBuilder prepareClusterStateRequest(Client client) {
+        return client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().setMultiproject(multiProjectIntegrationTest());
     }
 
     private static void ensureClusterInfoServiceRunning() {

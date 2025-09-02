@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -76,25 +75,6 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
                         equalTo(data.stream().map(Number::floatValue).toList())
                     );
                 }
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "mv_string",
-                List.of(DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(
-                            List.of(new BytesRef("1.1"), new BytesRef("2.2")),
-                            DataType.KEYWORD,
-                            "mv_string"
-                        )
-                    ),
-                    evaluatorName("String", "in"),
-                    DataType.DENSE_VECTOR,
-                    equalTo(List.of(1.1f, 2.2f))
-                )
             )
         );
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
@@ -15,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -25,10 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
 
 public class ToDenseVector extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -39,8 +36,6 @@ public class ToDenseVector extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DENSE_VECTOR, (source, fieldEval) -> fieldEval),
-        Map.entry(KEYWORD, ToDenseVectorFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToDenseVectorFromStringEvaluator.Factory::new),
         Map.entry(LONG, ToDenseVectorFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToDenseVectorFromIntEvaluator.Factory::new),
         Map.entry(DOUBLE, ToDenseVectorFromDoubleEvaluator.Factory::new)
@@ -48,14 +43,15 @@ public class ToDenseVector extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Converts a multi-valued input of numbers or strings to a dense_vector."
+        description = "Converts a multi-valued input of numbers to a dense_vector.",
+        examples = @Example(file = "dense_vector", tag = "to_dense_vector-ints")
     )
     public ToDenseVector(
         Source source,
         @Param(
             name = "field",
-            type = { "keyword", "text", "double", "long", "integer" },
-            description = "Input multi-valued column or an expression."
+            type = {"double", "long", "integer"},
+            description = "multi-valued input of numbers to convert."
         ) Expression field
     ) {
         super(source, field);
@@ -88,11 +84,6 @@ public class ToDenseVector extends AbstractConvertFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, ToDenseVector::new, field());
-    }
-
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { org.elasticsearch.xpack.esql.core.InvalidArgumentException.class })
-    static float fromString(BytesRef in) {
-        return (float) stringToDouble(in.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromLong")

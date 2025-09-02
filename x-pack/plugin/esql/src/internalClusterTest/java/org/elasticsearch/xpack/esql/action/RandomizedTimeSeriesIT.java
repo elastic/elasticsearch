@@ -430,22 +430,24 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         var dimensionsStr = dimensions.isEmpty()
             ? ""
             : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
-        var aggs = Agg.values();
         var metricName = ESTestCase.randomFrom(List.of("gaugel_hdd.bytes.used", "gauged_cpu.percent"));
-        var selectedAggs = ESTestCase.randomSubsetOf(2, aggs);
+        var selectedAggs = ESTestCase.randomSubsetOf(2, Agg.values());
         var aggExpression = String.format(
+            Locale.ROOT,
             "%s(%s_over_time(metrics.%s))",
             selectedAggs.get(0),
-            selectedAggs.get(1).toString().toLowerCase(),
+            selectedAggs.get(1),
             metricName
         );
+        // TODO: Remove WHERE clause after fixing https://github.com/elastic/elasticsearch/issues/129524
         var query = String.format(Locale.ROOT, """
             TS %s
+            | WHERE %s IS NOT NULL
             | STATS
                 %s
                 BY tbucket=bucket(@timestamp, 1 minute) %s
             | SORT tbucket
-            | LIMIT 1000""", DATASTREAM_NAME, aggExpression, dimensionsStr);
+            | LIMIT 1000""", DATASTREAM_NAME, metricName, aggExpression, dimensionsStr);
         try (EsqlQueryResponse resp = run(query)) {
             var groups = groupedRows(documents, dimensions, 60);
             List<List<Object>> rows = consumeRows(resp);

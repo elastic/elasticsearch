@@ -18,45 +18,68 @@ import java.util.Map;
 /**
  * An external bridge for {@link PipelineConfiguration}
  */
-public class PipelineConfigurationBridge extends StableBridgeAPI.ProxyInternal<PipelineConfiguration> {
-    public PipelineConfigurationBridge(final PipelineConfiguration delegate) {
-        super(delegate);
+public interface PipelineConfigurationBridge extends StableBridgeAPI<PipelineConfiguration> {
+
+    static PipelineConfigurationBridge create(final String pipelineId, final String jsonEncodedConfig) {
+        final PipelineConfiguration internal = new PipelineConfiguration(pipelineId, new BytesArray(jsonEncodedConfig), XContentType.JSON);
+        return fromInternal(internal);
     }
 
-    public PipelineConfigurationBridge(final String pipelineId, final String jsonEncodedConfig) {
-        this(new PipelineConfiguration(pipelineId, new BytesArray(jsonEncodedConfig), XContentType.JSON));
+    static PipelineConfigurationBridge fromInternal(PipelineConfiguration internal) {
+        return new PipelineConfigurationBridge.ProxyInternal(internal);
     }
 
-    public String getId() {
-        return internalDelegate.getId();
-    }
+    String getId();
 
-    public Map<String, Object> getConfig() {
-        return internalDelegate.getConfig();
-    }
+    Map<String, Object> getConfig();
 
-    public Map<String, Object> getConfig(final boolean unmodifiable) {
-        return internalDelegate.getConfig(unmodifiable);
-    }
+    Map<String, Object> getConfig(boolean unmodifiable);
 
-    @Override
-    public int hashCode() {
-        return internalDelegate.hashCode();
-    }
+    int hashCode();
 
-    @Override
-    public String toString() {
-        return internalDelegate.toString();
-    }
+    String toString();
 
-    @Override
-    public boolean equals(final Object obj) {
-        if (this == obj) {
-            return true;
-        } else if (obj instanceof PipelineConfigurationBridge other) {
-            return internalDelegate.equals(other.internalDelegate);
-        } else {
-            return false;
+    boolean equals(Object o);
+
+    class ProxyInternal extends StableBridgeAPI.ProxyInternal<PipelineConfiguration> implements PipelineConfigurationBridge {
+        ProxyInternal(final PipelineConfiguration delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public String getId() {
+            return internalDelegate.getId();
+        }
+
+        @Override
+        public Map<String, Object> getConfig() {
+            return internalDelegate.getConfig();
+        }
+
+        @Override
+        public Map<String, Object> getConfig(final boolean unmodifiable) {
+            return internalDelegate.getConfig(unmodifiable);
+        }
+
+        @Override
+        public int hashCode() {
+            return internalDelegate.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return internalDelegate.toString();
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            if (this == obj) {
+                return true;
+            } else if (obj instanceof PipelineConfigurationBridge.ProxyInternal other) {
+                return internalDelegate.equals(other.internalDelegate);
+            } else {
+                return false;
+            }
         }
     }
 }

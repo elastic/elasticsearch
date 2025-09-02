@@ -692,12 +692,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                     final var discoveryNodes = event.state().nodes();
                                     // Keep the connection open until the next committed state
                                     if (discoveryNodes.getMasterNode() != null) {
+                                        // Remove this listener to avoid memory leaks
+                                        clusterService.removeListener(this);
                                         if (discoveryNodes.nodeExists(joinRequest.getSourceNode().getId())) {
-                                            // Remove this listener to avoid memory leaks
-                                            clusterService.removeListener(this);
                                             ll.onResponse(null);
                                         } else {
-                                            clusterService.removeListener(this);
                                             ll.onFailure(e);
                                         }
                                     }

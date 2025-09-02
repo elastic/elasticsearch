@@ -26,8 +26,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class TimestampFormatFinderTests extends TextStructureTestCase {
     private static final boolean ECS_COMPATIBILITY_DISABLED = false;
     private static final boolean ECS_COMPATIBILITY_ENABLED = true;
@@ -1903,14 +1901,10 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             );
             timestampFormatFinder.addSample(message);
             timestampFormatFinder.selectBestMatch();
-            if ("CATALINA7_DATESTAMP".equals(expectedGrokPatternName)) {
-                if (ecsCompatibility) {
-                    assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
-                } else {
-                    assertEquals("CATALINA_DATESTAMP", timestampFormatFinder.getGrokPatternName());
-                }
+            if ("CATALINA7_DATESTAMP".equals(expectedGrokPatternName) && ecsCompatibility == false) {
+                assertEquals("CATALINA_DATESTAMP", timestampFormatFinder.getGrokPatternName());
             } else {
-                assertThat(timestampFormatFinder.getGrokPatternName(), equalTo(expectedGrokPatternName));
+                assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
             }
             assertEquals(expectedSimplePattern.pattern(), timestampFormatFinder.getSimplePattern().pattern());
             assertEquals(expectedJavaTimestampFormats, timestampFormatFinder.getJavaTimestampFormats());

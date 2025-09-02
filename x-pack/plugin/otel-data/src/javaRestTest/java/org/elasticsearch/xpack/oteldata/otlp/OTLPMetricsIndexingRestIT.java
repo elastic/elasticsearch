@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.action.otlp;
+package org.elasticsearch.xpack.oteldata.otlp;
 
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.exporter.internal.FailedExportException;

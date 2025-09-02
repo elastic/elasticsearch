@@ -2844,7 +2844,7 @@ mc:l           | count:l       | event_duration:l
 6              |2              |3450233
 ;
 
-ultiIndexIpStringInlinestats Inline4
+multiIndexIpStringInlinestats Inline4
 required_capability: inlinestats_v11
 
 FROM sample_data, sample_data_str
@@ -2856,11 +2856,11 @@ FROM sample_data, sample_data_str
 ;
 
 mc:l           | count:l       | event_duration:l
-4              |4              |725448         
-4              |4              |1756467        
-4              |4              |5033755        
-4              |4              |8268153        
-1              |1              |1232382
+4              |8              |725448         
+4              |8              |1756467        
+4              |8              |5033755        
+4              |8              |8268153        
+1              |2              |1232382
 ;
 
 multiIndexWhereIpStringInlinestats 

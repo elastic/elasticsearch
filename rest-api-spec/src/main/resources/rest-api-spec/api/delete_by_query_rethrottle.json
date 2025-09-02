@@ -1,8 +1,8 @@
 {
   "delete_by_query_rethrottle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html",
-      "description":"Changes the number of requests per second for a particular Delete By Query operation."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query-rethrottle",
+      "description":"Throttle a delete by query operation"
     },
     "stability":"stable",
     "visibility":"public",

@@ -77,8 +77,7 @@ public class DataPointGroupingContext {
                             ignoredDataPointMessages.add("Histogram is not supported yet. Dropping " + metric.getName());
                             break;
                         case SUMMARY:
-                            ignoredDataPoints += metric.getSummary().getDataPointsList().size();
-                            ignoredDataPointMessages.add("Summary is not supported yet. Dropping " + metric.getName());
+                            scopeGroup.addDataPoints(metric, metric.getSummary().getDataPointsList(), DataPoint.Summary::new);
                             break;
                         default:
                             ignoredDataPoints++;

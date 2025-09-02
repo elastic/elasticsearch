@@ -537,6 +537,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
   method: testShrink
   issue: https://github.com/elastic/elasticsearch/issues/133875
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/131481
 
 # Examples:
 #

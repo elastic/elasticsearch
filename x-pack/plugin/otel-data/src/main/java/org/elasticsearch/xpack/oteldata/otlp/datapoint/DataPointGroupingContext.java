@@ -206,7 +206,10 @@ public class DataPointGroupingContext {
                 ignoredDataPoints++;
                 return;
             }
-            getOrCreateDataPointGroup(dataPoint).addDataPoint(dataPoint);
+            DataPointGroup dataPointGroup = getOrCreateDataPointGroup(dataPoint);
+            if (dataPointGroup.addDataPoint(ignoredDataPointMessages, dataPoint) == false) {
+                ignoredDataPoints++;
+            }
         }
 
         private DataPointGroup getOrCreateDataPointGroup(DataPoint dataPoint) {
@@ -232,7 +235,6 @@ public class DataPointGroupingContext {
                     scopeSchemaUrl,
                     dataPoint.getAttributes(),
                     dataPoint.getUnit(),
-                    new ArrayList<>(),
                     targetIndex
                 );
                 dataPointGroups.put(dataPointGroupHash, dataPointGroup);
@@ -258,7 +260,8 @@ public class DataPointGroupingContext {
         private final ByteString scopeSchemaUrl;
         private final List<KeyValue> dataPointAttributes;
         private final String unit;
-        private final List<DataPoint> dataPoints;
+        private final Set<String> metricNames = new HashSet<>();
+        private final List<DataPoint> dataPoints = new ArrayList<>();
         private final TargetIndex targetIndex;
         private String metricNamesHash;
 
@@ -269,7 +272,6 @@ public class DataPointGroupingContext {
             ByteString scopeSchemaUrl,
             List<KeyValue> dataPointAttributes,
             String unit,
-            List<DataPoint> dataPoints,
             TargetIndex targetIndex
         ) {
             this.resource = resource;
@@ -278,7 +280,6 @@ public class DataPointGroupingContext {
             this.scopeSchemaUrl = scopeSchemaUrl;
             this.dataPointAttributes = dataPointAttributes;
             this.unit = unit;
-            this.dataPoints = dataPoints;
             this.targetIndex = targetIndex;
         }
 
@@ -301,9 +302,17 @@ public class DataPointGroupingContext {
             return metricNamesHash;
         }
 
-        public void addDataPoint(DataPoint dataPoint) {
+        public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {
             metricNamesHash = null; // reset the hash when adding a new data point
-            dataPoints.add(dataPoint);
+            if (metricNames.add(dataPoint.getMetricName()) == false) {
+                ignoredDataPointMessages.add(
+                    "Duplicate metric name '" + dataPoint.getMetricName() + "' for timestamp " + getTimestampUnixNano()
+                );
+                return false;
+            } else {
+                dataPoints.add(dataPoint);
+                return true;
+            }
         }
 
         public Resource resource() {

@@ -2587,3 +2587,73 @@ ROW u = ["hello elastic!", "a+b-c%d", "", "!#$&'()*+,/:;=?@[]"] | EVAL u = URL_E
 u:keyword
 ["hello+elastic%21", "a%2Bb-c%25d", "", "%21%23%24%26%27%28%29*%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"]
 ;
+
+url_decode sample for docs
+required_capability: url_decode
+
+// tag::url_decode[]
+ROW u = "https%3A%2F%2Fwww.example.com%2Fpapers%3Fq%3Dinformation%2Bretrieval%26year%3D2024%26citations%3Dhigh" | EVAL u = URL_DECODE(u)
+// end::url_decode[]
+;
+
+// tag::url_decode-result[]
+u:keyword
+https://www.example.com/papers?q=information+retrieval&year=2024&citations=high
+// end::url_decode-result[]
+;
+
+url_decode mixed functions tests
+required_capability: url_decode
+
+FROM employees 
+| WHERE emp_no == 10001 
+| EVAL a = TRIM(URL_DECODE(first_name))
+| EVAL b = URL_DECODE(TO_LOWER(first_name))
+| KEEP a,b;
+
+a:keyword | b:keyword
+Georgi    | georgi 
+;
+
+url_decode mixed input tests
+required_capability: url_decode
+
+ROW u = "%21%23%24%26%27%28%29*%2B%2C%2F%3A%3B%3D%3F%40%5B%5D" | EVAL u = URL_DECODE(u);
+
+u:keyword
+"!#$&'()*+,/:;=?@[]"
+;
+
+combined url encode decode tests with table reads
+required_capability: url_encode
+required_capability: url_decode
+
+FROM employees 
+| SORT emp_no
+| LIMIT 10
+| EVAL name = URL_DECODE(URL_ENCODE(CONCAT(gender, " - ", first_name, "+", last_name, "; ", CONCAT("@", first_name, last_name))))
+| KEEP emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | M - Georgi+Facello; @GeorgiFacello
+10002          | F - Bezalel+Simmel; @BezalelSimmel
+10003          | M - Parto+Bamford; @PartoBamford
+10004          | M - Chirstian+Koblick; @ChirstianKoblick
+10005          | M - Kyoichi+Maliniak; @KyoichiMaliniak
+10006          | F - Anneke+Preusig; @AnnekePreusig
+10007          | F - Tzvetan+Zielinski; @TzvetanZielinski
+10008          | M - Saniya+Kalloufi; @SaniyaKalloufi
+10009          | F - Sumant+Peac; @SumantPeac
+10010          | null
+;
+
+combined url encode decode tests with random strings
+required_capability: url_encode
+required_capability: url_decode
+
+ROW u = ["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"] 
+| eval u = URL_DECODE(URL_ENCODE(u));
+
+u:keyword
+["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"]
+;

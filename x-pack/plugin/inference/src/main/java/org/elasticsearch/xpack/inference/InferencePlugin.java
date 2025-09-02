@@ -500,10 +500,10 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(inferenceUtilityExecutor(settings), inferenceResponseExecutor());
+        return List.of(inferenceUtilityExecutor(), inferenceResponseExecutor());
     }
 
-    private static ExecutorBuilder<?> inferenceUtilityExecutor(Settings settings) {
+    private static ExecutorBuilder<?> inferenceUtilityExecutor() {
         return new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
             0,

@@ -313,7 +313,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCandidates;
-        this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;;
+        this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
+        ;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
         this.innerHitBuilder = innerHitBuilder;
         this.similarity = similarity;

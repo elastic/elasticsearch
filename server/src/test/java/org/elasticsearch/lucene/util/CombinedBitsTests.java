@@ -11,11 +11,12 @@ package org.elasticsearch.lucene.util;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.test.ESTestCase;
 
-public class CombinedBitSetTests extends ESTestCase {
+public class CombinedBitsTests extends ESTestCase {
     public void testEmpty() {
         for (float percent : new float[] { 0f, 0.1f, 0.5f, 0.9f, 1f }) {
             testCase(randomIntBetween(1, 10000), 0f, percent);
@@ -47,16 +48,11 @@ public class CombinedBitSetTests extends ESTestCase {
     private void testCase(int numBits, float percent1, float percent2) {
         BitSet first = randomSet(numBits, percent1);
         BitSet second = randomSet(numBits, percent2);
-        CombinedBitSet actual = new CombinedBitSet(first, second);
+        CombinedBits actual = new CombinedBits(first, second);
         FixedBitSet expected = new FixedBitSet(numBits);
         or(expected, first);
         and(expected, second);
-        assertEquals(expected.cardinality(), actual.cardinality());
         assertEquals(expected, actual, numBits);
-        for (int i = 0; i < numBits; ++i) {
-            assertEquals(expected.nextSetBit(i), actual.nextSetBit(i));
-            assertEquals(Integer.toString(i), expected.prevSetBit(i), actual.prevSetBit(i));
-        }
     }
 
     private void or(BitSet set1, BitSet set2) {
@@ -77,9 +73,23 @@ public class CombinedBitSetTests extends ESTestCase {
         }
     }
 
-    private void assertEquals(BitSet set1, BitSet set2, int maxDoc) {
+    private void assertEquals(Bits set1, Bits set2, int maxDoc) {
         for (int i = 0; i < maxDoc; ++i) {
             assertEquals("Different at " + i, set1.get(i), set2.get(i));
+        }
+
+        FixedBitSet bitSet1 = new FixedBitSet(100);
+        FixedBitSet bitSet2 = new FixedBitSet(100);
+        for (int from = 0; from < maxDoc; from += bitSet1.length()) {
+            bitSet1.set(0, bitSet1.length());
+            bitSet2.set(0, bitSet1.length());
+            if (from + bitSet1.length() > maxDoc) {
+                bitSet1.clear(maxDoc - from, bitSet1.length());
+                bitSet2.clear(maxDoc - from, bitSet1.length());
+            }
+            set1.applyMask(bitSet1, from);
+            set2.applyMask(bitSet2, from);
+            assertEquals(bitSet1, bitSet2);
         }
     }
 

@@ -95,7 +95,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
     /**
      * Verifies that we can peek at the task in front of the task queue to fetch the duration that the oldest task has been queued.
-     * Tests {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueue}.
+     * Tests {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis}.
      */
     public void testFrontOfQueueLatency() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
@@ -135,7 +135,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             logger.info("--> executor: {}", executor);
 
             // Check that the peeking at a non-existence queue returns zero.
-            assertEquals("Zero should be returned when there is no queue", 0, executor.peekMaxQueueLatencyInQueue());
+            assertEquals("Zero should be returned when there is no queue", 0, executor.peekMaxQueueLatencyInQueueMillis());
 
             // Submit two tasks, into the thread pool with a single worker thread. The second one will be queued (because the pool only has
             // one thread) and can be peeked at.
@@ -143,10 +143,10 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             executor.execute(() -> {});
 
             waitForTimeToElapse();
-            var frontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
+            var frontOfQueueDuration = executor.peekMaxQueueLatencyInQueueMillis();
             assertThat("Expected a task to be queued", frontOfQueueDuration, greaterThan(0L));
             waitForTimeToElapse();
-            var updatedFrontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
+            var updatedFrontOfQueueDuration = executor.peekMaxQueueLatencyInQueueMillis();
             assertThat(
                 "Expected a second peek to report a longer duration",
                 updatedFrontOfQueueDuration,
@@ -156,7 +156,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             // Release the first task that's running, and wait for the second to start -- then it is ensured that the queue will be empty.
             safeAwait(barrier);
             safeAwait(barrier);
-            assertEquals("Queue should be emptied", 0, executor.peekMaxQueueLatencyInQueue());
+            assertEquals("Queue should be emptied", 0, executor.peekMaxQueueLatencyInQueueMillis());
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
@@ -463,8 +463,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      */
     private static void waitForTimeToElapse() throws InterruptedException {
         final var startNanoTime = System.nanoTime();
-        while ((System.nanoTime() - startNanoTime) < 1) {
-            Thread.sleep(Duration.ofNanos(1));
+        while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) < 1) {
+            Thread.sleep(Duration.ofMillis(1));
         }
     }
 }

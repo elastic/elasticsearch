@@ -12,9 +12,14 @@
 apply plugin: 'elasticsearch.build'
 
 dependencies {
+  api project(':libs:core')
+  api project(':libs:x-content')
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
+
   testImplementation(project(":test:framework"))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
   testImplementation('org.apache.commons:commons-math3:3.6.1')
+  testImplementation project(':libs:x-content:impl')
 }
 
 tasks.named('forbiddenApisMain').configure {

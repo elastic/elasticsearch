@@ -12,9 +12,25 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.1.3 [elasticsearch-9.1.3-breaking-changes]
+
+No breaking changes in this version.
+
+## 9.0.6 [elasticsearch-9.0.6-breaking-changes]
+
+No breaking changes in this version.
+
+## 9.1.2 [elasticsearch-9.1.2-breaking-changes]
+
+No breaking changes in this version.
+
+## 9.0.5 [elasticsearch-9.0.5-breaking-changes]
+
+No breaking changes in this version.
+
 ## 9.1.1 [elasticsearch-9.1.1-breaking-changes]
 
-There are no breaking changes associated with this release.
+No breaking changes in this version.
 
 ## 9.1.0 [elasticsearch-9.1.0-breaking-changes]
 
@@ -107,7 +123,7 @@ Existing `repository-s3` configurations may no longer be compatible. Notable dif
 - AWS SDK v2 requires the use of the V4 signature algorithm, therefore, the `s3.client.${CLIENT_NAME}.signer_override` setting is deprecated and no longer has any effect.
 - AWS SDK v2 does not support the `log-delivery-write` canned ACL.
 - AWS SDK v2 counts 4xx responses differently in its metrics reporting.
-- AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v2 could use either a regional endpoint or the global `https://sts.amazonaws.com` one.
+- AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v1 could use either a regional endpoint or the global `https://sts.amazonaws.com` one.
 
 **Action:**
 Test the upgrade in a non-production environment. Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items:

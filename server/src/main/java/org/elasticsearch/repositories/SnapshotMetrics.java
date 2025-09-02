@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -70,8 +71,8 @@ public record SnapshotMetrics(
             meterRegistry.registerLongCounter(SNAPSHOT_BYTES_UPLOADED, "snapshot bytes uploaded", "bytes"),
             meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_DURATION, "snapshot upload duration", "ms"),
             meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_READ_DURATION, "time spent in read() calls when snapshotting", "ms"),
-            meterRegistry.registerLongCounter(SNAPSHOT_CREATE_THROTTLE_DURATION, "time throttled in snapshot create", "bytes"),
-            meterRegistry.registerLongCounter(SNAPSHOT_RESTORE_THROTTLE_DURATION, "time throttled in snapshot restore", "bytes"),
+            meterRegistry.registerLongCounter(SNAPSHOT_CREATE_THROTTLE_DURATION, "time throttled in snapshot create", "ns"),
+            meterRegistry.registerLongCounter(SNAPSHOT_RESTORE_THROTTLE_DURATION, "time throttled in snapshot restore", "ns"),
             meterRegistry
         );
     }
@@ -93,8 +94,8 @@ public record SnapshotMetrics(
         meterRegistry.registerLongsGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
     }
 
+    @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")
     public static Map<String, Object> createAttributesMap(ProjectId projectId, RepositoryMetadata meta) {
-        assert projectId != null : "Project ID should always be set";
-        return Map.of("project_id", projectId.id(), "repo_type", meta.type(), "repo_name", meta.name());
+        return Map.of("repo_type", meta.type(), "repo_name", meta.name());
     }
 }

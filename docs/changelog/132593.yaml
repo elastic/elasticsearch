@@ -1,5 +1,0 @@
-pr: 132593
-summary: Strings outside BMP have 2 chars per code points
-area: Mapping
-type: bug
-issues: []

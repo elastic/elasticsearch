@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -256,7 +257,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.name()));
+        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.qualifier(), field.name(), null));
 
     }
 
@@ -501,14 +502,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
         Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
+
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
+        }
+
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
+        }
+
         Attribute targetType = new ReferenceAttribute(
             src,
-            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            null,
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
-            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            null,
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
@@ -550,7 +565,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        if (Build.current().isSnapshot() == false) {
+        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
             throw new IllegalArgumentException("TS command currently requires a snapshot build");
         }
         return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
@@ -581,6 +596,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
+    @Override
     public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
         var source = source(ctx);
         if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
@@ -623,12 +639,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
 
-        // ON only with qualified names
+        // ON only with un-qualified names for now
         var predicates = expressions(condition.joinPredicate());
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
         for (var f : predicates) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
+                if (ua.qualifier() != null) {
+                    throw new ParsingException(
+                        ua.source(),
+                        "JOIN ON clause only supports unqualified fields, found [{}]",
+                        ua.qualifiedName()
+                    );
+                }
                 joinFields.add(ua);
             } else {
                 throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
@@ -637,7 +660,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var matchFieldsCount = joinFields.size();
         if (matchFieldsCount > 1) {
-            throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
+            Set<String> matchFieldNames = new LinkedHashSet<>();
+            for (Attribute field : joinFields) {
+                if (matchFieldNames.add(field.name()) == false) {
+                    throw new ParsingException(
+                        field.source(),
+                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
+                        field.name()
+                    );
+                }
+
+            }
         }
 
         return p -> {
@@ -743,7 +776,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
             List<NamedExpression> aggregates = List.of(
-                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
+                new Alias(
+                    source,
+                    MetadataAttribute.SCORE,
+                    new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN), SummationMode.COMPENSATED_LITERAL)
+                )
             );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
@@ -757,6 +794,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
+        if (scoreAttribute.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
@@ -794,6 +834,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
+
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");

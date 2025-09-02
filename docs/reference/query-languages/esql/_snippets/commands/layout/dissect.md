@@ -1,4 +1,7 @@
-## `DISSECT` [esql-dissect]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 `DISSECT` enables you to [extract structured data out of a string](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md).
 

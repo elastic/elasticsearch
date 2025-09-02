@@ -107,7 +107,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -222,6 +222,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.core.ssl.TransportTLSBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
@@ -304,6 +305,7 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticateResponseHandler;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
@@ -628,6 +630,7 @@ public class Security extends Plugin
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
+    private final SetOnce<SamlAuthenticateResponseHandler.Factory> samlAuthenticateResponseHandlerFactory = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
@@ -658,7 +661,7 @@ public class Security extends Plugin
 
     private void ensureNoRemoteClusterCredentialsOnDisabledSecurity(Settings settings) {
         assert false == enabled;
-        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
+        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
             settings
         ).map(Setting::getKey).sorted().toList();
         if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
@@ -922,7 +925,7 @@ public class Security extends Plugin
         components.add(privilegeStore);
 
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
-        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
+        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
@@ -957,6 +960,15 @@ public class Security extends Plugin
         if (fileRoleValidator.get() == null) {
             fileRoleValidator.set(new FileRoleValidator.Default());
         }
+        if (samlAuthenticateResponseHandlerFactory.get() == null) {
+            samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
+        }
+        components.add(
+            new PluginComponentBinding<>(
+                SamlAuthenticateResponseHandler.class,
+                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, getClock())
+            )
+        );
         this.fileRolesStore.set(
             new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
         );
@@ -2031,10 +2043,11 @@ public class Security extends Plugin
         httpTransports.put(SecurityField.NAME4, () -> {
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
             final SSLService sslService = getSslService();
-            final SslConfiguration sslConfiguration;
             final BiConsumer<Channel, ThreadContext> populateClientCertificate;
+            final TLSConfig tlsConfig;
             if (ssl) {
-                sslConfiguration = sslService.getHttpTransportSSLConfiguration();
+                final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
+                final SslConfiguration sslConfiguration = sslProfile.configuration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
                     throw new IllegalArgumentException(
                         "a key must be provided to run as a server. the key should be configured using the "
@@ -2046,8 +2059,9 @@ public class Security extends Plugin
                 } else {
                     populateClientCertificate = (channel, threadContext) -> {};
                 }
+                tlsConfig = new TLSConfig(sslProfile::engine);
             } else {
-                sslConfiguration = null;
+                tlsConfig = TLSConfig.noTLS();
                 populateClientCertificate = (channel, threadContext) -> {};
             }
             final AuthenticationService authenticationService = this.authcService.get();
@@ -2061,7 +2075,7 @@ public class Security extends Plugin
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
                 telemetryProvider,
-                new TLSConfig(sslConfiguration, sslService::createSSLEngine),
+                tlsConfig,
                 acceptPredicate,
                 (httpRequest, channel, listener) -> {
                     HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
@@ -2419,6 +2433,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

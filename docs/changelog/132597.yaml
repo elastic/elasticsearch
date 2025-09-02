@@ -1,5 +1,0 @@
-pr: 132597
-summary: Use local segment `fieldInfos` to lookup tsdb merge stats
-area: Codec
-type: bug
-issues: []

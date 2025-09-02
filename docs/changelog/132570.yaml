@@ -1,5 +1,0 @@
-pr: 132570
-summary: Always stop the timer when profiling the fetch phase
-area: Search
-type: bug
-issues: []

@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvPercentileIntegerEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvPercentileIntegerEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator values;
@@ -52,6 +55,14 @@ public final class MvPercentileIntegerEvaluator implements EvalOperator.Expressi
         return eval(page.getPositionCount(), valuesBlock, percentileBlock);
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += values.baseRamBytesUsed();
+    baseRamBytesUsed += percentile.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public IntBlock eval(int positionCount, IntBlock valuesBlock, DoubleBlock percentileBlock) {

@@ -8,6 +8,10 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongArray;
@@ -45,6 +49,11 @@ public class LastLongByTimestampAggregator {
         return new LongLongState(0, 0);
     }
 
+    public static void first(LongLongState current, long value, long timestamp) {
+        current.v1(timestamp);
+        current.v2(value);
+    }
+
     public static void combine(LongLongState current, long value, long timestamp) {
         if (timestamp > current.v1()) {
             current.v1(timestamp);
@@ -54,8 +63,12 @@ public class LastLongByTimestampAggregator {
 
     public static void combineIntermediate(LongLongState current, long timestamp, long value, boolean seen) {
         if (seen) {
-            current.seen(true);
-            combine(current, value, timestamp);
+            if (current.seen()) {
+                combine(current, value, timestamp);
+            } else {
+                first(current, value, timestamp);
+                current.seen(true);
+            }
         }
     }
 

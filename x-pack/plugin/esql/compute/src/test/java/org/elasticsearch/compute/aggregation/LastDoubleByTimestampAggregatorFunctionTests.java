@@ -24,10 +24,13 @@ import java.util.stream.IntStream;
 public class LastDoubleByTimestampAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
+            FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
+        );
         return new ListRowsBlockSourceOperator(
             blockFactory,
             List.of(ElementType.DOUBLE, ElementType.LONG),
-            IntStream.range(0, size).mapToObj(l -> List.of(randomDouble(), randomLong())).toList()
+            IntStream.range(0, size).mapToObj(l -> List.of(randomDouble(), tsgen.gen())).toList()
         );
     }
 

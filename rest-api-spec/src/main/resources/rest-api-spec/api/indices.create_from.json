@@ -1,8 +1,8 @@
 {
   "indices.create_from":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index-from-source.html",
-      "description":"This API creates a destination from a source index. It copies the mappings and settings from the source index while allowing request settings and mappings to override the source values."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create-from",
+      "description":"Create an index from a source index"
     },
     "stability":"experimental",
     "visibility":"private",

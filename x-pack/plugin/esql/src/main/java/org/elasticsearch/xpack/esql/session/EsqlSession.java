@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -76,7 +74,6 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -180,6 +177,11 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
+                assert ThreadPool.assertCurrentThreadPool(
+                    ThreadPool.Names.SEARCH,
+                    ThreadPool.Names.SEARCH_COORDINATION,
+                    ThreadPool.Names.SYSTEM_READ
+                );
                 SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
                     .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
                     .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
@@ -200,19 +202,17 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
-            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-            ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
+            ThreadPool.Names.SYSTEM_READ
         );
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
+                new ReferenceAttribute(EMPTY, null, "role", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, null, "type", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, null, "plan", DataType.KEYWORD)
             );
             List<List<Object>> values = new ArrayList<>();
             values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
@@ -332,7 +332,7 @@ public class EsqlSession {
                 assert cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : "can't mark a cluster success with failures";
                 continue;
             }
-            if (allowPartialResults == false && executionInfo.isSkipUnavailable(clusterAlias) == false) {
+            if (allowPartialResults == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                 for (FieldCapabilitiesFailure failure : e.getValue()) {
                     failureCollector.unwrapAndCollect(failure.getException());
                 }
@@ -372,66 +372,20 @@ public class EsqlSession {
             return;
         }
 
-        CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction = (l) -> {
-            handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, l.indices.failures());
-            Analyzer analyzer = new Analyzer(
-                new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution, l.inferenceResolution),
-                verifier
-            );
-            LogicalPlan plan = analyzer.analyze(parsed);
-            plan.setAnalyzed();
-            return plan;
-        };
-
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        var unresolvedPolicies = preAnalysis.enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).collect(toSet());
-
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
-        var listener = SubscribableListener.<EnrichResolution>newForked(
-            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
-        )
+        var listener = SubscribableListener. //
+        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches, executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
         }
-        listener.<PreAnalysisResult>andThen((l, result) -> {
-            // resolve the main indices
-            preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l);
-        }).<PreAnalysisResult>andThen((l, result) -> {
-            // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
-            // invalid index resolution to updateExecutionInfo
-            // If we run out of clusters to search due to unavailability we can stop the analysis right here
-            if (result.indices.isValid() && allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
-            // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
-            l.onResponse(result);
-        }).<PreAnalysisResult>andThen((l, result) -> {
-            // first attempt (maybe the only one) at analyzing the plan
-            analyzeAndMaybeRetry(analyzeAction, requestFilter, result, executionInfo, logicalPlanListener, l);
-        }).<PreAnalysisResult>andThen((l, result) -> {
-            assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
-
-            // here the requestFilter is set to null, performing the pre-analysis after the first step failed
-            preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, l);
-        }).<LogicalPlan>andThen((l, result) -> {
-            assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
-            LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-            LogicalPlan plan;
-            try {
-                // the order here is tricky - if the cluster has been filtered and later became unavailable,
-                // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
-                plan = analyzeAction.apply(result);
-            } catch (Exception e) {
-                l.onFailure(e);
-                return;
-            }
-            LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
-            l.onResponse(plan);
-        }).addListener(logicalPlanListener);
+        listener.<PreAnalysisResult>andThen((l, result) -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
+            .<LogicalPlan>andThen((l, result) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, result, l))
+            .addListener(logicalPlanListener);
     }
 
     private void preAnalyzeLookupIndex(
@@ -468,14 +422,18 @@ public class EsqlSession {
             patternWithRemotes,
             fieldNames,
             null,
+            false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
-        VerificationException error = new VerificationException(message);
+        skipClusterOrError(clusterAlias, executionInfo, new VerificationException(message));
+    }
+
+    private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, ElasticsearchException error) {
         // If we can, skip the cluster and mark it as such
-        if (executionInfo.isSkipUnavailable(clusterAlias)) {
+        if (executionInfo.shouldSkipOnFailure(clusterAlias)) {
             EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, error);
         } else {
             throw error;
@@ -573,11 +531,7 @@ public class EsqlSession {
             String clusterAlias = cluster.getClusterAlias();
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
-                skipClusterOrError(
-                    clusterAlias,
-                    executionInfo,
-                    "lookup index [" + index + "] is not available " + EsqlCCSUtils.inClusterName(clusterAlias)
-                );
+                skipClusterOrError(clusterAlias, executionInfo, findFailure(lookupIndexResolution.failures(), index, clusterAlias));
             }
         });
 
@@ -585,6 +539,19 @@ public class EsqlSession {
             index,
             checkSingleIndex(index, executionInfo, lookupIndexResolution, clustersWithResolvedIndices.values())
         );
+    }
+
+    private ElasticsearchException findFailure(Map<String, List<FieldCapabilitiesFailure>> failures, String index, String clusterAlias) {
+        if (failures.containsKey(clusterAlias)) {
+            var exc = failures.get(clusterAlias).stream().findFirst().map(FieldCapabilitiesFailure::getException);
+            if (exc.isPresent()) {
+                return new VerificationException(
+                    "lookup failed " + EsqlCCSUtils.inClusterName(clusterAlias) + " for index [" + index + "]",
+                    ExceptionsHelper.unwrapCause(exc.get())
+                );
+            }
+        }
+        return new VerificationException("lookup index [" + index + "] is not available " + EsqlCCSUtils.inClusterName(clusterAlias));
     }
 
     /**
@@ -670,8 +637,10 @@ public class EsqlSession {
                     result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
                 );
             } else {
+                boolean includeAllDimensions = false;
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
                 if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
+                    includeAllDimensions = true;
                     // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
                     if (requestFilter != null) {
@@ -684,6 +653,7 @@ public class EsqlSession {
                     indexExpressionToResolve,
                     result.fieldNames,
                     requestFilter,
+                    includeAllDimensions,
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
                     })
@@ -699,75 +669,66 @@ public class EsqlSession {
         }
     }
 
-    /**
-     * Check if there are any clusters to search.
-     *
-     * @return true if there are no clusters to search, false otherwise
-     */
-    private boolean allCCSClustersSkipped(
+    private void analyzeWithRetry(
+        LogicalPlan parsed,
+        QueryBuilder requestFilter,
+        PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
-        ActionListener<LogicalPlan> logicalPlanListener
+        ActionListener<LogicalPlan> listener
     ) {
-        IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
-        if (executionInfo.isCrossClusterSearch()
-            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
-            // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
-            // to let the LogicalPlanActionListener decide how to proceed
-            LOGGER.debug("No more clusters to search, ending analysis stage");
-            logicalPlanListener.onFailure(new NoClustersToSearchException());
-            return true;
+        if (result.indices.isValid()) {
+            EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+            if (executionInfo.isCrossClusterSearch()
+                && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
+                // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
+                // to let the LogicalPlanActionListener decide how to proceed
+                LOGGER.debug("No more clusters to search, ending analysis stage");
+                listener.onFailure(new NoClustersToSearchException());
+                return;
+            }
         }
 
-        return false;
-    }
-
-    private static void analyzeAndMaybeRetry(
-        CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction,
-        QueryBuilder requestFilter,
-        PreAnalysisResult result,
-        EsqlExecutionInfo executionInfo,
-        ActionListener<LogicalPlan> logicalPlanListener,
-        ActionListener<PreAnalysisResult> l
-    ) {
-        LogicalPlan plan = null;
-        var filterPresentMessage = requestFilter == null ? "without" : "with";
-        var attemptMessage = requestFilter == null ? "the only" : "first";
-        LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
+        var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
+        LOGGER.debug("Analyzing the plan ({})", description);
 
         try {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
-            }
-            plan = analyzeAction.apply(result);
-        } catch (Exception e) {
-            if (e instanceof VerificationException ve) {
-                LOGGER.debug(
-                    "Analyzing the plan ({} attempt, {} filter) failed with {}",
-                    attemptMessage,
-                    filterPresentMessage,
-                    ve.getDetailedMessage()
-                );
-                if (requestFilter == null) {
-                    // if the initial request didn't have a filter, then just pass the exception back to the user
-                    logicalPlanListener.onFailure(ve);
-                } else {
-                    // interested only in a VerificationException, but this time we are taking out the index filter
-                    // to try and make the index resolution work without any index filtering. In the next step... to be continued
-                    l.onResponse(result);
+                if (executionInfo.clusterInfo.isEmpty() == false) {
+                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
                 }
-            } else {
-                // if the query failed with any other type of exception, then just pass the exception back to the user
-                logicalPlanListener.onFailure(e);
             }
-            return;
+            LogicalPlan plan = analyzedPlan(parsed, result, executionInfo);
+            LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
+            // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
+            listener.onResponse(plan);
+        } catch (VerificationException ve) {
+            LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
+            if (requestFilter == null) {
+                // if the initial request didn't have a filter, then just pass the exception back to the user
+                listener.onFailure(ve);
+            } else {
+                // retrying and make the index resolution work without any index filtering.
+                preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, listener.delegateFailure((l, r) -> {
+                    LOGGER.debug("Analyzing the plan (second attempt, without filter)");
+                    try {
+                        // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                        // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, r.indices.failures());
+                        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, r.indices, false);
+                        LogicalPlan plan = analyzedPlan(parsed, r, executionInfo);
+                        LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
+                        l.onResponse(plan);
+                    } catch (Exception e) {
+                        l.onFailure(e);
+                    }
+                }));
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
-        LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
-        // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
-        logicalPlanListener.onResponse(plan);
     }
 
     private void resolveInferences(LogicalPlan plan, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {
@@ -790,6 +751,17 @@ public class EsqlSession {
             return f;
         });
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+    }
+
+    private LogicalPlan analyzedPlan(LogicalPlan parsed, PreAnalysisResult r, EsqlExecutionInfo executionInfo) throws Exception {
+        handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indices.failures());
+        Analyzer analyzer = new Analyzer(
+            new AnalyzerContext(configuration, functionRegistry, r.indices, r.lookupIndices, r.enrichResolution, r.inferenceResolution),
+            verifier
+        );
+        LogicalPlan plan = analyzer.analyze(parsed);
+        plan.setAnalyzed();
+        return plan;
     }
 
     public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {

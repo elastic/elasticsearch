@@ -115,11 +115,11 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         }
         for (int i = 0; i < nonConflictingCount; i++) {
             String name = String.format(Locale.ROOT, "blah.blah.blah.blah.blah.blah.nonconflict.name%04d", i);
-            fields.put(name, new EsField(name, DataType.KEYWORD, Map.of(), true));
+            fields.put(name, new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
         if (withParent) {
-            EsField parent = new EsField("parent", DataType.OBJECT, Map.copyOf(fields), false);
+            EsField parent = new EsField("parent", DataType.OBJECT, Map.copyOf(fields), false, EsField.TimeSeriesFieldType.NONE);
             fields.put("parent", parent);
         }
 
@@ -199,7 +199,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         if (depth == 1) {
             for (int i = 0; i < childrenPerLevel; i++) {
                 childName = "leaf" + i;
-                children.put(childName, new EsField(childName, DataType.KEYWORD, Map.of(), true));
+                children.put(childName, new EsField(childName, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
             }
         } else {
             for (int i = 0; i < childrenPerLevel; i++) {
@@ -208,7 +208,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
             }
         }
 
-        return new EsField(name, DataType.OBJECT, children, false);
+        return new EsField(name, DataType.OBJECT, children, false, EsField.TimeSeriesFieldType.NONE);
     }
 
     /**

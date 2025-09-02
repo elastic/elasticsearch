@@ -47,6 +47,19 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     @Override
     BooleanBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BooleanBlock deepCopy(BlockFactory blockFactory) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     BooleanBlock keepMask(BooleanVector mask);
 

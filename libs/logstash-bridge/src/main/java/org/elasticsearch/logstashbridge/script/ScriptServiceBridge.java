@@ -43,96 +43,111 @@ import java.util.function.LongSupplier;
 /**
  * An external bridge for {@link ScriptService}
  */
-public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptService> implements Closeable {
-    public ScriptServiceBridge fromInternal(final ScriptService delegate) {
-        return new ScriptServiceBridge(delegate);
+public interface ScriptServiceBridge extends StableBridgeAPI<ScriptService>, Closeable {
+
+    static ScriptServiceBridge fromInternal(final ScriptService delegate) {
+        return new ScriptServiceBridge.ProxyInternal(delegate);
     }
 
-    public ScriptServiceBridge(final SettingsBridge settingsBridge, final LongSupplier timeProvider) throws IOException {
-        super(getScriptService(settingsBridge.toInternal(), timeProvider));
+    static ScriptServiceBridge create(final SettingsBridge bridgedSettings, final LongSupplier timeProvider) throws IOException {
+        final ScriptService internal = ProxyInternal.getScriptService(bridgedSettings.toInternal(), timeProvider);
+        return fromInternal(internal);
     }
 
-    public ScriptServiceBridge(ScriptService delegate) {
-        super(delegate);
-    }
+    class ProxyInternal extends StableBridgeAPI.ProxyInternal<ScriptService> implements ScriptServiceBridge {
 
-    private static ScriptService getScriptService(final Settings settings, final LongSupplier timeProvider) throws IOException {
-        final List<Whitelist> painlessBaseWhitelist = getPainlessBaseWhiteList();
-        final Map<ScriptContext<?>, List<Whitelist>> scriptContexts = Map.of(
-            IngestScript.CONTEXT,
-            painlessBaseWhitelist,
-            IngestConditionalScript.CONTEXT,
-            painlessBaseWhitelist
-        );
-        final Map<String, ScriptEngine> scriptEngines = Map.of(
-            PainlessScriptEngine.NAME,
-            getPainlessScriptEngine(settings),
-            MustacheScriptEngine.NAME,
-            new MustacheScriptEngine(settings)
-        );
+        public ProxyInternal(final SettingsBridge settingsBridge, final LongSupplier timeProvider) throws IOException {
+            super(getScriptService(settingsBridge.toInternal(), timeProvider));
+        }
 
-        return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider, ProjectIdResolverBridge.INSTANCE);
-    }
+        public ProxyInternal(ScriptService delegate) {
+            super(delegate);
+        }
 
-    private static List<Whitelist> getPainlessBaseWhiteList() {
-        return PainlessPlugin.baseWhiteList();
-    }
+        private static ScriptService getScriptService(final Settings settings, final LongSupplier timeProvider) throws IOException {
+            final List<Whitelist> painlessBaseWhitelist = getPainlessBaseWhiteList();
+            final Map<ScriptContext<?>, List<Whitelist>> scriptContexts = Map.of(
+                IngestScript.CONTEXT,
+                painlessBaseWhitelist,
+                IngestConditionalScript.CONTEXT,
+                painlessBaseWhitelist
+            );
+            final Map<String, ScriptEngine> scriptEngines = Map.of(
+                PainlessScriptEngine.NAME,
+                getPainlessScriptEngine(settings),
+                MustacheScriptEngine.NAME,
+                new MustacheScriptEngine(settings)
+            );
 
-    /**
-     * @param settings the Elasticsearch settings object
-     * @return a {@link ScriptEngine} for painless scripts for use in {@link IngestScript} and
-     *         {@link IngestConditionalScript} contexts, including all available {@link PainlessExtension}s.
-     * @throws IOException when the underlying script engine cannot be created
-     */
-    private static ScriptEngine getPainlessScriptEngine(final Settings settings) throws IOException {
-        try (PainlessPlugin painlessPlugin = new PainlessPlugin()) {
-            painlessPlugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
-                @Override
-                @SuppressWarnings("unchecked")
-                public <T> List<T> loadExtensions(Class<T> extensionPointType) {
-                    if (extensionPointType.isAssignableFrom(PainlessExtension.class)) {
-                        final List<PainlessExtension> extensions = new ArrayList<>();
+            return new ScriptService(
+                settings,
+                scriptEngines,
+                ScriptModule.CORE_CONTEXTS,
+                timeProvider,
+                LockdownOnlyDefaultProjectIdResolver.INSTANCE
+            );
+        }
 
-                        extensions.add(new ConstantKeywordPainlessExtension());  // module: constant-keyword
-                        extensions.add(new ProcessorsWhitelistExtension());      // module: ingest-common
-                        extensions.add(new SpatialPainlessExtension());          // module: spatial
-                        extensions.add(new WildcardPainlessExtension());         // module: wildcard
+        private static List<Whitelist> getPainlessBaseWhiteList() {
+            return PainlessPlugin.baseWhiteList();
+        }
 
-                        return (List<T>) extensions;
-                    } else {
-                        return List.of();
+        /**
+         * @param settings the Elasticsearch settings object
+         * @return a {@link ScriptEngine} for painless scripts for use in {@link IngestScript} and
+         * {@link IngestConditionalScript} contexts, including all available {@link PainlessExtension}s.
+         * @throws IOException when the underlying script engine cannot be created
+         */
+        private static ScriptEngine getPainlessScriptEngine(final Settings settings) throws IOException {
+            try (PainlessPlugin painlessPlugin = new PainlessPlugin()) {
+                painlessPlugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                        if (extensionPointType.isAssignableFrom(PainlessExtension.class)) {
+                            final List<PainlessExtension> extensions = new ArrayList<>();
+
+                            extensions.add(new ConstantKeywordPainlessExtension());  // module: constant-keyword
+                            extensions.add(new ProcessorsWhitelistExtension());      // module: ingest-common
+                            extensions.add(new SpatialPainlessExtension());          // module: spatial
+                            extensions.add(new WildcardPainlessExtension());         // module: wildcard
+
+                            return (List<T>) extensions;
+                        } else {
+                            return List.of();
+                        }
                     }
+                });
+
+                return painlessPlugin.getScriptEngine(settings, Set.of(IngestScript.CONTEXT, IngestConditionalScript.CONTEXT));
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            this.internalDelegate.close();
+        }
+
+        @FixForMultiProject
+        // Logstash resolves and runs ingest pipelines based on the datastream.
+        // How should LockdownOnlyDefaultProjectIdResolver behave in this case?
+        // In other words, it looks we need to find a way to figure out which ingest pipeline belongs to which project.
+        static class LockdownOnlyDefaultProjectIdResolver implements ProjectResolver {
+
+            public static final LockdownOnlyDefaultProjectIdResolver INSTANCE = new LockdownOnlyDefaultProjectIdResolver();
+
+            @Override
+            public ProjectId getProjectId() {
+                return ProjectId.DEFAULT;
+            }
+
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                if (projectId.equals(ProjectId.DEFAULT)) {
+                    body.run();
+                } else {
+                    throw new IllegalArgumentException("Cannot execute on a project other than [" + ProjectId.DEFAULT + "]");
                 }
-            });
-
-            return painlessPlugin.getScriptEngine(settings, Set.of(IngestScript.CONTEXT, IngestConditionalScript.CONTEXT));
-        }
-    }
-
-    @Override
-    public void close() throws IOException {
-        this.internalDelegate.close();
-    }
-
-    @FixForMultiProject
-    // Logstash resolves and runs ingest pipelines based on the datastream.
-    // How should ProjectIdResolverBridge behave in this case?
-    // In other words, it looks we need to find a way to figure out which ingest pipeline belongs to which project.
-    static class ProjectIdResolverBridge implements ProjectResolver {
-
-        public static final ProjectIdResolverBridge INSTANCE = new ProjectIdResolverBridge();
-
-        @Override
-        public ProjectId getProjectId() {
-            return ProjectId.DEFAULT;
-        }
-
-        @Override
-        public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-            if (projectId.equals(ProjectId.DEFAULT)) {
-                body.run();
-            } else {
-                throw new IllegalArgumentException("Cannot execute on a project other than [" + ProjectId.DEFAULT + "]");
             }
         }
     }

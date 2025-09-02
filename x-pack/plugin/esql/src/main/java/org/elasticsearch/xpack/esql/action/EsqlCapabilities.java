@@ -422,7 +422,7 @@ public class EsqlCapabilities {
         SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
 
         /**
-         * Support geohash, geotile and geohex in ST_INTERSECTS. Done in #133546
+         * Support geohash, geotile and geohex in ST_INTERSECTS and ST_DISJOINT. Done in #133546
          */
         SPATIAL_GRID_INTERSECTS(Build.current().isSnapshot()),
 

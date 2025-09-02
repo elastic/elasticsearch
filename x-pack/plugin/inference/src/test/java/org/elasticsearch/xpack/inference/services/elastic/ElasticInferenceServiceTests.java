@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -294,6 +295,39 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             assertThat(completionModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(completionModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenRateLimitFieldExistsInServiceSettings() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            Map<String, Object> serviceSettingsMap = new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    ElserModels.ELSER_V2_MODEL,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+                )
+            );
+
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), Map.of());
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.SPARSE_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
+
+            var parsedModel = (ElasticInferenceServiceSparseEmbeddingsModel) model;
+            assertThat(parsedModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
+            assertThat(parsedModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+            assertThat(parsedModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
+            assertThat(
+                serviceSettingsMap,
+                is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+            );
         }
     }
 

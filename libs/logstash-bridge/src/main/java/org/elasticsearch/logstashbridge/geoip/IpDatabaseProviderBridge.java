@@ -8,16 +8,11 @@
  */
 package org.elasticsearch.logstashbridge.geoip;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.geoip.IpDatabase;
 import org.elasticsearch.ingest.geoip.IpDatabaseProvider;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
-import static org.elasticsearch.logstashbridge.StableBridgeAPI.toInternalNullable;
-
 /**
- * An external bridge for {@link Processor}
+ * An {@link StableBridgeAPI} for {@link IpDatabaseProvider}
  */
 public interface IpDatabaseProviderBridge extends StableBridgeAPI<IpDatabaseProvider> {
 
@@ -25,37 +20,4 @@ public interface IpDatabaseProviderBridge extends StableBridgeAPI<IpDatabaseProv
 
     IpDatabaseBridge getDatabase(String name);
 
-    /**
-     * The {@code IpDatabaseProviderBridge.AbstractExternal} is an abstract base class for implementing
-     * the {@link IpDatabaseProviderBridge} externally to the Elasticsearch code-base. It takes care of
-     * the details of maintaining a singular internal-form implementation of {@link IpDatabaseProvider}
-     * that proxies calls to the external implementation.
-     */
-    abstract class AbstractExternal implements IpDatabaseProviderBridge {
-        private AbstractExternal.ProxyExternal internalProcessor;
-
-        public IpDatabaseProvider toInternal() {
-            if (internalProcessor == null) {
-                internalProcessor = new AbstractExternal.ProxyExternal();
-            }
-            return internalProcessor;
-        }
-
-        private class ProxyExternal implements IpDatabaseProvider {
-
-            private AbstractExternal getIpDatabaseProviderBridge() {
-                return AbstractExternal.this;
-            }
-
-            @Override
-            public Boolean isValid(ProjectId projectId, String name) {
-                return AbstractExternal.this.isValid(name);
-            }
-
-            @Override
-            public IpDatabase getDatabase(ProjectId projectId, String name) {
-                return toInternalNullable(AbstractExternal.this.getDatabase(name));
-            }
-        }
-    }
 }

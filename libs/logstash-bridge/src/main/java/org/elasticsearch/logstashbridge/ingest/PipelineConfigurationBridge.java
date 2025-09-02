@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.Map;
 
 /**
- * An external bridge for {@link PipelineConfiguration}
+ * A {@link StableBridgeAPI} for {@link PipelineConfiguration}
  */
 public interface PipelineConfigurationBridge extends StableBridgeAPI<PipelineConfiguration> {
 
@@ -25,8 +25,8 @@ public interface PipelineConfigurationBridge extends StableBridgeAPI<PipelineCon
         return fromInternal(internal);
     }
 
-    static PipelineConfigurationBridge fromInternal(PipelineConfiguration internal) {
-        return new PipelineConfigurationBridge.ProxyInternal(internal);
+    static PipelineConfigurationBridge fromInternal(final PipelineConfiguration internal) {
+        return new ProxyInternalPipelineConfigurationBridge(internal);
     }
 
     String getId();
@@ -41,45 +41,4 @@ public interface PipelineConfigurationBridge extends StableBridgeAPI<PipelineCon
 
     boolean equals(Object o);
 
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<PipelineConfiguration> implements PipelineConfigurationBridge {
-        ProxyInternal(final PipelineConfiguration delegate) {
-            super(delegate);
-        }
-
-        @Override
-        public String getId() {
-            return internalDelegate.getId();
-        }
-
-        @Override
-        public Map<String, Object> getConfig() {
-            return internalDelegate.getConfig();
-        }
-
-        @Override
-        public Map<String, Object> getConfig(final boolean unmodifiable) {
-            return internalDelegate.getConfig(unmodifiable);
-        }
-
-        @Override
-        public int hashCode() {
-            return internalDelegate.hashCode();
-        }
-
-        @Override
-        public String toString() {
-            return internalDelegate.toString();
-        }
-
-        @Override
-        public boolean equals(final Object obj) {
-            if (this == obj) {
-                return true;
-            } else if (obj instanceof PipelineConfigurationBridge.ProxyInternal other) {
-                return internalDelegate.equals(other.internalDelegate);
-            } else {
-                return false;
-            }
-        }
-    }
 }

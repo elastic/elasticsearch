@@ -50,17 +50,18 @@ public interface ScriptServiceBridge extends StableBridgeAPI<ScriptService>, Clo
     }
 
     static ScriptServiceBridge create(final SettingsBridge bridgedSettings, final LongSupplier timeProvider) throws IOException {
-        final ScriptService internal = ProxyInternal.getScriptService(bridgedSettings.toInternal(), timeProvider);
-        return fromInternal(internal);
+        final ScriptService scriptService = ProxyInternal.getScriptService(bridgedSettings.toInternal(), timeProvider);
+        return fromInternal(scriptService);
     }
 
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<ScriptService> implements ScriptServiceBridge {
+    /**
+     * An implementation of {@link ScriptServiceBridge} that proxies calls through
+     * to an internal {@link ScriptService}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<ScriptService> implements ScriptServiceBridge {
 
-        public ProxyInternal(final SettingsBridge settingsBridge, final LongSupplier timeProvider) throws IOException {
-            super(getScriptService(settingsBridge.toInternal(), timeProvider));
-        }
-
-        public ProxyInternal(ScriptService delegate) {
+        ProxyInternal(ScriptService delegate) {
             super(delegate);
         }
 

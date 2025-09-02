@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * An external bridge for {@link Pipeline}
+ * A {@link StableBridgeAPI} for {@link Pipeline}
  */
 public interface PipelineBridge extends StableBridgeAPI<Pipeline> {
 
@@ -32,7 +32,7 @@ public interface PipelineBridge extends StableBridgeAPI<Pipeline> {
     static PipelineBridge create(
         String id,
         Map<String, Object> config,
-        Map<String, ProcessorBridge.Factory> processorFactories,
+        Map<String, ProcessorFactoryBridge> processorFactories,
         ScriptServiceBridge scriptServiceBridge
     ) throws Exception {
         return fromInternal(
@@ -46,9 +46,14 @@ public interface PipelineBridge extends StableBridgeAPI<Pipeline> {
         );
     }
 
+    /**
+     * An implementation of {@link PipelineBridge} that proxies calls through to
+     * an internal {@link Pipeline}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
     class ProxyInternal extends StableBridgeAPI.ProxyInternal<Pipeline> implements PipelineBridge {
 
-        public ProxyInternal(final Pipeline delegate) {
+        ProxyInternal(final Pipeline delegate) {
             super(delegate);
         }
 

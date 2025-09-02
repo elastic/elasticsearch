@@ -15,7 +15,7 @@ import org.elasticsearch.logstashbridge.common.SettingsBridge;
 import java.nio.file.Path;
 
 /**
- * An external bridge for {@link Environment}
+ * A {@link StableBridgeAPI} for {@link Environment}
  */
 public interface EnvironmentBridge extends StableBridgeAPI<Environment> {
     static EnvironmentBridge fromInternal(final Environment delegate) {
@@ -26,7 +26,12 @@ public interface EnvironmentBridge extends StableBridgeAPI<Environment> {
         return fromInternal(new Environment(bridgedSettings.toInternal(), configPath));
     }
 
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<Environment> implements EnvironmentBridge {
+    /**
+     * An implementation of {@link EnvironmentBridge} that proxies calls through
+     * to an internal {@link Environment}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<Environment> implements EnvironmentBridge {
         private ProxyInternal(final Environment delegate) {
             super(delegate);
         }

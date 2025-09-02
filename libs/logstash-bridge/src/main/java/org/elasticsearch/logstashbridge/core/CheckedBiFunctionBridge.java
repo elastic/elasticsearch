@@ -12,6 +12,14 @@ package org.elasticsearch.logstashbridge.core;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
+/**
+ * A stable interface on top of {@link CheckedBiFunction}.
+ * @param <T> type of lhs parameter
+ * @param <U> type of rhs parameter
+ * @param <R> type of return value
+ * @param <E> type of anticipated exception
+ */
+@FunctionalInterface
 public interface CheckedBiFunctionBridge<T, U, R, E extends Exception> extends StableBridgeAPI<CheckedBiFunction<T, U, R, E>> {
     R apply(T t, U u) throws E;
 

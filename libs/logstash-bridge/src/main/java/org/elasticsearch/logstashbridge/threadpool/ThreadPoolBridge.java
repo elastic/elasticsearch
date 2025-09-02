@@ -32,6 +32,11 @@ public interface ThreadPoolBridge extends StableBridgeAPI<ThreadPool> {
         return new ProxyInternal(internal);
     }
 
+    /**
+     * An implementation of {@link ThreadPoolBridge} that proxies calls through
+     * to an internal {@link ThreadPool}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
     class ProxyInternal extends StableBridgeAPI.ProxyInternal<ThreadPool> implements ThreadPoolBridge {
 
         ProxyInternal(final ThreadPool delegate) {

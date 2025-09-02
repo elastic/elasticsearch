@@ -14,6 +14,9 @@ import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
 import java.io.Closeable;
 
+/**
+ * A {@link StableBridgeAPI} for {@link Releasable} for use with {@link RefCountingRunnableBridge}
+ */
 public interface ReleasableBridge extends StableBridgeAPI<Releasable>, Closeable {
 
     @Override // only RuntimeException
@@ -23,9 +26,14 @@ public interface ReleasableBridge extends StableBridgeAPI<Releasable>, Closeable
         return new ProxyInternal(releasable);
     }
 
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<Releasable> implements ReleasableBridge {
+    /**
+     * An implementation of {@link ReleasableBridge} that proxies calls through
+     * to an internal {@link Releasable}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<Releasable> implements ReleasableBridge {
 
-        public ProxyInternal(final Releasable delegate) {
+        private ProxyInternal(final Releasable delegate) {
             super(delegate);
         }
 

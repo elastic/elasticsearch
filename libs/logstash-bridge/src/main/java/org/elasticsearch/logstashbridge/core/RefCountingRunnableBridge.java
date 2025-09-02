@@ -16,7 +16,7 @@ import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import java.io.Closeable;
 
 /**
- * An external bridge for {@link RefCountingRunnable} that proxies calls through a real {@link RefCountingRunnable}
+ * A {@link StableBridgeAPI} for {@link RefCountingRunnable}
  */
 public interface RefCountingRunnableBridge extends StableBridgeAPI<RefCountingRunnable>, Closeable {
 
@@ -38,9 +38,10 @@ public interface RefCountingRunnableBridge extends StableBridgeAPI<RefCountingRu
 
     /**
      * An implementation of {@link RefCountingRunnableBridge} that proxies calls through
-     * to an internal {@link RefCountingRunnable}
+     * to an internal {@link RefCountingRunnable}.
+     * @see StableBridgeAPI.ProxyInternal
      */
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<RefCountingRunnable> implements RefCountingRunnableBridge {
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<RefCountingRunnable> implements RefCountingRunnableBridge {
         private ProxyInternal(final RefCountingRunnable delegate) {
             super(delegate);
         }

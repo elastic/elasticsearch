@@ -12,6 +12,9 @@ package org.elasticsearch.logstashbridge.common;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
+/**
+ * A {@link StableBridgeAPI} for {@link ProjectId}
+ */
 public interface ProjectIdBridge extends StableBridgeAPI<ProjectId> {
     String id();
 
@@ -28,18 +31,22 @@ public interface ProjectIdBridge extends StableBridgeAPI<ProjectId> {
         return ProxyInternal.DEFAULT;
     }
 
-    class ProxyInternal implements ProjectIdBridge {
-        private final ProjectId internalDelegate;
+    /**
+     * An implementation of {@link ProjectIdBridge} that proxies calls to
+     * an internal {@link ProjectId} instance.
+     *
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<ProjectId> implements ProjectIdBridge {
+        private static final ProjectIdBridge.ProxyInternal DEFAULT = new ProjectIdBridge.ProxyInternal(ProjectId.DEFAULT);
 
-        static final ProjectIdBridge.ProxyInternal DEFAULT = new ProjectIdBridge.ProxyInternal(ProjectId.DEFAULT);
-
-        public ProxyInternal(ProjectId internalDelegate) {
-            this.internalDelegate = internalDelegate;
+        ProxyInternal(ProjectId internalDelegate) {
+            super(internalDelegate);
         }
 
         @Override
         public String id() {
-            return toInternal().id();
+            return this.internalDelegate.id();
         }
 
         @Override

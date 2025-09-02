@@ -44,7 +44,12 @@ public interface MetadataBridge extends StableBridgeAPI<Metadata> {
         return new ProxyInternal(metadata);
     }
 
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<Metadata> implements MetadataBridge {
+    /**
+     * An implementation of {@link MetadataBridge} that proxies calls through
+     * to an internal {@link Metadata}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<Metadata> implements MetadataBridge {
         ProxyInternal(final Metadata delegate) {
             super(delegate);
         }

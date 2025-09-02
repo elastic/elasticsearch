@@ -1158,10 +1158,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @return Effective shard count as seen by an operation using this IndexMetadata
      */
     public int getReshardSplitShardCount(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
+        assert shardId >= 0 && shardId < getNumberOfShards(): "shardId is out of bounds";
         int shardCount = getNumberOfShards();
         if (reshardingMetadata != null) {
             if (reshardingMetadata.getSplit().isTargetShard(shardId)) {
                 // TODO: Assert that target state is atleast minShardState
+                int sourceShardId = reshardingMetadata.getSplit().sourceShard(shardId);
+                assert reshardingMetadata.getSplit().allTargetStatesAtLeast(sourceShardId, minShardState): "unexpected target state";
                 shardCount = reshardingMetadata.getSplit().shardCountAfter();
             } else if (reshardingMetadata.getSplit().isSourceShard(shardId)) {
                 if (reshardingMetadata.getSplit().allTargetStatesAtLeast(shardId, minShardState)) {

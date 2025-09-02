@@ -43,7 +43,7 @@ public interface SourceProvider {
      * Currently this is only the case if source mode is synthetic, and only a subset of fields is requested,
      * then only loading source for requested fields is much more efficient.
      *
-     * @param sourceFilter The part of the source caller is actually interested in.
+     * @param sourceFilter The part of the source the caller is actually interested in.
      * @return a new instance if source can be loaded in a more optimal way, otherwise returns this instance.
      */
     default SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {

@@ -54,6 +54,7 @@ public abstract class AbstractExponentialHistogram implements ExponentialHistogr
         sb.append(", sum=").append(sum());
         sb.append(", valueCount=").append(valueCount());
         sb.append(", min=").append(min());
+        sb.append(", max=").append(max());
         ZeroBucket zb = zeroBucket();
         if (zb.zeroThreshold() != 0) {
             sb.append(", zeroThreshold=").append(zb.zeroThreshold());

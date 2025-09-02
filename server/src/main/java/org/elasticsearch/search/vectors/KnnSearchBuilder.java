@@ -147,7 +147,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         float[] queryVector,
         int k,
         int numCands,
-        float visitPercentage,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -177,7 +177,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         VectorData queryVector,
         int k,
         int numCands,
-        float visitPercentage,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -198,7 +198,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         QueryVectorBuilder queryVectorBuilder,
         int k,
         int numCands,
-        float visitPercentage,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -220,7 +220,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         QueryVectorBuilder queryVectorBuilder,
         int k,
         int numCands,
-        float visitPercentage,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -255,7 +255,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVectorBuilder = null;
         this.k = k;
         this.numCands = numCands;
-        this.visitPercentage = visitPercentage;
+        this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
         this.filterQueries = filterQueries;
         this.querySupplier = querySupplier;
         this.similarity = similarity;
@@ -287,7 +287,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (numCandidates > NUM_CANDS_LIMIT) {
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
-        if (visitPercentage < 0.0f || visitPercentage > 100.0f) {
+        if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
             throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
         }
         if (queryVector == null && queryVectorBuilder == null) {
@@ -313,7 +313,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCandidates;
-        this.visitPercentage = visitPercentage;
+        this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
         this.innerHitBuilder = innerHitBuilder;
         this.similarity = similarity;
@@ -514,7 +514,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         KnnSearchBuilder that = (KnnSearchBuilder) o;
         return k == that.k
             && numCands == that.numCands
-            && visitPercentage == that.visitPercentage
+            && Objects.equals(visitPercentage, that.visitPercentage)
             && Objects.equals(rescoreVectorBuilder, that.rescoreVectorBuilder)
             && Objects.equals(field, that.field)
             && Objects.equals(queryVector, that.queryVector)
@@ -718,7 +718,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             int adjustedNumCandidates = numCandidates == null
                 ? Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK))
                 : numCandidates;
-            float adjustedVisitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
             return new KnnSearchBuilder(
                 field,
                 queryVectorBuilder,
@@ -726,7 +725,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 filterQueries,
                 adjustedK,
                 adjustedNumCandidates,
-                adjustedVisitPercentage,
+                visitPercentage,
                 rescoreVectorBuilder,
                 similarity,
                 innerHitBuilder,

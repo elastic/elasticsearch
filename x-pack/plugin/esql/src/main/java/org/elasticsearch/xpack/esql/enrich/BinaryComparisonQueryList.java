@@ -39,9 +39,16 @@ public class BinaryComparisonQueryList extends QueryList {
         Block block,
         EsqlBinaryComparison binaryComparison,
         ClusterService clusterService,
-        AliasFilter aliasFilter
+        AliasFilter aliasFilter,
+        Warnings warnings
     ) {
-        super(field, searchExecutionContext, aliasFilter, block, null);
+        super(
+            field,
+            searchExecutionContext,
+            aliasFilter,
+            block,
+            new OnlySingleValueParams(warnings, "LOOKUP JOIN encountered multi-value")
+        );
         // swap left and right if the field is on the right
         // We get a filter in the form left_expr >= right_expr
         // here we will swap it to right_expr <= left_expr
@@ -62,9 +69,6 @@ public class BinaryComparisonQueryList extends QueryList {
 
     @Override
     public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
-        if (valueCount == 0) {
-            return null;
-        }
         Object value = blockValueReader.apply(firstValueIndex);
         // create a new comparison with the value from the block as a literal
         EsqlBinaryComparison comparison = binaryComparison.getFunctionType()

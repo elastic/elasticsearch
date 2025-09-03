@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -56,7 +57,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         PhysicalPlan rightPreJoinPlan,
         ClusterService clusterService,
         LookupFromIndexService.TransportRequest request,
-        AliasFilter aliasFilter
+        AliasFilter aliasFilter,
+        Warnings warnings
     ) {
         if (queryLists.size() < 2 && (rightPreJoinPlan instanceof FilterExec == false) && request.getJoinOnConditions() == null) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists or a pre-join filter");
@@ -64,12 +66,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         this.queryLists = queryLists;
         this.context = context;
         this.aliasFilter = aliasFilter;
-        buildJoinOnConditions(request, clusterService);
+        buildJoinOnConditions(request, clusterService, warnings);
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
 
     }
 
-    private void buildJoinOnConditions(LookupFromIndexService.TransportRequest request, ClusterService clusterService) {
+    private void buildJoinOnConditions(LookupFromIndexService.TransportRequest request, ClusterService clusterService, Warnings warnings) {
         // we support 2 modes of operation:
         // Join on fields
         // Join on AND of binary comparisons
@@ -108,7 +110,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                                             block,
                                             binaryComparison,
                                             clusterService,
-                                            aliasFilter
+                                            aliasFilter,
+                                            warnings
                                         )
                                     );
                                     matched = true;

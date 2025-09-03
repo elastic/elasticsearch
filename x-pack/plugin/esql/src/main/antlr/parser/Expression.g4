@@ -30,7 +30,11 @@ matchBooleanExpression
 
 valueExpression
     : operatorExpression                                                                      #valueExpressionDefault
-    | left=operatorExpression comparisonOperator right=operatorExpression                     #comparison
+    | comparisonExpression                                                                    #comparison
+    ;
+
+comparisonExpression
+    : left=operatorExpression comparisonOperator right=operatorExpression
     ;
 
 operatorExpression

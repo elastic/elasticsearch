@@ -648,49 +648,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
 
         var condition = ctx.joinCondition();
-
-        // ON only with un-qualified names for now
-        var predicates = expressions(condition.joinPredicate());
-        List<Attribute> joinFields = new ArrayList<>(predicates.size());
-        List<Expression> joinExpressions = new ArrayList<>(predicates.size());
-        for (var f : predicates) {
-            f = handleNotExpression(f);
-            // verify each field is an unresolved attribute
-            if (f instanceof UnresolvedAttribute ua) {
-                if (ua.qualifier() != null) {
-                    throw new ParsingException(
-                        ua.source(),
-                        "JOIN ON clause only supports unqualified fields, found [{}]",
-                        ua.qualifiedName()
-                    );
-                }
-                joinFields.add(ua);
-            } else if (f instanceof EsqlBinaryComparison comparison) {
-                joinFields.add((Attribute) comparison.left());
-                joinExpressions.add(f);
-            } else {
-                throw new ParsingException(
-                    f.source(),
-                    "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
-                    f.sourceText()
-                );
-            }
-        }
-
-        var matchFieldsCount = joinFields.size();
-        if (matchFieldsCount > 1) {
-            Set<String> matchFieldNames = new LinkedHashSet<>();
-            for (Attribute field : joinFields) {
-                if (matchFieldNames.add(field.name()) == false) {
-                    throw new ParsingException(
-                        field.source(),
-                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
-                        field.name()
-                    );
-                }
-
-            }
-        }
+        var joinInfo = typedParsing(this, condition, JoinInfo.class);
 
         return p -> {
             boolean hasRemotes = p.anyMatch(node -> {
@@ -704,13 +662,81 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
                 throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
             }
-            return new LookupJoin(source, p, right, joinFields, hasRemotes, Predicates.combineAnd(joinExpressions));
+            return new LookupJoin(source, p, right, joinInfo.joinFields(), hasRemotes, Predicates.combineAnd(joinInfo.joinExpressions()));
         };
     }
 
-    private Expression handleNotExpression(Expression f) {
+    private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}
+
+    @Override
+    public JoinInfo visitFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx) {
+        var predicates = visitList(this, ctx.qualifiedName(), Expression.class);
+        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        for (var f : predicates) {
+            // verify each field is an unresolved attribute
+            if (f instanceof UnresolvedAttribute ua) {
+                if (ua.qualifier() != null) {
+                    throw new ParsingException(
+                        ua.source(),
+                        "JOIN ON clause only supports unqualified fields, found [{}]",
+                        ua.qualifiedName()
+                    );
+                }
+                joinFields.add(ua);
+            } else {
+                throw new ParsingException(
+                    f.source(),
+                    "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                    f.sourceText()
+                );
+            }
+        }
+        validateJoinFields(joinFields);
+        return new JoinInfo(joinFields, emptyList());
+    }
+
+    @Override
+    public JoinInfo visitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx) {
+        var predicates = visitList(this, ctx.comparisonExpression(), Expression.class);
+        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        List<Expression> joinExpressions = new ArrayList<>(predicates.size());
+        for (var f : predicates) {
+            f = handleNegationOfEquals(f);
+            if (f instanceof EsqlBinaryComparison comparison
+                && comparison.left() instanceof UnresolvedAttribute left
+                && comparison.right() instanceof UnresolvedAttribute) {
+                joinFields.add(left);
+                joinExpressions.add(f);
+            } else {
+                throw new ParsingException(
+                    f.source(),
+                    "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                    f.sourceText()
+                );
+            }
+        }
+        validateJoinFields(joinFields);
+        return new JoinInfo(joinFields, joinExpressions);
+    }
+
+    private void validateJoinFields(List<Attribute> joinFields) {
+        if (joinFields.size() > 1) {
+            Set<String> matchFieldNames = new LinkedHashSet<>();
+            for (Attribute field : joinFields) {
+                if (matchFieldNames.add(field.name()) == false) {
+                    throw new ParsingException(
+                        field.source(),
+                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
+                        field.name()
+                    );
+                }
+            }
+        }
+    }
+
+    private Expression handleNegationOfEquals(Expression f) {
         if (f instanceof Not not && not.children().size() == 1 && not.children().get(0) instanceof Equals equals) {
-            // we only support NOT on Equals, by converting it to NotEquals for now
+            // we only support NOT on Equals, by converting it to NotEquals
             return equals.negate();
         }
         return f;

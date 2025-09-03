@@ -128,7 +128,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         if (queryLists.size() == 1 && physicalPlan instanceof FilterExec == false && request.joinOnConditions == null) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService, request, aliasFilter);
+        return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService, request, aliasFilter, warnings);
 
     }
 

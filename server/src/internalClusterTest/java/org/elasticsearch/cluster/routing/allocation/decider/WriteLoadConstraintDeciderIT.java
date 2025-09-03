@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.AllocationDeciderMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -324,7 +324,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
             telemetryPlugin.collect();
             final var maxLatencyValues = telemetryPlugin.getLongGaugeMeasurement(
-                AllocationDeciderMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE
+                DesiredBalanceMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE
             );
             if (maxLatencyValues.isEmpty() == false) {
                 measurements.put(nodeName, maxLatencyValues.getLast().getLong());

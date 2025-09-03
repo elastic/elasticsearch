@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ThreadPoolUsageStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationDeciderMetrics;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
@@ -59,7 +59,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        AllocationDeciderMetrics allocationDeciderMetrics
+        DesiredBalanceMetrics desiredBalanceMetrics
     ) {
         super(
             NAME,
@@ -71,7 +71,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        allocationDeciderMetrics.registerWriteLoadDeciderMaxLatencyGauge(this::getMaxQueueLatencyMetric);
+        desiredBalanceMetrics.registerWriteLoadDeciderMaxLatencyGauge(this::getMaxQueueLatencyMetric);
     }
 
     @Override

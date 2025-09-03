@@ -78,6 +78,28 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        suppliers.add(
+            new TestCaseSupplier(
+                "double",
+                List.of(DataType.DOUBLE),
+                () -> {
+                    List<Double> data = Arrays.asList(randomArray(1, 10, Double[]::new, ESTestCase::randomDouble));
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(
+                                data,
+                                DataType.DOUBLE,
+                                "double"
+                            )
+                        ),
+                        evaluatorName("Double", "d"),
+                        DataType.DENSE_VECTOR,
+                        equalTo(data.stream().map(Number::floatValue).toList())
+                    );
+                }
+            )
+        );
+
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 

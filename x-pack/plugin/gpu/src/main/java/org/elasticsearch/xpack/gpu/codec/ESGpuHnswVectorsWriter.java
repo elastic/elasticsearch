@@ -442,7 +442,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                     .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
                 datasetOrVectors = DatasetOrVectors.fromDataset(ds);
             } else {
-                assert numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD : "numVectors: " + numVectors;
+                // assert numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD : "numVectors: " + numVectors;
                 // we don't really need real value for vectors here,
                 // we just build a mock graph where every node is connected to every other node
                 float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];

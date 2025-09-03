@@ -13,6 +13,17 @@ decay_result:double
 0.75
 ;
 
+intLinear2
+required_capability: decay_function
+
+ROW value = 5
+| EVAL decay_result = decay(value, 5 + 5, 5 + 5, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
 intExp
 required_capability: decay_function
 

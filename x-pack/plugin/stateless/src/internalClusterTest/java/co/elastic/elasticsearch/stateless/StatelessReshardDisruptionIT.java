@@ -98,6 +98,7 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
                     client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple))
                         .actionGet(TEST_REQUEST_TIMEOUT)
                 );
+                waitForReshardCompletion(indexName);
                 logger.info("--> done resharding an index [{}]", indexName);
             } finally {
                 stop.set(true);
@@ -182,5 +183,9 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
             ),
             equalTo(expected_shards)
         );
+    }
+
+    private void waitForReshardCompletion(String indexName) {
+        awaitClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
     }
 }

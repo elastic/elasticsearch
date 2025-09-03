@@ -185,14 +185,11 @@ public class ReshardIndexService {
                 clusterService.threadPool().getThreadContext()
             );
 
+            // TODO: if the master node fails this observer is lost
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    finishReshard(
-                        request.projectId(),
-                        request.index(),
-                        delegate.map((voidResult) -> ShardsAcknowledgedResponse.of(true, true))
-                    );
+                    finishReshard(request.projectId(), request.index());
                 }
 
                 @Override
@@ -216,6 +213,7 @@ public class ReshardIndexService {
                     return false;
                 }
             });
+            delegate.onResponse(ShardsAcknowledgedResponse.of(true, true));
         }));
     }
 
@@ -302,12 +300,11 @@ public class ReshardIndexService {
      * When resharding is complete, finishReshard kicks off a task to remove resharding state from index metadata
      * @param projectId Project containing the given index
      * @param index     Index whose resharding state should be cleaned
-     * @param listener  Callback fired when resharding metadata has been removed from cluster state
      */
-    private void finishReshard(final ProjectId projectId, final Index index, ActionListener<Void> listener) {
+    private void finishReshard(final ProjectId projectId, final Index index) {
         finishReshardQueue.submitTask(
             "finish-reshard-index [" + index.getName() + "]",
-            new FinishReshardTask(projectId, index, listener),
+            new FinishReshardTask(projectId, index),
             TimeValue.MINUS_ONE
         );
     }
@@ -695,10 +692,10 @@ public class ReshardIndexService {
         }
     }
 
-    private record FinishReshardTask(ProjectId projectId, Index index, ActionListener<Void> listener) implements ClusterStateTaskListener {
+    private record FinishReshardTask(ProjectId projectId, Index index) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
-            listener.onFailure(e);
+            logger.error(() -> "[" + index.getName() + "] failed to finish resharding", e);
         }
     }
 
@@ -720,7 +717,7 @@ public class ReshardIndexService {
 
         @Override
         public void taskSucceeded(FinishReshardTask task, Void unused) {
-            task.listener.onResponse(null);
+            logger.trace("[{}] index reshard completed", task.index().getName());
         }
     }
 }

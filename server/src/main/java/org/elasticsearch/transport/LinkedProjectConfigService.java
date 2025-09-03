@@ -14,11 +14,32 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Service for registering {@link LinkedProjectConfigListener}s to be notified of changes to linked project configurations.
+ */
 public interface LinkedProjectConfigService {
 
+    /**
+     * Listener interface for receiving updates about linked project configurations.
+     * Implementations must not throw from any of the interface methods.
+     */
     interface LinkedProjectConfigListener {
+        /**
+         * Called when a linked project configuration has been added or updated.
+         *
+         * @param config The updated {@link LinkedProjectConfig}.
+         */
         void updateLinkedProject(LinkedProjectConfig config);
 
+        /**
+         * Called when the boolean skip_unavailable setting has changed for a linked project configuration.
+         * Note that skip_unavailable may not be supported in all contexts where linked projects are used.
+         *
+         * @param originProjectId The {@link ProjectId} of the owning project that has the linked project configuration.
+         * @param linkedProjectId The {@link ProjectId} of the linked project.
+         * @param linkedProjectAlias The alias used for the linked project.
+         * @param skipUnavailable The new value of the skip_unavailable setting.
+         */
         default void skipUnavailableChanged(
             ProjectId originProjectId,
             ProjectId linkedProjectId,
@@ -27,10 +48,24 @@ public interface LinkedProjectConfigService {
         ) {}
     }
 
+    /**
+     * Registers a {@link LinkedProjectConfigListener} to receive updates about linked project configurations.
+     *
+     * @param listener The listener to register.
+     */
     void register(LinkedProjectConfigListener listener);
 
+    /**
+     * Loads all existing linked project configurations for all origin projects.
+     *
+     * @return A collection of all existing {@link LinkedProjectConfig}s.
+     */
     Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs();
 
+    /**
+     * A no-op stub implementation of {@link LinkedProjectConfigService} intended for use in test scenarios where linked project
+     * configuration updates are not needed.
+     */
     LinkedProjectConfigService NOOP = new LinkedProjectConfigService() {
         @Override
         public void register(LinkedProjectConfigListener listener) {}

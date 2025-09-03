@@ -14,6 +14,10 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Abstract base class for {@link LinkedProjectConfigService} implementations.
+ * Provides common functionality for managing a list of registered listeners and notifying them of updates.
+ */
 public abstract class AbstractLinkedProjectConfigService implements LinkedProjectConfigService {
     private final List<LinkedProjectConfigListener> listeners = new CopyOnWriteArrayList<>();
 

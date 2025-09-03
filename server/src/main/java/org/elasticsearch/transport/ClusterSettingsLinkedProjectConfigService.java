@@ -18,6 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * A {@link LinkedProjectConfigService} implementation that listens for {@link ClusterSettings} changes,
+ * creating {@link LinkedProjectConfig}s from the relevant settings and notifying registered listeners of updates.
+ */
 public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedProjectConfigService {
     private final Settings settings;
     private final ProjectResolver projectResolver;

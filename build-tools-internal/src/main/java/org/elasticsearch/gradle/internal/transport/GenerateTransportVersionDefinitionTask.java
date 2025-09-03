@@ -76,9 +76,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         TransportVersionResourcesService resources = getResourceService().get();
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
         List<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
-        String name = getTransportVersionName().isPresent()
-            ? getTransportVersionName().get()
-            : findAddedTransportVersionName(resources, referencedNames, changedDefinitionNames);
+        String name = getTargetName(resources, referencedNames, changedDefinitionNames);
 
         List<TransportVersionUpperBound> mainUpperBounds = resources.getUpperBoundsFromMain();
         Set<String> releaseBranches = getTargetReleaseBranches();
@@ -149,6 +147,37 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return ids;
     }
 
+    private String getTargetName(TransportVersionResourcesService resources,
+                                 Set<String> referencedNames,
+                                 List<String> changedDefinitions) {
+        if (getTransportVersionName().isPresent()) {
+            // an explicit name was passed in, so use it
+            return getTransportVersionName().get();
+        }
+
+        // First check for unreferenced names. We only care about the first one. If there is more than one
+        // validation will fail later and the developer will have to remove one. When that happens, generation
+        // will re-run and we will fixup the state to use whatever new name remains.
+        for (String referencedName : referencedNames) {
+            if (resources.referableDefinitionExists(referencedName) == false) {
+                return referencedName;
+            }
+        }
+
+        // Since we didn't find any missing names, we use the first changed name. If there is more than
+        // one changed name, validation will fail later, just as above.
+        if (changedDefinitions.isEmpty()) {
+            return "";
+        } else {
+            String changedDefinitionName = changedDefinitions.getFirst();
+            if (referencedNames.contains(changedDefinitionName)) {
+                return changedDefinitionName;
+            } else {
+                return ""; // the changed name is unreferenced, so go into "reset mode"
+            }
+        }
+    }
+
     private Set<String> getTargetReleaseBranches() {
         Set<String> releaseBranches = new HashSet<>();
         releaseBranches.add(getMainReleaseBranch().get());
@@ -176,34 +205,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                 // we added this definition file, but it's now unreferenced, so delete it
                 getLogger().lifecycle("Deleting unreferenced named transport version definition [" + definitionName + "]");
                 resources.deleteReferableDefinition(definitionName);
-            }
-        }
-    }
-
-    private String findAddedTransportVersionName(
-        TransportVersionResourcesService resources,
-        Set<String> referencedNames,
-        List<String> changedDefinitions
-    ) {
-        // First check for unreferenced names. We only care about the first one. If there is more than one
-        // validation will fail later and the developer will have to remove one. When that happens, generation
-        // will re-run and we will fixup the state to use whatever new name remains.
-        for (String referencedName : referencedNames) {
-            if (resources.referableDefinitionExists(referencedName) == false) {
-                return referencedName;
-            }
-        }
-
-        // Since we didn't find any missing names, we use the first changed name. If there is more than
-        // one changed name, validation will fail later, just as above.
-        if (changedDefinitions.isEmpty()) {
-            return "";
-        } else {
-            String changedDefinitionName = changedDefinitions.getFirst();
-            if (referencedNames.contains(changedDefinitionName)) {
-                return changedDefinitionName;
-            } else {
-                return ""; // the changed name is unreferenced, so go into "reset mode"
             }
         }
     }

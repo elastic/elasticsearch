@@ -65,7 +65,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.core.ilm.DeleteAction.WITH_SNAPSHOT_DELETE;
 import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.FORCE_MERGE_INDEX_PREFIX;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,7 +139,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         final int numberOfPrimaries = randomIntBetween(1, 3);
         // The test suite runs with 4 nodes, so we can have up to 3 (allocated) replicas.
         final int numberOfReplicas = randomIntBetween(1, 3);
-        final String backingIndexName = prepareDataStreamWithDocs(numberOfPrimaries, numberOfReplicas);
+        final String phase = randomBoolean() ? "cold" : "frozen";
+        final String backingIndexName = prepareDataStreamWithDocs(phase, numberOfPrimaries, numberOfReplicas);
 
         final boolean pauseOnClone = randomBoolean();
         if (pauseOnClone) {
@@ -156,7 +156,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 configureClusterAllocation(true);
             }
 
-            assertForceMergedSnapshotDone(backingIndexName, numberOfPrimaries > 1, true);
+            assertForceMergedSnapshotDone(phase, backingIndexName, numberOfPrimaries > 1, true);
         } catch (Exception e) {
             // Make sure we re-enable allocation in case of failure so that the remaining tests in the suite are not affected.
             configureClusterAllocation(true);
@@ -171,12 +171,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     public void testSearchableSnapshotForceMergesSourceIndex() throws Exception {
         // Data streams have 1 primary shard by default.
         // The test suite runs with 4 nodes, so we can have up to 3 (allocated) replicas.
-        final String backingIndexName = prepareDataStreamWithDocs(1, 0);
+        final String phase = randomBoolean() ? "cold" : "frozen";
+        final String backingIndexName = prepareDataStreamWithDocs(phase, 1, 0);
 
         // Enable/start ILM on the data stream.
         updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
 
-        assertForceMergedSnapshotDone(backingIndexName, false, false);
+        assertForceMergedSnapshotDone(phase, backingIndexName, false, false);
     }
 
     /**
@@ -189,7 +190,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     public void testSearchableSnapshotForceMergesClonedIndexAfterRetry() throws Exception {
         final int numberOfPrimaries = randomIntBetween(1, 3);
         final int numberOfReplicas = randomIntBetween(1, 3);
-        final String backingIndexName = prepareDataStreamWithDocs(numberOfPrimaries, numberOfReplicas);
+        final String phase = randomBoolean() ? "cold" : "frozen";
+        final String backingIndexName = prepareDataStreamWithDocs(phase, numberOfPrimaries, numberOfReplicas);
 
         configureClusterAllocation(false);
         try {
@@ -201,13 +203,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             TimeSeriesRestDriver.moveIndexToStep(
                 client(),
                 backingIndexName,
-                new Step.StepKey("cold", "searchable_snapshot", "clone"),
-                new Step.StepKey("cold", "searchable_snapshot", "cleanup-generated-index")
+                new Step.StepKey(phase, "searchable_snapshot", "clone"),
+                new Step.StepKey(phase, "searchable_snapshot", "cleanup-generated-index")
             );
 
             configureClusterAllocation(true);
 
-            assertForceMergedSnapshotDone(backingIndexName, numberOfPrimaries > 1, true);
+            assertForceMergedSnapshotDone(phase, backingIndexName, numberOfPrimaries > 1, true);
         } catch (Exception e) {
             // Make sure we re-enable allocation in case of failure so that the remaining tests in the suite are not affected.
             configureClusterAllocation(true);
@@ -1153,9 +1155,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
      * indexes several documents, and performs a rollover. Returns the name of the
      * first generation backing index.
      */
-    private String prepareDataStreamWithDocs(int numberOfPrimaries, int numberOfReplicas) throws Exception {
+    private String prepareDataStreamWithDocs(String phase, int numberOfPrimaries, int numberOfReplicas) throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
+        createNewSingletonPolicy(client(), policy, phase, new SearchableSnapshotAction(snapshotRepo, true));
 
         createComposableTemplate(
             client(),
@@ -1177,7 +1179,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         } else {
             // With multiple primary shards, the segments are more spread out, so it's even less likely that we'll get more than 1 segment
             // in one shard, and some shards might even be empty.
-            assertThat(preLifecycleBackingIndexSegments, anyOf(greaterThanOrEqualTo(1), equalTo(0)));
+            assertThat(preLifecycleBackingIndexSegments, greaterThanOrEqualTo(0));
         }
 
         // Rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index.
@@ -1219,12 +1221,17 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
      * Asserts that the restored searchable snapshot index exists, the original and force-merge clone indices are deleted,
      * and the restored index has the expected number of segments. Also verifies the snapshot index naming conventions.
      *
-     * @param backingIndexName  The original backing index name.
+     * @param phase The phase of the ILM policy that the searchable snapshot action runs in.
+     * @param backingIndexName The original backing index name.
      * @param multiplePrimaries True if the original backing index had multiple primaries, affecting segment assertions.
-     * @param withReplicas      True if the original backing index had one or more replicas, affecting snapshot index naming assertions.
+     * @param withReplicas True if the original backing index had one or more replicas, affecting snapshot index naming assertions.
      */
-    private void assertForceMergedSnapshotDone(String backingIndexName, boolean multiplePrimaries, boolean withReplicas) throws Exception {
-        final String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
+    private void assertForceMergedSnapshotDone(String phase, String backingIndexName, boolean multiplePrimaries, boolean withReplicas)
+        throws Exception {
+        final String prefix = phase.equals("cold")
+            ? SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX
+            : SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX;
+        final String restoredIndexName = prefix + backingIndexName;
         awaitIndexExists(restoredIndexName);
 
         assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)));
@@ -1236,7 +1243,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // Retrieve the number of segments in the first (random) shard of the backing index.
         final Integer numberOfPrimarySegments = getNumberOfPrimarySegments(client(), restoredIndexName);
         // If the backing index had multiple primaries, some primaries might be empty, but others should have no more than 1 segment
-        if (multiplePrimaries) {
+        if (multiplePrimaries || phase.equals("frozen")) {
             assertThat(numberOfPrimarySegments, lessThanOrEqualTo(1));
         } else {
             // If the backing index had only one primary, we expect exactly 1 segment after force merging.

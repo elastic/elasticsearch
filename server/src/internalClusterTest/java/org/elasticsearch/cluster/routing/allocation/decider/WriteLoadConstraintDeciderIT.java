@@ -177,7 +177,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final NodeUsageStatsForThreadPools thirdNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
             thirdDiscoveryNode,
             numberOfWritePoolThreads,
-            randomUtilizationThresholdPercent + 1 / 100,
+            (randomUtilizationThresholdPercent + 1) / 100f,
             0
         );
 

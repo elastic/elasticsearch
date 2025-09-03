@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -38,12 +40,33 @@ public class SegmentCountStep extends AsyncWaitStep {
 
     private static final Logger logger = LogManager.getLogger(SegmentCountStep.class);
     public static final String NAME = "segment-count";
+    private static final BiFunction<String, LifecycleExecutionState, String> DEFAULT_TARGET_INDEX_NAME_SUPPLIER = (
+        indexName,
+        lifecycleState) -> indexName;
 
     private final int maxNumSegments;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
 
+    /**
+     * Creates a new {@link SegmentCountStep} that will check the segment count on the index that ILM is currently operating on.
+     */
     public SegmentCountStep(StepKey key, StepKey nextStepKey, Client client, int maxNumSegments) {
+        this(key, nextStepKey, client, maxNumSegments, DEFAULT_TARGET_INDEX_NAME_SUPPLIER);
+    }
+
+    /**
+     * Creates a new {@link SegmentCountStep} that will check the segment count on the index name returned by the supplier.
+     */
+    public SegmentCountStep(
+        StepKey key,
+        StepKey nextStepKey,
+        Client client,
+        int maxNumSegments,
+        BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier
+    ) {
         super(key, nextStepKey, client);
         this.maxNumSegments = maxNumSegments;
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
     }
 
     @Override
@@ -57,9 +80,11 @@ public class SegmentCountStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
-        // Use the cloned index name if we have one, otherwise fall back to the original index name.
-        String clonedIndexName = indexMetadata.getLifecycleExecutionState().forceMergeIndexName();
-        String forceMergedIndexName = clonedIndexName != null ? clonedIndexName : indexMetadata.getIndex().getName();
+        String forceMergedIndexName = targetIndexNameSupplier.apply(
+            indexMetadata.getIndex().getName(),
+            indexMetadata.getLifecycleExecutionState()
+        );
+        assert forceMergedIndexName != null : "target index name supplier must not return null";
         getClient(state.projectId()).admin()
             .indices()
             .segments(new IndicesSegmentsRequest(forceMergedIndexName), ActionListener.wrap(response -> {

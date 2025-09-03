@@ -70,8 +70,13 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final String FULL_RESTORED_INDEX_PREFIX = "restored-";
     public static final String PARTIAL_RESTORED_INDEX_PREFIX = "partial-";
     public static final String FORCE_MERGE_INDEX_PREFIX = "force-merge-";
+    /** An index name supplier that always returns the force merge index name (possibly null). */
     public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_INDEX_NAME_SUPPLIER = (indexName, state) -> state
         .forceMergeIndexName();
+    /** An index name supplier that returns the force merge index name if it exists, or the original index name if not. */
+    public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_INDEX_NAME_FALLBACK_SUPPLIER = (
+        indexName,
+        state) -> state.forceMergeIndexName() != null ? state.forceMergeIndexName() : indexName;
 
     private static final Settings CLONE_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
     private static final Function<IndexMetadata, Settings> CLONE_SETTINGS_SUPPLIER = indexMetadata -> CLONE_SETTINGS;
@@ -400,12 +405,25 @@ public class SearchableSnapshotAction implements LifecycleAction {
             ),
             cleanupClonedIndexKey
         );
-        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeStepKey, waitForSegmentCountKey, client, 1);
-        SegmentCountStep segmentCountStep = new SegmentCountStep(waitForSegmentCountKey, generateSnapshotNameKey, client, 1);
+        ForceMergeStep forceMergeStep = new ForceMergeStep(
+            forceMergeStepKey,
+            waitForSegmentCountKey,
+            client,
+            1,
+            FORCE_MERGE_INDEX_NAME_FALLBACK_SUPPLIER
+        );
+        SegmentCountStep segmentCountStep = new SegmentCountStep(
+            waitForSegmentCountKey,
+            generateSnapshotNameKey,
+            client,
+            1,
+            FORCE_MERGE_INDEX_NAME_FALLBACK_SUPPLIER
+        );
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(
             generateSnapshotNameKey,
             cleanSnapshotKey,
-            snapshotRepository
+            snapshotRepository,
+            FORCE_MERGE_INDEX_NAME_FALLBACK_SUPPLIER
         );
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
         CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, cleanSnapshotKey, client);

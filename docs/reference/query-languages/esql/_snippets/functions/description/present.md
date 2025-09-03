@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns 1 if the input expression yields any non-null values within the current aggregation context. Otherwise it returns 0.
+Returns true if the input expression yields any non-null values within the current aggregation context. Otherwise it returns false.
 

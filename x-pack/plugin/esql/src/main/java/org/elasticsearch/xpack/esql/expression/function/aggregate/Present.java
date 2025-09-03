@@ -17,13 +17,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -37,13 +34,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The function that checks for the presence of a field in the output result.
  * Presence means that the input expression yields any non-null value.
  */
-public class Present extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class Present extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Present", Present::new);
 
     @FunctionInfo(
-        returnType = "integer",
-        description = "Returns 1 if the input expression yields any non-null values within the current aggregation context. "
-            + "Otherwise it returns 0.",
+        returnType = "boolean",
+        description = "Returns true if the input expression yields any non-null values within the current aggregation context. "
+            + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "present", tag = "present"),
@@ -110,7 +107,7 @@ public class Present extends AggregateFunction implements ToAggregator, Surrogat
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataType.BOOLEAN;
     }
 
     @Override
@@ -126,22 +123,5 @@ public class Present extends AggregateFunction implements ToAggregator, Surrogat
     @Override
     protected TypeResolution resolveType() {
         return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
-    }
-
-    @Override
-    public Expression surrogate() {
-        var source = source();
-        if (field().foldable()) {
-            if (field() instanceof Literal l) {
-                return new Literal(source, l.value() != null ? 1 : 0, DataType.INTEGER);
-            }
-
-            return new Least(
-                source,
-                new Count(source, Literal.keyword(source, StringUtils.WILDCARD)),
-                List.of(new Literal(source, 1, DataType.INTEGER))
-            );
-        }
-        return null;
     }
 }

@@ -80,8 +80,8 @@ public class PresentTests extends AbstractAggregationTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
                         "Present[field=Attribute[channel=0]]",
-                        DataType.INTEGER,
-                        equalTo(0)
+                        DataType.BOOLEAN,
+                        equalTo(false)
                     )
                 )
             );
@@ -99,12 +99,12 @@ public class PresentTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
-            int present = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).findFirst().map(f -> 1).orElse(0);
+            boolean present = fieldTypedData.multiRowData().stream().anyMatch(Objects::nonNull);
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "Present[field=Attribute[channel=0]]",
-                DataType.INTEGER,
+                DataType.BOOLEAN,
                 equalTo(present)
             );
         });

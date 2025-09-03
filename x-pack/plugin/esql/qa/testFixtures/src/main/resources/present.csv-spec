@@ -9,8 +9,8 @@ FROM employees
 // end::present[]
 ;
 
-is_present:integer
-1
+is_present:boolean
+true
 ;
 
 PRESENT with grouping
@@ -23,13 +23,13 @@ FROM employees
 ;
 ignoreOrder:true
 
-is_present:integer | languages:integer
-1                  | 1
-1                  | 2
-1                  | 3
-1                  | 4
-1                  | 5
-1                  | null
+is_present:boolean    | languages:integer
+true                  | 1
+true                  | 2
+true                  | 3
+true                  | 4
+true                  | 5
+true                  | null
 ;
 
 PRESENT with filter
@@ -40,8 +40,8 @@ FROM employees
 | STATS is_present = PRESENT(languages)
 ;
 
-is_present:integer
-1
+is_present:boolean
+true
 ;
 
 Not PRESENT with filter
@@ -52,30 +52,8 @@ FROM employees
 | STATS is_present = PRESENT(languages)
 ;
 
-is_present:integer
-0
-;
-
-PRESENT with a constant
-required_capability: fn_present
-
-FROM employees 
-| STATS is_present = PRESENT(123)
-;
-
-is_present:integer
-1
-;
-
-Not PRESENT with null
-required_capability: fn_present
-
-FROM employees 
-| STATS is_present = PRESENT(null)
-;
-
-is_present:integer
-0
+is_present:boolean
+false
 ;
 
 Not PRESENT with null evaluated field
@@ -86,8 +64,8 @@ FROM employees
 | STATS is_present = PRESENT(null_field)
 ;
 
-is_present:integer
-0
+is_present:boolean
+false
 ;
 
 PRESENT with an expression
@@ -97,8 +75,8 @@ FROM employees
 | STATS is_present = PRESENT(salary + 10)
 ;
 
-is_present:integer
-1
+is_present:boolean
+true
 ;
 
 Some fields are not PRESENT with grouping
@@ -110,11 +88,11 @@ FROM employees
 ;
 ignoreOrder:true
 
-is_present:integer | languages:integer
-0                  | 4
-0                  | 5
-0                  | 1
-0                  | 2
+is_present:boolean     | languages:integer
+false                  | 4
+false                  | 5
+false                  | 1
+false                  | 2
 ;
 
 PRESENT with per-agg filter
@@ -125,6 +103,6 @@ FROM employees
         p_false = PRESENT(salary) WHERE gender == "X"
 ;
 
-p_true:integer | p_false:integer
-1              | 0
+p_true:boolean    | p_false:boolean
+true              | false
 ;

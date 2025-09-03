@@ -95,7 +95,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Nullable
     private String routing;
 
-    private SourceContext sourceContext = new SourceContext();
+    private final SourceContext sourceContext;
 
     private OpType opType = OpType.INDEX;
 
@@ -162,10 +162,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         routing = in.readOptionalString();
         boolean beforeSourceContext = in.getTransportVersion().before(TransportVersions.SOURCE_CONTEXT);
         BytesReference source;
+        SourceContext localSourceContext = null;
         if (beforeSourceContext) {
             source = in.readBytesReference();
         } else {
-            sourceContext = new SourceContext(in);
+            localSourceContext = new SourceContext(in);
             source = null;
         }
         opType = OpType.fromId(in.readByte());
@@ -184,8 +185,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             } else {
                 contentType = null;
             }
-            sourceContext = new SourceContext(contentType, source, () -> {});
+            localSourceContext = new SourceContext(contentType, source);
         }
+        sourceContext = Objects.requireNonNull(localSourceContext);
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
@@ -226,6 +228,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest() {
         super(NO_SHARD_ID);
+        this.sourceContext = new SourceContext();
     }
 
     /**
@@ -235,6 +238,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest(String index) {
         super(NO_SHARD_ID);
         this.index = index;
+        this.sourceContext = new SourceContext();
     }
 
     private static final StringLiteralDeduplicator pipelineNameDeduplicator = new StringLiteralDeduplicator();
@@ -497,11 +501,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest source(XContentType xContentType, Object... source) {
         sourceContext.source(xContentType, source);
-        return this;
-    }
-
-    public IndexRequest sourceContext(SourceContext sourceContext) {
-        sourceContext = Objects.requireNonNull(sourceContext);
         return this;
     }
 

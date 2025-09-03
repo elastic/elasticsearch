@@ -16,14 +16,14 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -217,7 +217,7 @@ public class RestBulkAction extends BaseRestHandler {
                 return;
             }
 
-            final BytesReference data;
+            final ReleasableBytesReference data;
             int bytesConsumed;
             if (chunk.length() == 0) {
                 chunk.close();
@@ -228,7 +228,8 @@ public class RestBulkAction extends BaseRestHandler {
                     unParsedChunks.add(chunk);
 
                     if (unParsedChunks.size() > 1) {
-                        data = CompositeBytesReference.of(unParsedChunks.toArray(new ReleasableBytesReference[0]));
+                        ReleasableBytesReference[] components = unParsedChunks.toArray(new ReleasableBytesReference[0]);
+                        data = new ReleasableBytesReference(CompositeBytesReference.of(components), () -> Releasables.close(components));
                     } else {
                         data = chunk;
                     }
@@ -243,7 +244,8 @@ public class RestBulkAction extends BaseRestHandler {
                 }
             }
 
-            final ArrayList<Releasable> releasables = accountParsing(bytesConsumed);
+            releaseConsumeBytes(bytesConsumed);
+
             if (isLast) {
                 assert unParsedChunks.isEmpty();
                 if (handler.getIncrementalOperation().totalParsedBytes() == 0) {
@@ -253,21 +255,30 @@ public class RestBulkAction extends BaseRestHandler {
                     assert channel != null;
                     ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                     items.clear();
-                    handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
+                    handler.lastItems(toPass, () -> closeSourceContexts(toPass), new RestRefCountedChunkedToXContentListener<>(channel));
                 }
                 handler.updateWaitForChunkMetrics(TimeUnit.NANOSECONDS.toMillis(totalChunkWaitTimeInNanos));
                 totalChunkWaitTimeInNanos = 0L;
             } else if (items.isEmpty() == false) {
                 ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();
-                handler.addItems(toPass, () -> Releasables.close(releasables), () -> {
+                handler.addItems(toPass, () -> closeSourceContexts(toPass), () -> {
                     requestNextChunkTime = System.nanoTime();
                     request.contentStream().next();
                 });
             } else {
-                Releasables.close(releasables);
                 requestNextChunkTime = System.nanoTime();
                 request.contentStream().next();
+            }
+        }
+
+        private static void closeSourceContexts(ArrayList<DocWriteRequest<?>> requests) {
+            // We only slice for index requests currently.
+            for (DocWriteRequest<?> request : requests) {
+                IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(request);
+                if (indexRequest != null) {
+                    indexRequest.sourceContext().close();
+                }
             }
         }
 
@@ -286,19 +297,17 @@ public class RestBulkAction extends BaseRestHandler {
             unParsedChunks.clear();
         }
 
-        private ArrayList<Releasable> accountParsing(int bytesConsumed) {
-            ArrayList<Releasable> releasables = new ArrayList<>(unParsedChunks.size());
+        private void releaseConsumeBytes(int bytesConsumed) {
             while (bytesConsumed > 0) {
                 ReleasableBytesReference reference = unParsedChunks.removeFirst();
-                releasables.add(reference);
                 if (bytesConsumed >= reference.length()) {
                     bytesConsumed -= reference.length();
                 } else {
                     unParsedChunks.addFirst(reference.retainedSlice(bytesConsumed, reference.length() - bytesConsumed));
                     bytesConsumed = 0;
                 }
+                reference.close();
             }
-            return releasables;
         }
     }
 

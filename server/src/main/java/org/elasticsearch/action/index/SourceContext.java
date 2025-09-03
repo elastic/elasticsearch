@@ -86,7 +86,7 @@ public class SourceContext implements Writeable, Releasable {
 
     @Override
     public void close() {
-        sourceReleasable.close();
+        Releasables.close(sourceReleasable);
     }
 
     public Map<String, Object> sourceAsMap() {

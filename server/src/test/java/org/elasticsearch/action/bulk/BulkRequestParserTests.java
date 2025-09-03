@@ -12,6 +12,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.test.ESTestCase;
@@ -34,10 +35,10 @@ public class BulkRequestParserTests extends ESTestCase {
         .toList();
 
     public void testParserCannotBeReusedAfterFailure() {
-        BytesArray request = new BytesArray("""
+        ReleasableBytesReference request = ReleasableBytesReference.wrap(new BytesArray("""
             { "index":{ }, "something": "unexpected" }
             {}
-            """);
+            """));
 
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         BulkRequestParser.IncrementalParser incrementalParser = parser.incrementalParser(
@@ -58,10 +59,10 @@ public class BulkRequestParserTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> incrementalParser.parse(request, false));
         assertEquals("Malformed action/metadata line [1], expected END_OBJECT but found [FIELD_NAME]", ex.getMessage());
 
-        BytesArray valid = new BytesArray("""
+        ReleasableBytesReference valid = ReleasableBytesReference.wrap(new BytesArray("""
             { "index":{ "_id": "bar" } }
             {}
-            """);
+            """));
         expectThrows(AssertionError.class, () -> incrementalParser.parse(valid, false));
     }
 
@@ -86,7 +87,7 @@ public class BulkRequestParserTests extends ESTestCase {
             deleteRequests::add
         );
 
-        BytesArray request = new BytesArray("""
+        ReleasableBytesReference request = ReleasableBytesReference.wrap(new BytesArray("""
             { "index":{ "_id": "bar", "pipeline": "foo" } }
             { "field": "value"}
             { "index":{ "require_alias": false } }
@@ -97,7 +98,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index": { } }
             { "field": "value"}
             { "delete":{ "_id": "bop" } }
-            """);
+            """));
 
         int consumed = 0;
         for (int i = 0; i < request.length() - 1; ++i) {
@@ -255,9 +256,12 @@ public class BulkRequestParserTests extends ESTestCase {
         );
 
         // Should not throw because not last
-        incrementalParser.parse(request, false);
+        incrementalParser.parse(ReleasableBytesReference.wrap(request), false);
 
-        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> incrementalParser.parse(request, true));
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> incrementalParser.parse(ReleasableBytesReference.wrap(request), true)
+        );
         assertEquals("The bulk request must be terminated by a newline [\\n]", e2.getMessage());
     }
 

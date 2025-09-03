@@ -15,6 +15,7 @@ import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.Method;
+import org.apache.hc.core5.http2.impl.nio.ProtocolNegotiationException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +27,9 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -39,7 +42,9 @@ import javax.net.ssl.SSLPeerUnverifiedException;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 @ESTestCase.EntitledTestPackages({ "org.apache.hc.core5.concurrent", "org.apache.hc.core5.reactor" })
@@ -72,7 +77,11 @@ public class HttpClient5SslTests extends ESTestCase {
     public void testTlsStrategyFailsWithoutConfiguredCA() throws Exception {
         final CloseableHttpAsyncClient httpClient = buildClient(Settings.builder());
         final SSLException exception = expectThrows(SSLException.class, () -> performRequest(httpClient));
-        assertThat(exception, throwableWithMessage(containsString("certificate_unknown")));
+        assertThat(
+            exception,
+            // Different error messages on JDK21 vs JDK24
+            throwableWithMessage(either(containsString("certificate_unknown")).or(containsString("PKIX path building failed")))
+        );
     }
 
     public void testTlsStrategyWithVerificationOff() throws Exception {
@@ -106,6 +115,13 @@ public class HttpClient5SslTests extends ESTestCase {
     }
 
     public void testTlsStrategyWithClientCertificate() throws Exception {
+        var jdkVersion = Runtime.version().feature();
+        assumeFalse(
+            "A bug in JDK 22 and earlier prevents the mock server from requiring certificates."
+                + " See https://bugs.openjdk.org/browse/JDK-8326233",
+            jdkVersion <= 22
+        );
+
         startServer(null, true, null, null);
 
         final Settings.Builder settings = Settings.builder();
@@ -129,7 +145,6 @@ public class HttpClient5SslTests extends ESTestCase {
                 .put("xpack.http.ssl.key", getDataPath("/org/elasticsearch/xpack/core/ssl/client/client.key"));
             final CloseableHttpAsyncClient httpClient = buildClient(settings);
             performRequest(httpClient);
-
         }
     }
 
@@ -165,8 +180,14 @@ public class HttpClient5SslTests extends ESTestCase {
         {
             settings.put("xpack.http.ssl.supported_protocols", inactiveProtocol);
             final CloseableHttpAsyncClient httpClient = buildClient(settings);
-            final SSLException exception = expectThrows(SSLException.class, () -> performRequest(httpClient));
-            assertThat(exception, throwableWithMessage(containsString("protocol_version")));
+            // In JDK 21 something messes up and HTTP client's SSL engine fails badly if there's no negotiated cipher
+            // and ends up with a `ProtocolNegotiationException` instead of a normal handshake failure
+            final IOException exception = expectThrows(IOException.class, () -> performRequest(httpClient));
+            if (exception instanceof SSLException) {
+                assertThat(exception, throwableWithMessage(containsString("protocol_version")));
+            } else {
+                assertThat(exception, instanceOf(ProtocolNegotiationException.class));
+            }
         }
 
         // Work with specified protocols
@@ -187,18 +208,48 @@ public class HttpClient5SslTests extends ESTestCase {
     }
 
     public void testTlsStrategyWithSpecifiedCipherSuites() throws Exception {
-        final String activeCipher;
-        final String inactiveCipher;
-        if (randomBoolean()) {
-            activeCipher = "TLS_AES_256_GCM_SHA384";
-            inactiveCipher = "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384";
-        } else {
-            activeCipher = "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384";
-            inactiveCipher = "TLS_AES_256_GCM_SHA384";
-        }
-        assertThat(activeCipher, not(equalTo(inactiveCipher)));
+        final String protocol;
+        List<String> supportedCiphers;
 
-        startServer(null, false, null, List.of(activeCipher));
+        // Things get weird if one party only has TLSv1.3 ciphers enabled and the other party only has TLSv1.2 ciphers enabled
+        // To avoid that, we force ourselves to only use ciphers from a single protocol
+        if (randomBoolean()) {
+            protocol = "TLSv1.2";
+            supportedCiphers = List.of(
+                "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+                "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+                "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+                "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+                "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+                "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+            );
+        } else {
+            protocol = "TLSv1.3";
+            supportedCiphers = List.of("TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256", "TLS_CHACHA20_POLY1305_SHA256");
+        }
+        if (inFipsJvm()) {
+            supportedCiphers = supportedCiphers.stream().filter(name -> name.contains("CHACHA") == false).toList();
+        }
+
+        List<String> serverEnabledCiphers = shuffledList(
+            randomSubsetOf(randomIntBetween(supportedCiphers.size() / 4, supportedCiphers.size() * 3 / 4), supportedCiphers)
+        );
+        if (serverEnabledCiphers.isEmpty()) {
+            serverEnabledCiphers = List.of(randomFrom(supportedCiphers));
+        }
+
+        final List<String> serverDisabledCiphers = new ArrayList<>(supportedCiphers);
+        serverDisabledCiphers.removeAll(serverEnabledCiphers);
+
+        logger.info(
+            "Server TLS CipherSuites\n\tSupported: {}\n\tEnabled: {}\n\tDisabled {}",
+            supportedCiphers,
+            serverEnabledCiphers,
+            serverDisabledCiphers
+        );
+
+        startServer(null, false, List.of(protocol), serverEnabledCiphers);
 
         final Settings.Builder settings = Settings.builder();
         // Either of these configurations should work to trust the server (covered in other test methods)
@@ -214,25 +265,47 @@ public class HttpClient5SslTests extends ESTestCase {
             performRequest(httpClient);
         }
 
-        // Fail with incorrect cipher
+        // Fail with no matching cipher
         {
-            settings.putList("xpack.http.ssl.cipher_suites", inactiveCipher);
+            settings.putList("xpack.http.ssl.cipher_suites", serverDisabledCiphers);
             final CloseableHttpAsyncClient httpClient = buildClient(settings);
-            final SSLException exception = expectThrows(SSLException.class, () -> performRequest(httpClient));
-            assertThat(exception, throwableWithMessage(containsString("handshake_failure")));
+            // In JDK 21 something messes up and HTTP client's SSL engine fails badly if there's no negotiated cipher
+            // and ends up with a `ProtocolNegotiationException` instead of a normal handshake failure
+            final IOException exception = expectThrows(IOException.class, () -> performRequest(httpClient));
+            if (exception instanceof SSLException) {
+                assertThat(exception, throwableWithMessage(containsString("handshake_failure")));
+            } else {
+                assertThat(exception, instanceOf(ProtocolNegotiationException.class));
+            }
         }
 
         // Work with specified cipher
         {
-            settings.putList("xpack.http.ssl.cipher_suites", activeCipher);
+            settings.putList("xpack.http.ssl.cipher_suites", shuffledList(serverEnabledCiphers));
             final CloseableHttpAsyncClient httpClient = buildClient(settings);
             performRequest(httpClient);
         }
 
-        // Work with multiple ciphers
+        // Work with a subset of the server's ciphers
         {
-            settings.putList("xpack.http.ssl.cipher_suites", inactiveCipher, activeCipher);
+            List<String> clientCiphers = new ArrayList<>(
+                randomSubsetOf(randomIntBetween(1, serverEnabledCiphers.size()), serverEnabledCiphers)
+            );
+            settings.putList("xpack.http.ssl.cipher_suites", clientCiphers);
             final CloseableHttpAsyncClient httpClient = buildClient(settings);
+            performRequest(httpClient);
+        }
+
+        // Work with a mix of supported and unsupported ciphers
+        {
+            List<String> clientCiphers = new ArrayList<>();
+            clientCiphers.addAll(randomSubsetOf(randomIntBetween(1, 1 + serverEnabledCiphers.size() / 3), serverEnabledCiphers));
+            clientCiphers.addAll(randomSubsetOf(randomIntBetween(1, 1 + serverDisabledCiphers.size() / 3), serverDisabledCiphers));
+            clientCiphers = shuffledList(clientCiphers);
+            settings.putList("xpack.http.ssl.cipher_suites", clientCiphers);
+            final CloseableHttpAsyncClient httpClient = buildClient(settings);
+            logger.info("Server cipher suites: {}", serverEnabledCiphers);
+            logger.info("Client cipher suites: {}", clientCiphers);
             performRequest(httpClient);
         }
     }
@@ -250,8 +323,8 @@ public class HttpClient5SslTests extends ESTestCase {
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/core/ssl/" + serverCert + "/" + serverCert + ".key");
 
         final Settings.Builder settings = Settings.builder().put("ssl.certificate", certPath).put("ssl.key", keyPath);
+        settings.put("ssl.client_authentication", requireClientCert ? "required" : "none");
         if (requireClientCert) {
-            settings.put("ssl.client_authentication", "required");
             settings.putList("ssl.certificate_authorities", caCertPath.toString());
         }
         if (protocols != null) {
@@ -264,8 +337,12 @@ public class HttpClient5SslTests extends ESTestCase {
         final SslConfiguration sslConfiguration = SslSettingsLoader.load(settings.build(), "ssl.", newEnvironment());
         final SSLContext context = sslConfiguration.createSslContext();
 
-        server = new MockWebServer(context, requireClientCert, sslConfiguration.supportedProtocols());
+        final MockWebServer.TlsConfig tlsConfig = new MockWebServer.TlsConfig(sslConfiguration);
+        assertThat(requireClientCert, equalTo(tlsConfig.needClientAuth()));
+
+        server = new MockWebServer(context, tlsConfig);
         server.start();
+        logger.info("Server is listening at: {}", server.getUri("/"));
     }
 
     private CloseableHttpAsyncClient buildClient(final Settings.Builder environmentSettings) {

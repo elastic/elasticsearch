@@ -107,8 +107,12 @@ public class Knn extends FullTextFunction
     )
     public Knn(
         Source source,
-        @Param(name = "field", type = { "dense_vector", "text" }, description = "Field that the query will target. " +
-            "knn function can be used with dense_vector or semantic_text fields. Other text fields are not allowed") Expression field,
+        @Param(
+            name = "field",
+            type = { "dense_vector", "text" },
+            description = "Field that the query will target. "
+                + "knn function can be used with dense_vector or semantic_text fields. Other text fields are not allowed"
+        ) Expression field,
         @Param(
             name = "query",
             type = { "dense_vector" },

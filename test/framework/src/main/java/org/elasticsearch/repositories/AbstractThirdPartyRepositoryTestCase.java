@@ -378,7 +378,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             ex2 = e;
         }
 
-        assertTrue("Exactly one of the writes must fail", ex1 != null ^ ex2 != null);
+        assertTrue("Exactly one of the writes must succeed", (ex1 == null) != (ex2 == null));
 
         // override if failIfAlreadyExists is set to false
         executeOnBlobStore(repository, blobStore -> {

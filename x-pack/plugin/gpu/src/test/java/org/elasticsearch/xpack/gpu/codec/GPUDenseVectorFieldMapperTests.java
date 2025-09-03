@@ -39,7 +39,21 @@ public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapp
         return Collections.singletonList(plugin);
     }
 
-    public void testKnnGPUVectorsFormat() throws IOException {
+    public void testESGPUHnswVectorsFormat() throws IOException {
+        KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("hnsw");
+        String expectedStr = "ESGpuHnswVectorsFormat(name=ESGpuHnswVectorsFormat, "
+            + "maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
+        assertEquals(expectedStr, knnVectorsFormat.toString());
+    }
+
+    public void testESGpuHnswScalarQuantizedVectorsFormat() throws IOException {
+        KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
+        String expectedStr = "ESGPUHnswScalarQuantizedVectorsFormat(name=ESGPUHnswScalarQuantizedVectorsFormat, "
+            + "maxConn=16, beamWidth=128, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+        assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
+    }
+
+    private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {
         final int dims = randomIntBetween(128, 4096);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
@@ -47,23 +61,20 @@ public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapp
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");
-            b.field("type", "hnsw");
+            b.field("type", indexOptionsType);
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
-        KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+            return ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
             if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+            return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "GPUVectorsFormat()";
-        assertEquals(expectedString, knnVectorsFormat.toString());
     }
 }

@@ -482,7 +482,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
-    exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn;
+    exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn, org.elasticsearch.gpu;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
 }

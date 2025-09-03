@@ -19,12 +19,14 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 /**
  * Codec format for GPU-accelerated vector indexes. This format is designed to
  * leverage GPU processing capabilities for vector search operations.
  */
-public class GPUVectorsFormat extends KnnVectorsFormat {
-    public static final String NAME = "GPUVectorsFormat";
+public class ESGpuHnswVectorsFormat extends KnnVectorsFormat {
+    public static final String NAME = "ESGpuHnswVectorsFormat";
     public static final int VERSION_START = 0;
 
     static final String LUCENE99_HNSW_META_CODEC_NAME = "Lucene99HnswVectorsFormatMeta";
@@ -47,15 +49,15 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     private final int beamWidth;
     final CuVSResourceManager cuVSResourceManager;
 
-    public GPUVectorsFormat() {
+    public ESGpuHnswVectorsFormat() {
         this(CuVSResourceManager.pooling(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     }
 
-    public GPUVectorsFormat(int maxConn, int beamWidth) {
+    public ESGpuHnswVectorsFormat(int maxConn, int beamWidth) {
         this(CuVSResourceManager.pooling(), maxConn, beamWidth);
     };
 
-    public GPUVectorsFormat(CuVSResourceManager cuVSResourceManager, int maxConn, int beamWidth) {
+    public ESGpuHnswVectorsFormat(CuVSResourceManager cuVSResourceManager, int maxConn, int beamWidth) {
         super(NAME);
         this.cuVSResourceManager = cuVSResourceManager;
         this.maxConn = maxConn;
@@ -64,7 +66,7 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new GPUToHNSWVectorsWriter(cuVSResourceManager, state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state));
+        return new ESGpuHnswVectorsWriter(cuVSResourceManager, state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state));
     }
 
     @Override
@@ -74,11 +76,20 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public int getMaxDimensions(String fieldName) {
-        return 4096;
+        return MAX_DIMS_COUNT;
     }
 
     @Override
     public String toString() {
-        return NAME + "(maxConn=" + maxConn + ", beamWidth=" + beamWidth + ", flatVectorFormat=" + flatVectorsFormat.getName() + ")";
+        return NAME
+            + "(name="
+            + NAME
+            + ", maxConn="
+            + maxConn
+            + ", beamWidth="
+            + beamWidth
+            + ", flatVectorFormat="
+            + flatVectorsFormat.getName()
+            + ")";
     }
 }

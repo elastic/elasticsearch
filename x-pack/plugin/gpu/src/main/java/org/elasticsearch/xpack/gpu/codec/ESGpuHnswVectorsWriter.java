@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -35,8 +36,10 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -49,21 +52,22 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
+import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.LUCENE99_VERSION_CURRENT;
-import static org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
+import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 
 /**
  * Writer that builds a Nvidia Carga Graph on GPU and than writes it into the Lucene99 HNSW format,
  * so that it can be searched on CPU with Lucene99HNSWVectorReader.
  */
-final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
-    private static final Logger logger = LogManager.getLogger(GPUToHNSWVectorsWriter.class);
-    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(GPUToHNSWVectorsWriter.class);
+final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
+    private static final Logger logger = LogManager.getLogger(ESGpuHnswVectorsWriter.class);
+    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ESGpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
     private final CuVSResourceManager cuVSResourceManager;
@@ -75,8 +79,9 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
 
     private final List<FieldWriter> fields = new ArrayList<>();
     private boolean finished;
+    private final CuVSMatrix.DataType dataType;
 
-    GPUToHNSWVectorsWriter(
+    ESGpuHnswVectorsWriter(
         CuVSResourceManager cuVSResourceManager,
         SegmentWriteState state,
         int M,
@@ -88,6 +93,11 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         this.M = M;
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
+        if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
+            dataType = CuVSMatrix.DataType.BYTE;
+        } else {
+            dataType = CuVSMatrix.DataType.FLOAT;
+        }
         this.segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, LUCENE99_HNSW_META_EXTENSION);
         String indexDataFileName = IndexFileNames.segmentFileName(
@@ -232,18 +242,14 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             HnswGraph mockGraph;
-            if (datasetOrVectors.vectors != null) {
-                float[][] vectors = datasetOrVectors.vectors;
+            if (datasetOrVectors.getVectors() != null) {
+                int size = datasetOrVectors.size();
                 if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        vectors.length,
-                        MIN_NUM_VECTORS_FOR_GPU_BUILD
-                    );
+                    logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", size, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 }
-                mockGraph = writeGraph(vectors, graphLevelNodeOffsets);
+                mockGraph = writeGraph(size, graphLevelNodeOffsets);
             } else {
-                var dataset = datasetOrVectors.dataset;
+                var dataset = datasetOrVectors.getDataset();
                 var cuVSResources = cuVSResourceManager.acquire((int) dataset.size(), (int) dataset.columns(), dataset.dataType());
                 try {
                     try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
@@ -330,13 +336,12 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         return createMockGraph(maxElementCount, maxGraphDegree);
     }
 
-    // create a graph where every node is connected to every other node
-    private HnswGraph writeGraph(float[][] vectors, int[][] levelNodeOffsets) throws IOException {
-        if (vectors.length == 0) {
+    // create a mock graph where every node is connected to every other node
+    private HnswGraph writeGraph(int elementCount, int[][] levelNodeOffsets) throws IOException {
+        if (elementCount == 0) {
             return null;
         }
-        int elementCount = vectors.length;
-        int nodeDegree = vectors.length - 1;
+        int nodeDegree = elementCount - 1;
         levelNodeOffsets[0] = new int[elementCount];
 
         int[] neighbors = new int[nodeDegree];
@@ -411,13 +416,17 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
-        // save merged vector values to a temp file
         final int numVectors;
         String tempRawVectorsFileName = null;
         boolean success = false;
+        // save merged vector values to a temp file
         try (IndexOutput out = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "vec_", IOContext.DEFAULT)) {
             tempRawVectorsFileName = out.getName();
-            numVectors = writeFloatVectorValues(fieldInfo, out, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+            if (dataType == CuVSMatrix.DataType.BYTE) {
+                numVectors = writeByteVectorValues(out, getMergedByteVectorValues(fieldInfo, mergeState));
+            } else {
+                numVectors = writeFloatVectorValues(fieldInfo, out, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+            }
             CodecUtil.writeFooter(out);
             success = true;
         } finally {
@@ -429,11 +438,15 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
             DatasetOrVectors datasetOrVectors;
             var input = FilterIndexInput.unwrapOnlyTest(in);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput && numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                var ds = DatasetUtils.getInstance().fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension());
+                var ds = DatasetUtils.getInstance()
+                    .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
                 datasetOrVectors = DatasetOrVectors.fromDataset(ds);
             } else {
-                var fa = copyVectorsIntoArray(in, fieldInfo, numVectors);
-                datasetOrVectors = DatasetOrVectors.fromArray(fa);
+                assert numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD : "numVectors: " + numVectors;
+                // we don't really need real value for vectors here,
+                // we just build a mock graph where every node is connected to every other node
+                float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
+                datasetOrVectors = DatasetOrVectors.fromArray(vectors);
             }
             writeFieldInternal(fieldInfo, datasetOrVectors);
         } finally {
@@ -441,15 +454,29 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    static float[][] copyVectorsIntoArray(IndexInput in, FieldInfo fieldInfo, int numVectors) throws IOException {
-        final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
-        float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
-        float[] vector;
-        for (int i = 0; i < numVectors; i++) {
-            vector = floatVectorValues.vectorValue(i);
-            System.arraycopy(vector, 0, vectors[i], 0, vector.length);
+    private ByteVectorValues getMergedByteVectorValues(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // TODO: expose confidence interval from the format
+        final byte bits = 7;
+        final Float confidenceInterval = null;
+        ScalarQuantizer quantizer = mergeAndRecalculateQuantiles(mergeState, fieldInfo, confidenceInterval, bits);
+        MergedQuantizedVectorValues byteVectorValues = MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(
+            fieldInfo,
+            mergeState,
+            quantizer
+        );
+        return byteVectorValues;
+    }
+
+    private static int writeByteVectorValues(IndexOutput out, ByteVectorValues vectorValues) throws IOException {
+        int numVectors = 0;
+        byte[] vector;
+        final KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
+        for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+            numVectors++;
+            vector = vectorValues.vectorValue(iterator.index());
+            out.writeBytes(vector, vector.length);
         }
-        return vectors;
+        return numVectors;
     }
 
     private static int writeFloatVectorValues(FieldInfo fieldInfo, IndexOutput out, FloatVectorValues floatVectorValues)
@@ -464,42 +491,6 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
             out.writeBytes(buffer.array(), buffer.array().length);
         }
         return numVectors;
-    }
-
-    private static FloatVectorValues getFloatVectorValues(FieldInfo fieldInfo, IndexInput randomAccessInput, int numVectors) {
-        if (numVectors == 0) {
-            return FloatVectorValues.fromFloats(List.of(), fieldInfo.getVectorDimension());
-        }
-        final long length = (long) Float.BYTES * fieldInfo.getVectorDimension();
-        final float[] vector = new float[fieldInfo.getVectorDimension()];
-        return new FloatVectorValues() {
-            @Override
-            public float[] vectorValue(int ord) throws IOException {
-                randomAccessInput.seek(ord * length);
-                randomAccessInput.readFloats(vector, 0, vector.length);
-                return vector;
-            }
-
-            @Override
-            public FloatVectorValues copy() {
-                return this;
-            }
-
-            @Override
-            public int dimension() {
-                return fieldInfo.getVectorDimension();
-            }
-
-            @Override
-            public int size() {
-                return numVectors;
-            }
-
-            @Override
-            public int ordToDoc(int ord) {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-        };
     }
 
     private void writeMeta(

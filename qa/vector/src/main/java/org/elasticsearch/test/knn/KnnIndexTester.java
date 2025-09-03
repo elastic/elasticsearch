@@ -31,7 +31,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ESGpuHnswSQVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat;
 
 import java.io.InputStream;
 import java.lang.management.ThreadInfo;
@@ -68,15 +69,15 @@ public class KnnIndexTester {
         HNSW,
         FLAT,
         IVF,
-        GPU
+        GPU_HNSW
     }
 
     private static String formatIndexPath(CmdLineArgs args) {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
-        } else if (args.indexType() == IndexType.GPU) {
-            suffix.add("gpu");
+        } else if (args.indexType() == IndexType.GPU_HNSW) {
+            suffix.add("gpu_hnsw");
         } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
             suffix.add(Integer.toString(args.ivfClusterSize()));
@@ -94,8 +95,16 @@ public class KnnIndexTester {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
             format = new IVFVectorsFormat(args.ivfClusterSize());
-        } else if (args.indexType() == IndexType.GPU) {
-            format = new GPUVectorsFormat();
+        } else if (args.indexType() == IndexType.GPU_HNSW) {
+            if (args.quantizeBits() == 32) {
+                format = new ESGpuHnswVectorsFormat();
+            } else if (args.quantizeBits() == 7) {
+                format = new ESGpuHnswSQVectorsFormat();
+            } else {
+                throw new IllegalArgumentException(
+                    "GPU HNSW index type only supports 7 or 32 bits quantization, but got: " + args.quantizeBits()
+                );
+            }
         } else {
             if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {

@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.gpu.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
@@ -17,7 +15,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
-public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ESGpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -29,7 +27,7 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new GPUVectorsFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ESGpuHnswSQVectorsFormat());
 
     @Override
     protected Codec getCodec() {
@@ -47,44 +45,32 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     @Override
-    public void testRandomBytes() throws Exception {
+    public void testRandomBytes() {
         // No bytes support
     }
 
     @Override
-    public void testSortedIndexBytes() throws Exception {
+    public void testSortedIndexBytes() {
         // No bytes support
     }
 
     @Override
-    public void testByteVectorScorerIteration() throws Exception {
+    public void testByteVectorScorerIteration() {
         // No bytes support
     }
 
     @Override
-    public void testEmptyByteVectorData() throws Exception {
+    public void testEmptyByteVectorData() {
         // No bytes support
     }
 
     @Override
-    public void testMergingWithDifferentByteKnnFields() throws Exception {
+    public void testMergingWithDifferentByteKnnFields() {
         // No bytes support
     }
 
     @Override
-    public void testMismatchedFields() throws Exception {
+    public void testMismatchedFields() {
         // No bytes support
     }
-
-    public void testToString() {
-        FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
-            @Override
-            public KnnVectorsFormat knnVectorsFormat() {
-                return new GPUVectorsFormat();
-            }
-        };
-        String expectedPattern = "GPUVectorsFormat(maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
-        assertEquals(expectedPattern, customCodec.knnVectorsFormat().toString());
-    }
-
 }

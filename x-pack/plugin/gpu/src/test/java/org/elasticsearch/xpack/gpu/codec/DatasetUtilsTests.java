@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
+import com.nvidia.cuvs.CuVSMatrix;
+
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
@@ -50,7 +52,7 @@ public class DatasetUtilsTests extends ESTestCase {
             }
             try (
                 var in = dir.openInput("vector.data", IOContext.DEFAULT);
-                var dataset = datasetUtils.fromInput((MemorySegmentAccessInput) in, numVecs, dims)
+                var dataset = datasetUtils.fromInput((MemorySegmentAccessInput) in, numVecs, dims, CuVSMatrix.DataType.FLOAT)
             ) {
                 assertEquals(numVecs, dataset.size());
                 assertEquals(dims, dataset.columns());
@@ -62,8 +64,8 @@ public class DatasetUtilsTests extends ESTestCase {
 
     public void testIllegal() {
         MemorySegmentAccessInput in = null; // TODO: make this non-null
-        expectThrows(IAE, () -> datasetUtils.fromInput(in, -1, 1));
-        expectThrows(IAE, () -> datasetUtils.fromInput(in, 1, -1));
+        expectThrows(IAE, () -> datasetUtils.fromInput(in, -1, 1, CuVSMatrix.DataType.FLOAT));
+        expectThrows(IAE, () -> datasetUtils.fromInput(in, 1, -1, CuVSMatrix.DataType.FLOAT));
     }
 
     float[] randomVector(int dims) {

@@ -14,7 +14,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ESGpuHnswSQVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat;
 
 public class GPUPlugin extends Plugin implements MapperPlugin {
 
@@ -28,10 +29,7 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
                 if (gpuMode == IndexSettings.GpuMode.TRUE) {
                     if (vectorIndexTypeSupported(indexOptions.getType()) == false) {
                         throw new IllegalArgumentException(
-                            "[index.vectors.indexing.use_gpu] was set to [true], but GPU vector indexing is only supported "
-                                + "for [hnsw] index_options.type, got: ["
-                                + indexOptions.getType()
-                                + "]"
+                            "[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of [" + indexOptions.getType() + "]."
                         );
                     }
                     if (GPUSupport.isSupported(true) == false) {
@@ -52,7 +50,7 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
     }
 
     private boolean vectorIndexTypeSupported(DenseVectorFieldMapper.VectorIndexType type) {
-        return type == DenseVectorFieldMapper.VectorIndexType.HNSW;
+        return type == DenseVectorFieldMapper.VectorIndexType.HNSW || type == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW;
     }
 
     private static KnnVectorsFormat getVectorsFormat(DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions) {
@@ -60,9 +58,22 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
             DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
             int efConstruction = hnswIndexOptions.efConstruction();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
-                efConstruction = GPUVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
+                efConstruction = ESGpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
             }
-            return new GPUVectorsFormat(hnswIndexOptions.m(), efConstruction);
+            return new ESGpuHnswVectorsFormat(hnswIndexOptions.m(), efConstruction);
+        } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
+            DenseVectorFieldMapper.Int8HnswIndexOptions int8HnswIndexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) indexOptions;
+            int efConstruction = int8HnswIndexOptions.efConstruction();
+            if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
+                efConstruction = ESGpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
+            }
+            return new ESGpuHnswSQVectorsFormat(
+                int8HnswIndexOptions.m(),
+                efConstruction,
+                int8HnswIndexOptions.confidenceInterval(),
+                7,
+                false
+            );
         } else {
             throw new IllegalArgumentException(
                 "GPU vector indexing is not supported on this vector type: [" + indexOptions.getType() + "]"

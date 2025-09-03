@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import static java.util.stream.IntStream.range;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.everyItem;
@@ -284,17 +285,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final String dataNodeToDelay = randomFrom(dataNodes);
         final ThreadPool threadPoolToDelay = internalCluster().getInstance(ThreadPool.class, dataNodeToDelay);
 
-        // Fill the write thread pool
+        // Fill the write thread pool and block a task for some time
         final int writeThreadPoolSize = threadPoolToDelay.info(ThreadPool.Names.WRITE).getMax();
         final var latch = new CountDownLatch(1);
         final var writeThreadPool = threadPoolToDelay.executor(ThreadPool.Names.WRITE);
-        for (int i = 0; i < writeThreadPoolSize; i++) {
-            writeThreadPool.execute(() -> safeAwait(latch));
-        }
-        // Submit a task that will be delayed
-        writeThreadPool.execute(() -> {
-            // Doesn't need to do anything
-        });
+        range(0, writeThreadPoolSize + 1).forEach(i -> writeThreadPool.execute(() -> safeAwait(latch)));
         final long delayMillis = randomIntBetween(100, 200);
         safeSleep(delayMillis);
         // Unblock the pool

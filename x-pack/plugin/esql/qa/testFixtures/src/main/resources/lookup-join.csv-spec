@@ -1875,7 +1875,6 @@ type:keyword | language_code:integer | language_name:keyword
 Production   | 3                     | Spanish
 ;
 
-
 ###############################################
 # LOOKUP JOIN on mixed numerical fields
 ###############################################
@@ -4871,6 +4870,143 @@ Connected to 10.1.0.1 | English                      | English               | U
 Connected to 10.1.0.1 | English                      | English               | null
 Connected to 10.1.0.1 | English                      | null                  | United Kingdom
 ;
+
+enrichAfterLookupJoin
+required_capability: join_lookup_v12
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+;
+
+###############################################
+# LOOKUP JOIN and remote ENRICH
+###############################################
+
+remoteEnrichAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH _remote:languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+;
+
+remoteEnrichSortAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH _remote:languages_policy ON language_code
+| SORT message ASC
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+Connected to 10.1.0.2 | 1                     | Success      | English
+;
+
+sortRemoteEnrichAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| SORT message ASC
+| ENRICH _remote:languages_policy ON language_code
+| LIMIT 2
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+Connected to 10.1.0.2 | 1                     | Success      | English
+;
+
+remoteEnrichSortAfterLookupJoinWithLimit
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connection error"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| LIMIT 2
+| ENRICH _remote:languages_policy ON language_code
+| SORT message ASC
+;
+
+message:keyword  | language_code:keyword | type:keyword | language_name:keyword
+Connection error | 1                     | Error        | English
+Connection error | 1                     | Error        | English
+;
+
+remoteEnrichBetweenLookupJoins
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message, client_ip
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| EVAL language_code = "1", client_ip=to_string(client_ip)
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH _remote:languages_policy ON language_code
+| LOOKUP JOIN clientips_lookup ON client_ip
+| DROP language_code
+| SORT message ASC
+;
+
+message:keyword       | client_ip:keyword | type:keyword | language_name:keyword | env:keyword
+Connected to 10.1.0.1 | 172.21.3.15       | Success      | English               | Production
+Connected to 10.1.0.2 | 172.21.2.113      | Success      | English               | QA
+;
+
+remoteEnrichesAndLookupJoins
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| EVAL language_code = "1", client_ip=to_string(client_ip)
+| ENRICH _remote:languages_policy ON language_code
+| LOOKUP JOIN clientips_lookup ON client_ip
+| EVAL env1 = env
+| ENRICH _remote:clientip_policy ON client_ip
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP message, client_ip, env, env1, type, language_name
+| SORT message ASC
+| LIMIT 10
+;
+
+message:keyword       | client_ip:keyword | env:keyword | env1: keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 172.21.3.15       | Production  | Production    |  Success     | English
+Connected to 10.1.0.2 | 172.21.2.113      | QA          | QA            |  Success     | English
+;
+
+###############################################
+# Multi-field LOOKUP JOIN
+###############################################
 
 lookupJoinOnTwoFields
 required_capability: join_lookup_v12

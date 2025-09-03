@@ -260,10 +260,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 
-    protected record FieldsInfo(Map<String, Float> nonInferenceFields, Map<String, Float> inferenceFields) {
-        protected FieldsInfo(Map<String, Float> nonInferenceFields, Map<String, Float> inferenceFields) {
-            this.nonInferenceFields = Collections.unmodifiableMap(nonInferenceFields);
+    protected record FieldsInfo(Map<String, Float> inferenceFields, Map<String, Float> nonInferenceFields) {
+        protected FieldsInfo(Map<String, Float> inferenceFields, Map<String, Float> nonInferenceFields) {
             this.inferenceFields = Collections.unmodifiableMap(inferenceFields);
+            this.nonInferenceFields = Collections.unmodifiableMap(nonInferenceFields);
         }
     }
 }

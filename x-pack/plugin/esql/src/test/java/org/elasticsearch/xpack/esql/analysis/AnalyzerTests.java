@@ -2352,6 +2352,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
+        checkDenseVectorCastingHexKnn("float_vector");
+        checkDenseVectorCastingHexKnn("byte_vector");
         checkDenseVectorCastingKnn("float_vector");
         checkDenseVectorCastingKnn("byte_vector");
         checkDenseVectorEvalCastingKnn("float_vector");
@@ -2361,6 +2363,19 @@ public class AnalyzerTests extends ESTestCase {
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2], 10)
+            """, fieldName), "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var queryVector = as(knn.query(), Literal.class);
+        assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
+        assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
+    }
+
+    private static void checkDenseVectorCastingHexKnn(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | where knn(%s, "000102", 10)
             """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);

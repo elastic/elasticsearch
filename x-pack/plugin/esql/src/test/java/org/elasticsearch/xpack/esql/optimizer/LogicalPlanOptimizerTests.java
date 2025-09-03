@@ -8625,6 +8625,18 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(leftAnd.right(), equalTo(rightAndPrefilter));
     }
 
+
+    public void testTest() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, 1127, 10)
+            """;
+        var optimized = planTypes(query);
+        var limit = as(optimized, Limit.class);
+    }
+
     public void testMultipleKnnQueriesInPrefilters() {
         assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 

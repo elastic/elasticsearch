@@ -327,3 +327,28 @@ navy       | [0.0, 0.0, 128.0]
 gray       | [128.0, 128.0, 128.0]
 chartreuse | [127.0, 255.0, 0.0]
 ;
+
+knnWithHexStringCasting
+required_capability: knn_function_v3
+required_capability: to_dense_vector_function
+
+from colors metadata _score
+| eval query = [0, 120, 0]
+| where knn(rgb_vector, "007800", 10) 
+| sort _score desc, color asc
+| keep color, rgb_vector
+| limit 10
+;
+
+color:text | rgb_vector:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
+lime       | [0.0, 255.0, 0.0]
+sienna     | [160.0, 82.0, 45.0]
+maroon     | [128.0, 0.0, 0.0]
+navy       | [0.0, 0.0, 128.0]
+gray       | [128.0, 128.0, 128.0]
+chartreuse | [127.0, 255.0, 0.0]
+;

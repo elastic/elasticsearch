@@ -88,3 +88,16 @@ row doubles = [123.4, 567.8, 901.2]
 vector:dense_vector
 [123.4, 567.8, 901.2]
 ;
+
+convertHexStringToDenseVector
+required_capability: dense_vector_field_type
+required_capability: to_dense_vector_function
+
+row hex_str = "0102030405060708090a0b0c0d0e0f"
+| eval vector = to_dense_vector(hex_str)
+| keep vector
+;
+
+vector:dense_vector
+ [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
+;

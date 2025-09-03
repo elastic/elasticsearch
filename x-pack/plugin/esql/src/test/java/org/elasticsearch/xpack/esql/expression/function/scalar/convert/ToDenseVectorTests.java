@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,10 +20,12 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
 
@@ -95,6 +98,33 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
                         evaluatorName("Double", "d"),
                         DataType.DENSE_VECTOR,
                         equalTo(data.stream().map(Number::floatValue).toList())
+                    );
+                }
+            )
+        );
+
+        suppliers.add(
+            new TestCaseSupplier(
+                "keyword",
+                List.of(DataType.KEYWORD),
+                () -> {
+                    byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 20));
+                    String data = HexFormat.of().formatHex(bytes);
+                    List<Float> expected = new ArrayList<>(bytes.length);
+                    for (int i = 0; i < bytes.length; i++) {
+                        expected.add((float) bytes[i]);
+                    }
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(
+                                new BytesRef(data),
+                                DataType.KEYWORD,
+                                "keyword"
+                            )
+                        ),
+                        evaluatorName("String", "s"),
+                        DataType.DENSE_VECTOR,
+                        is(expected)
                     );
                 }
             )

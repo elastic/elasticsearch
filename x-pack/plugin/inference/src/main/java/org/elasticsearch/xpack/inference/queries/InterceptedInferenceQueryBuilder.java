@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -139,7 +140,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 useDefaultFields()
             );
 
-            // TODO: Check for supported CCS mode here
+            // TODO: Check for supported CCS mode here (once we support CCS)
 
             // NOTE: This logic only works when ccs_minimize_roundtrips=true. It assumes that the remote cluster will perform a new
             // coordinator node rewrite, which will re-intercept the query and determine if a semantic text field is being queried.
@@ -149,6 +150,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             if (inferenceIds.isEmpty()) {
                 // Not querying a semantic text field
                 return originalQuery;
+            }
+
+            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    originalQuery.getName()
+                        + " query does not support cross-cluster search when querying a ["
+                        + SemanticTextFieldMapper.CONTENT_TYPE
+                        + "] field"
+                );
             }
 
             String inferenceIdOverride = getInferenceIdOverride();

@@ -1962,7 +1962,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             for (Attribute attr : output) {
                 // Do not let the synthetic union type field attributes end up in the final output.
-                if (attr.synthetic()) {
+                if (attr.synthetic() && attr.name().equals(Analyzer.NO_FIELDS_NAME) == false) {
                     continue;
                 }
                 newOutput.add(attr);

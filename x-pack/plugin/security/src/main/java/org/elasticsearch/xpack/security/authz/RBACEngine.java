@@ -14,11 +14,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.AliasesRequest;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
@@ -460,7 +456,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static void maybeAddExceptions(TransportRequest request) {
         if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.getReplacedIndexExpressions() != null) {
-            var replacedExpressionMap = replaceable.getReplacedIndexExpressions().asMap();
+            var replacedExpressionMap = replaceable.getReplacedIndexExpressions().replacedExpressionMap();
             if (replacedExpressionMap == null) {
                 return;
             }

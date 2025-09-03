@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.AuthorizedProjectsSupplier;
-import org.elasticsearch.action.CrossProjectReplacedIndexExpressions;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ReplacedIndexExpression;
+import org.elasticsearch.action.ReplacedIndexExpressions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -30,13 +30,14 @@ public class CrossProjectResolverUtils {
 
     private static final Logger logger = LogManager.getLogger(CrossProjectResolverUtils.class);
 
-    public static CrossProjectReplacedIndexExpressions maybeRewriteCrossProjectResolvableRequest(
+    @Nullable
+    public static ReplacedIndexExpressions maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
         AuthorizedProjectsSupplier.AuthorizedProjects targetProjects,
-        IndicesRequest.CrossProjectSearchCapable request
+        String[] indices
     ) {
         if (targetProjects == AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
-            logger.info("Cross-project search is disabled or not applicable, skipping request [{}]...", request);
+            logger.info("Cross-project search is disabled or not applicable, skipping request...");
             return null;
         }
 
@@ -50,7 +51,6 @@ public class CrossProjectResolverUtils {
         }
 
         List<String> projects = targetProjects.linkedProjects();
-        String[] indices = request.indices();
         logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
 
         Map<String, ReplacedIndexExpression> replacedExpressions = new LinkedHashMap<>(indices.length);
@@ -71,7 +71,7 @@ public class CrossProjectResolverUtils {
             }
         }
 
-        return new CrossProjectReplacedIndexExpressions(replacedExpressions);
+        return new ReplacedIndexExpressions(replacedExpressions);
     }
 
     private static List<String> rewriteUnqualified(String indexExpression, List<String> projects) {

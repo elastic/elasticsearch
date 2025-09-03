@@ -68,7 +68,7 @@ public class CrossProjectSearchActionAdapter {
             return;
         }
 
-        Map<String, ReplacedIndexExpression> replacedExpressions = request.getReplacedIndexExpressions().asMap();
+        Map<String, ReplacedIndexExpression> replacedExpressions = request.getReplacedIndexExpressions().replacedExpressionMap();
         assert replacedExpressions != null;
         logger.info("Replaced expressions to check: [{}]", replacedExpressions);
         for (ReplacedIndexExpression replacedIndexExpression : replacedExpressions.values()) {
@@ -86,7 +86,7 @@ public class CrossProjectSearchActionAdapter {
 
             for (var remoteResponse : remoteResults.values()) {
                 logger.info("Remote response resolved: [{}]", remoteResponse);
-                Map<String, ReplacedIndexExpression> resolved = remoteResponse.getReplacedIndexExpressions().asMap();
+                Map<String, ReplacedIndexExpression> resolved = remoteResponse.getReplacedIndexExpressions().replacedExpressionMap();
                 assert resolved != null;
                 var r = resolved.get(original);
                 if (r != null && r.existsAndVisible() && resolved.get(original).replacedBy().isEmpty() == false) {

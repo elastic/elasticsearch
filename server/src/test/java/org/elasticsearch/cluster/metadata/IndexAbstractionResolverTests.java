@@ -371,7 +371,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             (ignored) -> mask,
             (ignored1, nothing) -> true,
             true
-        ).indicesAsList();
+        ).getLocalIndices();
     }
 
     private boolean isIndexVisible(String index, String selector) {

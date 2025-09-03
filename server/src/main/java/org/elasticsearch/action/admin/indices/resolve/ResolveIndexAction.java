@@ -673,7 +673,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         indices,
                         aliases,
                         dataStreams,
-                        request.includeResolvedInResponse ? request.getReplacedIndexExpressions().asMap() : null
+                        request.includeResolvedInResponse ? request.getReplacedIndexExpressions().replacedExpressionMap() : null
                     )
                 );
             }

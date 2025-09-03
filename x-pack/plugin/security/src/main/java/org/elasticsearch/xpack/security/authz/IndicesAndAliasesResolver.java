@@ -375,22 +375,22 @@ public class IndicesAndAliasesResolver {
                     var crossProjectReplacedIndexExpressions = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
                         remoteClusterResolver,
                         targetProjects,
-                        crossProjectSearchCapableRequest
+                        crossProjectSearchCapableRequest.indices()
                     );
                     if (crossProjectReplacedIndexExpressions != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
                         ReplacedIndexExpressions replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsForCrossProjectSearch(
-                                crossProjectReplacedIndexExpressions.getLocalExpressions(),
+                                crossProjectReplacedIndexExpressions.getLocalIndices(),
                                 indicesOptions,
                                 projectMetadata,
                                 authorizedIndices::all,
                                 authorizedIndices::check,
                                 indicesRequest.includeDataStreams()
                             );
-                        crossProjectReplacedIndexExpressions.replaceLocalExpressions(replacedExpressions);
+                        crossProjectReplacedIndexExpressions.replaceLocalIndices(replacedExpressions);
                         crossProjectSearchCapableRequest.setReplacedIndexExpressions(crossProjectReplacedIndexExpressions);
-                        crossProjectSearchCapableRequest.indices(crossProjectReplacedIndexExpressions.indices());
+                        crossProjectSearchCapableRequest.indices(crossProjectReplacedIndexExpressions.getAllIndicesArray());
                         // TODO handle empty case by calling
                         // replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                         return remoteClusterResolver.splitLocalAndRemoteIndexNames(crossProjectSearchCapableRequest.indices());
@@ -426,7 +426,7 @@ public class IndicesAndAliasesResolver {
                     indicesRequest.includeDataStreams()
                 );
                 replaceable.setReplacedIndexExpressions(resolved);
-                resolvedIndicesBuilder.addLocal(resolved.indicesAsList());
+                resolvedIndicesBuilder.addLocal(resolved.getLocalIndices());
                 resolvedIndicesBuilder.addRemote(split.getRemote());
             }
 

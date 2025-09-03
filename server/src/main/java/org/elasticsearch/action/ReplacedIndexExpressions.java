@@ -13,17 +13,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+// Back to the idea that this can be an interface, with a ResolvedLocalIndices and CrossProjectRewrittenIndices implementation?
 public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap) {
-    public String[] indices() {
+    public String[] getAllIndicesArray() {
         return ReplacedIndexExpression.toIndices(replacedExpressionMap);
-    }
-
-    public List<String> indicesAsList() {
-        return List.of(indices());
-    }
-
-    public Map<String, ReplacedIndexExpression> asMap() {
-        return replacedExpressionMap;
     }
 
     public List<String> getLocalIndices() {
@@ -31,11 +24,11 @@ public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> repl
     }
 
     public void replaceLocalIndices(ReplacedIndexExpressions localResolved) {
-        if (localResolved == null || localResolved.asMap() == null || localResolved.asMap().isEmpty()) {
+        if (localResolved == null || localResolved.replacedExpressionMap() == null || localResolved.replacedExpressionMap().isEmpty()) {
             return;
         }
 
-        for (Map.Entry<String, ReplacedIndexExpression> e : localResolved.asMap().entrySet()) {
+        for (Map.Entry<String, ReplacedIndexExpression> e : localResolved.replacedExpressionMap().entrySet()) {
             final String original = e.getKey();
             final ReplacedIndexExpression local = e.getValue();
             if (local == null) {
@@ -44,6 +37,7 @@ public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> repl
 
             final ReplacedIndexExpression current = replacedExpressionMap.get(original);
             if (current == null) {
+                // TODO this is an error, probably
                 continue;
             }
 

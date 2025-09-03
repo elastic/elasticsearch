@@ -177,7 +177,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     (innerState, strategy) -> innerState,
                     TelemetryProvider.NOOP,
                     EMPTY_NODE_ALLOCATION_STATS,
-                    DUMMY_EXPLAINER
+                    TEST_ONLY_EXPLAINER
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {

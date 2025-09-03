@@ -1292,7 +1292,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
-        }, DUMMY_EXPLAINER);
+        }, TEST_ONLY_EXPLAINER);
 
         assertLoggerExpectationsFor(() -> {
             var iteration = new AtomicInteger(0);
@@ -1325,7 +1325,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             clusterSettings,
             TimeProviderUtils.create(timeInMillis::incrementAndGet),
             new BalancedShardsAllocator(Settings.EMPTY),
-            DUMMY_EXPLAINER
+            TEST_ONLY_EXPLAINER
         ) {
             @Override
             boolean hasEnoughIterations(int currentIteration) {
@@ -1665,7 +1665,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), TimeProviderUtils.create(() -> 0L), allocator, DUMMY_EXPLAINER);
+        return new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            TimeProviderUtils.create(() -> 0L),
+            allocator,
+            TEST_ONLY_EXPLAINER
+        );
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

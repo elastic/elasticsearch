@@ -99,7 +99,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public void refreshLicense() {}
     };
 
-    public static final DesiredBalanceShardsAllocator.ShardAllocationExplainer DUMMY_EXPLAINER = (
+    public static final DesiredBalanceShardsAllocator.ShardAllocationExplainer TEST_ONLY_EXPLAINER = (
         shard,
         allocation) -> ShardAllocationDecision.NOT_TAKEN;
 
@@ -182,7 +182,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             null,
             TelemetryProvider.NOOP,
             EMPTY_NODE_ALLOCATION_STATS,
-            DUMMY_EXPLAINER
+            TEST_ONLY_EXPLAINER
         ) {
             private RoutingAllocation lastAllocation;
 

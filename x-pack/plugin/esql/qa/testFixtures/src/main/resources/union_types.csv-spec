@@ -1740,6 +1740,7 @@ id:integer | name:keyword | count:long
 
 shortIntegerWideningFork
 required_capability: union_types
+required_capability: fork_union_types
 required_capability: casting_operator
 required_capability: union_types_numeric_widening
 required_capability: fork_v9

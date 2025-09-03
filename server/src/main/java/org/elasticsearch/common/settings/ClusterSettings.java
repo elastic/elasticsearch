@@ -126,6 +126,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RestoreService;
@@ -547,6 +548,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,
         ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING,
         FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
+        FetchSourceContext.DEFAULT_SOURCE_EXCLUDE_VECTORS,
         Node.BREAKER_TYPE_KEY,
         OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
         IndexGraveyard.SETTING_MAX_TOMBSTONES,

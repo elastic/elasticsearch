@@ -886,12 +886,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class BytesRefsFromBinary extends BlockDocValuesReader {
-        private final BinaryDocValues docValues;
-        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
-        private final BytesRef scratch = new BytesRef();
+    abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
+        protected final BinaryDocValues docValues;
 
-        BytesRefsFromBinary(BinaryDocValues docValues) {
+        AbstractBytesRefsFromBinary(BinaryDocValues docValues) {
             this.docValues = docValues;
         }
 
@@ -911,7 +909,24 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             read(docId, (BytesRefBuilder) builder);
         }
 
-        private void read(int doc, BytesRefBuilder builder) throws IOException {
+        @Override
+        public int docId() {
+            return docValues.docID();
+        }
+
+        abstract void read(int docId, BytesRefBuilder builder) throws IOException;
+    }
+
+    static class BytesRefsFromBinary extends AbstractBytesRefsFromBinary {
+        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        private final BytesRef scratch = new BytesRef();
+
+        BytesRefsFromBinary(BinaryDocValues docValues) {
+            super(docValues);
+        }
+
+        @Override
+        void read(int doc, BytesRefBuilder builder) throws IOException {
             if (false == docValues.advanceExact(doc)) {
                 builder.appendNull();
                 return;
@@ -937,15 +952,30 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             }
             builder.endPositionEntry();
         }
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.Bytes";
+        }
+    }
+
+    public static class BytesRefsFromSimpleBinary extends AbstractBytesRefsFromBinary {
+        public BytesRefsFromSimpleBinary(BinaryDocValues docValues) {
+            super(docValues);
+        }
 
         @Override
-        public int docId() {
-            return docValues.docID();
+        void read(int doc, BytesRefBuilder builder) throws IOException {
+            if (false == docValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            BytesRef bytes = docValues.binaryValue();
+            builder.appendBytesRef(bytes);
         }
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.Bytes";
+            return "BlockDocValuesReader.BytesSimple";
         }
     }
 

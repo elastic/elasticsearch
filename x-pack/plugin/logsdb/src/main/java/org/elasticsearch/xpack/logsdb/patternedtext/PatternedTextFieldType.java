@@ -252,7 +252,7 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
+        return new PatternedTextBlockLoader(templateFieldName(), argsFieldName(), argsInfoFieldName());
     }
 
     @Override

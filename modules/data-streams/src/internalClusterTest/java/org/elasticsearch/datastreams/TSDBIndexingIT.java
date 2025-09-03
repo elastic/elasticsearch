@@ -69,7 +69,9 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -620,6 +622,10 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             getIndexResponse.getSetting(index2, IndexMetadata.INDEX_ROUTING_PATH.getKey()),
             equalTo(getIndexResponse.getSetting(index1, IndexMetadata.INDEX_ROUTING_PATH.getKey()))
         );
+        assertThat(
+            getIndexResponse.getSetting(index2, IndexMetadata.INDEX_DIMENSIONS.getKey()),
+            equalTo(getIndexResponse.getSetting(index1, IndexMetadata.INDEX_DIMENSIONS.getKey()))
+        );
     }
 
     public void testAddDimensionToMapping() throws Exception {
@@ -648,7 +654,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
 
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of()));
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
 
         // put mapping with k8s.pod.uid as another time series dimension
         var putMappingRequest = new PutMappingRequest(dataStreamName).source("""
@@ -663,7 +670,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             """, XContentType.JSON);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
 
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of()));
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
 
         indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");
     }
@@ -711,7 +719,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
 
-        // doesn't populate the time_series_dimensions custom metadata because the "labels" dynamic template doesn't have a path_math
+        // doesn't populate index.dimensions custom metadata because the "labels" dynamic template doesn't have a path_math
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
         assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
 
         // index doc
@@ -725,6 +734,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             .get();
         assertThat(bulkResponse.hasFailures(), is(false));
 
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
         assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
     }
 
@@ -771,12 +781,14 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
 
-        // doesn't populate the time_series_dimensions custom metadata because the "label" dynamic template doesn't have a path_math
+        // doesn't populate index.dimensions because the "label" dynamic template doesn't have a path_math
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
         assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
 
         // index doc
         indexWithPodNames(dataStreamName, Instant.now(), Map.of("k8s.pod.name", "label"), "dog", "cat");
 
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
         assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
     }
 

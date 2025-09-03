@@ -41,6 +41,15 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
     The number of nearest neighbor candidates to consider per shard. Needs to be greater than `k`, or `size` if `k` is omitted, and cannot exceed 10,000. {{es}} collects `num_candidates` results from each shard, then merges them to find the top `k` results. Increasing `num_candidates` tends to improve the accuracy of the final `k` results. Defaults to `Math.min(1.5 * k, 10_000)`.
 
 
+```{applies_to}
+stack: ga 9.2
+```
+`visit_percentage`
+:   (Optional, float)
+
+    The percentage of vectors to explore per shard while doing knn search with `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  If `visit_percentage` is set for `bbq_disk`, `num_candidates` is ignored. Defaults to ~1% per shard for every 1 million vectors.
+
+
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 

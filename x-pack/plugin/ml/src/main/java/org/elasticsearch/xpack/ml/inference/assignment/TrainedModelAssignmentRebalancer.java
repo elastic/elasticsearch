@@ -303,9 +303,7 @@ class TrainedModelAssignmentRebalancer {
                         nodes.add(
                             new AssignmentPlan.Node(
                                 discoveryNode.getId(),
-                                // We subtract native inference memory as the planner expects available memory for
-                                // native inference including current assignments.
-                                getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
+                                load.getFreeMemoryExcludingPerNodeOverhead(),
                                 MlProcessors.get(discoveryNode, allocatedProcessorsScale).roundUp()
                             )
                         );
@@ -320,10 +318,6 @@ class TrainedModelAssignmentRebalancer {
             }
             return nodes;
         }));
-    }
-
-    private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
-        return load.getFreeMemoryExcludingPerNodeOverhead() - load.getAssignedNativeInferenceMemory();
     }
 
     private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {

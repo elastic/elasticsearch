@@ -208,11 +208,11 @@ public final class LuceneSliceQueue {
                 PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
                 partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
                 List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
+                var rewrittenQueryAndTag = new QueryAndTags(query, queryAndExtra.tags);
                 boolean queryHead = true;
                 for (List<PartialLeafReaderContext> group : groups) {
                     if (group.isEmpty() == false) {
                         final int slicePosition = nextSliceId++;
-                        var rewrittenQueryAndTag = new QueryAndTags(query, queryAndExtra.tags);
                         slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, scoreMode, rewrittenQueryAndTag));
                         queryHead = false;
                     }

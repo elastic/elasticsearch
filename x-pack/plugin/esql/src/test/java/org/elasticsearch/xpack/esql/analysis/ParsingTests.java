@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -23,6 +25,9 @@ import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlQuery;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -41,6 +46,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ParsingTests extends ESTestCase {
     private static final String INDEX_NAME = "test";
@@ -205,14 +213,143 @@ public class ParsingTests extends ESTestCase {
         );
     }
 
-    private String error(String query, QueryParams params) {
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            () -> defaultAnalyzer.analyze(parser.createStatement(query, params, TEST_CFG))
+    public void testSet() {
+        EsqlQuery query = parse("SET foo = \"bar\"; row a = 1", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(1));
+        assertThat(query.settings().get(0).fields().size(), is(1));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(0).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("bar")));
+
+        query = parse("SET foo = \"bar\", bar = 2; row a = 1 | eval x = 12", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Eval.class)));
+        assertThat(query.settings().size(), is(1));
+        assertThat(query.settings().get(0).fields().size(), is(2));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(0).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("bar")));
+        assertThat(query.settings().get(0).fields().get(1).name(), is("bar"));
+        assertThat(query.settings().get(0).fields().get(1).child().fold(FoldContext.small()), is(2));
+    }
+
+    public void testSetWithTripleQuotes() {
+        EsqlQuery query = parse("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(1));
+        assertThat(query.settings().get(0).fields().size(), is(1));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(0).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("bar\"baz")));
+
+        query = parse("SET foo = \"\"\"bar\"\"\"\"; row a = 1", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(1));
+        assertThat(query.settings().get(0).fields().size(), is(1));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(0).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("bar\"")));
+
+        query = parse("SET foo = \"\"\"\"bar\"\"\"; row a = 1 | LIMIT 3", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Limit.class)));
+        assertThat(query.settings().size(), is(1));
+        assertThat(query.settings().get(0).fields().size(), is(1));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(0).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("\"bar")));
+    }
+
+    public void testSetArrays() {
+        EsqlQuery query = parse("SET foo = [\"bar\", \"baz\"], bar = [1, 2, 3]; row a = 1", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(1));
+        assertThat(query.settings().get(0).fields().size(), is(2));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(
+            query.settings().get(0).fields().get(0).child().fold(FoldContext.small()),
+            is(List.of(BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz")))
         );
+        assertThat(query.settings().get(0).fields().get(1).name(), is("bar"));
+        assertThat(query.settings().get(0).fields().get(1).child().fold(FoldContext.small()), is(List.of(1, 2, 3)));
+    }
+
+    public void testMultipleSet() {
+        EsqlQuery query = parse(
+            "SET foo = \"bar\", bar = 2; SET foo = \"baz\", x = 3.5, y = false, z = null; row a = 1",
+            new QueryParams()
+        );
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(2));
+        assertThat(query.settings().get(0).fields().size(), is(2));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(0).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("bar")));
+        assertThat(query.settings().get(0).fields().get(1).name(), is("bar"));
+        assertThat(query.settings().get(0).fields().get(1).child().fold(FoldContext.small()), is(2));
+        assertThat(query.settings().get(1).fields().size(), is(4));
+        assertThat(query.settings().get(1).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(1).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("baz")));
+        assertThat(query.settings().get(1).fields().get(1).name(), is("x"));
+        assertThat(query.settings().get(1).fields().get(1).child().fold(FoldContext.small()), is(3.5));
+        assertThat(query.settings().get(1).fields().get(2).name(), is("y"));
+        assertThat(query.settings().get(1).fields().get(2).child().fold(FoldContext.small()), is(false));
+        assertThat(query.settings().get(1).fields().get(3).name(), is("z"));
+        assertThat(query.settings().get(1).fields().get(3).child().fold(FoldContext.small()), is(nullValue()));
+    }
+
+    public void testSetWithNamedParams() {
+        EsqlQuery query = parse(
+            "SET foo = \"bar\", bar = ?a; SET foo = \"baz\", x = ?x; row a = 1",
+            new QueryParams(
+                List.of(
+                    new QueryParam("a", 2, DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("x", 3.5, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE)
+                )
+            )
+        );
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(2));
+        assertThat(query.settings().get(0).fields().size(), is(2));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(0).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("bar")));
+        assertThat(query.settings().get(0).fields().get(1).name(), is("bar"));
+        assertThat(query.settings().get(0).fields().get(1).child().fold(FoldContext.small()), is(2));
+        assertThat(query.settings().get(1).fields().size(), is(2));
+        assertThat(query.settings().get(1).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(1).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("baz")));
+        assertThat(query.settings().get(1).fields().get(1).name(), is("x"));
+        assertThat(query.settings().get(1).fields().get(1).child().fold(FoldContext.small()), is(3.5));
+    }
+
+    public void testSetWithPositionalParams() {
+        EsqlQuery query = parse(
+            "SET foo = \"bar\", bar = ?; SET foo = \"baz\", x = ?; row a = ?",
+            new QueryParams(
+                List.of(
+                    new QueryParam("a", 2, DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("x", 3.5, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("y", 8, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE)
+                )
+            )
+        );
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(((Row) query.plan()).fields().get(0).child().fold(FoldContext.small()), is(8));
+        assertThat(query.settings().size(), is(2));
+        assertThat(query.settings().get(0).fields().size(), is(2));
+        assertThat(query.settings().get(0).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(0).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("bar")));
+        assertThat(query.settings().get(0).fields().get(1).name(), is("bar"));
+        assertThat(query.settings().get(0).fields().get(1).child().fold(FoldContext.small()), is(2));
+        assertThat(query.settings().get(1).fields().size(), is(2));
+        assertThat(query.settings().get(1).fields().get(0).name(), is("foo"));
+        assertThat(query.settings().get(1).fields().get(0).child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("baz")));
+        assertThat(query.settings().get(1).fields().get(1).name(), is("x"));
+        assertThat(query.settings().get(1).fields().get(1).child().fold(FoldContext.small()), is(3.5));
+    }
+
+    private String error(String query, QueryParams params) {
+        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parse(query, params).plan()));
         String message = e.getMessage();
         assertTrue(message.startsWith("line "));
         return message.substring("line ".length());
+    }
+
+    private EsqlQuery parse(String query, QueryParams params) {
+        return parser.createQuery(query, params, TEST_CFG);
     }
 
     private String error(String query) {

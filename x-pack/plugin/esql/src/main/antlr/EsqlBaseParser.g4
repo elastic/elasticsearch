@@ -24,7 +24,8 @@ import Expression,
        Join;
 
 statements
-    : {this.isDevVersion()}? setCommand* singleStatement EOF
+    : {this.isDevVersion()}? setCommand+ singleStatement EOF
+    | singleStatement EOF
     ;
 
 singleStatement

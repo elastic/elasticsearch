@@ -116,6 +116,11 @@ public class EsqlParser {
         return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan, configuration);
     }
 
+    // testing utility
+    public EsqlQuery createQuery(String query, QueryParams params, Configuration configuration) {
+        return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), configuration);
+    }
+
     public EsqlQuery createQuery(String query, QueryParams params, PlanTelemetry metrics, Configuration configuration) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);

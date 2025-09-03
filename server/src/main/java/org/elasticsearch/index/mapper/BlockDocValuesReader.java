@@ -952,6 +952,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             }
             builder.endPositionEntry();
         }
+
         @Override
         public String toString() {
             return "BlockDocValuesReader.Bytes";

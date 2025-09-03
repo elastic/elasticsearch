@@ -21,7 +21,10 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
@@ -50,27 +53,26 @@ class ValuesFromManyReader extends ValuesReader {
         }
     }
 
+    private record BlockBuilderAndLoader(Block.Builder builder, BlockLoader loader) implements Releasable {
+        @Override
+        public void close() {
+            builder.close();
+        }
+    }
+
     class Run implements Releasable {
         private final Block[] target;
-        // we use a Map of builders because our index wouldn't start at 0 most of the time, nor would it necessarily be continuous.
-        // This can be called by two kinds of drivers, the data node driver which operates on a batch of, say, 10 shards at once, e.g.,
-        // 0..10, 10..20, etc., and the node-reduce driver which operates on all shards we're targeting on the node—potentially
-        // thousands—but luckily we only need to populate the builder and loader for the documents that we receive, which will never be more
-        // than a Page worth.
-        private final LinkedHashMap<Integer, Block.Builder>[] builders;
-        private final LinkedHashMap<Integer, BlockLoader>[] converters;
+        /* we use a Map of builders because our index wouldn't start at 0 most of the time, nor would it necessarily be continuous.
+        This can be called by two kinds of drivers, the data node driver which operates on a batch of, say, 10 shards at once, e.g., 0..10,
+        10..20, etc., and the node-reduce driver which operates on all shards we're targeting on the node—potentially thousands—but luckily
+        we only need to populate the builder and loader for the documents that we receive, which will never be more than a Page worth. */
+        private final List<Map<Integer, BlockBuilderAndLoader>> buildersAndLoaders;
         private final Block.Builder[] fieldTypeBuilders;
 
         Run(Block[] target) {
             this.target = target;
-            builders = newLinkedHashMapArray();
-            converters = newLinkedHashMapArray();
+            buildersAndLoaders = new ArrayList<>(target.length);
             fieldTypeBuilders = new Block.Builder[target.length];
-        }
-
-        @SuppressWarnings("unchecked")
-        private <T> LinkedHashMap<Integer, T>[] newLinkedHashMapArray() {
-            return (LinkedHashMap<Integer, T>[]) java.lang.reflect.Array.newInstance(LinkedHashMap.class, target.length);
         }
 
         void run(int offset) throws IOException {
@@ -83,8 +85,7 @@ class ValuesFromManyReader extends ValuesReader {
                  * loading in a way that is correct for the mapped field type, and then convert between that type and the desired type.
                  */
                 fieldTypeBuilders[f] = operator.fields[f].info.type().newBlockBuilder(docs.getPositionCount(), operator.blockFactory);
-                builders[f] = new LinkedHashMap<>();
-                converters[f] = new LinkedHashMap<>();
+                buildersAndLoaders.add(new HashMap<>());
             }
             try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory)) {
                 int p = forwards[offset];
@@ -128,9 +129,10 @@ class ValuesFromManyReader extends ValuesReader {
 
         private void buildBlocks() {
             for (int f = 0; f < target.length; f++) {
-                for (var entry : builders[f].entrySet()) {
-                    var builder = entry.getValue();
-                    try (Block orig = (Block) converters[f].get(entry.getKey()).convert(builder.build())) {
+                for (var entry : buildersAndLoaders.get(f).entrySet()) {
+                    var builder = entry.getValue().builder;
+                    var loader = entry.getValue().loader;
+                    try (Block orig = (Block) loader.convert(builder.build())) {
                         fieldTypeBuilders[f].copyFrom(orig, 0, orig.getPositionCount());
                     }
                 }
@@ -146,18 +148,24 @@ class ValuesFromManyReader extends ValuesReader {
 
         private void verifyBuilders(ComputeBlockLoaderFactory loaderBlockFactory, int shard) {
             for (int f = 0; f < operator.fields.length; f++) {
-                if (builders[f].get(shard) == null) {
+                if (buildersAndLoaders.get(f).get(shard) == null) {
                     // Note that this relies on field.newShard() to set the loader and converter correctly for the current shard
-                    builders[f].put(shard, (Block.Builder) operator.fields[f].loader.builder(loaderBlockFactory, docs.getPositionCount()));
-                    converters[f].put(shard, operator.fields[f].loader);
+                    buildersAndLoaders.get(f)
+                        .put(
+                            shard,
+                            new BlockBuilderAndLoader(
+                                (Block.Builder) operator.fields[f].loader.builder(loaderBlockFactory, docs.getPositionCount()),
+                                operator.fields[f].loader
+                            )
+                        );
                 }
             }
         }
 
         private void read(int doc, int shard) throws IOException {
             storedFields.advanceTo(doc);
-            for (int f = 0; f < builders.length; f++) {
-                rowStride[f].read(doc, storedFields, builders[f].get(shard));
+            for (int f = 0; f < buildersAndLoaders.size(); f++) {
+                rowStride[f].read(doc, storedFields, buildersAndLoaders.get(f).get(shard).builder);
             }
         }
 
@@ -165,18 +173,12 @@ class ValuesFromManyReader extends ValuesReader {
         public void close() {
             Releasables.closeExpectNoException(fieldTypeBuilders);
             for (int f = 0; f < operator.fields.length; f++) {
-                Releasables.closeExpectNoException(Releasables.wrap(builders[f].values()));
+                Releasables.closeExpectNoException(Releasables.wrap(buildersAndLoaders.get(f).values()));
             }
         }
 
         private long estimatedRamBytesUsed() {
-            long estimated = 0;
-            for (var builders : this.builders) {
-                for (var builder : builders.values()) {
-                    estimated += builder.estimatedBytes();
-                }
-            }
-            return estimated;
+            return this.buildersAndLoaders.stream().flatMap(e -> e.values().stream()).mapToLong(bl -> bl.builder.estimatedBytes()).sum();
         }
     }
 

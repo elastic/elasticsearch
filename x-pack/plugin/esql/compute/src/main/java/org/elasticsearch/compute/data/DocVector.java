@@ -34,6 +34,7 @@ public final class DocVector extends AbstractVector implements Vector {
     /**
      * The shard IDs for each position. Note that these shard IDs are shared between all doc vectors running in the same node, but a given
      * doc vector might only reference a subset of the shard IDs (Which is the subset is also the one exposed by {@link #refCounteds}).
+     * These shard IDs are sliced up by DataNodeComputeHandler, and depend on the MAX_CONCURRENT_SHARDS_PER_NODE setting.
      */
     private final IntVector shards;
     private final IntVector segments;

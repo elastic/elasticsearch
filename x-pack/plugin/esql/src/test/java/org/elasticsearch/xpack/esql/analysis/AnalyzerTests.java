@@ -2356,13 +2356,12 @@ public class AnalyzerTests extends ESTestCase {
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, [0.342, 0.164, 0.234], 10)
+            from test | where knn(%s, [0.342, 0.164, 0.234])
             """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        var field = knn.field();
         var queryVector = as(knn.query(), Literal.class);
         assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
         assertThat(queryVector.value(), equalTo(List.of(0.342f, 0.164f, 0.234f)));

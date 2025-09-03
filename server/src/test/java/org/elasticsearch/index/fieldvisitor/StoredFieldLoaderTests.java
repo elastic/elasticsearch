@@ -64,7 +64,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
     public void testSingleIgnoredSourceNewFormat() throws IOException {
         var fooValue = new IgnoredSourceFieldMapper.NameValue("foo", 0, new BytesRef("lorem ipsum"), null);
         var doc = new Document();
-        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.encodeMultipleValuesForField(List.of(fooValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(fooValue))));
         testIgnoredSourceLoader(
             doc,
             fieldsSpec(Set.of(), Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE),
@@ -88,8 +88,8 @@ public class StoredFieldLoaderTests extends ESTestCase {
         var fooValue = new IgnoredSourceFieldMapper.NameValue("foo", 0, new BytesRef("lorem ipsum"), null);
         var barValue = new IgnoredSourceFieldMapper.NameValue("bar", 0, new BytesRef("dolor sit amet"), null);
         Document doc = new Document();
-        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.encodeMultipleValuesForField(List.of(fooValue))));
-        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.encodeMultipleValuesForField(List.of(barValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(fooValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(barValue))));
         testIgnoredSourceLoader(
             doc,
             fieldsSpec(Set.of(), Set.of("foo", "bar"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE),

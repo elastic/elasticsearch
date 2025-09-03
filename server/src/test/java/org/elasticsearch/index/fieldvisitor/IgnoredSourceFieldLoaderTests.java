@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.encodeMultipleValuesForField;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /**
@@ -70,7 +69,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
         assertFalse(IgnoredSourceFieldLoader.supports(StoredFieldsSpec.NO_REQUIREMENTS));
     }
 
-    public IgnoredSourceFieldMapper.NameValue[] nameValue(String name, String... values) {
+    private IgnoredSourceFieldMapper.NameValue[] nameValue(String name, String... values) {
         var nameValues = new IgnoredSourceFieldMapper.NameValue[values.length];
         for (int i = 0; i < values.length; i++) {
             nameValues[i] = new IgnoredSourceFieldMapper.NameValue(name, 0, new BytesRef(values[i]), null);
@@ -81,7 +80,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
     public void testLoadSingle() throws IOException {
         var fooValue = nameValue("foo", "lorem ipsum");
         Document doc = new Document();
-        doc.add(new StoredField("_ignored_source", encodeMultipleValuesForField(List.of(fooValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(fooValue))));
         testLoader(doc, Set.of("foo"), ignoredSourceEntries -> {
             assertThat(ignoredSourceEntries, containsInAnyOrder(containsInAnyOrder(fooValue)));
         });
@@ -91,8 +90,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
         var fooValue = nameValue("foo", "lorem ipsum");
         var barValue = nameValue("bar", "dolor sit amet");
         Document doc = new Document();
-        doc.add(new StoredField("_ignored_source", encodeMultipleValuesForField(List.of(fooValue))));
-        doc.add(new StoredField("_ignored_source", encodeMultipleValuesForField(List.of(barValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(fooValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(barValue))));
         testLoader(doc, Set.of("foo", "bar"), ignoredSourceEntries -> {
             assertThat(ignoredSourceEntries, containsInAnyOrder(containsInAnyOrder(fooValue), containsInAnyOrder(barValue)));
         });
@@ -103,8 +102,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
         var barValue = nameValue("bar", "dolor sit amet");
 
         Document doc = new Document();
-        doc.add(new StoredField("_ignored_source", encodeMultipleValuesForField(List.of(fooValue))));
-        doc.add(new StoredField("_ignored_source", encodeMultipleValuesForField(List.of(barValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(fooValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(barValue))));
 
         testLoader(doc, Set.of("foo"), ignoredSourceEntries -> {
             assertThat(ignoredSourceEntries, containsInAnyOrder(containsInAnyOrder(fooValue)));
@@ -114,7 +113,7 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
     public void testLoadFromParent() throws IOException {
         var fooValue = new IgnoredSourceFieldMapper.NameValue("parent", 7, new BytesRef("lorem ipsum"), null);
         Document doc = new Document();
-        doc.add(new StoredField("_ignored_source", encodeMultipleValuesForField(List.of(fooValue))));
+        doc.add(new StoredField("_ignored_source", IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(fooValue))));
         testLoader(doc, Set.of("parent.foo"), ignoredSourceEntries -> {
             assertThat(ignoredSourceEntries, containsInAnyOrder(containsInAnyOrder(fooValue)));
         });

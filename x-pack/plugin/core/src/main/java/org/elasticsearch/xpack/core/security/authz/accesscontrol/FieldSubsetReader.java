@@ -29,6 +29,7 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
@@ -402,52 +403,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
-                // TODO: move logic to IgnoredSourceFormat
-                if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE) {
-                    // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
-                    IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
-                    Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
-                    if (transformedField.isEmpty() == false) {
-                        // The unfiltered map contains at least one element, the field name with its value. If the field contains
-                        // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
-                        // it's a single leaf value, e.g. a string or a number.
-                        var topValue = mappedNameValue.map().values().iterator().next();
-                        if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
-                            // The field contains an object or an array, reconstruct it from the transformed map in case
-                            // any subfield has been filtered out.
-                            visitor.binaryField(
-                                fieldInfo,
-                                IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue.withMap(transformedField))
-                            );
-                        } else {
-                            // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
-                            visitor.binaryField(fieldInfo, value);
-                        }
-                    }
-                } else if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE) {
-                    List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper
-                        .decodeAsMapMultipleFieldValues(value);
-                    List<IgnoredSourceFieldMapper.MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());
-                    boolean didFilter = false;
-                    for (var mappedNameValue : mappedNameValues) {
-                        Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
-                        if (transformedField.isEmpty()) {
-                            didFilter = true;
-                            continue;
-                        }
-                        var topValue = mappedNameValue.map().values().iterator().next();
-                        if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
-                            didFilter = true;
-                        }
-                        filteredNameValues.add(mappedNameValue.withMap(transformedField));
-                    }
-                    if (didFilter) {
-                        if (filteredNameValues.isEmpty() == false) {
-                            visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMultipleFieldValues(filteredNameValues));
-                        }
-                    } else {
-                        assert false : "invalid ignored source format " + ignoredSourceFormat.name();
-                    }
+                assert ignoredSourceFormat != IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                BytesRef valueRef = new BytesRef(value);
+                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter, 0));
+                if (filtered != null) {
+                    byte[] filteredBytes = ArrayUtil.copyOfSubArray(filtered.bytes, filtered.offset, filtered.offset + filtered.length);
+                    visitor.binaryField(fieldInfo, filteredBytes);
                 }
             } else {
                 visitor.binaryField(fieldInfo, value);

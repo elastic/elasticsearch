@@ -121,7 +121,7 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
         @Override
         public void binaryField(FieldInfo fieldInfo, byte[] value) {
-            var nameValues = IgnoredSourceFieldMapper.decodeMultipleValuesForField(new BytesRef(value));
+            var nameValues = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decode(new BytesRef(value));
             assert nameValues.isEmpty() == false;
             String fieldPath = nameValues.getFirst().name();
 

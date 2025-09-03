@@ -54,8 +54,8 @@ public class PerFieldFormatSupplier {
         if (SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled()) {
             includeMetaField.add(SeqNoFieldMapper.NAME);
         }
-        // Don't include _recovery_source_size and _recovery_source since their values can be filtered out in
-        // RecoverySourcePruneMergePolicy which leads to inconsistencies between merge stats and actual values.
+        // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
+        // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
     }
 

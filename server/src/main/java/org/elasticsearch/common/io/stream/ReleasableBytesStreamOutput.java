@@ -30,10 +30,6 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Re
         this(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigarrays);
     }
 
-    public ReleasableBytesStreamOutput(BigArrays bigArrays, int maximumSize) {
-        super(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays, maximumSize);
-    }
-
     public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {
         super(expectedSize, bigArrays);
     }

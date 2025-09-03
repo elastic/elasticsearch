@@ -1674,6 +1674,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
 
+        private final int shardDeleteResultsMaxSize;
         /**
          * <p>
          *     Shard-level results, i.e. a sequence of {@link ShardSnapshotMetaDeleteResult} objects, except serialized, concatenated, and
@@ -1705,9 +1706,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
 
         ShardBlobsToDelete(Settings settings) {
-            int maxSizeOfShardDeleteResults = calculateMaximumShardDeleteResultsSize(settings);
-            if (maxSizeOfShardDeleteResults > 0) {
-                this.shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays, maxSizeOfShardDeleteResults);
+            this.shardDeleteResultsMaxSize = calculateMaximumShardDeleteResultsSize(settings);
+            if (this.shardDeleteResultsMaxSize > 0) {
+                this.shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays);
                 this.compressed = new OutputStreamStreamOutput(
                     new BufferedOutputStream(
                         new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
@@ -1724,7 +1725,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         /**
-         * Calculates the maximum size of the shardDeleteResults BytesStreamOutput
+         * Calculates the maximum size of the shardDeleteResults BytesStreamOutput.
          * The size should at most be 2GB, but no more than 25% of the total remaining heap space
          * @return The maximum number of bytes the shardDeleteResults BytesStreamOutput can consume in the heap
          */
@@ -1759,14 +1760,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 shardGenerationsBuilder.put(indexId, shardId, newGeneration);
 
-                // Calculate how much space we'd need to write
+                // Calculate how many bytes we want to write
                 int bytesToWriteIndexId = StreamOutput.bytesInString(indexId.getId());
                 int bytesToWriteShardId = StreamOutput.bytesInVInt(shardId);
                 int bytesToWriteBlobsToDelete = StreamOutput.bytesInStringCollection(blobsToDelete);
                 int totalBytesRequired = bytesToWriteIndexId + bytesToWriteShardId + bytesToWriteBlobsToDelete;
 
+                int i = shardDeleteResults.size();
                 // Only perform the write if there is capacity left
-                if (shardDeleteResults.hasCapacity(totalBytesRequired)) {
+                if (shardDeleteResults.size() + totalBytesRequired <= shardDeleteResultsMaxSize) {
                     new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
                     resultCount += 1;
                 } else {

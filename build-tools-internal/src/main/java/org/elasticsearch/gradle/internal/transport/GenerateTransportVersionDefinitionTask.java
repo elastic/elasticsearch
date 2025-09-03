@@ -147,9 +147,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return ids;
     }
 
-    private String getTargetName(TransportVersionResourcesService resources,
-                                 Set<String> referencedNames,
-                                 List<String> changedDefinitions) {
+    private String getTargetName(TransportVersionResourcesService resources, Set<String> referencedNames, List<String> changedDefinitions) {
         if (getTransportVersionName().isPresent()) {
             // an explicit name was passed in, so use it
             return getTransportVersionName().get();

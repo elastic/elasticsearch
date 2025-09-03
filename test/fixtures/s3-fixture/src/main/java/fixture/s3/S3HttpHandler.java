@@ -582,11 +582,17 @@ public class S3HttpHandler implements HttpHandler {
     }
 
     private static boolean isProtectOverwrite(final HttpExchange exchange) {
-        final var ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
+        final var ifNoneMatch = exchange.getRequestHeaders().get("If-None-Match");
 
         if (ifNoneMatch == null) {
             return false;
-        } else if (ifNoneMatch.equals("*")) {
+        }
+
+        if (ifNoneMatch.size() != 1) {
+            throw new AssertionError("multiple If-None-Match headers found: " + ifNoneMatch);
+        }
+
+        if (ifNoneMatch.getFirst().equals("*")) {
             return true;
         }
 
